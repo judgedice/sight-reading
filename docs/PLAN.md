@@ -65,6 +65,12 @@ Every tolerance and weight lives in `config/grading-config.json`. The follower, 
 37. `notation/` keeps its local glyph id type, checked against `ui/glyph-ids.ts` in a test. No import from `notation/` to `ui/`.
 38. The two pressed-state colour pairs that miss 4.5:1 contrast are fixed by darkening or lightening `--surface-2-pressed` in `design/tokens.json` until both pass in both themes. The contrast test then covers them.
 
+## Rulings after wave 1 (R39 to R41)
+
+39. Bundle budget: the notation module loads as its own lazy chunk. The unused Academico fonts are removed from it (Vite alias or a vendored Bravura-only entry). Limits: at most 150 KB gzip for the initial chunk and 500 KB gzip in total. This replaces the 450 KB figure in 01 section 12.
+40. The pitch-step crossing bias measured in wave 1 (up to 1.6 ms for a 1 semitone step on the 1024 window, up to 3.6 ms for larger steps) is accepted. It is two orders below the timing tolerances. The segmenter treats it as part of the onset error budget and P18 reports it.
+41. Firefox reports `outputLatencyReported` as false. The conservative value stands.
+
 ## What the owner should know
 
 - Early, late, and wrong-note marks appear within about 150 ms of the note. Sharp and flat marks appear about 260 to 350 ms after the note starts, because pitch needs roughly 100 ms of steady tone after the attack before it can be measured to the cent.
