@@ -12,7 +12,7 @@
  * - Click handling (01 section 7.6, click.ts) runs only when `outputMode` is 'speakers'; in headphone modes
  *   `clicks` and `clickTemplate` are ignored and the pipeline is the plain P4c assembly. On speakers with a
  *   template, `ClickSubtractor` removes the fitted template from the low band before the envelope, flux and pitch
- *   analysis (item 2; audio near a click is held back until its fit, at most about 22 ms). The segmenter marks frames
+ *   analysis (item 2; audio near a click is held back until its fit, at most about 24 ms). The segmenter marks frames
  *   in click windows (`inClickWindow`), keeps flux inside them out of onset refinement (item 4), and applies the time
  *   gate and leak floor there (items 3 and 5) with the per-click leak levels of the fits.
  */

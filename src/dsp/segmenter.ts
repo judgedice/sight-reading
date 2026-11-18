@@ -953,18 +953,6 @@ export class Segmenter {
       return;
     }
     const ser = this.series(i0, iEnd + 1, len, clamp);
-    if (this.capClickBumps(ser, this.envT(iMin))) {
-      // The pre-dip peak was (partly) the click's own energy: re-take it from the capped series.
-      iPre = i0;
-      pre = -Infinity;
-      for (let k = i0; k < iMin; k++) {
-        const v = ser.values[k - Math.max(0, i0)] as number;
-        if (v > pre) {
-          pre = v;
-          iPre = k;
-        }
-      }
-    }
     const r = repeatedOnset(ser, { searchStartT: this.envT(i0), searchEndT: this.envT(iEnd + 1), noteStartT: this.envT(i0) });
     if (!r || r.dipDb < MIN_EVAL_DIP_DB) return;
     let tOn = r.t;
@@ -1075,37 +1063,6 @@ export class Segmenter {
     const values = new Float64Array(b - a + 1);
     for (let i = a; i <= b; i++) values[i - a] = Math.max(clamp, this.smoothDb(i, len));
     return { startT: this.envT(a), hopSec: this.envHop, values };
-  }
-
-  /**
-   * 7.6 items 3 and 5 for dips: a click's energy is not note level. Before the dip minimum `minT`, envelope points
-   * inside a click window are capped at the level just before that window, so a click bump on a held or decaying
-   * note cannot pose as the pre-dip peak of a re-articulation. Returns true when anything was capped.
-   */
-  private capClickBumps(ser: EnvelopeSeries, minT: number): boolean {
-    if (this.clickWins.length === 0) return false;
-    const v = ser.values as Float64Array;
-    let changed = false;
-    let ref = NaN;
-    let inWin = -1;
-    for (let j = 0; j < v.length; j++) {
-      const t = ser.startT + j * ser.hopSec;
-      if (t >= minT) break;
-      const w = this.clickWindowIndex(t);
-      if (w < 0) {
-        inWin = -1;
-        continue;
-      }
-      if (w !== inWin) {
-        inWin = w;
-        ref = j > 0 ? (v[j - 1] as number) : NaN;
-      }
-      if (Number.isFinite(ref) && (v[j] as number) > ref) {
-        v[j] = ref;
-        changed = true;
-      }
-    }
-    return changed;
   }
 
   private noteNoise(v: number): void {

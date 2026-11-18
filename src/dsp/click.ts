@@ -5,9 +5,11 @@
  * 1. Spectral separation (Tick above the 3 kHz analysis low-pass) needs no code: the capture filters do it.
  * 2. Template subtraction (`ClickSubtractor`): at each known arrival the low-band click template is aligned within
  *    +-1 ms by cross-correlation (integer lag, then a parabolic fractional refinement), resampled at that fractional
- *    shift with a windowed sinc, its gain fitted by least squares (clamped at >= 0), and subtracted from the low band
- *    before the envelope, flux and pitch analysis see it. The subtractor holds back only the samples around a click
- *    until the whole template span (plus the search margin) has arrived, so it adds at most about 22 ms of latency,
+ *    shift with a windowed sinc, its gain fitted by least squares (clamped to [0, 2 x nominal]), and subtracted from
+ *    the low band before the envelope, flux and pitch analysis see it. Lag and gain are fitted on whitened signals.
+ *    When the music dominates the window (the fit is not `confident`), the lag and level come from the recent clicks
+ *    that stood out (the count-in, rests), since a least-squares fit there would mostly fit the music. The subtractor holds back only the samples around a click
+ *    until the whole template span (plus the search margin) has arrived, so it adds at most about 24 ms of latency,
  *    and only to audio near a click; everything else passes straight through.
  * 3-5. Time gating, flux exclusion and the leak floor are applied by the segmenter (segmenter.ts) inside the click
  *    windows `[arrival - 5 ms, arrival + 35 ms]`, using the per-click leak levels measured here (`ClickFit`).
@@ -34,6 +36,12 @@ export const CLICK_ALIGN_SEC = 0.001;
 export const CLICK_GAIN_MAX = 2;
 /** Accent level over a plain click (01 section 7.6: +5 dB). */
 export const CLICK_ACCENT_GAIN = Math.pow(10, 5 / 20);
+/** A fit is the click's own when its whitened normalised correlation squared reaches this. */
+export const CLICK_CONFIDENT_RHO2 = 0.5;
+/** Confident fits remembered for the lag and level of the others. */
+const TRACK_LEN = 8;
+/** Whitening FIR for the fit (a second difference: +12 dB per octave, about -17 dB at 300 Hz against 2.5 kHz). */
+const WHITEN = [1, -2, 1] as const;
 /** Windowed-sinc half-width for fractional shifts, samples. */
 const SINC_HALF = 8;
 
@@ -46,8 +54,14 @@ export interface ClickFit {
   arrival: number;
   /** Fitted shift of the template against the nominal arrival, seconds (within +-CLICK_ALIGN_SEC). */
   shiftSec: number;
-  /** Least-squares gain of the template, limited to [0, CLICK_GAIN_MAX x nominal]. */
+  /** Gain of the subtracted template, limited to [0, CLICK_GAIN_MAX x nominal]. */
   gain: number;
+  /**
+   * The click stood out of the window (whitened normalised correlation^2 >= CLICK_CONFIDENT_RHO2): lag and gain are
+   * this click's own least-squares fit. Otherwise (music dominates) they are the medians of the recent confident
+   * fits (the count-in clicks before the music), or the nominal arrival with its least-squares gain before any.
+   */
+  confident: boolean;
   /** Peak 2 ms RMS of the fitted click, dBFS: what the click alone adds to the envelope. */
   leakEnvDb: number;
   /** Power of the fitted click averaged over `leakWindowSec` (one pitch window), dBFS: what it adds to a frame's rmsDb. */
@@ -127,6 +141,9 @@ export class ClickSubtractor {
   private out: Float32Array;
   private shifted: Float64Array;
   private readonly corr: Float64Array;
+  private readonly tplW: Float64Array;
+  private readonly trackOffset: number[] = [];
+  private readonly trackGain: number[] = [];
 
   constructor(
     template: Float32Array,
@@ -148,11 +165,15 @@ export class ClickSubtractor {
     this.search = Math.max(1, Math.round((opts.alignSec ?? CLICK_ALIGN_SEC) * rate));
     this.leakWindow = Math.max(1, Math.round(opts.leakWindowSec * rate));
     this.envHop = Math.max(1, Math.round((opts.envHopSec ?? 0.002) * rate));
-    const span = template.length + 2 * (this.search + SINC_HALF) + 2;
+    const span = template.length + 2 * (this.search + SINC_HALF) + 4;
     this.buf = new Float64Array(Math.max(4096, 4 * span));
     this.out = new Float32Array(4096);
     this.shifted = new Float64Array(span);
     this.corr = new Float64Array(2 * this.search + 1);
+    const L = template.length;
+    const tAt = (i: number): number => (i >= 0 && i < L ? (template[i] as number) : 0);
+    this.tplW = new Float64Array(L + 2);
+    for (let i = -1; i <= L; i++) this.tplW[i + 1] = tAt(i - 1) * WHITEN[0] + tAt(i) * WHITEN[1] + tAt(i + 1) * WHITEN[2];
     // Clicks whose template would start before the stream cannot be fitted; skip them.
     while (this.next < this.starts.length && (this.starts[this.next] as number) - this.search - SINC_HALF < 0) this.next++;
   }
@@ -189,7 +210,7 @@ export class ClickSubtractor {
     for (;;) {
       if (this.next >= this.starts.length) break;
       const s = this.starts[this.next] as number;
-      const spanEnd = Math.ceil(s + this.tpl.length + this.search + SINC_HALF) + 1;
+      const spanEnd = Math.ceil(s + this.tpl.length + this.search + SINC_HALF) + 3;
       if (spanEnd > end && !final) break;
       this.fit(this.next);
       this.next++;
@@ -198,7 +219,7 @@ export class ClickSubtractor {
     let upTo = end;
     if (this.next < this.starts.length && !final) {
       const s = this.starts[this.next] as number;
-      upTo = Math.min(end, Math.max(this.bufStart, Math.floor(s - this.search - SINC_HALF) - 1));
+      upTo = Math.min(end, Math.max(this.bufStart, Math.floor(s - this.search - SINC_HALF) - 3));
     }
     const k = upTo - this.bufStart;
     if (this.out.length < k) this.out = new Float32Array(Math.max(k, this.out.length * 2));
@@ -218,6 +239,11 @@ export class ClickSubtractor {
     const base = this.bufStart;
     const end = base + this.bufLen;
     const at = (j: number): number => (j >= base && j < end ? (buf[j - base] as number) : 0);
+    // The fit runs on whitened signals (WHITEN, a second difference): the click lives at 1.5 to 3 kHz, the music's
+    // low-band energy mostly below, so the music biases the lag and the gain far less there. The unwhitened
+    // template is then subtracted with the fitted lag and gain (whitening is linear and time-invariant).
+    const xw = (j: number): number => at(j - 1) * WHITEN[0] + at(j) * WHITEN[1] + at(j + 1) * WHITEN[2];
+    const Tw = this.tplW; // Tw[i + 1] is the whitened template at i, i in [-1, L]
     // Integer lags around the nominal start: template sample i sits at stream index round(s0) + lag + i.
     const r0 = Math.round(s0);
     const corr = this.corr;
@@ -225,7 +251,7 @@ export class ClickSubtractor {
     let best = -Infinity;
     for (let l = -S; l <= S; l++) {
       let c = 0;
-      for (let i = 0; i < L; i++) c += at(r0 + l + i) * (T[i] as number);
+      for (let i = -1; i <= L; i++) c += xw(r0 + l + i) * (Tw[i + 1] as number);
       corr[l + S] = c;
       if (c > best) {
         best = c;
@@ -240,31 +266,41 @@ export class ClickSubtractor {
       const den = a - 2 * b + c;
       if (den < 0) frac = Math.max(-0.5, Math.min(0.5, (0.5 * (a - c)) / den));
     }
-    const shift = r0 + bestL + frac; // stream index of template sample 0
-    // Resampled template over the integer stream span it covers.
-    const j0 = Math.floor(shift) - SINC_HALF;
-    const j1 = Math.ceil(shift + L) + SINC_HALF;
-    const n = j1 - j0 + 1;
-    if (this.shifted.length < n) this.shifted = new Float64Array(n);
-    const ts = this.shifted;
-    let tt = 0;
-    let xt = 0;
-    let xx = 0;
-    for (let k = 0; k < n; k++) {
-      const v = interp(T, j0 + k - shift);
-      ts[k] = v;
-      const x = at(j0 + k);
-      tt += v * v;
-      xt += x * v;
-      xx += x * x;
-    }
+    const searched = r0 + bestL + frac; // stream index of template sample 0
+    let fitted = this.place(searched, xw);
+    const rho2 = fitted.xx > 0 && fitted.tt > 0 ? (fitted.xt * fitted.xt) / (fitted.tt * fitted.xx) : 0;
     const nominal = this.accents[idx] ? CLICK_ACCENT_GAIN : 1;
-    const gain = best > 0 && tt > 0 ? Math.min(CLICK_GAIN_MAX * nominal, Math.max(0, xt / tt)) : 0;
+    const confident = best > 0 && rho2 >= CLICK_CONFIDENT_RHO2;
+    let shift = searched;
+    let gain: number;
+    if (confident) {
+      gain = Math.min(CLICK_GAIN_MAX * nominal, Math.max(0, fitted.xt / fitted.tt));
+      this.trackOffset.push(searched - s0);
+      this.trackGain.push(gain / nominal);
+      if (this.trackOffset.length > TRACK_LEN) {
+        this.trackOffset.shift();
+        this.trackGain.shift();
+      }
+    } else if (this.trackOffset.length > 0) {
+      // Music dominates the window: the clicks that stood out (count-in, rests) fix the lag and the level.
+      shift = s0 + medianOf(this.trackOffset);
+      fitted = this.place(shift, xw);
+      gain = Math.min(CLICK_GAIN_MAX * nominal, medianOf(this.trackGain) * nominal);
+    } else {
+      shift = s0;
+      fitted = this.place(shift, xw);
+      gain = fitted.tt > 0 ? Math.min(CLICK_GAIN_MAX * nominal, Math.max(0, fitted.xt / fitted.tt)) : 0;
+    }
+    const { j0, n } = fitted;
+    const ts = this.shifted;
+    let xx = 0;
     let after = 0;
     for (let k = 0; k < n; k++) {
       const j = j0 + k;
       if (j < base || j >= end) continue;
-      const v = (buf[j - base] as number) - gain * (ts[k] as number);
+      const x = buf[j - base] as number;
+      xx += x * x;
+      const v = x - gain * (ts[k] as number);
       buf[j - base] = v;
       after += v * v;
     }
@@ -273,13 +309,46 @@ export class ClickSubtractor {
       arrival,
       shiftSec: (shift - s0) / this.rate,
       gain,
+      confident,
       leakEnvDb: db(peakHopPower(T, this.envHop, gain)),
       leakFrameDb: db((gain * gain * this.tplEnergy) / this.leakWindow),
       beforeDb: db(xx),
       afterDb: db(after),
     });
   }
+
+  /**
+   * Resamples the template with sample 0 at stream index `shift` into `shifted` (span j0 .. j0 + n - 1) and returns
+   * the whitened dot products: tt = |Tw|^2, xt = <xw, Tw>, xx = |xw|^2 over the span.
+   */
+  private place(shift: number, xw: (j: number) => number): { j0: number; n: number; tt: number; xt: number; xx: number } {
+    const T = this.tpl;
+    const j0 = Math.floor(shift) - SINC_HALF;
+    const j1 = Math.ceil(shift + T.length) + SINC_HALF;
+    const n = j1 - j0 + 1;
+    if (this.shifted.length < n) this.shifted = new Float64Array(n);
+    const ts = this.shifted;
+    for (let k = 0; k < n; k++) ts[k] = interp(T, j0 + k - shift);
+    const tsAt = (k: number): number => (k >= 0 && k < n ? (ts[k] as number) : 0);
+    let tt = 0;
+    let xt = 0;
+    let xx = 0;
+    for (let k = -1; k <= n; k++) {
+      const v = tsAt(k - 1) * WHITEN[0] + tsAt(k) * WHITEN[1] + tsAt(k + 1) * WHITEN[2];
+      const x = xw(j0 + k);
+      tt += v * v;
+      xt += x * v;
+      xx += x * x;
+    }
+    return { j0, n, tt, xt, xx };
+  }
 }
+
+const medianOf = (xs: readonly number[]): number => {
+  const a = [...xs].sort((p, q) => p - q);
+  const m = a.length >> 1;
+  return a.length % 2 ? (a[m] as number) : 0.5 * ((a[m - 1] as number) + (a[m] as number));
+};
 
 /**
  * Builds a low-band click template from a recording of clicks alone (calibration, P14): every received click is
