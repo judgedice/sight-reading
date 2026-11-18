@@ -42,6 +42,9 @@ function Row({ label, children, chip, caption }: { label: string; children: Reac
   );
 }
 
+/** Select value of the Random entry of the Key row. */
+const RANDOM = 'random';
+
 const OUTPUTS: { value: OutputMode; label: () => string }[] = [
   { value: 'speakers', label: () => copy('output.speakers') },
   { value: 'wired', label: () => copy('output.wiredHeadphones') },
@@ -144,7 +147,6 @@ export function SetupForm({ value, onChange, ctx }: SetupFormProps) {
           min={1}
           max={10}
           disabledValues={disabledLevels}
-          disabled={value.level === 'random'}
           formatValue={(n) => (value.level === 'random' ? random : String(n))}
           onChange={(l) => set({ level: l })}
         />
@@ -163,11 +165,14 @@ export function SetupForm({ value, onChange, ctx }: SetupFormProps) {
       >
         <Select
           ariaLabel={copy('row.key')}
-          disabled={keyRandom}
-          options={keyRandom ? [{ value: 'random', label: random }] : keyOptions}
-          value={keyRandom ? 'random' : keyValue(value.writtenKey as KeySig)}
+          options={[{ value: RANDOM, label: random }, ...keyOptions]}
+          value={keyRandom ? RANDOM : keyValue(value.writtenKey as KeySig)}
           {...(keyRandom ? { className: 'setup-is-random' } : {})}
           onChange={(v) => {
+            if (v === RANDOM) {
+              set({ writtenKey: 'random' });
+              return;
+            }
             const k = parseKeyValue(v);
             if (k) set({ writtenKey: k });
           }}
@@ -185,7 +190,7 @@ export function SetupForm({ value, onChange, ctx }: SetupFormProps) {
             options={meters.map((m) => ({
               value: m.meter,
               label: m.meter,
-              disabled: meterRandom || m.disabled,
+              disabled: m.disabled,
               ...(m.disabled ? { tooltip: copy('home.meterTooltip', { meter: m.meter }) } : {}),
             }))}
             onChange={(m) => set({ meter: m })}
@@ -202,7 +207,6 @@ export function SetupForm({ value, onChange, ctx }: SetupFormProps) {
           min={range.min}
           max={range.max}
           beatUnit={beatUnit(value.meter)}
-          disabled={value.bpm === 'random'}
           value={value.bpm === 'random' ? Math.min(range.max, Math.max(range.min, memo.current.bpm)) : value.bpm}
           onChange={(bpm) => set({ bpm })}
         />

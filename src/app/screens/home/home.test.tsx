@@ -188,16 +188,63 @@ describe('Home and setup', () => {
     expect(r68.closest('label')!.getAttribute('title')).toBe(copy('home.meterTooltip', { meter: '6/8' }));
   });
 
-  it('Random key disables the select, reads Random and says what Random means', () => {
+  it('Random key keeps the select usable, reads Random and says what Random means', () => {
     const f = fixture();
     render(f);
     const row = fieldset(copy('row.key'));
-    expect(row.querySelector('select')!.disabled).toBe(true);
+    const select = row.querySelector('select')!;
+    expect(select.disabled).toBe(false);
+    expect(select.value).toBe('random');
     expect(row.textContent).toContain(copy('chip.random'));
     expect(row.textContent).toContain(copy('home.keyRandom', { max: 1 }));
     click(chip(copy('row.key')));
     expect(fieldset(copy('row.key')).querySelector('select')!.disabled).toBe(false);
     expect(f.settings.get().practice.writtenKey).not.toBe('random');
+  });
+
+  it('choosing a key while Random is on turns Random off and keeps the choice; choosing Random again restores it', () => {
+    const f = fixture();
+    render(f);
+    expect(f.settings.get().practice.writtenKey).toBe('random');
+    act(() => setNativeValue(fieldset(copy('row.key')).querySelector('select')!, '1:major', 'change'));
+    expect(f.settings.get().practice.writtenKey).toEqual({ fifths: 1, mode: 'major' });
+    expect(chip(copy('row.key')).getAttribute('aria-pressed')).toBe('false');
+    expect(fieldset(copy('row.key')).querySelector('select')!.value).toBe('1:major');
+    act(() => setNativeValue(fieldset(copy('row.key')).querySelector('select')!, '-1:major', 'change'));
+    expect(f.settings.get().practice.writtenKey).toEqual({ fifths: -1, mode: 'major' });
+    act(() => setNativeValue(fieldset(copy('row.key')).querySelector('select')!, 'random', 'change'));
+    expect(f.settings.get().practice.writtenKey).toBe('random');
+    expect(chip(copy('row.key')).getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('choosing a meter while Random is on turns Random off and keeps the choice', () => {
+    const f = fixture();
+    render(f);
+    expect(f.settings.get().practice.meter).toBe('random');
+    const radios = (): HTMLInputElement[] => [...fieldset(copy('row.time')).querySelectorAll<HTMLInputElement>('input[type=radio]')];
+    expect(radios().find((r) => r.value === '3/4')!.disabled).toBe(false);
+    click(radios().find((r) => r.value === '3/4')!);
+    expect(f.settings.get().practice.meter).toBe('3/4');
+    expect(chip(copy('row.time')).getAttribute('aria-pressed')).toBe('false');
+    expect(radios().find((r) => r.value === '3/4')!.checked).toBe(true);
+    click(radios().find((r) => r.value === '4/4')!);
+    expect(f.settings.get().practice.meter).toBe('4/4');
+    click(chip(copy('row.time')));
+    expect(f.settings.get().practice.meter).toBe('random');
+  });
+
+  it('moving the tempo or the level while Random is on turns Random off', () => {
+    const f = fixture();
+    f.settings.set({ ...defaultAppSettings(), practice: { ...defaultAppSettings().practice, level: 'random' } });
+    render(f);
+    const tempo = fieldset(copy('row.tempo')).querySelector<HTMLInputElement>('input[type=range]')!;
+    expect(tempo.disabled).toBe(false);
+    act(() => setNativeValue(tempo, '70', 'input'));
+    expect(f.settings.get().practice.bpm).toBe(70);
+    const plus = fieldset(copy('row.level')).querySelectorAll('.ui-stepper-button')[1]!;
+    expect(plus.getAttribute('aria-disabled')).toBeNull();
+    click(plus);
+    expect(typeof f.settings.get().practice.level).toBe('number');
   });
 
   it('level change re-filters key, meter and length but keeps a still-valid choice', () => {
