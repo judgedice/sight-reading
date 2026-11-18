@@ -2,11 +2,12 @@
 // store, services with the real notation module, and a router fixture.
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { vi } from 'vitest';
+import { vi, type Mock } from 'vitest';
 import { createEmitter } from '../../../core/events.ts';
 import type { AppSettings, Configs, PreparedExcerpt, SelectionResult, SessionEvent, SessionState } from '../../../core/types.ts';
 import * as notationModule from '../../../notation/index.ts';
 import { fixtureDoc } from '../../../notation/testing/corpus-node.ts';
+// eslint-disable-next-line boundaries/dependencies -- test data only (not shipped)
 import { loadConfigs } from '../../../rules/index.ts';
 import { createSessionStore, type SessionView } from '../../../session/index.ts';
 import { defaultAppSettings } from '../../../store/defaults.ts';
@@ -50,19 +51,26 @@ export function readable<T>(init: T): Readable<T> & { set(v: T): void } {
 export function testExcerpt(over: Partial<PreparedExcerpt> = {}): PreparedExcerpt {
   const base = barsExcerpt(fixtureDoc(FRAME_FIXTURE_ID), 8);
   const selection = { settings: { instrumentId: 'flute', level: 3, writtenKey: base.writtenKey, meter: '4/4', bpm: 100, bars: 8, randomized: [], seed: 1 } } as unknown as SelectionResult;
-  return { ...base, instrumentId: 'flute', levelServed: 3, selection, ...over };
+  const ids: string[] = [];
+  for (const mm of base.measures) for (const e of mm.events) if (e.kind === 'note') ids.push(e.id);
+  return { ...base, instrumentId: 'flute', levelServed: 3, selection, extremes: { highId: ids[2]!, lowId: ids[ids.length - 1]! }, ...over };
 }
 
-export interface FakeSession extends PracticeSessionPort {
+type Fn<K extends keyof PracticeSessionPort> = PracticeSessionPort[K] extends (...a: infer A) => infer R ? Mock<(...a: A) => R> : never;
+
+export interface FakeSession {
   events: ReturnType<typeof createEmitter<SessionEvent>>;
   state: SessionState;
+  prepared: PreparedExcerpt;
   pending: NonNullable<PracticeSessionPort['pending']>;
   emitState(next: SessionState): void;
-  ensureAudio: ReturnType<typeof vi.fn> & PracticeSessionPort['ensureAudio'];
-  revealScan: ReturnType<typeof vi.fn>;
-  startTake: ReturnType<typeof vi.fn> & PracticeSessionPort['startTake'];
-  stop: ReturnType<typeof vi.fn> & PracticeSessionPort['stop'];
-  skip: ReturnType<typeof vi.fn> & PracticeSessionPort['skip'];
+  ensureAudio: Fn<'ensureAudio'>;
+  revealScan: Fn<'revealScan'>;
+  startTake: Fn<'startTake'>;
+  stop: Fn<'stop'>;
+  skip: Fn<'skip'>;
+  captureTuningNote: Fn<'captureTuningNote'>;
+  playVoiceReference: Fn<'playVoiceReference'>;
 }
 
 export function fakeSession(prepared: PreparedExcerpt, mode: 'ranked' | 'practice' = 'ranked'): FakeSession {
@@ -88,8 +96,6 @@ export function fakeSession(prepared: PreparedExcerpt, mode: 'ranked' | 'practic
     captureTuningNote: vi.fn(() => Promise.resolve(-8)),
     playVoiceReference: vi.fn(() => Promise.resolve()),
   };
-  events.emit({ type: 'prepared', excerpt: prepared });
-  events.emit({ type: 'state', state: 'covered', prev: 'loading' });
   return s as unknown as FakeSession;
 }
 
@@ -105,11 +111,11 @@ export interface Harness {
 
 export function harness(over: { mode?: 'ranked' | 'practice'; prepared?: PreparedExcerpt; settings?: AppSettings } = {}): Harness {
   const prepared = over.prepared ?? testExcerpt();
-  const events = createEmitter<SessionEvent>();
   const session = fakeSession(prepared, over.mode ?? 'ranked');
   // The store listens to the fake's emitter, as the real store listens to the session's.
   const { store } = createSessionStore(session.events);
-  void events;
+  session.events.emit({ type: 'prepared', excerpt: prepared });
+  session.events.emit({ type: 'state', state: 'covered', prev: 'loading' });
   const settings = readable<AppSettings>(over.settings ?? defaultAppSettings());
   const fonts = vi.fn(() => Promise.resolve());
   const bound = bindNotation(notationModule);
@@ -120,14 +126,14 @@ export function harness(over: { mode?: 'ranked' | 'practice'; prepared?: Prepare
     hash: '#/practice/scan',
     getHash: () => location.hash,
     subscribe: (l: () => void) => (listeners.add(l), () => listeners.delete(l)),
-    navigate(path: string) {
+    navigate(path: string, _replace?: boolean) {
       location.hash = `#${path}`;
       listeners.forEach((l) => l());
     },
   };
   const services: PracticeFlowServices = {
     configs: cfg,
-    session,
+    session: session as unknown as PracticeSessionPort,
     view: store,
     loadNotation: () => Promise.resolve(notation),
     settings,

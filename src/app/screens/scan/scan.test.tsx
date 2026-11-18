@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { copy } from '../../../ui/copy/copy.ts';
 import { act, click, key, mount, type Mounted } from '../../../ui/primitives/test-render.ts';
 import { defaultAppSettings } from '../../../store/defaults.ts';
+import { creditLine } from './model.ts';
 import { PracticeApp, harness, testExcerpt, type Harness } from './test-support.tsx';
 import { PracticeFlowServicesProvider } from './services.ts';
 
@@ -153,7 +154,6 @@ describe('Scan screen', () => {
       signs.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
     });
     const prepared = h.services.session.prepared!;
-    h.services.session.prepared!.extremes.highId.length;
     expect(document.querySelectorAll('.scan-highlight').length).toBe(prepared.extremes.highId === prepared.extremes.lowId ? 1 : 2);
     act(() => {
       signs.dispatchEvent(new MouseEvent('mouseout', { bubbles: true }));
@@ -178,7 +178,7 @@ describe('Scan screen', () => {
   });
 
   it('voice gets the reference button and no tuning note', async () => {
-    const h = harness({ prepared: testExcerpt({ instrumentId: 'voice' }) });
+    const h = harness({ prepared: testExcerpt({ instrumentId: 'voice-soprano' }) });
     render(h);
     await reveal(h);
     click(button(copy('action.hearReference')));
@@ -212,7 +212,7 @@ describe('Scan screen', () => {
     click(button(copy('action.skip')));
     await flush();
     expect(h.session.skip).toHaveBeenCalledTimes(1);
-    expect(document.body.textContent).toContain(copy('credit.that-was', { credit: '' }).trim().slice(0, 9));
+    expect(document.body.textContent).toContain(copy('credit.that-was', { credit: creditLine(h.services.session.prepared!.source) }));
   });
 
   it('Home after reveal asks to skip; Keep reading closes it; before reveal it just leaves', async () => {
@@ -220,7 +220,7 @@ describe('Scan screen', () => {
     render(h);
     click(button(copy('nav.home')));
     expect(h.location.hash).toBe('#/');
-    h.location.navigate('/practice/scan');
+    act(() => h.location.navigate('/practice/scan', false));
     await reveal(h);
     click(button(copy('nav.home')));
     expect($('[role="dialog"]')).toBeTruthy();

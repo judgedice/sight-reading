@@ -12,12 +12,6 @@ export const PENDING_COPY = {
   'results.xp.factor.tempo': 'Tempo ×{value}',
   'results.xp.factor.countInOnly': 'Count-in only ×{value}',
   'results.xp.factor.random': 'Random settings ×{value}',
-  'results.xp.factor.generic': '{label} ×{value}',
-  'results.loading': 'Looking for that attempt…',
-  'results.notFound': "We couldn't find that attempt.",
-  'results.header.back': 'Home',
-  'results.header.corpusAdapted': 'Adapted',
-  'results.level.stay': 'Stay at {level}',
   'tips.dimension.notes': 'Notes',
   'tips.dimension.in-tune': 'In tune',
   'tips.dimension.rhythm': 'Rhythm',
@@ -37,8 +31,6 @@ export const PENDING_COPY = {
   'summary.streak': 'Streak {days, plural, one {# day} other {# days}}',
   'summary.streak.none': 'No streak yet. A streak day needs 3 ranked takes.',
   'summary.empty': 'No takes in this session yet.',
-  'stop.restart.title': 'Restart the count-in?',
-  'skip.title': 'Skip this one? It counts as seen.',
   'install.title': 'Add to Home Screen',
 } as const;
 

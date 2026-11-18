@@ -35,12 +35,19 @@ function useSessionEvents(svc: PracticeFlowServices, on: (e: SessionEvent) => vo
 /** Beat dots, or the large count-in numbers: re-renders once per beat. */
 function BeatIndicator({ svc, beatsPerBar, grouping, bpm }: { svc: PracticeFlowServices; beatsPerBar: number; grouping: number[] | undefined; bpm: number }) {
   const [shown, setShown] = useState<{ beat: number | null; countIn: boolean }>({ beat: null, countIn: svc.session.state === 'count-in' });
+  const last = useRef(shown);
   useSessionEvents(svc, (e) => {
-    const set = (beat: number | null, countIn: boolean): void => setShown((p) => (p.beat === beat && p.countIn === countIn ? p : { beat, countIn }));
+    // Set state only when what the dots draw changes: a clock tick inside a beat costs nothing.
+    const set = (beat: number | null, countIn: boolean): void => {
+      if (last.current.beat === beat && last.current.countIn === countIn) return;
+      last.current = { beat, countIn };
+      setShown(last.current);
+    };
     if (e.type === 'count-in') set(countInBeat(e.beat, beatsPerBar), true);
     else if (e.type === 'count-in-restart') set(null, true);
-    else if (e.type === 'follower' && e.event.type === 'clock') set(e.event.scoreBeat < 0 ? shown.beat : beatInBar(e.event.scoreBeat, beatsPerBar), false);
-    else if (e.type === 'state' && e.state === 'performing') setShown((p) => (p.countIn ? { beat: p.beat, countIn: false } : p));
+    else if (e.type === 'follower' && e.event.type === 'clock') {
+      if (e.event.scoreBeat >= 0) set(beatInBar(e.event.scoreBeat, beatsPerBar), false);
+    } else if (e.type === 'state' && e.state === 'performing') set(last.current.beat, false);
   });
   return <BeatDots beatsPerBar={beatsPerBar} currentBeat={shown.beat} countIn={shown.countIn} bpm={bpm} {...(grouping ? { grouping } : {})} />;
 }
@@ -49,10 +56,13 @@ function BeatIndicator({ svc, beatsPerBar, grouping, bpm }: { svc: PracticeFlowS
 function LiveMeter({ svc }: { svc: PracticeFlowServices }) {
   const gate = svc.inputGateDb ?? -50;
   const [m, setM] = useState({ db: -80, clipping: false });
+  const last = useRef(m);
   useSessionEvents(svc, (e) => {
     if (e.type !== 'follower' || e.event.type !== 'level') return;
     const { levelDb, clipping } = e.event;
-    setM((p) => (p.clipping === clipping && meterStep(p.db) === meterStep(levelDb) ? p : { db: levelDb, clipping }));
+    if (last.current.clipping === clipping && meterStep(last.current.db) === meterStep(levelDb)) return;
+    last.current = { db: levelDb, clipping };
+    setM(last.current);
   });
   return <LevelMeter levelDb={m.db} gateDb={gate} clipping={m.clipping} />;
 }

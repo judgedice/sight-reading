@@ -1,5 +1,5 @@
 /** Tips interstitial (04 section 5.6) with the "Done for now" session summary. */
-import { createContext, useContext, useEffect, useState, useSyncExternalStore } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { Tip } from '../../../core/types.ts';
 import { Card } from '../../../ui/components/containers/index.ts';
 import { Button, Toggle } from '../../../ui/components/form/index.ts';
@@ -33,11 +33,16 @@ export function TipsScreen(_props: ScreenProps) {
   const settings = useReadable(services.settings);
   const profile = useReadable(services.profile);
   const [summaryOpen, setSummaryOpen] = useState(false);
+  const rootRef = useRef<HTMLElement>(null);
   const record = view.record;
 
   useEffect(() => {
     if (!record) navigate('/', { replace: true });
   }, [record, navigate]);
+  const hasRecord = record !== null;
+  useEffect(() => {
+    if (hasRecord) rootRef.current?.querySelector<HTMLElement>('[data-autofocus]')?.focus();
+  }, [hasRecord]);
   if (!record) return null;
 
   const cfg = services.configs;
@@ -76,7 +81,7 @@ export function TipsScreen(_props: ScreenProps) {
   );
 
   return (
-    <section className="tips-screen" data-testid="screen-practice.tips" aria-label={text('tips.header')}>
+    <section ref={rootRef} className="tips-screen" data-testid="screen-practice.tips" aria-label={text('tips.header')}>
       <div className="tips-card">
         {primary ? (
           <>
