@@ -1,0 +1,234 @@
+/* Scan (04 section 5.3). Tokens only; rem and em, never px. */
+.scan {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-block-size: 0;
+  block-size: 100%;
+}
+
+.scan-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  min-block-size: 3.5rem;
+}
+
+.scan-summary-block {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 12rem;
+  gap: var(--space-1);
+  min-inline-size: 0;
+}
+
+.scan-summary,
+.scan-timer-label {
+  margin: 0;
+}
+
+.scan-quiet-chip,
+.scan-source-line {
+  align-self: flex-start;
+  color: var(--text-muted);
+  font-size: var(--type-caption-size);
+  line-height: var(--type-caption-line);
+}
+
+.scan-source-line {
+  padding: 0;
+  border: 0;
+  background: none;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.scan-chip {
+  padding: var(--space-1) var(--space-3);
+  border: 0.0625rem solid var(--border-strong);
+  border-radius: var(--radius-l);
+  font-size: var(--type-caption-size);
+}
+
+.scan-overflow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-inline-size: var(--target-min);
+  min-block-size: var(--target-min);
+  border: 0;
+  background: none;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.scan-menu {
+  display: flex;
+  flex-direction: column;
+}
+
+.scan-menu-item {
+  min-block-size: var(--target-min);
+  padding: var(--space-2) var(--space-3);
+  border: 0;
+  background: none;
+  color: var(--text);
+  text-align: start;
+  cursor: pointer;
+}
+
+.scan-menu-item:hover {
+  background: var(--surface-2-hover);
+}
+
+.scan-hint {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--type-caption-size);
+}
+
+.scan-body {
+  display: flex;
+  flex: 1 1 auto;
+  gap: var(--space-4);
+  min-block-size: 0;
+}
+
+.scan-score {
+  position: relative;
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  min-block-size: 20rem;
+}
+
+.scan-score .sf-host {
+  block-size: 100%;
+}
+
+.scan-panel {
+  flex: 0 0 17.5rem;
+  overflow-y: auto;
+}
+
+.scan-stars-title {
+  margin: 0 0 var(--space-2);
+  font-size: var(--type-h3-size);
+}
+
+.scan-stars-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0 0 var(--space-3);
+  padding: 0;
+  list-style: none;
+}
+
+.scan-stars-generated {
+  display: block;
+  margin-block-start: var(--space-1);
+  color: var(--text);
+}
+
+.scan-helpers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.scan-tuning {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--type-caption-size);
+}
+
+.scan-peek {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  inline-size: 100%;
+}
+
+.scan-highlight {
+  fill: var(--ink-accent-soft);
+  stroke: var(--ink-accent-soft);
+  stroke-width: 2;
+  pointer-events: none;
+}
+
+/* The paper cover over the score (04 section 5.3): facts only, never title or composer. */
+.scan-cover {
+  position: absolute;
+  inset: 0;
+  z-index: var(--z-sticky);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+  padding: var(--space-5);
+  background: var(--paper);
+  color: var(--ink);
+  text-align: center;
+}
+
+.scan-cover-facts {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  font-size: var(--type-h1-size);
+  line-height: var(--type-h1-line);
+}
+
+.scan-cover-clef {
+  font-size: var(--type-display-size);
+}
+
+.scan-cover-text,
+.scan-cover-ranked p,
+.scan-cover-hint {
+  max-inline-size: 36rem;
+  margin: 0;
+}
+
+.scan-cover-hint {
+  color: var(--text-muted);
+  font-size: var(--type-caption-size);
+}
+
+.scan-cover-ranked {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.scan-cover-actions,
+.scan-dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-3);
+}
+
+.scan-source {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.scan-source-row {
+  display: flex;
+  gap: var(--space-3);
+}
+
+.scan-source-row dt {
+  flex: 0 0 8rem;
+  color: var(--text-muted);
+}
+
+.scan-source-row dd {
+  margin: 0;
+}

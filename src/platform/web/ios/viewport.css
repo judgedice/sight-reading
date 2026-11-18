@@ -1,0 +1,52 @@
+/* iOS viewport, touch and frozen-layout rules (05 section 7, IOS6). Tokens and env() through variables only:
+   no viewport-height unit that includes the toolbar (dvh instead), and no raw px (rem is 16 px at the default root size, so 2.75rem is the 44 px target). */
+
+/* Item 4: iOS ignores user-scalable=no, so controls opt out of double-tap zoom with touch-action: manipulation.
+   The score frame's own take rules (touch-action: none, overscroll-behavior: none, no callout, no selection)
+   live in score-frame.css under [data-frozen] and :root[data-score-frozen]. */
+button,
+a,
+select,
+summary,
+label,
+input,
+textarea,
+[role='button'],
+[role='tab'],
+[role='switch'],
+[role='checkbox'],
+[role='radio'],
+[role='slider'] {
+  touch-action: manipulation;
+}
+
+/* The page never rubber-bands while a take is on, wherever the take's controls sit. */
+:root[data-score-frozen='true'],
+:root[data-score-frozen='true'] body {
+  overscroll-behavior: none;
+}
+
+/* Item 5: Stop is the only take control on an iPhone, so it is at least 44 x 44 and sits at least the inset plus
+   8 px from every edge it touches (item 2). */
+.ios-take-stop {
+  box-sizing: border-box;
+  position: fixed;
+  inset-block-end: calc(var(--sai-bottom, env(safe-area-inset-bottom, 0)) + 0.5rem);
+  inset-inline-end: calc(var(--sai-right, env(safe-area-inset-right, 0)) + 0.5rem);
+  min-inline-size: 2.75rem;
+  min-block-size: 2.75rem;
+  touch-action: manipulation;
+  -webkit-touch-callout: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* A full-height shell uses dynamic viewport units, never the plain vh unit, which on iOS includes the area under the toolbar. */
+.ios-shell {
+  box-sizing: border-box;
+  min-block-size: 100dvh;
+  padding-block-start: var(--sai-top, env(safe-area-inset-top, 0));
+  padding-block-end: var(--sai-bottom, env(safe-area-inset-bottom, 0));
+  padding-inline-start: var(--sai-left, env(safe-area-inset-left, 0));
+  padding-inline-end: var(--sai-right, env(safe-area-inset-right, 0));
+}

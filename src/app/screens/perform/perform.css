@@ -1,0 +1,122 @@
+/* Performance (04 section 5.4). Tokens only; rem and em, never px. No scrolling during a take. */
+.perform {
+  display: flex;
+  flex-direction: column;
+  block-size: 100dvh;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+.perform-toolbar {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: var(--space-3);
+  min-block-size: 3.5rem;
+  padding-inline: var(--space-3);
+  padding-block-start: var(--sai-top, 0);
+}
+
+@media (max-height: 31.25rem) {
+  .perform-toolbar {
+    min-block-size: 2.75rem;
+  }
+}
+
+.perform-centre {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  min-inline-size: 0;
+}
+
+.perform-centre-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.perform-indeterminate {
+  position: relative;
+  inline-size: 6rem;
+  block-size: 0.25rem;
+  overflow: hidden;
+  border-radius: var(--radius-s);
+  background: var(--track);
+}
+
+.perform-indeterminate::after {
+  position: absolute;
+  inset-block: 0;
+  inline-size: 40%;
+  background: var(--accent);
+  content: '';
+  animation: perform-sweep 1.2s var(--ease-in-out) infinite;
+}
+
+@keyframes perform-sweep {
+  from {
+    inset-inline-start: -40%;
+  }
+  to {
+    inset-inline-start: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .perform-indeterminate::after {
+    animation: none;
+    inset-inline-start: 0;
+    inline-size: 100%;
+  }
+}
+
+.perform-right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.perform-lines,
+.perform-chip,
+.perform-source {
+  color: var(--text-muted);
+  font-size: var(--type-caption-size);
+  line-height: var(--type-caption-line);
+}
+
+.perform-chip {
+  padding: var(--space-1) var(--space-3);
+  border: 0.0625rem solid var(--border-strong);
+  border-radius: var(--radius-l);
+}
+
+.perform-score {
+  position: relative;
+  flex: 1 1 auto;
+  min-block-size: 0;
+  overflow: hidden;
+}
+
+.perform-score .sf-host {
+  block-size: 100%;
+}
+
+.perform-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-block-size: 1.75rem;
+  padding-inline: var(--space-3);
+  padding-block-end: var(--sai-bottom, 0);
+  font-size: var(--type-caption-size);
+}
+
+.perform-dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-3);
+}
