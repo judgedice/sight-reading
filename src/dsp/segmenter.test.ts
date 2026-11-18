@@ -10,7 +10,7 @@
 import { describe, expect, it } from 'vitest';
 import type { DetectedNote, DspConfig, DspEvent, TestkitTimbre } from '../core/types.ts';
 import { createScenarioSet, scenarioConfigs, type ScenarioRender } from '../testkit/scenarios/index.ts';
-import { renderPerformance, type SynthNoteSpec, type VibratoSpec } from '../testkit/synth/index.ts';
+import { applyConditions, renderPerformance, type RoomCondition, type SynthNoteSpec, type VibratoSpec } from '../testkit/synth/index.ts';
 import { TIMBRE_IDS } from '../testkit/synth/timbres.ts';
 import { runOffline } from './pipeline.ts';
 import { Segmenter, segmenterOptions } from './segmenter.ts';
@@ -148,6 +148,77 @@ describe('onset F1 on clean launch timbres (P4c acceptance)', () => {
     // Matched onsets agree with the 7.4 truth far inside the tolerance (01 section 8.1 budgets 6 to 18 ms sigma).
     expect(e90).toBeLessThan(10);
   }, 240_000);
+});
+
+// ------------------------------------------------------------------------------------- room reverb (ruling 45)
+
+/**
+ * PLAN ruling 45 gate at test scale: each scenario's planned capture conditions (room, phone mic, AGC, band limit,
+ * noise; click bleed off, as P4c's measurement). Target F1 >= 0.93 per launch timbre; voice is a known gap (see
+ * BUILD-NOTES, P4c-r), so its floor here only guards the gain (it was 0.65 on these scenarios before).
+ */
+describe('onset F1 under the planned room conditions (PLAN ruling 45)', () => {
+  const set = createScenarioSet();
+  const launchIdx = TIMBRE_IDS.slice(0, 8).map((t, i) => ({ timbre: t, i, floor: t === 'voice' ? 0.85 : 0.93 }));
+  it.each(launchIdx)('$timbre: F1 >= $floor at +-30 ms', ({ timbre, i, floor }) => {
+    let tp = 0;
+    let fp = 0;
+    let fn = 0;
+    for (let k = 0; k < SCENARIOS_PER_TIMBRE; k++) {
+      const idx = i + 9 * k;
+      if (idx >= set.count) break;
+      const r = set.render(idx, { click: { bleedDb: null } });
+      const { events } = runOffline(r.samples, r.sampleRate, dspConfig(r.plan.base.instrumentId));
+      const s = scoreOnsets(r, notesOf(events));
+      tp += s.tp;
+      fp += s.fp;
+      fn += s.fn;
+    }
+    const f1 = (2 * tp) / (2 * tp + fp + fn);
+    process.stdout.write(`P4c room F1 ${timbre}: ${f1.toFixed(4)} (tp ${tp}, fp ${fp}, fn ${fn})\n`);
+    expect(tp).toBeGreaterThan(20);
+    expect(f1).toBeGreaterThanOrEqual(floor);
+  }, 240_000);
+});
+
+describe('room reverb mechanisms (PLAN ruling 45)', () => {
+  const ROOMS: RoomCondition[] = [
+    { rt60Sec: 0.3, drrDb: 4 },
+    { rt60Sec: 0.5, drrDb: 6 },
+    { rt60Sec: 0.7, drrDb: 8 },
+  ];
+  const inRoom = (timbre: TestkitTimbre, notes: SynthNoteSpec[], room: RoomCondition, vibrato: VibratoSpec | null) => {
+    const last = notes[notes.length - 1] as SynthNoteSpec;
+    const dry = renderPerformance({ timbre, notes, sampleRate: 48000, vibrato, durationSec: last.onsetSec + last.durSec + 1 });
+    const cap = applyConditions(dry, { room, seed: 3 });
+    return { truth: dry.truth, samples: cap.samples, sampleRate: cap.sampleRate };
+  };
+
+  it.each([
+    { timbre: 'violin' as const, instrument: 'violin', a: 64, b: 69 },
+    { timbre: 'cello' as const, instrument: 'cello', a: 45, b: 50 },
+    { timbre: 'voice' as const, instrument: 'voice-alto', a: 60, b: 64 },
+  ])('$timbre: +-30 c vibrato in a room never splits a held note (vibrato troughs are not dips)', ({ timbre, instrument, a, b }) => {
+    const vib: VibratoSpec = { hz: 5.5, cents: 30, amDb: 3, delaySec: 0.15 };
+    for (const room of ROOMS) {
+      const r = inRoom(timbre, [{ midi: a, onsetSec: 0.3, durSec: 1.6 }, { midi: b, onsetSec: 1.9, durSec: 1.6, slur: true }], room, vib);
+      const on = notesOf(runOffline(r.samples, r.sampleRate, dspConfig(instrument)).events);
+      expect(on.map((n) => n.onset.toFixed(3)), `${timbre} rt60 ${room.rt60Sec}`).toHaveLength(2);
+      on.forEach((n, k) => expect(Math.abs(n.onset - (r.truth[k]?.onsetSec as number))).toBeLessThan(0.03));
+    }
+  }, 60_000);
+
+  it.each([
+    { timbre: 'flute' as const, instrument: 'flute', midi: 72 },
+    { timbre: 'voice' as const, instrument: 'voice-alto', midi: 60 },
+  ])('$timbre: same-pitch notes after 80 ms rests split although the room fills the rests', ({ timbre, instrument, midi }) => {
+    for (const room of ROOMS) {
+      const r = inRoom(timbre, [0, 1, 2, 3].map((k) => ({ midi, onsetSec: 0.3 + 0.5 * k, durSec: 0.42 })), room, null);
+      const on = notesOf(runOffline(r.samples, r.sampleRate, dspConfig(instrument)).events);
+      expect(on.map((n) => n.onset.toFixed(3)), `${timbre} rt60 ${room.rt60Sec}`).toHaveLength(4);
+      on.forEach((n, k) => expect(Math.abs(n.onset - (r.truth[k]?.onsetSec as number))).toBeLessThan(0.03));
+    }
+  }, 60_000);
 });
 
 // ------------------------------------------------------------------------------------- re-articulation rules

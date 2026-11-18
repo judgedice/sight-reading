@@ -39,6 +39,14 @@
  *     rmsDb >= max(gate, leakFrameDb + 6 dB), and an attack out of the floor must peak at leakEnvDb + 6 dB or more,
  *     with the click's leak levels from its template fit (`setClickLeak`; without a fit only the gate applies).
  *
+ * - Room reverb (PLAN ruling 45; constants and measurements below the "Room reverb" marker). A room fills dips
+ *   and rests, beats the previous note's tail against the next, turns vibrato into level swings and blends two
+ *   pitches in one window. The segmenter answers with: early-note dips needing flux (`detectable`), vibrato-aware
+ *   dip rejection (`vibratoTrough`, `vibratoAt`, and the previous note's AM for young notes, `previousNoteAm`),
+ *   releases into a room tail measured whole (`dipStart`), re-pitching while a pitch change settles (`settling`),
+ *   an early flux peak for filled tongued changes (`earlyFlux`), and a two-frame old side for reverberant
+ *   pitch-change gaps (`crossing`). On clean capture these leave the scenario F1 unchanged.
+ *
  * Splits can be retroactive: a dip is recognised a few frames after its half-rise, so the frames already given to
  * the old note from the split time on are moved to the new note. The old note's note-on was already sent; its
  * note-off carries offset = the new onset.
@@ -88,6 +96,11 @@ interface Dip {
   fluxThr: number;
   /** Smoothing length (decimated samples) used. */
   len: number;
+  /**
+   * For a fall longer than DIP_SIDE_SEC (`dipStart`, a release into a room tail): the depth of its last DIP_SIDE_SEC,
+   * dB, the dip as the 35 ms rule alone sees it. NaN for ordinary dips.
+   */
+  shortDipDb: number;
 }
 
 interface Note {
@@ -199,12 +212,18 @@ const LONG_FALL_TOL_DB = 1.5;
 const LONG_FALL_MIN_EXTRA_SEC = 0.02;
 const LONG_FALL_MIN_DB = 12;
 /**
+ * A long fall that the 35 ms rule alone would not pass needs a flux peak of LONG_FALL_FLUX x threshold at its rise
+ * (an attack after a rest): in a room a vibrato swing can fall as long and as far.
+ */
+const LONG_FALL_FLUX = 1;
+/**
  * Early flux at a tongued change (`earlyFlux`): a flux peak of EARLY_FLUX_FACTOR x threshold from EARLY_FLUX_BEFORE_SEC
  * before the dip minimum to EARLY_FLUX_GAP_SEC before the half-rise takes the onset.
  */
 const EARLY_FLUX_BEFORE_SEC = 0.04;
 const EARLY_FLUX_GAP_SEC = 0.012;
 const EARLY_FLUX_FACTOR = 1;
+const EARLY_FLUX_MAX_DIP_DB = 14;
 /**
  * Previous-note AM (`Note.prevAm`): at a pitch change out of a vibrato note, the AM of that note's last
  * AM_WINDOW_SEC (ending PREV_AM_GUARD_SEC before the change, at least PREV_AM_MIN_SEC long, not across a fall of
@@ -868,9 +887,11 @@ export class Segmenter {
   /**
    * In a room the dip of a tongued change fills and the new note's level climbs out of the old note's tail late: the
    * half-rise trails the attack. A clear flux peak well before the half-rise (and after the fall began) marks it.
+   * Only for a filled dip (under EARLY_FLUX_MAX_DIP_DB): a deep dry dip's half-rise is the 7.4 onset.
    * (On same-pitch repeats this raised clean false splits on violin and trumpet, so it is used at pitch changes only.)
    */
-  private earlyFlux(r: { t: number; minT: number; halfRiseT: number }): number {
+  private earlyFlux(r: { t: number; minT: number; halfRiseT: number; dipDb: number }): number {
+    if (r.dipDb >= EARLY_FLUX_MAX_DIP_DB) return r.t;
     const fp = this.fluxPeakIn(r.minT - EARLY_FLUX_BEFORE_SEC, r.halfRiseT - EARLY_FLUX_GAP_SEC);
     if (fp && fp.value >= this.fluxThresholdNear(fp.t) * EARLY_FLUX_FACTOR && fp.t < r.t - EARLY_FLUX_GAP_SEC) return fp.t;
     return r.t;
@@ -999,7 +1020,9 @@ export class Segmenter {
     const hint = this.hints.some((h) => Math.abs(d.tOn - h.t) <= h.halfWidthSec);
     const thr = hint ? Math.max(HINT_MIN_DIP_DB, HINT_AM_FACTOR * am) : Math.max(3, 1.5 * am);
     const fluxRatio = d.fluxPeak === null ? 0 : d.fluxPeak / d.fluxThr;
-    // Room reverb (ruling 45): early-note beating and vibrato troughs without onset evidence are not re-articulations.
+    // Room reverb (ruling 45): early-note beating, vibrato troughs and long falls without onset evidence are not
+    // re-articulations (a note after a rest begins with an attack; a vibrato swing in a room can fall as long).
+    if (d.shortDipDb < thr && !hint && fluxRatio < LONG_FALL_FLUX) return false;
     if (!hint && d.tOn - cur.onset < EARLY_DIP_SEC && fluxRatio < (this.soft ? EARLY_DIP_FLUX_SOFT : EARLY_DIP_FLUX) && d.dipDb < EARLY_DIP_DB) return false;
     if (!hint && fluxRatio < VIB_FLUX && d.dipDb < VIB_MAX_DB && this.vibratoTrough(d, cur)) return false;
     if (d.dipDb >= thr) return 'dip';
@@ -1199,7 +1222,14 @@ export class Segmenter {
     const len = this.trkLen;
     const i0 = this.dipStart(iMin, len);
     if (iMin - i0 < 1 || iEnd - iMin < 1) return;
+    const side = Math.round(DIP_SIDE_SEC / this.envHop);
     const clamp = this.clampDb(iMin);
+    let shortDipDb = NaN;
+    if (iMin - i0 > side) {
+      let p = -Infinity;
+      for (let k = Math.max(0, this.trkBoundaryIdx, iMin - side); k < iMin; k++) p = Math.max(p, this.smoothDb(k, len));
+      shortDipDb = Math.max(clamp, p) - Math.max(clamp, this.smoothDb(iMin, len));
+    }
     let iPre = i0;
     let pre = -Infinity;
     for (let k = i0; k < iMin; k++) {
@@ -1214,7 +1244,7 @@ export class Segmenter {
       // The envelope fell to (near) the floor: the next note is an attack from silence (7.4 item 3).
       const a = this.floorAttack(iMin, iEnd, len, clamp);
       if (a === null) return;
-      this.dips.push({ tOn: a.t, minT: a.riseT, halfRiseT: a.t, dipDb: Math.max(Math.max(clamp, pre), a.peak) - minV, prePeakT: this.envT(iPre), nearFloor: true, fluxPeak: null, fluxThr: Infinity, len });
+      this.dips.push({ tOn: a.t, minT: a.riseT, halfRiseT: a.t, dipDb: Math.max(Math.max(clamp, pre), a.peak) - minV, prePeakT: this.envT(iPre), nearFloor: true, fluxPeak: null, fluxThr: Infinity, len, shortDipDb });
       return;
     }
     const ser = this.series(i0, iEnd + 1, len, clamp);
@@ -1242,6 +1272,7 @@ export class Segmenter {
       fluxPeak: fp ? fp.value : null,
       fluxThr: fp ? this.fluxThresholdNear(fp.t) : Infinity,
       len,
+      shortDipDb,
     });
   }
 
