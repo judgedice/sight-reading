@@ -2,7 +2,7 @@ import type { CopyKey } from '../ui/copy/copy.ts';
 import { SETTINGS_SECTIONS, type RouteId, type TabId } from './route-match.ts';
 import type { RouteDef, ScreenComponent } from './route-types.ts';
 import { DevComponentsScreen } from './screens/DevComponents.tsx';
-import { PlaceholderScreen } from './screens/Placeholder.tsx';
+import { NotFoundScreen, PlaceholderScreen } from './screens/Placeholder.tsx';
 
 type Spec = Omit<RouteDef, 'Screen'>;
 
@@ -36,11 +36,11 @@ const specs: readonly Spec[] = [
 export const notFoundRoute: RouteDef = {
   id: 'not-found',
   pattern: '/*',
-  titleKey: 'nav.home',
+  titleKey: 'notFound.title',
   tab: null,
   chrome: 'full',
   devOnly: false,
-  Screen: PlaceholderScreen,
+  Screen: NotFoundScreen,
 };
 
 export type { RouteDef, ScreenComponent, ScreenProps } from './route-types.ts';

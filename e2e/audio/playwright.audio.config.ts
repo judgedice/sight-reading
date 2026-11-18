@@ -5,6 +5,8 @@ import { join } from 'node:path';
 import { defineConfig, devices } from '@playwright/test';
 import { writeFakeCaptureWav } from './fake-capture-wav.ts';
 
+// The spec needs this config's fake microphone and one worker; the root config's e2e run skips it without this marker.
+process.env['E2E_AUDIO'] = '1';
 const executablePath = process.env['PW_CHROMIUM_PATH'] ?? '/opt/pw-browsers/chromium';
 const wav = writeFakeCaptureWav(join(process.cwd(), 'test-results', 'audio-e2e'));
 const long = process.env['E2E_AUDIO_LONG'] === '1';

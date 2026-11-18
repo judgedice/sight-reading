@@ -50,3 +50,23 @@ export function writeSilentWav(path: string, sec = 1): void {
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, encodeWav({ sampleRate: LOOP_WAV_RATE, channels: [new Float32Array(Math.round(sec * LOOP_WAV_RATE))] }));
 }
+
+/** The note to play late (e2e/tour): the first note after the wrong one that lasts at least 600 ms (else 300 ms). */
+export function lateNoteIdx(expected: readonly ExpectedNote[]): number {
+  const wrong = wrongNoteIdx(expected);
+  // A long note, so a late onset stays nearer its own onset than the next note's (an unambiguous 'late' match).
+  const pick = expected.find((e) => e.idx >= wrong + 2 && e.durSec >= 0.6 && e.onsetBeat >= 0) ?? expected.find((e) => e.idx >= wrong + 2 && e.durSec >= 0.3 && e.onsetBeat >= 0);
+  return (pick ?? expected[expected.length - 1]!).idx;
+}
+
+/** The tour take: one note 2 semitones sharp and one note `lateMs` late, every other note as written. */
+export function writeTourWav(path: string, plan: PagePlan, offsetSec: number, lateMs: number): void {
+  const spec: PerformSpec = { mods: { [wrongNoteIdx(plan.expected)]: { semis: 2 }, [lateNoteIdx(plan.expected)]: { shiftMs: lateMs } } };
+  const notes: SynthNoteSpec[] = perform(plan.expected, plan.beatsPerBar, plan.bpm, spec).map((p, k) => {
+    const midi = Math.round(p.midi);
+    return { midi, cents: Math.round((p.midi - midi) * 100 * 1000) / 1000, onsetSec: offsetSec + p.onset, durSec: Math.max(0.02, p.dur), slur: p.legato, ref: k };
+  });
+  const samples = renderPerformance({ timbre: 'flute', notes, sampleRate: LOOP_WAV_RATE, durationSec: offsetSec + plan.endSec + 1.5, seed: 11 }).samples;
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, encodeWav({ sampleRate: LOOP_WAV_RATE, channels: [samples] }));
+}

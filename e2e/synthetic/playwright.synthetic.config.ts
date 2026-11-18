@@ -1,7 +1,9 @@
 // IOS7 and the IOS2 browser check. Chromium needs no microphone: the synthetic source replaces getUserMedia.
 //   pnpm exec playwright test -c e2e/synthetic/playwright.synthetic.config.ts
-// WebKit (CI; not installed in the agent sandbox): add --project=webkit.
+// The WebKit project is added when IOS_WEBKIT=1 (a WebKit install; CI sets it), as in e2e/ios.
 import { defineConfig, devices } from '@playwright/test';
+
+process.env['E2E_SYNTHETIC'] = '1';
 
 const executablePath = process.env['PW_CHROMIUM_PATH'] ?? '/opt/pw-browsers/chromium';
 
@@ -12,6 +14,6 @@ export default defineConfig({
   workers: 1,
   projects: [
     { name: 'chromium-synthetic', use: { ...devices['Desktop Chrome'], launchOptions: { executablePath, args: ['--no-sandbox', '--autoplay-policy=no-user-gesture-required'] } } },
-    { name: 'webkit', use: { ...devices['Desktop Safari'] } },
+    ...(process.env['IOS_WEBKIT'] === '1' ? [{ name: 'webkit', use: { ...devices['Desktop Safari'] } }] : []),
   ],
 });

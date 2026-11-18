@@ -724,3 +724,49 @@ Trust as a base for wave 3:
 - C8 review layer and C8r: L1-L3 are empty on rules alone, so C8r decides whether L2 and L3 ship. Use quality.interestMargin, role, augmentOf and effectiveLevel from build/dedupe/candidates.jsonl.
 - C9 emitter: emit `level` as effectiveLevel; event ids e<n> from 1 in window order (C6 extremes); carry flags, familiarity, dedupeGroup, work and quality; minorForm is not in ExcerptDoc. Consider adding pitch-spelling data and peakNotesPerBeat to ManifestEntry (P9b need, frozen-type change).
 - Open architect decisions: 01 §9.5 displacement range sign; FollowConfig analysisRate and writtenKey; DspConfig attackExcludeMs and clickLeakDb; DetectedNote frames-agree flag; GradeInput key signature; FollowApi.finalAlign without live events.
+
+## From wave 3
+
+### Wave 3 review (integration)
+
+Status at review start: typecheck, lint, 2851 unit tests, build, size (70.1 KB initial / 457.9 KB total gzip), bare runtime (66 scenarios byte-identical), corpus pytest (351) and the notation (22), audio (6), slice (1), loop (2) and ios (48, Chromium) e2e suites were green. Failures were harness-only: the root `pnpm test:e2e` ran e2e/audio/backend.spec.ts without its fake microphone (7 failures), and e2e/synthetic always listed a WebKit project that the sandbox cannot run (7 failures), and its ±1 ms loopback case failed once under the root config's parallel workers.
+
+Repairs:
+
+- Engraving (dark theme): VexFlow's metrics give Stem a fixed `strokeStyle: 'black'`, so every stem was black on dark paper (measured 0,0,0 on 27,30,35). src/notation/render-excerpt.ts now sets the context default style to currentColor, which makes Element.applyStyle drop the metric colours. Staff lines also follow the ink colour now (they were '#999999').
+- The scan screen showed the iOS-only "Set Auto-Lock to Never" hint on desktop Chromium whenever the Wake Lock request failed. src/app/main.tsx raises it only for osFamily ios/ipados.
+- Settings at 390 px: the Output segmented control (Speakers / Wired headphones / Bluetooth) overflowed and clipped "Bluetooth". `.ui-segment` labels may now wrap when the group is narrower than its content. Each switch row printed its label twice (row label plus the Toggle's own label); the Toggle label is visually hidden inside settings rows and stays the accessible name.
+- Performance toolbar at 390 px: the Stop label squeezed the centre text to "B…". Below 30rem the Stop button shows its icon only (the label stays the accessible name). The centre still ellipsises the tempo part on the narrowest phones.
+- Unknown routes rendered the dev placeholder ("Home" plus the raw path). New NotFoundScreen with copy keys notFound.title, notFound.body and notFound.action (added to src/ui/copy/en.json).
+- eslint.config.js: src/app/compose/**, src/platform/web/audio/dsp-worker-core.ts and dsp.worker.ts are in the composition-root category (S1 need); the 16 `eslint-disable-next-line boundaries/dependencies` comments are removed.
+- e2e harness: e2e/audio and e2e/synthetic are gated on E2E_AUDIO and E2E_SYNTHETIC (set by their configs), like slice and loop. e2e/synthetic adds its WebKit project only with IOS_WEBKIT=1, as e2e/ios does. .github/workflows/ci.yml runs every suite config (notation, audio, slice, loop, ios and synthetic with IOS_WEBKIT=1).
+- New screen tour: e2e/tour/ (`pnpm exec playwright test -c e2e/tour/playwright.tour.config.ts`). Production build against public/corpus/v1, Chromium fake capture, projects desktop-light, desktop-dark (1280x800) and iphone-light, iphone-dark (390x844, touch), deviceScaleFactor 2. It writes 27 screens per project to docs/screenshots/<project>/, flags raw copy keys and horizontal overflow, and plays one take with a note 2 semitones sharp and a note late by (tRed + W)/2. All four projects pass: the wrong note is red live and final (wrong-pitch) with a ghost; the late note is red with a 'late' ghost to the right of its notehead and final timing 'late' (+238 to +310 ms). e2e/loop/node-helpers.ts gained lateNoteIdx and writeTourWav.
+
+Visual findings not fixed (need design or lead-musician input):
+
+- Ghost spelling of a 2-semitone wrong note: 02 §4.8 spells anything within ±2 semitones with the target's letter, so A played as B draws an A𝄪 ghost on the target's own staff position, overlapping the red notehead. The rule is followed as written; consider ±1 semitone.
+- The ♩ in "♩ = 84" falls back to a system font: it renders small, with a wide gap before "=", on every screen that shows tempo.
+- Results can say "Tip: Clean read" next to visible red notes: E30 fires when the score is at least its minScore and no pattern fired, and one wrong plus one late note fire no pattern. Copy or rule review.
+- Onboarding and the calibration screen show the select's label ("Input device") as its value; settings shows "System default".
+- Welcome: the headline gets a visible focus outline on load (route focus management on a heading).
+- Full-page screenshots show the fixed tab bar part-way down long pages and settings section routes scrolled; these are capture artefacts, not layout faults.
+
+Trust:
+
+- P16 session: trusted in relay mode (the app's mode; it passes no createCaptureChannel). The loop e2e and the four tour takes reach graded results with the right verdicts. Port mode stays unranked on speakers until the DSP worker posts 'recheck'. voiceReference is always null (E23 cannot fire). Session summary and wake-lock idle release are not implemented.
+- P14 calibration: trusted on synthetic loopback and play-along (unit gates hold; decideRecheck matches budget.recheck 5/10 ms). Not exercised end-to-end in the browser (the tour and loop skip calibration because the fake microphone hears no clicks); no real device or WebKit run.
+- INT (composition root): trusted for the Chromium flows the tour covers (onboarding, home, scan, take, results, tips, progress, history, attempt review, settings, calibrate, credits). Fixed the defects above.
+- P4c-r: trusted on clean capture and as an improvement in rooms; ruling 45's target is missed for voice (0.81-0.89), cello and violin in strong rooms, flute on one held-out seed. Reverberant rooms (DRR ≤ 4 dB, RT60 ≥ 0.6 s) and voice in any room are known limits.
+
+Corpus (tools/corpus-build/build/report.md, version c1-ef30a17bf7): 946 excerpts, 5.76 MB. L1 9, L2 12, L3 128, L4 133, L5 274, L6 364, L7 6, L8 10, L9 2, L10 8. Served: L3-L6 only. Review (L1-L3): 293 windows reached the agent veto, 149 accepted by both variants (50.9%), 144 rejected, 0 control failures. Controls: negatives rejected 72/72 (100%), positives accepted 69/72 (95.8%; packet-06 A and B and packet-08 B accepted 3/4). Ruling 24 gate pass; v1.0 launch gates fail (total < 1000; L2, L7, L8, L9 < 40).
+
+Final status (this review): typecheck, lint (eslint, stylelint, depcruise), 2851 unit tests, build, size (70.1 / 458.2 KB gzip), bare runtime (66 byte-identical), corpus pytest (351), e2e notation 22, audio 6, slice 1, loop 2, ios 48, root `pnpm test:e2e` 96 passed / 34 skipped, tour 4/4. e2e/synthetic passed 7/7 in two of three runs on its own config; one run failed one case (most likely 'loopback measures d = 110 ms within 1 ms', which also failed once under the root config's parallel workers). Treat it as flaky until P21 looks at it. WebKit has not run anywhere.
+
+### Notes for wave 4
+
+- P18 accuracy gates: run the 13.2 gates under room and click conditions (P4c-r numbers above are synthetic). Include voice and strings in rooms, the 1024-window latency (79 ms p95 before the follower), the ±2 semitone ghost spelling case, and 02 §6.2's 300-take pattern acceptance. The tour shows final verdicts can depend on the excerpt (a +300 ms late note at 80 bpm was missed + extra on one excerpt where W was smaller): assert relative to tRed and W, as e2e/tour does.
+- C10 corpus validation: H-render (VexFlow in headless Chromium) and the TS selector for every launch instrument x served level (L3-L6); exempt same-dedupeGroup pairs from the shared-fingerprint gate; decide the KS 'disagrees' reading and the level-confidence cut at L7+ (C8 gaps), which leave L7-L10 nearly empty.
+- P19 PWA: production build has no service worker or manifest yet; keep pnpm size within budget (457.9 KB of 500 total; the DSP worker is 24.2 KB and the fonts chunk 124.5 KB).
+- P20 replay route: #/dev/replay is still a placeholder; the attempt review (history attempt) works and can host it.
+- P21 WebKit projects: no WebKit run exists for any suite. CI now sets IOS_WEBKIT=1 for e2e/ios and e2e/synthetic; the root config lists webkit, webkit-iphone and webkit-ipad. Add WebKit to the tour config when available; check resume() after the W3 recreate and real env(safe-area-inset-*).
+- D13 design QA: start from docs/screenshots/ and the unfixed findings above (ghost overlap, ♩ fallback glyph, clean-read tip with red notes, select placeholder, headline focus ring, toolbar ellipsis at 390 px). The tour's raw-key and overflow checks report none after the repairs.

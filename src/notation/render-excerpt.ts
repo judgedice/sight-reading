@@ -224,6 +224,9 @@ export function renderExcerpt(p: PreparedExcerpt, o: RenderOptions): RenderedExc
     svg.appendChild(underlay);
     ctx.setFillStyle('currentColor');
     ctx.setStrokeStyle('currentColor');
+    // Themed default: without it VexFlow applies its metrics' fixed colours (Stem strokeStyle 'black', Stave
+    // '#999999'), so stems vanish on dark paper. A defined default makes Element.applyStyle drop those.
+    ctx.setDefaultStyle({ fillStyle: 'currentColor', strokeStyle: 'currentColor' });
     const staticGroup = ctx.openGroup('sr-static') as SVGGElement;
     // VexFlow prefixes classes with "vf-"; keep ours unprefixed.
     staticGroup.setAttribute('class', 'sr-static');

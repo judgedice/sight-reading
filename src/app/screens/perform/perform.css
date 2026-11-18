@@ -120,3 +120,16 @@
   justify-content: flex-end;
   gap: var(--space-3);
 }
+
+/* Phone portrait: the Stop label would squeeze the bar and tempo text to an ellipsis. The button keeps its
+   accessible name (the label stays in the accessibility tree, visually clipped). */
+@media (max-width: 30rem) {
+  .perform-stop .ui-button > span:last-child {
+    position: absolute;
+    inline-size: 0.0625rem;
+    block-size: 0.0625rem;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}

@@ -7,11 +7,8 @@ import { createElement, lazy, Suspense, type ComponentType, type ReactNode } fro
 import type { AudioBackend, KeyValue, PlatformCapabilities, PlatformServices, WorkerLike, MessagePortLike } from '../../core/platform.ts';
 import type { AppSettings, AttemptRecord, AttributionsFile, Calibration, Configs, CorpusManifest, PlayerProfile, PracticeSettings, Rng } from '../../core/types.ts';
 import { PracticeSession, type PracticeSessionOptions } from '../../session/index.ts';
-// eslint-disable-next-line boundaries/dependencies -- composition root (01 §4.2)
 import { countEligible, prefetchNeighbours } from '../../corpus/index.ts';
-// eslint-disable-next-line boundaries/dependencies -- composition root (01 §4.2)
 import { createProfile, postRevealSkipAllowed, respondToLevelOffer, setInstrumentLevel, startPlacement } from '../../grade/index.ts';
-// eslint-disable-next-line boundaries/dependencies -- composition root (01 §4.2)
 import { ghostPitch } from '../../follow/index.ts';
 import { bindNotation, type FrameNotation } from '../../ui/score-frame/index.ts';
 import { createRouteTable, type RouteDef, type ScreenOverrides } from '../routes.tsx';

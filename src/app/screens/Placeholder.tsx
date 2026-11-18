@@ -1,4 +1,5 @@
 import { copy } from '../../ui/copy/copy.ts';
+import { hashFromPath } from '../route-match.ts';
 import type { ScreenProps } from '../route-types.ts';
 
 /** Home's Start target for the skip link (04 section 8.2). Later packages keep this id on their Start button. */
@@ -17,6 +18,19 @@ export function PlaceholderScreen({ route }: ScreenProps) {
           {copy('action.start')}
         </button>
       ) : null}
+    </section>
+  );
+}
+
+/** Shown for a path no route matches (a stale bookmark or a mistyped hash). */
+export function NotFoundScreen({ route }: ScreenProps) {
+  return (
+    <section className="not-found" data-testid="screen-not-found" data-route-id={route.def.id}>
+      <h1>{copy('notFound.title')}</h1>
+      <p>{copy('notFound.body')}</p>
+      <p>
+        <a href={hashFromPath('/')}>{copy('notFound.action')}</a>
+      </p>
     </section>
   );
 }

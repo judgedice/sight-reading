@@ -101,6 +101,19 @@ jobs:
       # In CI Playwright's own Chromium is used: clear the sandbox default path.
       - run: pnpm exec playwright test
         env: { PW_CHROMIUM_PATH: '' }
+      # Suites with their own build, server or fake microphone (each config sets its marker env).
+      - run: pnpm exec playwright test -c e2e/notation/playwright.notation.config.ts
+        env: { PW_CHROMIUM_PATH: '' }
+      - run: pnpm exec playwright test -c e2e/audio/playwright.audio.config.ts
+        env: { PW_CHROMIUM_PATH: '' }
+      - run: pnpm exec playwright test -c e2e/slice/playwright.slice.config.ts
+        env: { PW_CHROMIUM_PATH: '' }
+      - run: pnpm exec playwright test -c e2e/loop/playwright.loop.config.ts
+        env: { PW_CHROMIUM_PATH: '' }
+      - run: pnpm exec playwright test -c e2e/ios/playwright.ios.config.ts
+        env: { PW_CHROMIUM_PATH: '', IOS_WEBKIT: '1' }
+      - run: pnpm exec playwright test -c e2e/synthetic/playwright.synthetic.config.ts
+        env: { PW_CHROMIUM_PATH: '', IOS_WEBKIT: '1' }
 
   deploy:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'

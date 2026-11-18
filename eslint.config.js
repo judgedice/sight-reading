@@ -186,7 +186,18 @@ export default tseslint.config(
         { type: 'testkit', pattern: '**/src/testkit' },
       ],
       'boundaries/files': [
-        { pattern: ['**/src/app/main.tsx', '**/src/main.tsx'], category: 'composition-root' },
+        // The app composition root, its compose/ helpers, and the DSP worker's composition (01 §2, §4.2, §9.3: the live
+        // matcher and final alignment run in the DSP worker).
+        {
+          pattern: [
+            '**/src/app/main.tsx',
+            '**/src/main.tsx',
+            '**/src/app/compose/**',
+            '**/src/platform/web/audio/dsp-worker-core.ts',
+            '**/src/platform/web/audio/dsp.worker.ts',
+          ],
+          category: 'composition-root',
+        },
       ],
     },
     rules: {

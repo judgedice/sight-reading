@@ -133,7 +133,8 @@ export async function boot(root: Root): Promise<void> {
       async keepAwake(on) {
         if (!on) return keepAwake.keepAwake(false);
         const ok = await keepAwake.startPractice();
-        if (!ok) wakeLockFailed.set(true);
+        // The hint's copy names iOS's Auto-Lock setting (05 W11): only iPhone and iPad get it.
+        if (!ok && (capabilities.osFamily === 'ios' || capabilities.osFamily === 'ipados')) wakeLockFailed.set(true);
       },
       clockWall,
       localDay: () => localDayOf(new Date()),

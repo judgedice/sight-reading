@@ -27,6 +27,8 @@ const report = (msg: string): void => {
   process.stdout.write(`${msg}\n`);
 };
 
+test.skip(process.env['E2E_AUDIO'] !== '1', 'run with -c e2e/audio/playwright.audio.config.ts');
+
 const CONTIGUITY_SEC = process.env['E2E_AUDIO_LONG'] === '1' ? 300 : 30;
 
 async function unlocked(page: Page, o: { forceRelay?: boolean } = {}): Promise<void> {

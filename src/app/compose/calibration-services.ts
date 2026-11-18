@@ -5,7 +5,6 @@
  */
 import type { AudioBackend, PlatformCapabilities } from '../../core/platform.ts';
 import type { AppSettings, Calibration, Configs, Rng } from '../../core/types.ts';
-// eslint-disable-next-line boundaries/dependencies -- composition root helper (01 §4.2)
 import { exportDiagnostics, runLoopbackCalibration, runPlayAlongCalibration, runSelfTest, type CalibrationDeps } from '../../calibration/index.ts';
 import type { CalibrationServices, SelfTestItemId } from '../screens/calibration/services.ts';
 import type { Readable } from '../screens/home/services.ts';

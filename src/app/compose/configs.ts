@@ -1,6 +1,5 @@
 /** The app's configs, parsed once from config/ (01 §5.3: one resolver for the follower, renderer and grader). */
 import type { Configs, RawConfigs } from '../../core/types.ts';
-// eslint-disable-next-line boundaries/dependencies -- composition root (01 §4.2)
 import { loadConfigs } from '../../rules/index.ts';
 import gradingJson from '../../../config/grading-config.json';
 import instrumentsJson from '../../../config/instruments.json';

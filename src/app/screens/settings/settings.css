@@ -163,3 +163,13 @@
 .set-link {
   color: var(--accent);
 }
+
+/* The row's label already names a switch; its own visible label stays as the accessible name only. */
+.set-row-control .ui-toggle-label {
+  position: absolute;
+  inline-size: 0.0625rem;
+  block-size: 0.0625rem;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

@@ -12,6 +12,9 @@ type Api = {
   interruptMidTake(): Promise<{ voids: { reason: string; burnExcerpt: boolean; countsAsSkip: boolean }[]; liveTracksAfterMs: number[]; closedMs: number | null }>;
   streams(): number;
 };
+// Timing-sensitive (±1 ms loopback): run with its own config (one worker); the root config's parallel run skips it.
+test.skip(process.env['E2E_SYNTHETIC'] !== '1', 'run with -c e2e/synthetic/playwright.synthetic.config.ts');
+
 const SEC = Number(process.env['E2E_SYNTH_SEC'] ?? 30);
 const report = (msg: string): void => {
   test.info().annotations.push({ type: 'measured', description: msg });

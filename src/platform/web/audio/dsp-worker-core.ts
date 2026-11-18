@@ -27,7 +27,6 @@ import type { ClockSeconds, DetectedNote, DspConfig, DspEvent, DspStats, EndReas
 import { DspPipeline } from '../../../dsp/pipeline.ts';
 // The worker is a composition point of its own (01 §2: live matcher and final alignment run in the DSP worker), so it
 // reaches follow/ although platform/web otherwise may not (needs an eslint composition-root entry, see the S1 report).
-// eslint-disable-next-line boundaries/dependencies -- DSP worker composition (01 §2, §9.3)
 import { LiveFollower, alignFinal, liveOutcomeOf } from '../../../follow/index.ts';
 
 /** A port-like object the core posts `CaptureReturn`s on. */

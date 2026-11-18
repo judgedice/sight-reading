@@ -11,15 +11,10 @@
  */
 import type { AudioRouteInfo, WorkerLike, WorkerMessage, WorkerReply } from '../../core/platform.ts';
 import type { AudioEnv, AttemptRecord, AttemptScore, ClockSeconds, Configs, FinalAlignment, FollowerEvent, OutputMode } from '../../core/types.ts';
-// eslint-disable-next-line boundaries/dependencies -- S1 composition helper (01 §4.2 composition root)
 import { WebAudioBackend } from '../../platform/web/audio/index.ts';
-// eslint-disable-next-line boundaries/dependencies -- S1 composition helper (01 §4.2 composition root)
 import { CAPTURE_WORKLET_URL } from '../../platform/web/audio/worklet-url.ts';
-// eslint-disable-next-line boundaries/dependencies -- S1 composition helper (01 §4.2 composition root)
 import { createDspWorker } from '../../platform/web/audio/dsp-worker-factory.ts';
-// eslint-disable-next-line boundaries/dependencies -- S1 composition helper (01 §4.2 composition root)
 import { readBrowserCapabilities } from '../../platform/web/capabilities.ts';
-// eslint-disable-next-line boundaries/dependencies -- S1 composition helper (01 §4.2 composition root)
 import { openStore } from '../../platform/web/store/index.ts';
 import { SLICE, analysisRateFor, sliceAttemptRecord, sliceDspConfig, sliceFollowConfig, sliceGrade, type SliceTake } from './slice-take.ts';
 

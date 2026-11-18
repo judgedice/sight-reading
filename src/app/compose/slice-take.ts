@@ -35,13 +35,9 @@ import type {
   SelectionResult,
 } from '../../core/types.ts';
 import type { ClickSpec } from '../../core/platform.ts';
-// eslint-disable-next-line boundaries/dependencies -- S1 composition helper (01 §4.2 composition root)
 import { buildExpectedNotes, prepareExcerpt } from '../../corpus/index.ts';
-// eslint-disable-next-line boundaries/dependencies -- S1 composition helper (01 §4.2 composition root)
 import { decodeManifestEntries } from '../../corpus/load/decode.ts';
-// eslint-disable-next-line boundaries/dependencies -- S1 composition helper (01 §4.2 composition root)
 import { grade } from '../../grade/index.ts';
-// eslint-disable-next-line boundaries/dependencies -- S1 composition helper (01 §4.2 composition root)
 import { loadConfigs, resolveTolerances } from '../../rules/index.ts';
 import gradingJson from '../../../config/grading-config.json';
 import instrumentsJson from '../../../config/instruments.json';
