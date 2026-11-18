@@ -1,6 +1,6 @@
 """Command line: `python -m corpus_build [stage ...]`. Run from tools/corpus-build (or put it on PYTHONPATH).
 
-Stages: fetch, lock, verify, composers, gate, read, normalize, extract, windows, augment. With no stage, runs every stage except lock.
+Stages: fetch, lock, verify, composers, gate, read, normalize, extract, windows, augment, features. With no stage, runs every stage except lock.
 `lock` rewrites sources.lock.yaml and is never part of the default run, because the default run must not change
 the pinned inputs. Later stages (C3a onward) register in STAGES.
 """
@@ -15,6 +15,7 @@ from typing import Callable
 from .candidate import write_jsonl
 from .composers import ComposerIndex, build_composers, load_composers, write_composers
 from .fetch import FetchError, fetch_records, fetch_source, load_lock, verify_lock, write_lock
+from .feature_stage import run_features
 from .gate import run_gate
 from .pipeline import run_extract, run_normalize, run_read
 from .paths import COMPOSERS_YAML, build_root, cache_root
@@ -154,6 +155,18 @@ def stage_augment(ctx: Ctx) -> int:
     return 0
 
 
+def stage_features(ctx: Ctx) -> int:
+    if not (ctx.build / "augment" / "candidates.jsonl").exists():
+        print("features: build/augment/candidates.jsonl is missing. Run `augment` first.", file=sys.stderr)
+        return 1
+    summary = run_features(ctx.build, ctx.workers)
+    for corpus, s in summary["byCorpus"].items():
+        print(f"features: {corpus}: {s['kept']} kept of {s['tagged']} tagged; rejected {s['rejectedByReason']}; by level {s['byLevel']}")
+    h = summary["histogram"]
+    print(f"features: histogram over {h['windowsKept']} windows, by level {h['byLevel']} (L1 {h['byLevel']['1']}, L2 {h['byLevel']['2']})")
+    return 0
+
+
 STAGES: dict[str, Callable[[Ctx], int]] = {
     "fetch": stage_fetch,
     "lock": stage_lock,
@@ -165,8 +178,9 @@ STAGES: dict[str, Callable[[Ctx], int]] = {
     "extract": stage_extract,
     "windows": stage_windows,
     "augment": stage_augment,
+    "features": stage_features,
 }
-DEFAULT_RUN = ["fetch", "verify", "composers", "gate", "read", "normalize", "extract", "windows", "augment"]
+DEFAULT_RUN = ["fetch", "verify", "composers", "gate", "read", "normalize", "extract", "windows", "augment", "features"]
 
 
 def main(argv: list[str] | None = None) -> int:
