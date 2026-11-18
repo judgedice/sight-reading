@@ -28,6 +28,7 @@ from corpus_build.emit import (
     slur_mark,
     spelling_counts,
     tempo_of,
+    cap_levels_by_interest,
     trim_by_interest,
     viability,
 )
@@ -262,8 +263,10 @@ def emission() -> Any:
 def test_every_gate_passes_on_the_real_build(emission: Any) -> None:
     inp, em = emission
     assert em.problems == []
-    assert len(em.docs) == sum(1 for r in inp.all_records if r["status"] == "pass")
-    assert em.trimmed is None
+    passing = sum(1 for r in inp.all_records if r["status"] == "pass")
+    # the only reduction is the manifest-budget level cap, which spares every level at or under the cap
+    assert len(em.docs) == (em.trimmed["manifestAfter"] if em.trimmed else passing) <= passing
+    assert em.trimmed is None or em.trimmed["manifestBefore"] == passing
 
 
 @needs_review_build
@@ -346,3 +349,13 @@ def test_run_emit_writes_the_committed_corpus_byte_for_byte(emission: Any, tmp_p
     assert "Ruling 24 gate" in report and "**PASS**" in report and "Control accuracy per packet" in report
     committed = {p.name: p.read_bytes() for p in PUBLIC_CORPUS.glob("*.json")}
     assert committed == em.files, "public/corpus/v1 is stale: run `python -m corpus_build emit`"
+
+
+def test_level_cap_trims_crowded_levels_only_and_keeps_the_most_interesting() -> None:
+    docs = [{"id": f"l{lv}-{i:02d}", "level": lv, "quality": {"interest": i / 100}} for lv in (5, 8) for i in range(20 if lv == 5 else 4)]
+    out = cap_levels_by_interest(docs, 6)
+    by: dict[int, list[str]] = {}
+    for d in out:
+        by.setdefault(d["level"], []).append(d["id"])
+    assert len(by[8]) == 4 and len(by[5]) == 6
+    assert all(int(i.split("-")[1]) >= 14 for i in by[5])

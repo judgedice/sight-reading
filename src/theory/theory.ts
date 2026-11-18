@@ -117,18 +117,51 @@ const FLAT_SPELL: readonly [Step, Alter][] = [
   ['C', 0], ['D', -1], ['D', 0], ['E', -1], ['E', 0], ['F', 0], ['G', -1], ['G', 0], ['A', -1], ['A', 0], ['B', -1], ['B', 0],
 ];
 
+/** Alteration the key signature gives a letter (sharps F C G D A E B, flats B E A D G C F). */
+function keySigAlter(step: Step, fifths: number): number {
+  const i = FIFTHS_LINE.indexOf(step);
+  if (fifths > 0) return i < fifths ? 1 : 0;
+  if (fifths < 0) return 6 - i < -fifths ? -1 : 0;
+  return 0;
+}
+
+/** The spelling of `midi` on `step`, or null when it needs more than a double accidental. */
+function spellOn(midi: number, step: Step): SpelledPitch | null {
+  const pc = NATURAL_PC[stepIndex(step)]!;
+  // The octave whose natural `step` is nearest to `midi`.
+  const octave = Math.round((midi - pc) / 12) - 1;
+  const alter = asAlter(midi - (12 * (octave + 1) + pc));
+  return alter === null ? null : { step, alter, octave };
+}
+
 /**
- * Ghost spelling (02 §4.8). Within 2 semitones of the target: the target's letter plus the accidental needed.
- * Otherwise spelled by the key signature: flats in flat keys, sharps in sharp keys (and in keys with none).
+ * Ghost spelling (02 §4.8, PLAN ruling 50). Within 1 semitone of the target: the target's letter plus the accidental
+ * needed (a slip on the written note). Further away the played pitch is spelled from the key signature, so the ghost
+ * sits at the played pitch's own staff position: the key's own spelling of that pitch class when it has one (E# in F#
+ * major, Cb in Gb major), otherwise sharps in sharp keys and in C, flats in flat keys. Such a ghost never takes the
+ * target's staff position: if the key spelling would (a double-accidental target), the enharmonic on the next letter
+ * is used.
  */
 export const spellGhost: TheoryApi['spellGhost'] = (playedWrittenMidi, target, key) => {
-  if (Math.abs(playedWrittenMidi - toMidi(target)) <= 2) {
+  if (Math.abs(playedWrittenMidi - toMidi(target)) <= 1) {
     const alter = asAlter(playedWrittenMidi - naturalMidiAt(diatonicPos(target)));
     if (alter !== null) return { step: target.step, alter, octave: target.octave };
   }
   const pc = mod(playedWrittenMidi, 12);
-  const [step, alter] = (key.fifths < 0 ? FLAT_SPELL : SHARP_SPELL)[pc]!;
-  return { step, alter, octave: Math.floor(playedWrittenMidi / 12) - 1 };
+  const candidates: SpelledPitch[] = [];
+  const push = (p: SpelledPitch | null): void => {
+    if (p) candidates.push(p);
+  };
+  for (const step of STEPS) {
+    if (mod(NATURAL_PC[stepIndex(step)]! + keySigAlter(step, key.fifths), 12) === pc) push(spellOn(playedWrittenMidi, step));
+  }
+  const [tStep] = (key.fifths < 0 ? FLAT_SPELL : SHARP_SPELL)[pc]!;
+  push(spellOn(playedWrittenMidi, tStep));
+  const [oStep] = (key.fifths < 0 ? SHARP_SPELL : FLAT_SPELL)[pc]!;
+  push(spellOn(playedWrittenMidi, oStep));
+  for (const step of STEPS) push(spellOn(playedWrittenMidi, step));
+  const targetPos = diatonicPos(target);
+  return candidates.find((c) => diatonicPos(c) !== targetPos) ?? (candidates[0] as SpelledPitch);
 };
 
 /** Fractional MIDI number of a frequency at the given A4 (Hz). */

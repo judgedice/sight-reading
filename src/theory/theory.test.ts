@@ -157,7 +157,7 @@ describe('spellGhost (02 §4.8)', () => {
   it('target letter plus needed accidental', () => {
     expect(spellGhost(77, P('F', 1, 5), D)).toEqual(P('F', 0, 5)); // F#5 played F
     expect(spellGhost(71, P('B', -1, 4), Bb)).toEqual(P('B', 0, 4)); // Bb4 played B
-    expect(spellGhost(79, P('F', 1, 5), D)).toEqual(P('F', 2, 5)); // two above: double sharp, per rule
+    expect(spellGhost(79, P('F', 1, 5), D)).toEqual(P('F', 2, 5)); // a semitone above F#: double sharp, per rule
     expect(spellGhost(78, P('F', 1, 5), D)).toEqual(P('F', 1, 5));
     expect(spellGhost(72, P('B', 0, 4), D)).toEqual(P('B', 1, 4)); // B#4 = 72, letter kept
     expect(spellGhost(59, P('C', 0, 4), D)).toEqual(P('C', -1, 4));
@@ -169,6 +169,36 @@ describe('spellGhost (02 §4.8)', () => {
     expect(spellGhost(61, P('G', 0, 4), { fifths: -1, mode: 'major' })).toEqual(P('D', -1, 4));
     expect(spellGhost(60, P('G', 0, 5), D)).toEqual(P('C', 0, 4));
     expect(spellGhost(-1 + 12, P('G', 0, 3), Bb)).toEqual(P('B', 0, -1));
+  });
+  it('R50: a whole-tone error is spelled from the key, on its own staff position', () => {
+    // A4 played as B4 in C: B natural on the B line, not A double-sharp on the target's space.
+    expect(spellGhost(71, P('A', 0, 4), { fifths: 0, mode: 'major' })).toEqual(P('B', 0, 4));
+    expect(spellGhost(80, P('F', 1, 5), D)).toEqual(P('G', 1, 5)); // F#5 + 2 in D major: G#
+    expect(spellGhost(76, P('F', 1, 5), D)).toEqual(P('E', 0, 5));
+    // The key's own spelling of the pitch class: E# in F# major, Cb in Gb major.
+    expect(spellGhost(65, P('G', 1, 4), { fifths: 6, mode: 'major' })).toEqual(P('E', 1, 4));
+    expect(spellGhost(71, P('D', -1, 5), { fifths: -6, mode: 'major' })).toEqual(P('C', -1, 5));
+    // A double-flat target a whole tone below its played pitch still moves to another letter.
+    expect(spellGhost(71, P('B', -2, 4), { fifths: -7, mode: 'major' })).toEqual(P('C', -1, 5));
+  });
+  it('R50: beyond 1 semitone the ghost never takes the target staff position; within 1 it keeps the letter', () => {
+    const steps: Step[] = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
+    for (let fifths = -7; fifths <= 7; fifths++) {
+      const key: KeySig = { fifths, mode: fifths % 2 === 0 ? 'major' : 'minor' };
+      for (const step of steps)
+        for (const alter of [-2, -1, 0, 1, 2] as SpelledPitch['alter'][])
+          for (const octave of [3, 4, 5]) {
+            const t = P(step, alter, octave);
+            const tm = toMidi(t);
+            for (let d = -5; d <= 5; d++) {
+              const g = spellGhost(tm + d, t, key);
+              expect(toMidi(g)).toBe(tm + d);
+              const samePos = g.step === t.step && g.octave === t.octave;
+              if (Math.abs(d) >= 2) expect(samePos, `${step}${alter}${octave} +${d} in ${fifths}`).toBe(false);
+              else if (Math.abs(alter + d) <= 2) expect(samePos).toBe(true);
+            }
+          }
+    }
   });
   it('always lands on the played midi', () => {
     for (let m = 40; m < 100; m++)

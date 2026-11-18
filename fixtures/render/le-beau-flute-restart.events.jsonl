@@ -744,7 +744,7 @@
 {"kind":"event","atMs":14705.3,"event":{"type":"clock","scoreBeat":22.058}}
 {"kind":"event","atMs":14710.7,"event":{"type":"note-start","detectedId":25,"scoreBeat":22.006001,"provisionalConcertMidi":76.03,"matchedExpected":24,"displaced":false}}
 {"kind":"event","atMs":14710.7,"event":{"type":"judgment","judgment":{"expectedIdx":24,"status":"matched","detectedId":25,"timing":"on-time","timingErrorMs":4.000333,"pitch":"wrong-pitch","playedConcertMidi":76.03,"centsError":null,"octaveDisplaced":false,"duration":"not-graded","heldRatio":null,"marginal":false,"provisional":true}}}
-{"kind":"event","atMs":14710.7,"event":{"type":"ghost","ghost":{"detectedId":25,"scoreBeat":22.006001,"writtenPitch":{"step":"D","alter":2,"octave":5},"kind":"wrong-pitch","centsError":null,"targetExpectedIdx":24,"displaced":false}}}
+{"kind":"event","atMs":14710.7,"event":{"type":"ghost","ghost":{"detectedId":25,"scoreBeat":22.006001,"writtenPitch":{"step":"E","alter":0,"octave":5},"kind":"wrong-pitch","centsError":null,"targetExpectedIdx":24,"displaced":false}}}
 {"kind":"event","atMs":14737.3,"event":{"type":"clock","scoreBeat":22.106}}
 {"kind":"event","atMs":14769.3,"event":{"type":"clock","scoreBeat":22.154}}
 {"kind":"event","atMs":14801.3,"event":{"type":"clock","scoreBeat":22.202}}

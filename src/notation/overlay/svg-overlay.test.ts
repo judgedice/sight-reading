@@ -11,6 +11,7 @@ import { VexScoreView, expectedChains, tickablesPerBar } from '../index.ts';
 import { fixtureDoc, fixtureDocs } from '../testing/corpus-node.ts';
 import { preparedFromDoc } from '../testing/prepared.ts';
 import { capUnmatchedGhosts, ghostVisual, isBrakedBar, isErrorState, noteVisual, visualStateFromJudgment } from '../visual-states.ts';
+import { spellGhost, toMidi } from '../../theory/index.ts';
 import { SvgOverlay } from './index.ts';
 
 const VP = { width: 1280, height: 800 };
@@ -130,6 +131,34 @@ describe('ghosts', () => {
     view.removeGhost(7);
     expect(ghostsIn(el)).toHaveLength(0);
     view.removeGhost(7);
+  });
+
+  it('R50: a whole-tone wrong note draws its ghost on another staff position than the target; a semitone keeps it', () => {
+    const { el, view, p, layout } = setup();
+    const pt = layout.beatToPoint(0.5);
+    const sp = layout.systems.find((s) => s.index === pt.system)!.lineSpacing;
+    const headY = (id: number): number => {
+      const head = el.querySelector(`.sr-ghost[data-detected-id="${id}"] .sr-ghost-head`)!;
+      return Number(/translate\([-\d.]+ ([-\d.]+)\)/.exec(head.getAttribute('transform')!)![1]);
+    };
+    const targets = p.measures.flatMap((m) => m.events.flatMap((e) => (e.kind === 'note' ? [e.writtenPitch] : []))).slice(0, 12);
+    expect(targets.length).toBeGreaterThan(3);
+    let id = 100;
+    for (const t of targets) {
+      const targetY = layout.staffY(pt.system, t, p.clef);
+      for (const d of [-2, 2]) {
+        const g = spellGhost(toMidi(t) + d, t, p.writtenKey);
+        view.showGhost(ghost(p, ++id, { kind: 'wrong-pitch', writtenPitch: g }));
+        // At least one diatonic step (half a line spacing) away from the target notehead.
+        expect(Math.abs(headY(id) - targetY), `${t.step}${t.alter}${t.octave} ${d > 0 ? '+' : ''}${d} -> ${g.step}${g.alter}${g.octave}`).toBeGreaterThanOrEqual(sp / 2 - 0.01);
+      }
+      for (const d of [-1, 1]) {
+        const g = spellGhost(toMidi(t) + d, t, p.writtenKey);
+        if (Math.abs(g.alter) > 2 || g.step !== t.step) continue;
+        view.showGhost(ghost(p, ++id, { kind: 'wrong-pitch', writtenPitch: g }));
+        expect(Math.abs(headY(id) - targetY)).toBeLessThan(0.01);
+      }
+    }
   });
 
   it('re-sending an identical ghost leaves the DOM untouched (no second fade)', () => {

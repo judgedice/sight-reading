@@ -59,15 +59,36 @@ export interface OracleCtx {
 const SHARP_NAMES: [Step, number][] = [['C', 0], ['C', 1], ['D', 0], ['D', 1], ['E', 0], ['F', 0], ['F', 1], ['G', 0], ['G', 1], ['A', 0], ['A', 1], ['B', 0]];
 const FLAT_NAMES: [Step, number][] = [['C', 0], ['D', -1], ['D', 0], ['E', -1], ['E', 0], ['F', 0], ['G', -1], ['G', 0], ['A', -1], ['A', 0], ['B', -1], ['B', 0]];
 
+/**
+ * 02 §4.8 with PLAN ruling 50: within 1 semitone the target letter keeps; further away the played pitch is spelled
+ * from the key signature (the key's own spelling of the pitch class, else sharps/flats by the signature's side), never
+ * on the target's staff position.
+ */
 export function spellGhostRef(playedWrittenMidi: number, target: SpelledPitch | null, key: KeySig): SpelledPitch {
-  if (target && Math.abs(playedWrittenMidi - midiOf(target)) <= 2) {
+  if (target && Math.abs(playedWrittenMidi - midiOf(target)) <= 1) {
     const alter = playedWrittenMidi - midiOf({ step: target.step, alter: 0, octave: target.octave });
     if (Math.abs(alter) <= 2) return { step: target.step, alter: alter as SpelledPitch['alter'], octave: target.octave };
   }
   const pc = ((playedWrittenMidi % 12) + 12) % 12;
-  const [step, alter] = (key.fifths < 0 ? FLAT_NAMES : SHARP_NAMES)[pc]!;
-  const octave = Math.floor(playedWrittenMidi / 12) - 1;
-  return { step, alter: alter as SpelledPitch['alter'], octave };
+  const order: Step[] = ['F', 'C', 'G', 'D', 'A', 'E', 'B'];
+  const sigAlter = (st: Step): number => {
+    const i = order.indexOf(st);
+    return key.fifths > 0 ? (i < key.fifths ? 1 : 0) : key.fifths < 0 ? (6 - i < -key.fifths ? -1 : 0) : 0;
+  };
+  const on = (st: Step): SpelledPitch | null => {
+    for (const oct of [Math.floor(playedWrittenMidi / 12) - 2, Math.floor(playedWrittenMidi / 12) - 1, Math.floor(playedWrittenMidi / 12)]) {
+      const alter = playedWrittenMidi - midiOf({ step: st, alter: 0, octave: oct });
+      if (Math.abs(alter) <= 2) return { step: st, alter: alter as SpelledPitch['alter'], octave: oct };
+    }
+    return null;
+  };
+  const letters: Step[] = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
+  const inKey = letters.filter((st) => (((midiOf({ step: st, alter: 0, octave: 4 }) + sigAlter(st)) % 12) + 12) % 12 === pc);
+  const side = (key.fifths < 0 ? FLAT_NAMES : SHARP_NAMES)[pc]![0];
+  const other = (key.fifths < 0 ? SHARP_NAMES : FLAT_NAMES)[pc]![0];
+  const cands = [...inKey, side, other, ...letters].map(on).filter((x): x is SpelledPitch => x !== null);
+  const same = (p: SpelledPitch): boolean => !!target && p.step === target.step && p.octave === target.octave;
+  return cands.find((p) => !same(p)) ?? cands[0]!;
 }
 
 // ------------------------------------------------------------------------------------------------

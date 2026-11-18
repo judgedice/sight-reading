@@ -10,6 +10,7 @@ import { FakeAudioBackend } from '../../../testkit/fake-backend.ts';
 import { finalDetected, liveSubject, runFollowStream } from '../../../testkit/predicates/index.ts';
 import { SLICE, sliceConfigs, sliceDspConfig, sliceFollowConfig, sliceGrade, sliceTake, type SliceTake } from '../../../app/compose/slice-take.ts';
 import { SLICE_EXTRA, SLICE_LATE_IDX, SLICE_OMIT_IDX, SLICE_WRONG_IDX, renderSlice } from '../../../../e2e/slice/slice-performance.ts';
+import { decideRecheck, withRecheckSpec } from '../../../calibration/index.ts';
 import { DspWorkerCore, copyBlock } from './dsp-worker-core.ts';
 
 const cfg = sliceConfigs();
@@ -259,4 +260,65 @@ describe('S1 take through the DSP worker core (FakeAudioBackend, port path)', ()
     expect(score.components.R as number).toBeLessThan(100);
     console.warn(`[S1 node] score ${score.score} ${score.grade} P/I/R ${JSON.stringify(score.components)}; ${msg}`);
   }, 60_000);
+});
+
+describe('count-in recheck in the worker (01 §7.7, R31, R55)', () => {
+  const take = sliceTake(cfg);
+  const RTL_SEC = 0.06;
+
+  /** A speakers take on the fake backend: count-in clicks loop back into the capture `RTL_SEC` after scheduling. */
+  async function speakersRun(o: { spec: boolean; endAfterCountIn: boolean; rtlSec?: number }) {
+    const be = new FakeAudioBackend({ sampleRate: RATE, route: { outputMode: 'speakers' }, loopback: { rtlSec: o.rtlSec ?? RTL_SEC, gainDb: -20 } });
+    const h = harness();
+    await be.startCapture(h.port);
+    const sched = await be.scheduleTake({ leadSec: 0.6, bpm: take.bpm, beatsPerBar: 4, countInBeats: 4, totalBeats: 8, mode: 'audible', timbre: 'tick', accentDb: 5 });
+    const countIn = sched.clicks.filter((k) => k.countIn);
+    const first = countIn[0]!.t as number;
+    const base = configFor(take, be.analysisRate, sched.t0 as number);
+    const dspCfg = { ...base.cfg, outputMode: 'speakers' as const };
+    const spec = { inputRate: RATE, countIn: countIn.map((k) => ({ t: k.t as number, accent: k.accent })), timbre: 'tick' as const, template: null, silence: { t0: first - 0.4, t1: first } };
+    h.core.onMessage({ ...base, cfg: o.spec ? withRecheckSpec(dspCfg, spec) : dspCfg });
+    const lastClick = countIn.at(-1)!.t as number;
+    const endT = o.endAfterCountIn ? lastClick + 0.6 : first + 0.05;
+    await be.run({ untilClock: endT + 0.05 });
+    const beforeEnd = h.replies.filter((r) => r.type === 'recheck').length;
+    h.core.onMessage({ v: 1, type: 'end', t: endT as ClockSeconds, reason: { reason: 'stopped' } });
+    return { h, beforeEnd };
+  }
+
+  it("posts 'recheck' once the count-in is recorded, measuring the loopback RTL, then 'done'", async () => {
+    const { h, beforeEnd } = await speakersRun({ spec: true, endAfterCountIn: true });
+    expect(beforeEnd).toBe(1);
+    const rechecks = h.replies.filter((r): r is Extract<WorkerReply, { type: 'recheck' }> => r.type === 'recheck');
+    expect(rechecks).toHaveLength(1);
+    const r = rechecks[0]!.result;
+    expect(Object.keys(r).sort()).toEqual(['accepted', 'clicksFound', 'firstClickFound', 'madMs', 'rtlMs']);
+    expect(r.accepted).toBe(true);
+    expect(r.firstClickFound).toBe(true);
+    expect(r.clicksFound).toBe(4);
+    expect(Math.abs(r.rtlMs! - RTL_SEC * 1000)).toBeLessThanOrEqual(1.5);
+    // The session's decision on it: stored 50 ms vs measured 60 ms uses the fresh value and keeps the take ranked.
+    const d = decideRecheck(r, 50, cfg.budget.calibration);
+    expect(d.recheck.status).toBe('measured');
+    expect(d.recheck.usedFresh).toBe(true);
+    const iRecheck = h.replies.indexOf(rechecks[0]!);
+    expect(iRecheck).toBeLessThan(h.replies.findIndex((x) => x.type === 'done'));
+  }, 30_000);
+
+  it('a take that ends during the count-in still posts its recheck before done (unmeasured)', async () => {
+    const { h, beforeEnd } = await speakersRun({ spec: true, endAfterCountIn: false });
+    expect(beforeEnd).toBe(0);
+    const types = h.replies.map((r) => r.type);
+    expect(types.filter((t) => t === 'recheck')).toHaveLength(1);
+    expect(types.indexOf('recheck')).toBeLessThan(types.indexOf('done'));
+    const r = (h.replies.find((x) => x.type === 'recheck') as Extract<WorkerReply, { type: 'recheck' }>).result;
+    expect(r.accepted).toBe(false);
+    expect(decideRecheck(r, 50, cfg.budget.calibration).recheck.status).toBe('unmeasured');
+  }, 30_000);
+
+  it('no spec (relay mode, headphones): no recheck reply', async () => {
+    const { h } = await speakersRun({ spec: false, endAfterCountIn: true });
+    expect(h.replies.some((r) => r.type === 'recheck')).toBe(false);
+    expect(h.replies.some((r) => r.type === 'done')).toBe(true);
+  }, 30_000);
 });

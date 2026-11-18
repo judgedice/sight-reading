@@ -56,7 +56,7 @@ describe('letter grade and stars (02 §4.7)', () => {
   });
 });
 
-describe('S needs no wrong-pitch and no missed note (PLAN ruling 43)', () => {
+describe('S needs no wrong-pitch, no missed note and no non-voice octave error (PLAN rulings 43, 52)', () => {
   const perfect = inputOf(fixtures.find((f) => f.id === 'case01-perfect-flute-l4')!);
   const aRow = cfg.grading.grades.scale.find((r) => r.grade === 'A')!;
   /** The perfect take with one note changed. */
@@ -104,6 +104,27 @@ describe('S needs no wrong-pitch and no missed note (PLAN ruling 43)', () => {
     const off = grade(withNote(5, wrong, false));
     expect(off.grade).toBe('S');
     expect(off.score).toBe(grade(withNote(5, wrong)).score);
+  });
+
+  // PLAN ruling 52: the cap also counts octave errors on non-voice instruments (no pitch credit, R20).
+  const octave = (j: NoteJudgment): NoteJudgment => ({ ...j, pitch: 'octave', playedConcertMidi: (j.playedConcertMidi ?? 60) + 12, credit: { ...j.credit, p: 0 } });
+  it('an octave error on a non-voice instrument in an S-band take gives A (R52)', () => {
+    const s = grade(withNote(5, octave));
+    expect(s.score).toBeGreaterThanOrEqual(97);
+    expect(s.diagnostics.counts.octave).toBe(1);
+    expect([s.grade, s.stars, s.shine]).toEqual(['A', aRow.stars, aRow.shine]);
+    expect(grade(withNote(5, octave, false)).grade).toBe('S');
+  });
+
+  it('voice is octave-equivalent (R7): an octave mark does not cap the S', () => {
+    const voice = inputOf(fixtures.find((f) => f.id === 'case01-perfect-voice-l2')!);
+    expect(voice.instrument.relativePitch).toBe(true);
+    const js = voice.alignment.judgments;
+    const k = js.findIndex((j) => j.status === 'matched');
+    const s = grade({ ...voice, alignment: { ...voice.alignment, judgments: js.map((j, i) => (i === k ? { ...j, pitch: 'octave' as const } : j)) } });
+    expect(s.diagnostics.counts.octave).toBe(1);
+    expect(s.score).toBeGreaterThanOrEqual(97);
+    expect(s.grade).toBe('S');
   });
 });
 

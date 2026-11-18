@@ -187,6 +187,21 @@ describe('E30 clean read', () => {
     const ps = detectPatterns(build({ notes: quarters(8), play: (i) => (i === 0 ? { dMs: 250 } : {}) }));
     expect(ids(ps)).toEqual(['E29']);
   });
+  it('does not fire with a red note even when no pattern fires and the score is high (PLAN ruling 51)', () => {
+    // one wrong note and one late note in different bars: neither reaches a pattern's evidence minimum
+    const input = build({ notes: quarters(8), play: (i) => (i === 2 ? { written: 70 } : i === 13 ? { dMs: 250 } : {}) });
+    const reds = input.alignment.judgments.filter((j) => j.pitch === 'wrong-pitch' || j.timing === 'late');
+    expect(reds.length).toBeGreaterThanOrEqual(2);
+    expect(grade(input).score).toBeGreaterThanOrEqual(90);
+    expect(detectPatterns(input)).toEqual([]);
+    // the same take with the notes played right reads clean
+    expect(ids(detectPatterns(build({ notes: quarters(8) })))).toEqual(['E30']);
+  });
+  it('a marginal (not red) note keeps the clean read', () => {
+    const input = build({ notes: quarters(8) });
+    const js = input.alignment.judgments.map((j, i) => (i === 3 ? { ...j, marginal: true } : j));
+    expect(ids(detectPatterns({ ...input, alignment: { ...input.alignment, judgments: js } }))).toEqual(['E30']);
+  });
   it('does not fire below score 90 even when nothing else fires', () => {
     // every note 140 ms late: a constant offset is no timing pattern, but the score drops well below 90
     const input = build({ notes: quarters(8), play: () => ({ dMs: 140 }) });
@@ -611,9 +626,10 @@ describe('E31 clarinet break crossings', () => {
 describe('global rules (02 §6.1 item 3)', () => {
   const lateFirst = (i: number): Play => (i === 0 ? { dMs: 250 } : {});
   it('timing patterns are off without a measured calibration', () => {
-    // the late first note fires E29 when calibrated; without calibration nothing else fires, so the take reads clean
+    // the late first note fires E29 when calibrated; without calibration no timing pattern fires, and the red late
+    // note keeps the clean read away too (PLAN ruling 51)
     expect(ids(detectPatterns(build({ notes: quarters(8), play: lateFirst })))).toEqual(['E29']);
-    expect(ids(detectPatterns(build({ notes: quarters(8), play: lateFirst, extra: { calibrationMeasured: false } })))).toEqual(['E30']);
+    expect(ids(detectPatterns(build({ notes: quarters(8), play: lateFirst, extra: { calibrationMeasured: false } })))).toEqual([]);
     const drift = (_i: number, e: ExpectedNote): Play => ({ dMs: (e.onsetBeat / 4) * 0.05 * 750 });
     expect(ids(detectPatterns(build({ notes: quarters(8), play: drift, extra: { calibrationMeasured: false } })))).not.toContain('E2');
   });

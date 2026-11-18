@@ -70,7 +70,7 @@ import { createEmitter } from '../core/events.ts';
 import { createRng } from '../core/rng.ts';
 import { CorpusLoadError, loadExcerpt, selectAndPrepare } from '../corpus/index.ts';
 import { DspPipeline } from '../dsp/pipeline.ts';
-import { alignFinal, liveOutcomeOf } from '../follow/index.ts';
+import { alignFinalWithReference, liveOutcomeOf } from '../follow/index.ts';
 import {
   applyAttemptOnDay,
   createProfile,
@@ -81,7 +81,15 @@ import {
   xpInputFor,
 } from '../grade/index.ts';
 import { selectTips } from '../tips/index.ts';
-import { CountInRecheck, applyRecheckToCalibration, decideRecheck, reportedCalibration, staleOnRouteChange } from '../calibration/index.ts';
+import {
+  CountInRecheck,
+  applyRecheckToCalibration,
+  decideRecheck,
+  reportedCalibration,
+  staleOnRouteChange,
+  withRecheckSpec,
+  type WorkerRecheckSpec,
+} from '../calibration/index.ts';
 import { buildAudioEnv, calibrationForRoute, evaluateTakeGate } from './gates/index.ts';
 import {
   creditOf,
@@ -569,17 +577,30 @@ export class PracticeSession implements PracticeSessionInstance {
         calibration: stored,
         repeatHints: repeatHints(plan, take.t0, rtlSec),
       });
-      const msg: WorkerMessage = { v: 1, type: 'config', cfg: dsp, follow };
+      const recheckOn = s.outputMode === 'speakers' && take.countIn.length > 0;
+      const first = take.countIn[0];
+      const template = stored?.templates[s.clickTimbre];
+      const spec: WorkerRecheckSpec | null =
+        recheckOn && first
+          ? {
+              inputRate: contextRate,
+              countIn: take.countIn.map((k) => ({ t: k.t as number, accent: k.accent })),
+              timbre: s.clickTimbre,
+              template: template ? [...template.samples] : null,
+              silence: { t0: (first.t as number) - 0.4, t1: first.t as number },
+            }
+          : null;
+      // Port mode (R55): blocks never reach this thread, so the worker runs the recheck and posts 'recheck'. The
+      // frozen 'config' message has no field for it; the spec rides on the DspConfig object (calibration/recheck.ts).
+      const msg: WorkerMessage = { v: 1, type: 'config', cfg: spec && channel ? withRecheckSpec(dsp, spec) : dsp, follow };
       if (channel) take.worker.postMessage(msg, [channel.port2]);
       else take.worker.postMessage(msg);
-      if (s.outputMode === 'speakers' && take.relay && take.countIn.length > 0) {
-        const first = take.countIn[0] as ClickSpec;
-        const template = stored?.templates[s.clickTimbre];
-        take.recheck = new CountInRecheck(contextRate, take.countIn.map((k) => ({ t: k.t as number, accent: k.accent })), {
-          timbre: s.clickTimbre,
-          template: template ? template.samples : null,
+      if (spec && take.relay) {
+        take.recheck = new CountInRecheck(spec.inputRate, spec.countIn, {
+          timbre: spec.timbre,
+          template: spec.template,
           budget: this.cfg.budget.calibration,
-          silence: { t0: (first.t as number) - 0.4, t1: first.t as number },
+          ...(spec.silence ? { silence: spec.silence } : {}),
         });
       }
     }
@@ -941,6 +962,7 @@ export class PracticeSession implements PracticeSessionInstance {
     let alignment = t.alignment ?? EMPTY_ALIGNMENT;
     const detected = done?.detected ?? [];
     let markStale = false;
+    let freshVoiceReference: GradeInput['voiceReference'] | undefined;
     if (t.listening && speakers) {
       const result: RecheckResult = t.recheckResult ?? t.recheck?.finish() ?? { firstClickFound: false, clicksFound: 0, rtlMs: null, madMs: null, accepted: false };
       const d = decideRecheck(result, t.used.roundTripMs, cfg.budget.calibration);
@@ -949,7 +971,9 @@ export class PracticeSession implements PracticeSessionInstance {
       if (d.recheck.usedFresh && t.follow && !isVoid) {
         // The live overlay used the stored value; the final alignment uses the fresh one (R31).
         latencyMs = d.latencyMs;
-        alignment = alignFinal({ ...t.follow, latencyCompensationSec: latencyMs / 1000 }, detected, liveOutcomeOf(t.liveEvents));
+        const fresh = alignFinalWithReference({ ...t.follow, latencyCompensationSec: latencyMs / 1000 }, detected, liveOutcomeOf(t.liveEvents));
+        alignment = fresh.alignment;
+        freshVoiceReference = fresh.voiceReference;
       }
     }
     if (!t.listening) latencyMs = 0;
@@ -1008,7 +1032,7 @@ export class PracticeSession implements PracticeSessionInstance {
         meter: c.prepared.meter,
         cfg,
         tuning: t.tuning,
-        voiceReference: plan.inst.family === 'voice' ? (done?.voiceReference ?? null) : null,
+        voiceReference: plan.inst.family === 'voice' ? (freshVoiceReference !== undefined ? freshVoiceReference : (done?.voiceReference ?? null)) : null,
         writtenKey: c.prepared.writtenKey,
         signal: done?.signal ?? { medianClarity: null, clippingFrac: 0 },
         calibrationMeasured: calibrationForRoute(t.stored, t.route.routeKey) !== null,

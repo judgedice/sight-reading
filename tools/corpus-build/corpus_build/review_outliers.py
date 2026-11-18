@@ -10,7 +10,9 @@ Runs over the windows that survived dedupe (`build/dedupe/candidates.jsonl`, sta
    so a tail never exceeds its share and the result does not depend on input order. A window flagged on
    `reject_if_flagged_on_at_least` (2) or more metrics is rejected (`outlier`); one flagged on exactly one metric needs
    the agent veto (R2), which under ruling 48 means it is excluded above L3.
-2. `levelConfidence == 1` above `reject_level_confidence_1_above_level` (L6) rejects (`level-confidence`).
+2. `levelConfidence == 1` above `reject_level_confidence_1_above_level` (L6) is report-only since ruling 49
+   (`level_confidence_1_report_only: true`): `level_confidence_reported` says so and the review summary counts it, but nothing is
+   rejected. With the flag false it rejects (`level-confidence`) as before.
 3. Krumhansl-Schmuckler key. The duration-weighted pitch-class profile of the window is correlated with the 24
    Krumhansl-Kessler key profiles. Major and minor windows whose signature-plus-final key disagrees are rejected
    (`key-profile`). "Disagrees" is defined in `config/review.yaml` `key_profile` because strict best-key equality
@@ -174,16 +176,21 @@ def key_check(content: dict[str, Any], kcfg: dict[str, Any]) -> dict[str, Any] |
     return {"expected": list(exp), "best": list(best), "rExpected": round(r_exp, 4), "rBest": round(r_best, 4), "agrees": agrees}
 
 
+def level_confidence_reported(rec: dict[str, Any], ocfg: dict[str, Any]) -> bool:
+    """True when the level rests on one feature above the configured level (rejected or, under ruling 49, only reported)."""
+    return rec.get("levelConfidence") == 1 and rec["effectiveLevel"] > int(ocfg["reject_level_confidence_1_above_level"])
+
+
 def r1_decision(rec: dict[str, Any], flags: list[dict[str, Any]], key: dict[str, Any] | None, cfg: dict[str, Any] | None = None) -> tuple[str | None, str | None]:
     """(reason, detail) when R1 rejects the window, else (None, None)."""
     ocfg = (cfg or filters_config())["outliers"]
     if len(flags) >= int(ocfg["reject_if_flagged_on_at_least"]):
         return "outlier", "flagged on " + ", ".join(f"{f['metric']} ({f['side']}, z {f['z']})" for f in flags)
-    if rec.get("levelConfidence") == 1 and rec["effectiveLevel"] > int(ocfg["reject_level_confidence_1_above_level"]):
+    if not ocfg.get("level_confidence_1_report_only", False) and level_confidence_reported(rec, ocfg):
         return "level-confidence", f"a single feature sets level {rec['effectiveLevel']}"
     if key is not None and not key["agrees"]:
         return "key-profile", f"Krumhansl-Schmuckler best key {key['best']} (r {key['rBest']}) disagrees with the signature-plus-final key {key['expected']} (r {key['rExpected']})"
     return None, None
 
 
-__all__ = ["METRICS", "closely_related", "key_check", "key_scores", "outlier_flags", "r1_decision", "robust_z", "signature_of", "tail_flags"]
+__all__ = ["METRICS", "closely_related", "key_check", "level_confidence_reported", "key_scores", "outlier_flags", "r1_decision", "robust_z", "signature_of", "tail_flags"]

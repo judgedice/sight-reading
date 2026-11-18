@@ -21,13 +21,19 @@
  *   different ports, so their order is not guaranteed), or after `endWaitMs` without one. Then `flush(t)`,
  *   `LiveFollower.end`, `alignFinal(config, detected, liveOutcomeOf(liveEvents))`, a last 'events' reply that ends with
  *   `{ type: 'final', alignment }`, and 'done'.
+ * - Count-in recheck (01 §7.7, R31, R55): when the config carries a `WorkerRecheckSpec` (port mode on speakers; see
+ *   calibration/recheck.ts), every analysed block also feeds a `CountInRecheck`; its result is posted once as
+ *   `WorkerReply` 'recheck' as soon as the count-in has been recorded, or at the end of the take (before 'done') if
+ *   the take ended first. The session applies `decideRecheck` to it.
+ * - 'done'.voiceReference comes from the final alignment's drift replay (`alignFinalWithReference`; 02 §4.5, E23).
  */
 import type { CaptureBlock, CaptureReturn, ClickSpec, WorkerMessage, WorkerReply } from '../../../core/platform.ts';
 import type { ClockSeconds, DetectedNote, DspConfig, DspEvent, DspStats, EndReason, FinalAlignment, FollowConfig, FollowerEvent, LiveJudgment } from '../../../core/types.ts';
 import { DspPipeline } from '../../../dsp/pipeline.ts';
 // The worker is a composition point of its own (01 §2: live matcher and final alignment run in the DSP worker), so it
 // reaches follow/ although platform/web otherwise may not (needs an eslint composition-root entry, see the S1 report).
-import { LiveFollower, alignFinal, liveOutcomeOf } from '../../../follow/index.ts';
+import { LiveFollower, alignFinalWithReference, liveOutcomeOf } from '../../../follow/index.ts';
+import { CountInRecheck, recheckResultOf, recheckSpecOf, type RecheckDetail } from '../../../calibration/index.ts';
 
 /** A port-like object the core posts `CaptureReturn`s on. */
 export interface ReturnPort {
@@ -86,6 +92,8 @@ export class DspWorkerCore {
   private pendingEnd: { t: ClockSeconds; reason: EndReason } | null = null;
   private cancelEndTimer: (() => void) | null = null;
   private finished = false;
+  private recheck: CountInRecheck | null = null;
+  private recheckPosted = false;
   /** Port blocks whose buffers went back to the worklet. */
   returned = 0;
   /** 'clicks' messages that came after analysis had started. */
@@ -149,6 +157,15 @@ export class DspWorkerCore {
     this.follow = follow;
     this.dsp = new DspPipeline(cfg);
     this.follower = new LiveFollower(follow);
+    const spec = recheckSpecOf(cfg);
+    if (spec && cfg.outputMode === 'speakers' && spec.countIn.length > 0) {
+      this.recheck = new CountInRecheck(spec.inputRate, spec.countIn, {
+        timbre: spec.timbre,
+        template: spec.template,
+        budget: follow.cfg.budget.calibration,
+        ...(spec.silence ? { silence: spec.silence } : {}),
+      });
+    }
     if (this.pendingClicks) this.rebuild(this.pendingClicks);
     this.pendingClicks = null;
     this.deps.post({ v: 1, type: 'ready' });
@@ -205,6 +222,15 @@ export class DspWorkerCore {
     this.analysed++;
     this.lastBlockEnd = Math.max(this.lastBlockEnd, blockEnd as number);
     this.emit(out);
+    if (this.recheck && !this.recheckPosted) {
+      const r = this.recheck.push(b);
+      if (r) this.postRecheck(r);
+    }
+  }
+
+  private postRecheck(r: RecheckDetail): void {
+    this.recheckPosted = true;
+    this.deps.post({ v: 1, type: 'recheck', result: recheckResultOf(r) });
   }
 
   private onDspEvent(ev: DspEvent, follower: LiveFollower, out: FollowerEvent[]): void {
@@ -248,8 +274,9 @@ export class DspWorkerCore {
     for (const ev of follower.end(t, reason)) out.push(ev);
     for (const e of out) this.liveEvents.push(e);
     const detected = [...this.latest.values()].sort((a, b) => a.id - b.id);
-    const alignment = alignFinal(follow, detected, liveOutcomeOf(this.liveEvents));
+    const { alignment, voiceReference } = alignFinalWithReference(follow, detected, liveOutcomeOf(this.liveEvents));
     this.alignment = alignment;
+    if (this.recheck && !this.recheckPosted) this.postRecheck(this.recheck.finish());
     out.push({ type: 'final', alignment });
     this.deps.post({ v: 1, type: 'events', events: out });
 
@@ -263,9 +290,8 @@ export class DspWorkerCore {
       live: [...live.values()].sort((a, b) => a.expectedIdx - b.expectedIdx),
       stats,
       signal: { medianClarity: median(detected.map((d) => d.clarity)), clippingFrac: this.signals > 0 ? this.clipped / this.signals : 0 },
-      // 02 §4.5: the voice drift reference values come from the final alignment's replay, which FinalAlignment does
-      // not expose; null until it does (non-voice families are null by definition).
-      voiceReference: null,
+      // 02 §4.5: from the final alignment's drift replay; null for families without relative pitch.
+      voiceReference,
     });
   }
 }

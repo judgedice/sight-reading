@@ -60,6 +60,26 @@ class TestBackend extends FakeAudioBackend {
   }
 }
 
+/** The worker end of an in-process capture channel: buffers blocks until the worker listens, then delivers in order. */
+class InProcessPort {
+  private readonly queue: unknown[] = [];
+  private handler: ((data: unknown) => void) | null = null;
+  deliver(data: unknown): void {
+    if (this.handler) this.handler(data);
+    else this.queue.push(data);
+  }
+  listen(h: (data: unknown) => void): void {
+    this.handler = h;
+    for (const d of this.queue.splice(0)) h(d);
+  }
+}
+
+/** `createCaptureChannel` for Node: the backend posts on port1, the worker adopts port2 (port mode, R55). */
+function inProcessChannel(): { port1: MessagePortLike; port2: InProcessPort } {
+  const port2 = new InProcessPort();
+  return { port1: { postMessage: (m: unknown) => port2.deliver(m), close: () => undefined }, port2 };
+}
+
 /** The DSP worker's logic in-process; replies are delivered asynchronously like a real worker's. */
 class NodeWorker implements WorkerLike {
   onmessage: ((ev: { data: WorkerReply }) => void) | null = null;
@@ -73,7 +93,13 @@ class NodeWorker implements WorkerLike {
     },
     endWaitMs: 50,
   });
-  postMessage(m: WorkerMessage): void {
+  postMessage(m: WorkerMessage, transfer?: unknown[]): void {
+    // Port mode: the capture port arrives as the first transferred object (dsp.worker.ts adoptPort).
+    const port = transfer?.[0];
+    if (port instanceof InProcessPort) {
+      this.core.setCapturePort({ postMessage: () => undefined });
+      port.listen((data) => !this.terminated && this.core.onCaptureMessage(data));
+    }
     if (!this.terminated) this.core.onMessage(m);
   }
   terminate(): void {
@@ -94,7 +120,7 @@ interface Harness {
 
 const playAlong = (rtlMs: number): Calibration => ({ ...makeCalibration(ROUTE), method: 'play-along', outputMode: 'wired', roundTripMs: rtlMs, spreadMs: 4, clicksDetected: 8, templates: {} });
 
-async function harness(o: { backend?: FakeBackendOptions; calibration?: Calibration | null } = {}): Promise<Harness> {
+async function harness(o: { backend?: FakeBackendOptions; calibration?: Calibration | null; portMode?: boolean } = {}): Promise<Harness> {
   const be = new TestBackend({ sampleRate: RATE, route: { routeKey: ROUTE, outputMode: 'wired', reportedLatencySec: 0.02 }, ...o.backend });
   const kv = new MemoryKv();
   const repos = memoryRepos(kv);
@@ -120,7 +146,7 @@ async function harness(o: { backend?: FakeBackendOptions; calibration?: Calibrat
       workers.push(w);
       return w;
     } },
-    { pollMs: 'manual', rng: createRng(7), finishTimeoutMs: 2000 },
+    { pollMs: 'manual', rng: createRng(7), finishTimeoutMs: 2000, ...(o.portMode ? { createCaptureChannel: inProcessChannel } : {}) },
   );
   const events: SessionEvent[] = [];
   const stateAt = new Map<SessionState, number>();
@@ -514,6 +540,56 @@ describe('speakers: count-in recheck (01 §7.7, R31)', () => {
     expect(Math.abs(rc.measuredMs! - 50)).toBeLessThanOrEqual(2);
     expect(rc.usedFresh).toBe(false);
   }, 30_000);
+});
+
+describe('speakers in port mode: the worker runs the recheck (R55)', () => {
+  it('a ranked speaker take: recheck measured by the worker, no gate failure, ranked', async () => {
+    const cal: Calibration = { ...makeCalibration(ROUTE), roundTripMs: 50, spreadMs: 1, clicksDetected: 10, templates: {} };
+    const h = await harness({ backend: { route: { routeKey: ROUTE, outputMode: 'speakers' }, loopback: { rtlSec: 0.05, gainDb: -30 } }, calibration: cal, portMode: true });
+    await h.session.prepare(settings({ outputMode: 'speakers' }));
+    await h.session.ensureAudio();
+    h.session.revealScan();
+    await h.session.startTake();
+    for (let i = 0; i < 20 && h.be.log.scheduledTakes.length === 0; i++) await flush();
+    play(h, 0.05);
+    await driveTo(h, 'results', 90);
+    const rec = lastRecord(h);
+    const rc = rec.calibration.recheck!;
+    expect(rc.status).toBe('measured');
+    expect(Math.abs(rc.measuredMs! - 50)).toBeLessThanOrEqual(2);
+    expect(rc.usedFresh).toBe(false);
+    // Port mode: no main-thread relay, so the recheck came from the worker's 'recheck' reply.
+    expect(rec.audioEnv.captureRelay).toBe(false);
+    expect(h.workers[0]!.core.returned).toBeGreaterThan(0);
+    expect(rec.audioEnv.gateFailures).toEqual([]);
+    const score = rec.score!;
+    const msg = `score ${score.score} ${score.grade} reasons ${score.rankedReasons} ` +
+      rec.judgments.filter((j) => j.status !== 'matched' || j.timing !== 'on-time').map((j) => `#${j.expectedIdx} ${j.status} ${j.timing}`).join('; ');
+    expect(score.rankedReasons, msg).toEqual([]);
+    expect(score.ranked, msg).toBe(true);
+    expect(score.score, msg).toBeGreaterThanOrEqual(80);
+  }, 90_000);
+
+  it('a stored latency 15 ms off: the worker measures the shift, the take uses the fresh value and stays ranked (R31)', async () => {
+    const cal: Calibration = { ...makeCalibration(ROUTE), roundTripMs: 35, spreadMs: 1, clicksDetected: 10, templates: {} };
+    const h = await harness({ backend: { route: { routeKey: ROUTE, outputMode: 'speakers' }, loopback: { rtlSec: 0.05, gainDb: -30 } }, calibration: cal, portMode: true });
+    await h.session.prepare(settings({ outputMode: 'speakers' }));
+    await h.session.ensureAudio();
+    h.session.revealScan();
+    await h.session.startTake();
+    for (let i = 0; i < 20 && h.be.log.scheduledTakes.length === 0; i++) await flush();
+    play(h, 0.05);
+    await driveTo(h, 'results', 90);
+    const rec = lastRecord(h);
+    const rc = rec.calibration.recheck!;
+    expect(rc.status).toBe('measured');
+    expect(rc.usedFresh).toBe(true);
+    expect(rc.promptRecalibrate).toBe(true);
+    expect(Math.abs(rec.calibration.latencyCompensationMs - 50)).toBeLessThanOrEqual(2);
+    expect(rec.audioEnv.gateFailures).toEqual([]);
+    expect(rec.score!.rankedReasons).toEqual([]);
+    expect(h.events.some((e) => e.type === 'recalibrate-prompt')).toBe(true);
+  }, 90_000);
 });
 
 describe('view store reducer', () => {

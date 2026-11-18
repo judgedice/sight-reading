@@ -66,14 +66,16 @@ describe('refTolerances reproduces the 02 §4.2 worked examples', () => {
 });
 
 describe('ghost spelling (02 §4.8)', () => {
-  it('within ±2 semitones: the target letter with the needed accidental', () => {
+  it('within 1 semitone: the target letter with the needed accidental (PLAN ruling 50)', () => {
     expect(spellGhostRef(65, sp('F#4'), { fifths: 2, mode: 'major' })).toEqual(sp('F4'));
     expect(spellGhostRef(71, sp('Bb4'), { fifths: -1, mode: 'major' })).toEqual(sp('B4'));
     expect(spellGhostRef(72, sp('C#5'), { fifths: 3, mode: 'major' })).toEqual(sp('C5'));
   });
-  it('otherwise by the key signature', () => {
+  it('otherwise by the key signature, on the played pitch’s own staff position', () => {
     expect(spellGhostRef(70, sp('E5'), { fifths: -2, mode: 'major' })).toEqual(sp('Bb4'));
     expect(spellGhostRef(70, sp('E5'), { fifths: 2, mode: 'major' })).toEqual(sp('A#4'));
+    expect(spellGhostRef(71, sp('A4'), { fifths: 0, mode: 'major' })).toEqual(sp('B4'));
+    expect(spellGhostRef(65, sp('G#4'), { fifths: 6, mode: 'major' })).toEqual(sp('E#4'));
   });
 });
 

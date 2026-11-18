@@ -63,7 +63,7 @@ def render(em: Any, inp: Any, via: dict[str, Any], gates: dict[str, str], determ
     L.append("")
     L.append(f"Corpus version `{em.index['corpusVersion']}`: {len(docs)} excerpts in {len(em.index['chunks'])} chunks, {total_bytes / 1e6:.2f} MB emitted to `public/corpus/v1/` (limit {cfg['size_limit_bytes'] / 1e6:.0f} MB). Served levels (at least {cfg['served_min']} excerpts): {', '.join('L' + str(x) for x in served) or 'none'}.")
     if em.trimmed:
-        L.append(f"Trimmed by interest, evenly across levels: {em.trimmed}.")
+        L.append(f"Trimmed by interest: {em.trimmed}. (`manifestLevelCap` is the per-level cap that keeps the manifest under its gzip budget; levels at or under it are untouched.)")
     L.append("")
     L.append("## Ruling 24 gate (CI)")
     L.append("")

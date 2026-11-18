@@ -105,8 +105,19 @@ def test_outliers_reject_only_windows_flagged_on_two_metrics() -> None:
     assert outlier_flags(small)["w003"] == []
 
 
-def test_level_confidence_one_rejects_above_level_six_only() -> None:
-    assert r1_decision(rec(1, level=7, levelConfidence=1), [], None)[0] == "level-confidence"
+def test_level_confidence_one_is_report_only_under_ruling_49() -> None:
+    from corpus_build.review_outliers import level_confidence_reported
+
+    from corpus_build.quality import filters_config
+
+    ocfg = filters_config()["outliers"]
+    assert ocfg["level_confidence_1_report_only"] is True
+    assert r1_decision(rec(1, level=7, levelConfidence=1), [], None)[0] is None
+    assert level_confidence_reported(rec(1, level=7, levelConfidence=1), ocfg)
+    assert not level_confidence_reported(rec(1, level=6, levelConfidence=1), ocfg)
+    assert not level_confidence_reported(rec(1, level=7, levelConfidence=2), ocfg)
+    strict = {"outliers": {**ocfg, "level_confidence_1_report_only": False}}
+    assert r1_decision(rec(1, level=7, levelConfidence=1), [], None, strict)[0] == "level-confidence"
     assert r1_decision(rec(1, level=6, levelConfidence=1), [], None)[0] is None
     assert r1_decision(rec(1, level=7, levelConfidence=2), [], None)[0] is None
 

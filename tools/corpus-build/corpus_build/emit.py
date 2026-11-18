@@ -493,6 +493,25 @@ def trim_by_interest(docs: list[dict[str, Any]], keep_fraction: float) -> list[d
     return sorted(keep, key=lambda d: d["id"])
 
 
+def cap_levels_by_interest(docs: list[dict[str, Any]], cap: int) -> list[dict[str, Any]]:
+    """Keep at most `cap` excerpts per level, the most interesting first. Levels at or under the cap are untouched, so a
+    thin level (L7 to L10) is never trimmed to pay for a crowded one (L5, L6)."""
+    by_level: dict[int, list[dict[str, Any]]] = defaultdict(list)
+    for d in docs:
+        by_level[d["level"]].append(d)
+    keep: list[dict[str, Any]] = []
+    for _, group in sorted(by_level.items()):
+        keep.extend(sorted(group, key=lambda d: (-d["quality"].get("interest", 0), d["id"]))[:cap])
+    return sorted(keep, key=lambda d: d["id"])
+
+
+def manifest_gzip_bytes(docs: list[dict[str, Any]], served_min: int) -> int:
+    """Gzip size of the manifest the given documents would produce (the H-budget measure)."""
+    entries = sorted((manifest_entry(d, "shard-L%02d-01" % d["level"]) for d in docs), key=lambda e: e["id"])
+    data = dumps(encode_manifest(entries, manifest_stats(entries, served_min), "c1-0000000000"), pretty=False)
+    return len(gzip.compress(data, 9, mtime=0))
+
+
 # ---------------------------------------------------------------------------------------------------- the build
 
 
@@ -564,6 +583,21 @@ def build_corpus(inp: Inputs, validate: bool = True) -> Emission:
         before = len(docs)
         docs = trim_by_interest(docs, frac)
         trimmed = {"before": before, "after": len(docs), "bytesBefore": total, "keepFraction": round(frac, 4)}
+        files, entries, stats, index, attrs = assemble(docs)
+
+    # The manifest budget (01 section 12) caps the number of excerpts: cap the crowded levels, never the thin ones.
+    mmax = cfg["budget"]["manifest_gzip_max"]
+    if manifest_gzip_bytes(docs, cfg["served_min"]) > mmax * 0.99:
+        before = len(docs)
+        lo, hi = 1, max(Counter(d["level"] for d in docs).values())
+        while lo < hi:  # the largest per-level cap that fits (1% headroom for the shard names and version string)
+            mid = (lo + hi + 1) // 2
+            if manifest_gzip_bytes(cap_levels_by_interest(docs, mid), cfg["served_min"]) <= mmax * 0.99:
+                lo = mid
+            else:
+                hi = mid - 1
+        docs = cap_levels_by_interest(docs, lo)
+        trimmed = {**(trimmed or {}), "manifestLevelCap": lo, "manifestBefore": before, "manifestAfter": len(docs)}
         files, entries, stats, index, attrs = assemble(docs)
 
     problems: list[str] = []

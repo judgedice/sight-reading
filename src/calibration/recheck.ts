@@ -159,3 +159,40 @@ export function decideRecheck(r: RecheckResult, storedMs: number, budget: Calibr
 export function applyRecheckToCalibration(c: Calibration, d: RecheckDecision): Calibration {
   return d.markStale && !c.stale ? { ...c, stale: true } : c;
 }
+
+/**
+ * What the DSP worker needs to run the count-in recheck itself in port mode (R55), where capture blocks never reach
+ * the main thread. The frozen `WorkerMessage` 'config' has no field for it, so the session attaches it to the
+ * `DspConfig` object it posts (structured clone keeps the extra property) under `RECHECK_SPEC_KEY`; the worker reads
+ * it back with `recheckSpecOf`. A config without it (relay mode, headphones) runs no recheck in the worker.
+ */
+export interface WorkerRecheckSpec {
+  /** Context (input) sample rate, Hz: the hi band's 1 ms sub-blocks are on this axis. */
+  inputRate: number;
+  /** The take's count-in clicks on the output timeline. */
+  countIn: CountInClick[];
+  timbre: ClickTimbre;
+  /** Low-band template samples of the timbre, or null without a calibration. */
+  template: number[] | null;
+  silence?: { t0: number; t1: number };
+}
+
+export const RECHECK_SPEC_KEY = 'srRecheck';
+
+/** `cfg` with the recheck spec attached (see `WorkerRecheckSpec`). */
+export function withRecheckSpec<T extends object>(cfg: T, spec: WorkerRecheckSpec): T {
+  return { ...cfg, [RECHECK_SPEC_KEY]: spec };
+}
+
+/** The recheck spec attached to a config, or null. */
+export function recheckSpecOf(cfg: object): WorkerRecheckSpec | null {
+  const s = (cfg as Record<string, unknown>)[RECHECK_SPEC_KEY];
+  if (typeof s !== 'object' || s === null) return null;
+  const spec = s as WorkerRecheckSpec;
+  return Number.isFinite(spec.inputRate) && Array.isArray(spec.countIn) ? spec : null;
+}
+
+/** The `RecheckResult` part of a detail (the reply carries no arrivals). */
+export function recheckResultOf(d: RecheckDetail): RecheckResult {
+  return { firstClickFound: d.firstClickFound, clicksFound: d.clicksFound, rtlMs: d.rtlMs, madMs: d.madMs, accepted: d.accepted };
+}

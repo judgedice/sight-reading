@@ -263,8 +263,38 @@ export function alignNotes(c: FollowConfig, detected: readonly DetectedNote[]): 
     .sort((a, b) => a.s - b.s || a.note.id - b.note.id);
 }
 
+/** Voice drift reference values of a take (02 §4.5, E23; `WorkerReply` 'done'.voiceReference). */
+export interface VoiceReferenceValues {
+  finalOffsetCents: number;
+  offsetAtThirdCents: number;
+}
+
+/**
+ * Score time of "one third of the excerpt" for E23 (02 §6.2): a third of the way from the first written onset to the
+ * last written end, in score seconds. The reference offset read there is the one in force for the first expected note
+ * at or after that time (the drift replay updates it per note in score order).
+ */
+export function oneThirdSec(expected: readonly ExpectedNote[]): number {
+  if (expected.length === 0) return 0;
+  const first = (expected[0] as ExpectedNote).onsetSec as number;
+  const end = Math.max(...expected.map((e) => (e.onsetSec as number) + e.durSec));
+  return first + (end - first) / 3;
+}
+
 /** Final alignment with a given live outcome (null: no live view, nothing is rejudged against it). */
 export function alignFinal(c: FollowConfig, detected: readonly DetectedNote[], live: LiveOutcome | null): FinalAlignment {
+  return alignFinalWithReference(c, detected, live).alignment;
+}
+
+/**
+ * `alignFinal` plus the voice drift reference values of its replay (R55): the final offset after the last note and the
+ * offset in force at one third of the excerpt (`oneThirdSec`). Null for instruments without relative pitch.
+ */
+export function alignFinalWithReference(
+  c: FollowConfig,
+  detected: readonly DetectedNote[],
+  live: LiveOutcome | null,
+): { alignment: FinalAlignment; voiceReference: VoiceReferenceValues | null } {
   const all = alignNotes(c, detected);
   const attackMs = c.cfg.grading.intonation.attackExcludeMsByFamily[c.instrument.family];
   const displaced: FinalAlignment['displaced'] = [];
@@ -291,7 +321,10 @@ export function alignFinal(c: FollowConfig, detected: readonly DetectedNote[], l
   });
 
   const drift = new VoiceDriftReference(c.cfg);
+  const third = oneThirdSec(c.expected);
+  let atThird: number | null = null;
   const judgments = c.expected.map((e) => {
+    if (atThird === null && (e.onsetSec as number) >= third - 1e-9) atThird = drift.offsetCents();
     const n = byExpected.get(e.idx);
     if (!n) return missedJudgment(c, e);
     const offset = c.instrument.relativePitch ? drift.offsetCents() : c.voiceReferenceCents;
@@ -320,7 +353,10 @@ export function alignFinal(c: FollowConfig, detected: readonly DetectedNote[], l
     });
 
   displaced.sort((a, b) => (a.detectedIds[0] as number) - (b.detectedIds[0] as number));
-  return { judgments, extras, displaced };
+  const voiceReference = c.instrument.relativePitch
+    ? { finalOffsetCents: r6(drift.offsetCents()), offsetAtThirdCents: r6(atThird ?? drift.offsetCents()) }
+    : null;
+  return { alignment: { judgments, extras, displaced }, voiceReference };
 }
 
 /** `FollowApi.finalAlign` (01 §5.7, §9.6, PLAN ruling 44): `rejudged` against the live outcome the session streamed. */

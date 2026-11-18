@@ -45,7 +45,7 @@ from .paths import CONFIG_DIR, SCHEMA_DIR, TOOL_DIR
 from .pipeline import _write_json
 from .quality import filters_config
 from .review_items import ControlError, content_hash, cut_early, pitch_shuffle, render_item, retag, shift_beat
-from .review_outliers import key_check, outlier_flags, r1_decision
+from .review_outliers import key_check, level_confidence_reported, outlier_flags, r1_decision
 from .window_stage import load_window
 from .yamlio import load_yaml
 
@@ -245,6 +245,7 @@ def review_summary(recs: list[dict[str, Any]]) -> dict[str, Any]:
             if v
         },
         "outlierFlagCounts": dict(sorted(Counter(len(r["outlierFlags"]) for r in recs).items())),
+        "levelConfidence1Above": dict(sorted(Counter(lv(r) for r in recs if level_confidence_reported(r, filters_config()["outliers"])).items(), key=lambda kv: int(kv[0]))),
         "reviewRequiredByLevel": dict(sorted(Counter(lv(r) for r in recs if r["reviewRequired"]).items(), key=lambda kv: int(kv[0]))),
     }
 

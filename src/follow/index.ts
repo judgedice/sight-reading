@@ -21,7 +21,18 @@ export {
   type WindowNote,
 } from './displacement.ts';
 export { ghostPitch } from './ghost-spelling.ts';
-export { alignDp, alignFinal, alignNotes, differsFromLive, finalAlign, finalMatchCost, soundedSec } from './final-align.ts';
+export {
+  alignDp,
+  alignFinal,
+  alignFinalWithReference,
+  alignNotes,
+  differsFromLive,
+  finalAlign,
+  finalMatchCost,
+  oneThirdSec,
+  soundedSec,
+  type VoiceReferenceValues,
+} from './final-align.ts';
 export { relabel, type AlignNote } from './relabel.ts';
 export { liveOutcomeOf, replayLive, type LiveNoteOutcome, type LiveOutcome } from './live-outcome.ts';
 

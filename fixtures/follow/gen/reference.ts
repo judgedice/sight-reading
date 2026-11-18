@@ -269,8 +269,9 @@ export function refScore(a: FinalAlignment, inst: Instrument, level: number, cfg
       if (j.timing === 'on-time' && (j.pitch === 'in-tune' || j.pitch === 'not-graded')) counts.correct++;
     }
   }
-  // PLAN ruling 43: no S with a wrong-pitch or a missed note.
-  if (grade === 'S' && g.grades.sRequiresNoWrongOrMissed && (counts.wrong > 0 || counts.missed > 0)) grade = 'A';
+  // PLAN rulings 43 and 52: no S with a wrong-pitch or a missed note, or an octave error on a non-voice instrument.
+  const octaves = inst.relativePitch ? 0 : counts.octave;
+  if (grade === 'S' && g.grades.sRequiresNoWrongOrMissed && (counts.wrong > 0 || counts.missed > 0 || octaves > 0)) grade = 'A';
   return { P, I, R, weights: { P: wP, I: wI, R: row.R }, raw, score, grade, status, matched, n, counts };
 }
 

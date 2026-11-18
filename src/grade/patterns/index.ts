@@ -8,11 +8,12 @@
  * - evidence must span `selection.minEvidenceBars` bars, except `selection.evidenceBarsExempt`;
  * - incomplete attempts keep only `selection.incompleteAllowed`;
  * - poor signal (median clarity or clipping outside `selection.signal`) keeps nothing but E30;
- * - E30 (clean read) fires when the score ≥ its `minScore` and nothing else fired.
+ * - E30 (clean read) fires when the score ≥ its `minScore`, nothing else fired and no written note is red (PLAN
+ *   ruling 51: missed, early or late, sharp, flat, wrong pitch or octave, as 04 §6.1 colours them).
  * Results follow the pattern order of `config/tips.json`.
  */
 import type { GradeApi } from '../../core/api.ts';
-import type { PatternDef, PatternResult } from '../../core/types.ts';
+import type { NoteJudgment, PatternDef, PatternResult } from '../../core/types.ts';
 import { barsOf, buildContext, type Candidate, lostPoints, type PatternContext, th, uniqSorted } from './context.ts';
 import { detectE22, detectE23, detectE6 } from './intonation-flow.ts';
 import { detectE12, detectE13, detectE16, detectE18, detectE26, detectE31 } from './notes.ts';
@@ -58,6 +59,13 @@ function applies(ctx: PatternContext, def: PatternDef): boolean {
   return true;
 }
 
+/** True when a final judgment draws its note red (04 §6.1 error states; PLAN ruling 51). */
+export function isRedJudgment(j: NoteJudgment): boolean {
+  if (j.status === 'missed') return true;
+  if (j.timing === 'early' || j.timing === 'late') return true;
+  return j.pitch === 'sharp' || j.pitch === 'flat' || j.pitch === 'wrong-pitch' || j.pitch === 'octave';
+}
+
 function signalOk(ctx: PatternContext): boolean {
   const lim = ctx.input.cfg.tips.selection.signal;
   const s = ctx.input.signal;
@@ -87,7 +95,8 @@ export const detectPatterns: GradeApi['detectPatterns'] = (input) => {
   const good = signalOk(ctx);
   const fired = good ? kept : [];
   const clean = input.cfg.tips.patterns.find((d) => d.id === cleanId);
-  if (clean && clean.enabled && out.length === 0 && ctx.comps.score >= th(clean, 'minScore') && (!incomplete || sel.incompleteAllowed.includes(cleanId))) {
+  const noRed = !input.alignment.judgments.some(isRedJudgment);
+  if (clean && clean.enabled && out.length === 0 && noRed && ctx.comps.score >= th(clean, 'minScore') && (!incomplete || sel.incompleteAllowed.includes(cleanId))) {
     return [{ id: cleanId, lostPoints: 0, notes: [], bars: [] }];
   }
   return fired;

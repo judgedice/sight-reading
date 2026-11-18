@@ -38,13 +38,21 @@ export function weightsFor(inst: Instrument, level: number, iJudged: boolean, cf
 /**
  * Letter grade for a score (02 §4.7). PLAN ruling 43: with `grades.sRequiresNoWrongOrMissed`, a take that scores in
  * the S band but has a wrong-pitch or a missed note gets the A row (grade, stars and shine); the score is unchanged.
+ * PLAN ruling 52: the same cap counts octave errors when `octaveBlocksS` (non-voice instruments; voice is graded
+ * octave-equivalent, R7).
  */
-export function letterFor(score: number, cfg: Configs, counts?: Pick<VerdictCounts, 'wrong' | 'missed'>): { grade: LetterGrade; stars: 0 | 1 | 2 | 3; shine: boolean } {
+export function letterFor(
+  score: number,
+  cfg: Configs,
+  counts?: Pick<VerdictCounts, 'wrong' | 'missed'> & Partial<Pick<VerdictCounts, 'octave'>>,
+  octaveBlocksS = false,
+): { grade: LetterGrade; stars: 0 | 1 | 2 | 3; shine: boolean } {
   const grades = cfg.grading.grades;
   const rows = [...grades.scale].sort((a, b) => b.minScore - a.minScore);
   let row = rows.find((r) => score >= r.minScore) ?? rows[rows.length - 1];
   if (!row) throw new Error('grade: empty grade scale');
-  if (row.grade === 'S' && grades.sRequiresNoWrongOrMissed && counts && (counts.wrong > 0 || counts.missed > 0)) {
+  const octaves = octaveBlocksS ? (counts?.octave ?? 0) : 0;
+  if (row.grade === 'S' && grades.sRequiresNoWrongOrMissed && counts && (counts.wrong > 0 || counts.missed > 0 || octaves > 0)) {
     const a = rows.find((r) => r.grade === 'A');
     if (!a) throw new Error('grade: the S cap needs an A row');
     row = a;
@@ -96,5 +104,5 @@ export function computeComponents(a: FinalAlignment, inst: Instrument, level: nu
   const rounded = Math.round(raw);
   const score = status === 'incomplete' ? Math.min(rounded, g.gates.incompleteScoreCap) : rounded;
   const counts = countVerdicts(a);
-  return { P, I, R, weights, raw, matched, n, status, score, ...letterFor(score, cfg, counts), counts };
+  return { P, I, R, weights, raw, matched, n, status, score, ...letterFor(score, cfg, counts, !inst.relativePitch), counts };
 }
