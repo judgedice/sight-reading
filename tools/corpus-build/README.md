@@ -1,7 +1,7 @@
 # corpus-build
 
 Python pipeline that turns the pinned public-domain sources into the shipped corpus (spec: `docs/spec/03-score-corpus.md`).
-This directory currently holds jobs C1 (fetch and lock) and C2 (licence and public-domain gate). Later stages (C3a onward)
+This directory currently holds jobs C1 (fetch and lock), C2 (licence and public-domain gate), C3a (read and normalize) and C4 (melody extraction and part roles). Later stages (C5 onward)
 register in `corpus_build/cli.py` and write to `build/<stage>/`.
 
 ## Run
@@ -9,9 +9,10 @@ register in `corpus_build/cli.py` and write to `build/<stage>/`.
 ```
 pip install -r tools/corpus-build/requirements.txt
 cd tools/corpus-build
-python -m corpus_build                 # fetch, verify, composers, gate
+python -m corpus_build                 # fetch, verify, composers, gate, read, normalize, extract
 python -m corpus_build lock            # only after changing a pinned SHA in sources.yaml
 python -m corpus_build verify gate     # re-run without the network
+python -m corpus_build read normalize extract   # C3a and C4 only (about 3 minutes on 4 cores; --workers N, --corpus ID, --limit N)
 python -m pytest                       # tests (real-source tests skip if the cache is empty)
 ```
 
@@ -59,3 +60,20 @@ Rejection codes are in `schemas/candidate.schema.json` (`$defs.gateReason`).
 ## Adding a composers-extra entry
 
 Only with citations, and only for a composer that a source actually names. Do not guess a death year. See the header of `composers-extra.yaml`.
+
+## Read, normalize, extract (03 sections 6.3 to 6.5, jobs C3a and C4)
+
+Input is `build/gate/candidates.jsonl` (files that passed). Mutopia files are not read here (job C3b).
+
+| Stage | Module | Writes | What |
+| --- | --- | --- | --- |
+| `read` | `read.py` | `build/read/` | `music21.converter.parse` on each OpenScore `.mxl`. A parse failure rejects the file (`parse-failed`). Candidate parts (`roles.py`) are dumped to plain JSON; piano parts are not converted. Files with `<cue/>` are preprocessed once, because music21 ignores that element. |
+| `normalize` | `normalize.py` | `build/normalize/` | 6.4 on the whole part: ticks at TPQ 480, grace, ornament and cue notes removed and tagged, lyrics reduced to `lyricLineEnd`, repeat and segno markers kept as `marks` and `barrier`, tempo recorded, per-measure `problems` (chord, second-voice, hidden-note, tremolo, non-integer-ticks, gap-or-overlap, ...) for C5 to reject windows with. |
+| `extract` | `roles.py`, `pipeline.py` | `build/extract/` | 6.5: Lieder voice parts (`role: voice`), quartet parts (`vn1`, `inner`, `cello`, with `roleLabel` Vn I, Vn II, Va, Vc). Rejected parts carry `part-not-voice`, `piano-part-not-read` or `part-role-unknown`. `summary.json` lists unmatched part names. |
+
+Each stage writes `candidates.jsonl` (one `kind=part` record per part, plus `kind=file` records in `read`), `summary.json`, `timing.json`
+(the only non-deterministic file) and, for read and normalize, `data/<corpus>/<digest>.json.gz` blobs. C5 loads a part with
+`corpus_build.partdata.load_part(build, record)` from any `extract` record with `status: pass`; the record's `dataRef` points at the normalized blob.
+Everything except `timing.json` is byte-identical between runs. A normalized measure has: `number` (as printed, e.g. "12a"), `movement`, `beats`, `beatType`,
+`fifths`, `mode`, `barTicks`, `lengthTicks`, `events` (note or rest, `tick`, `dur`, `midi`, ties, slurs, `artic`, `dynamic`, `hairpin`, `fermata`, `lyricLineEnd`, ...),
+`marks`, `barrier`, `finalBarline`, `doubleBarline`, `tempo`, `tags` and `problems`.
