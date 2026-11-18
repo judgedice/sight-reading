@@ -1,0 +1,536 @@
+/*
+ * Form components (04 section 7.5). Tokens only: no raw colours and no px (stylelint).
+ * Hairlines and focus rings are written in rem (0.0625rem = 1 px, 0.125rem = 2 px).
+ * Focus is always a 2 px --focus-ring outline with a 2 px offset. Disabled is always
+ * --opacity-disabled with aria-disabled (or the native disabled attribute on native controls).
+ */
+
+/* Native inputs that stay in the tab order and focus but are drawn by a sibling. */
+.ui-form-hidden {
+  position: absolute;
+  width: 0.0625rem;
+  height: 0.0625rem;
+  margin: -0.0625rem;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---- Button -------------------------------------------------------------------------- */
+
+.ui-button {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: var(--button-default-height);
+  max-width: 100%;
+  padding: 0 var(--button-x-padding);
+  border: 0.0625rem solid var(--btn-border, transparent);
+  border-radius: var(--radius-m);
+  background: var(--btn-bg);
+  color: var(--btn-fg);
+  font-family: inherit;
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.ui-button-primary {
+  --btn-bg: var(--accent);
+  --btn-bg-hover: var(--accent-hover);
+  --btn-bg-pressed: var(--accent-pressed);
+  --btn-fg: var(--on-accent);
+  --btn-fg-pressed: var(--on-accent);
+}
+
+.ui-button-secondary {
+  --btn-bg: var(--surface-2);
+  --btn-bg-hover: var(--surface-2-hover);
+  --btn-bg-pressed: var(--surface-2-pressed);
+  --btn-border: var(--border-strong);
+  --btn-fg: var(--text);
+  --btn-fg-pressed: var(--text);
+}
+
+.ui-button-tertiary {
+  --btn-bg: transparent;
+  --btn-bg-hover: transparent;
+  --btn-bg-pressed: transparent;
+  --btn-fg: var(--accent);
+  --btn-fg-pressed: var(--accent-pressed);
+}
+
+.ui-button-danger {
+  --btn-bg: var(--danger);
+  --btn-bg-hover: var(--danger-hover);
+  --btn-bg-pressed: var(--danger-pressed);
+  --btn-fg: var(--on-danger);
+  --btn-fg-pressed: var(--on-danger);
+}
+
+.ui-button-compact {
+  min-height: var(--button-compact-height);
+}
+
+.ui-button-default {
+  min-height: var(--button-default-height);
+}
+
+.ui-button-hero {
+  min-height: var(--button-hero-height);
+  padding: 0 var(--button-hero-x-padding);
+}
+
+.ui-button:not([aria-disabled='true']):hover {
+  background: var(--btn-bg-hover);
+}
+
+.ui-button:not([aria-disabled='true']):active {
+  background: var(--btn-bg-pressed);
+  color: var(--btn-fg-pressed);
+}
+
+.ui-button > svg,
+.ui-button > .ui-form-spinner {
+  flex: none;
+  width: var(--icon-size);
+  height: var(--icon-size);
+}
+
+.ui-button[aria-disabled='true'] {
+  opacity: var(--opacity-disabled);
+  cursor: default;
+}
+
+.ui-button[aria-busy='true'] {
+  cursor: progress;
+}
+
+.ui-button:focus-visible,
+.ui-random-chip:focus-visible,
+.ui-stepper-button:focus-visible,
+.ui-select:focus-visible,
+.ui-tempo-range:focus-visible,
+.ui-tempo-field:focus-visible {
+  outline: 0.125rem solid var(--focus-ring);
+  outline-offset: 0.125rem;
+}
+
+/* Tertiary is a text button: no padding box beyond its label, underline on hover. Keep last. */
+.ui-button-tertiary {
+  padding: 0 var(--button-tertiary-x-padding);
+  border-color: transparent;
+}
+
+.ui-button-tertiary:not([aria-disabled='true']):hover {
+  text-decoration: underline;
+}
+
+/* Loading spinner: replaces the icon while a button is busy. */
+.ui-form-spinner {
+  display: inline-block;
+  box-sizing: border-box;
+  border: var(--icon-stroke) solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: ui-form-spin var(--dur-slow) linear infinite;
+}
+
+@keyframes ui-form-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-form-spinner {
+    animation: none;
+  }
+}
+
+:root[data-motion='reduced'] .ui-form-spinner {
+  animation: none;
+}
+
+/* ---- RandomChip ---------------------------------------------------------------------- */
+
+.ui-random-chip {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--random-chip-height);
+  padding: 0 var(--random-chip-x-padding);
+  border: 0.0625rem solid var(--border-strong);
+  border-radius: var(--radius-s);
+  background: transparent;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: var(--type-small-size);
+  line-height: var(--type-small-line);
+  font-weight: 500;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.ui-random-chip[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: var(--surface-2);
+  color: var(--accent);
+}
+
+.ui-random-chip:hover {
+  background: var(--surface-2-hover);
+}
+
+.ui-random-chip:active {
+  background: var(--surface-2-pressed);
+}
+
+/* ---- SegmentedControl ---------------------------------------------------------------- */
+
+.ui-segmented {
+  display: inline-flex;
+  box-sizing: border-box;
+  max-width: 100%;
+  padding: 0.0625rem;
+  border: 0.0625rem solid var(--border-strong);
+  border-radius: var(--radius-m);
+  background: var(--surface-2);
+}
+
+.ui-segment {
+  position: relative;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--segment-height);
+  padding: 0 var(--segment-x-padding);
+  border: 0.0625rem solid transparent;
+  border-radius: var(--radius-s);
+  color: var(--text-muted);
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+  white-space: nowrap;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.ui-segment:not(.ui-segment-selected):not(.ui-segment-disabled):hover {
+  background: var(--surface-2-hover);
+}
+
+.ui-segment:not(.ui-segment-selected):not(.ui-segment-disabled):active {
+  background: var(--surface-2-pressed);
+}
+
+.ui-segment-selected {
+  border-color: var(--border-strong);
+  background: var(--surface);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.ui-segment-disabled {
+  opacity: var(--opacity-disabled);
+  cursor: default;
+}
+
+.ui-segment:has(> .ui-form-hidden:focus-visible) {
+  outline: 0.125rem solid var(--focus-ring);
+  outline-offset: 0.125rem;
+}
+
+/* ---- Select -------------------------------------------------------------------------- */
+
+.ui-select-wrap {
+  position: relative;
+  display: inline-flex;
+  max-width: 100%;
+}
+
+.ui-select-wrap:has(> .ui-select:disabled) {
+  opacity: var(--opacity-disabled);
+}
+
+.ui-select {
+  appearance: none;
+  -webkit-appearance: none;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: var(--select-height);
+  margin: 0;
+  padding: 0 calc(var(--select-x-padding) + var(--icon-size) + var(--select-x-padding)) 0 var(--select-x-padding);
+  border: 0.0625rem solid var(--border-strong);
+  border-radius: var(--radius-m);
+  background: var(--surface);
+  color: var(--text);
+  font-family: inherit;
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+  cursor: pointer;
+}
+
+.ui-select:not(:disabled):hover {
+  border-color: var(--text);
+}
+
+.ui-select:disabled {
+  cursor: default;
+}
+
+.ui-select-chevron {
+  position: absolute;
+  top: 50%;
+  inset-inline-end: var(--select-x-padding);
+  width: var(--icon-size);
+  height: var(--icon-size);
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+/* ---- Stepper ------------------------------------------------------------------------- */
+
+.ui-stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  box-sizing: border-box;
+}
+
+.ui-stepper-button {
+  box-sizing: border-box;
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: var(--stepper-button-size);
+  height: var(--stepper-button-size);
+  margin: 0;
+  padding: 0;
+  border: 0.0625rem solid var(--border-strong);
+  border-radius: var(--radius-m);
+  background: var(--surface-2);
+  color: var(--text);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.ui-stepper-button:not([aria-disabled='true']):hover {
+  background: var(--surface-2-hover);
+}
+
+.ui-stepper-button:not([aria-disabled='true']):active {
+  background: var(--surface-2-pressed);
+}
+
+.ui-stepper-button[aria-disabled='true'] {
+  opacity: var(--opacity-disabled);
+  cursor: default;
+}
+
+.ui-stepper-value {
+  box-sizing: border-box;
+  display: inline-grid;
+  place-items: center;
+  min-width: var(--stepper-value-width);
+  padding: 0 var(--space-2);
+  color: var(--text);
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+/* Minus and plus are drawn from two bars, so the component carries no literal characters. */
+.ui-stepper-sign {
+  position: relative;
+  display: block;
+  width: var(--icon-size);
+  height: var(--icon-size);
+}
+
+.ui-stepper-sign::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  inset-inline: 0;
+  height: var(--icon-stroke);
+  margin-top: calc(var(--icon-stroke) / -2);
+  background: currentColor;
+}
+
+.ui-stepper-sign-plus::after {
+  content: '';
+  position: absolute;
+  inset-block: 0;
+  left: 50%;
+  width: var(--icon-stroke);
+  margin-left: calc(var(--icon-stroke) / -2);
+  background: currentColor;
+}
+
+/* ---- TempoSlider --------------------------------------------------------------------- */
+
+.ui-tempo {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.ui-tempo-marking {
+  color: var(--text-muted);
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+  font-variant-numeric: tabular-nums;
+}
+
+.ui-tempo-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.ui-tempo-range {
+  flex: 1 1 auto;
+  box-sizing: border-box;
+  min-width: 0;
+  height: var(--tempo-hit-size);
+  margin: 0;
+  background: transparent;
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+}
+
+.ui-tempo-range::-webkit-slider-runnable-track {
+  height: var(--tempo-track-height);
+  border-radius: var(--radius-s);
+  background: linear-gradient(
+    to right,
+    var(--accent) var(--tempo-fill, 50%),
+    var(--track) var(--tempo-fill, 50%)
+  );
+}
+
+.ui-tempo-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: var(--tempo-thumb-size);
+  height: var(--tempo-thumb-size);
+  margin-top: calc((var(--tempo-track-height) - var(--tempo-thumb-size)) / 2);
+  border: 0;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.ui-tempo-range::-moz-range-track {
+  height: var(--tempo-track-height);
+  border-radius: var(--radius-s);
+  background: var(--track);
+}
+
+.ui-tempo-range::-moz-range-progress {
+  height: var(--tempo-track-height);
+  border-radius: var(--radius-s);
+  background: var(--accent);
+}
+
+.ui-tempo-range::-moz-range-thumb {
+  width: var(--tempo-thumb-size);
+  height: var(--tempo-thumb-size);
+  border: 0;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.ui-tempo-field {
+  box-sizing: border-box;
+  flex: none;
+  width: var(--tempo-field-width);
+  min-height: var(--select-height);
+  margin: 0;
+  padding: 0 var(--space-2);
+  border: 0.0625rem solid var(--border-strong);
+  border-radius: var(--radius-m);
+  background: var(--surface);
+  color: var(--text);
+  font-family: inherit;
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+}
+
+.ui-tempo-field:not(:disabled):hover {
+  border-color: var(--text);
+}
+
+/* ---- Toggle -------------------------------------------------------------------------- */
+
+.ui-toggle {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: var(--toggle-hit-size);
+  color: var(--text);
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.ui-toggle:has(> .ui-form-hidden:disabled) {
+  opacity: var(--opacity-disabled);
+  cursor: default;
+}
+
+.ui-toggle-track {
+  position: relative;
+  flex: none;
+  box-sizing: border-box;
+  width: var(--toggle-track-width);
+  height: var(--toggle-track-height);
+  border-radius: var(--radius-xl);
+  background: var(--border-strong);
+  transition: background-color var(--dur-fast) var(--ease-out);
+}
+
+.ui-toggle-thumb {
+  position: absolute;
+  top: calc((var(--toggle-track-height) - var(--toggle-thumb-size)) / 2);
+  left: calc((var(--toggle-track-height) - var(--toggle-thumb-size)) / 2);
+  width: var(--toggle-thumb-size);
+  height: var(--toggle-thumb-size);
+  border-radius: 50%;
+  background: var(--surface);
+  transition: transform var(--dur-fast) var(--ease-out);
+}
+
+.ui-toggle-input:checked + .ui-toggle-track {
+  background: var(--accent);
+}
+
+.ui-toggle-input:checked + .ui-toggle-track > .ui-toggle-thumb {
+  transform: translateX(calc(var(--toggle-track-width) - var(--toggle-track-height)));
+}
+
+.ui-toggle:has(> .ui-form-hidden:focus-visible) .ui-toggle-track {
+  outline: 0.125rem solid var(--focus-ring);
+  outline-offset: 0.125rem;
+}
+
+.ui-toggle-label {
+  min-width: 0;
+}
