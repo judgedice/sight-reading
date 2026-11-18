@@ -1,6 +1,6 @@
 """Command line: `python -m corpus_build [stage ...]`. Run from tools/corpus-build (or put it on PYTHONPATH).
 
-Stages: fetch, lock, verify, composers, gate, read, normalize, extract. With no stage, runs every stage except lock.
+Stages: fetch, lock, verify, composers, gate, read, normalize, extract, windows, augment. With no stage, runs every stage except lock.
 `lock` rewrites sources.lock.yaml and is never part of the default run, because the default run must not change
 the pinned inputs. Later stages (C3a onward) register in STAGES.
 """
@@ -17,6 +17,7 @@ from .composers import ComposerIndex, build_composers, load_composers, write_com
 from .fetch import FetchError, fetch_records, fetch_source, load_lock, verify_lock, write_lock
 from .gate import run_gate
 from .pipeline import run_extract, run_normalize, run_read
+from .window_stage import run_augment, run_windows
 from .paths import COMPOSERS_YAML, build_root, cache_root
 from .sources import Source, load_sources
 
@@ -128,6 +129,31 @@ def stage_extract(ctx: Ctx) -> int:
     return 0
 
 
+def stage_windows(ctx: Ctx) -> int:
+    if not (ctx.build / "extract" / "candidates.jsonl").exists():
+        print("windows: build/extract/candidates.jsonl is missing. Run `extract` first.", file=sys.stderr)
+        return 1
+    summary = run_windows(ctx.build, ctx.workers)
+    for corpus, s in summary["byCorpus"].items():
+        line = f"windows: {corpus}: {s['windows']} windows (+{s['fallbacks']} 8-bar fallbacks) from {s['partsWithWindows']} parts; {s['proposed']} proposed"
+        if "silverStandard" in s:
+            ss = s["silverStandard"]
+            line += f"; silver standard starts {ss['startRate']:.1%} ends {ss['endRate']:.1%} ({'pass' if ss['passed'] else 'FAIL'})"
+        print(line)
+    print(f"windows: {summary['timing']['files']} files in {summary['timing']['wallSeconds']:.1f} s")
+    return 0
+
+
+def stage_augment(ctx: Ctx) -> int:
+    if not (ctx.build / "windows" / "candidates.jsonl").exists():
+        print("augment: build/windows/candidates.jsonl is missing. Run `windows` first.", file=sys.stderr)
+        return 1
+    summary = run_augment(ctx.build, ctx.workers)
+    for corpus, s in summary["byCorpus"].items():
+        print(f"augment: {corpus}: {s['variants']} x2 variants {s['variantsBySource']}; rejected {s['variantsRejectedByReason']}")
+    return 0
+
+
 STAGES: dict[str, Callable[[Ctx], int]] = {
     "fetch": stage_fetch,
     "lock": stage_lock,
@@ -137,8 +163,10 @@ STAGES: dict[str, Callable[[Ctx], int]] = {
     "read": stage_read,
     "normalize": stage_normalize,
     "extract": stage_extract,
+    "windows": stage_windows,
+    "augment": stage_augment,
 }
-DEFAULT_RUN = ["fetch", "verify", "composers", "gate", "read", "normalize", "extract"]
+DEFAULT_RUN = ["fetch", "verify", "composers", "gate", "read", "normalize", "extract", "windows", "augment"]
 
 
 def main(argv: list[str] | None = None) -> int:

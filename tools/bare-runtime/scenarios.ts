@@ -7,6 +7,7 @@ import { pitchChangeOnset, repeatedOnset, type OnsetPitchFrame } from '../../src
 import { createRng } from '../../src/core/rng.ts';
 import { beatsToScoreSeconds, beatsToTicks, makeMeter, ticksToBeats, ticksToScoreSeconds } from '../../src/core/time.ts';
 import type { Meter } from '../../src/core/types.ts';
+import { FOLLOW_SCENARIOS } from './follow-scenarios.ts';
 import { GRADE_SCENARIOS } from './grade-scenarios.ts';
 
 export interface ScenarioResult {
@@ -71,6 +72,8 @@ for (let s = 1; s <= 8; s++) SCENARIOS.push({ id: `onset-${s}`, run: () => onset
 for (let s = 1; s <= 4; s++) SCENARIOS.push({ id: `emitter-${s}`, run: () => emitterScenario(2000 + s) });
 // P12: grade() over fixtures/grade (02 §4.9 case 15).
 SCENARIOS.push(...GRADE_SCENARIOS);
+// P10b: finalAlign over fixtures/follow (02 §4.9 case 15).
+SCENARIOS.push(...FOLLOW_SCENARIOS);
 
 /** Runs every scenario and returns the canonical JSON the byte-identity check compares. */
 export function runAll(): string {
