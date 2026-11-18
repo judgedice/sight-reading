@@ -299,13 +299,9 @@ def test_reproduces_the_fixture_excerpt_features_and_levels(doc: dict[str, Any])
     t = tag_window(_doc_to_window(doc))
     for k in ("features", "featureLevels", "level", "levelConfidence", "extremes", "rangeConcert", "breathMaxGapBars"):
         assert t[k] == doc[k], k
-    if doc["meter"]["countUnitTicks"] in (480, 720):
-        assert t["rhythmCells"] == doc["rhythmCells"]
-        assert t["barRhythmLevel"] == doc["barRhythmLevel"]
-    else:
-        # The fixture builder reads 2/2 and 3/8 in literal quarter-note units; C6 reads per metronome beat (02 section 1).
-        # Levels still agree (asserted above); only the cell ids differ.
-        assert doc["meter"]["beatType"] in (2, 8)
+    # PLAN ruling 46: both builders read cells per metronome beat, so the ids agree in every meter, 2/2 and 3/8 included.
+    assert t["rhythmCells"] == doc["rhythmCells"]
+    assert t["barRhythmLevel"] == doc["barRhythmLevel"]
 
 
 # ---------------------------------------------------------------- resolution rules

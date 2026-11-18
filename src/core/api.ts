@@ -42,6 +42,7 @@ import type {
   Instrument,
   Interval,
   KeySig,
+  LiveOutcome,
   MeasurementBudget,
   Meter,
   NoteVisualState,
@@ -206,7 +207,8 @@ export interface LiveFollowerInstance {
 /** `follow/` (01 §5.7). */
 export interface FollowApi {
   LiveFollower: new (c: FollowConfig) => LiveFollowerInstance;
-  finalAlign(c: FollowConfig, detected: DetectedNote[]): FinalAlignment;
+  /** `live`: the take's live outcome (`liveOutcomeOf` over its follower events), for `rejudged` (PLAN ruling 44). */
+  finalAlign(c: FollowConfig, detected: DetectedNote[], live: LiveOutcome): FinalAlignment;
 }
 
 // ---- notation (P7, P15; DOM) ----------------------------------------------------------

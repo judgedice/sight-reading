@@ -244,8 +244,9 @@
     "lowFundamentalHz": 80
   },
   "grades": {
-    "_source": "02 §4.7",
+    "_source": "02 §4.7; PLAN ruling 43 (sRequiresNoWrongOrMissed)",
     "passGrade": "C",
+    "sRequiresNoWrongOrMissed": true,
     "scale": [
       {
         "grade": "S",

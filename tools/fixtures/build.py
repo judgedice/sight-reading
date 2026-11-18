@@ -5,6 +5,7 @@ Usage (run with an isolated interpreter; the sources are shallow clones outside 
     python3 -I tools/fixtures/build.py scan    --lieder DIR --quartets DIR --out CANDIDATES.jsonl
     python3 -I tools/fixtures/build.py select  --candidates CANDIDATES.jsonl      # writes tools/fixtures/selection.json
     python3 -I tools/fixtures/build.py extract --lieder DIR --quartets DIR         # reads selection.json, writes fixtures/corpus/
+    python3 -I tools/fixtures/build.py refresh                                     # re-derives analysis of fixtures/corpus/ in place
 
 `scan` proposes every window that passes the fixture hard rules (03 §6.4 to §6.9, simplified) and records its
 analysis. `select` greedily picks 24 windows that cover 01 §14 item 7 (clefs, pickup, ties across the barline,
@@ -459,7 +460,7 @@ def hashed_name(stem: str, obj) -> tuple[str, bytes]:
 MANIFEST_COLUMNS = [
     "id", "shard", "level", "meter", "fifths", "mode", "modal", "bars", "pickup", "rangeConcert", "minBpm", "maxBpm",
     "minIoiTicks", "minRepeatIoiTicks", "composer", "title", "work", "tags", "originalFamily", "cadenceEnd",
-    "familiarity", "featureLevels", "flags", "dedupeGroup", "corpus", "license",
+    "familiarity", "featureLevels", "flags", "dedupeGroup", "corpus", "license", "peakNotesPerBeat", "spelling",
 ]
 FAMILY = {"voice": "voice", "violin": "upper-strings", "viola": "upper-strings", "cello": "low-strings"}
 
@@ -493,8 +494,24 @@ def manifest_entry(doc: dict, shard: str) -> dict:
         "dedupeGroup": doc["dedupeGroup"],
         "corpus": src["corpus"],
         "license": src["license"],
+        "peakNotesPerBeat": doc["features"]["peakNotesPerBeat"],
+        "spelling": spelling_counts(doc),
     }
     return e
+
+
+def spelling_counts(doc: dict) -> dict[str, int]:
+    """ManifestEntry.spelling (PLAN ruling 44): note events per concert spelled pitch class, keyed letter + alter.
+
+    Every note event counts, tie continuations included, exactly as the runtime spelling rule (03 §7.5 rule 3,
+    src/corpus/transpose/spell.ts) counts double accidentals, so the rule is decided from the manifest alone.
+    """
+    out: dict[str, int] = {}
+    for e in xl.all_events(doc):
+        if e["kind"] == "note":
+            k = f'{e["pitch"]["step"]}{e["pitch"]["alter"]}'
+            out[k] = out.get(k, 0) + 1
+    return dict(sorted(out.items()))
 
 
 def fits(rng: tuple[int, int], fifths: int, mode: str, inst: dict, level: int) -> bool:
@@ -560,10 +577,45 @@ def cmd_extract(a: argparse.Namespace) -> None:
         doc = xl.normalize_numbers(doc)
         doc["contentHash"] = xl.content_hash(doc)
         docs.append(doc)
-    emit(docs, shas, roots)
+    prov = [
+        {"corpus": c, "repo": xl.CORPORA[c]["repo"], "commit": shas[c], "licenseSha256": license_hash(roots[c])}
+        for c in sorted(shas)
+    ]
+    emit(docs, prov)
 
 
-def emit(docs: list[dict], shas: dict[str, str], roots: dict[str, str]) -> None:
+COVERAGE_TAGS = {"pickup", "tie-across-barline", "triplet", "rests", "accidentals", "repeated-notes", "slurred-run"}
+
+
+def cmd_refresh(_a: argparse.Namespace) -> None:
+    """Re-derive the analysis fields of the committed fixture docs and re-emit, without the source clones.
+
+    The notes, ids, source fields and review are kept byte for byte; features, rhythm cells, levels, flags, coverage
+    tags, interest and the content hash are recomputed by excerpt_lib (for example after PLAN ruling 46 changed how
+    rhythm cells are read in 2/2 and 3/8). The provenance in sources.lock.json is kept.
+    """
+    index = json.load(open(os.path.join(OUT_DIR, "index.json"), encoding="utf-8"))
+    docs = []
+    for c in index["chunks"]:
+        docs.extend(json.load(open(os.path.join(OUT_DIR, c["file"]), encoding="utf-8"))["excerpts"])
+    prov = json.load(open(os.path.join(OUT_DIR, "sources.lock.json"), encoding="utf-8"))["sources"]
+    out = []
+    for doc in docs:
+        doc = dict(doc)
+        analysis = xl.analyse(doc)
+        analysis.pop("_minorForm")
+        doc.update(analysis)
+        doc["cadenceEnd"] = xl.cadence_label(doc)
+        doc["flags"] = xl.flags_for(doc)
+        doc["tags"] = sorted((set(doc["tags"]) - COVERAGE_TAGS) | set(xl.coverage_tags(doc)))
+        doc["quality"] = {**doc.get("quality", {}), "interest": round(xl.interest(doc), 4)}
+        doc = xl.normalize_numbers(doc)
+        doc["contentHash"] = xl.content_hash(doc)
+        out.append(doc)
+    emit(out, prov)
+
+
+def emit(docs: list[dict], prov_sources: list[dict]) -> None:
     os.makedirs(OUT_DIR, exist_ok=True)
     for f in os.listdir(OUT_DIR):
         if f.endswith(".json"):
@@ -644,10 +696,7 @@ def emit(docs: list[dict], shas: dict[str, str], roots: dict[str, str]) -> None:
     # Provenance of the source clones the fixtures were cut from.
     prov = {
         "_comment": "Source clones used by `build.py extract`. Both repositories are CC0 1.0 (03 §6.2).",
-        "sources": [
-            {"corpus": c, "repo": xl.CORPORA[c]["repo"], "commit": shas[c], "licenseSha256": license_hash(roots[c])}
-            for c in sorted(shas)
-        ],
+        "sources": prov_sources,
     }
     write_json(os.path.join(OUT_DIR, "sources.lock.json"), prov)
     print(f"extract: {len(docs)} excerpts, {len(chunks)} chunks -> {OUT_DIR}")
@@ -666,8 +715,9 @@ def main() -> None:
     s3 = sub.add_parser("extract")
     s3.add_argument("--lieder", required=True)
     s3.add_argument("--quartets", required=True)
+    sub.add_parser("refresh")
     a = ap.parse_args()
-    {"scan": cmd_scan, "select": cmd_select, "extract": cmd_extract}[a.cmd](a)
+    {"scan": cmd_scan, "select": cmd_select, "extract": cmd_extract, "refresh": cmd_refresh}[a.cmd](a)
 
 
 if __name__ == "__main__":

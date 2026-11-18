@@ -18,6 +18,7 @@ import os
 import re
 import unicodedata
 from dataclasses import dataclass
+from fractions import Fraction
 
 import musicxml as mx
 
@@ -594,14 +595,21 @@ def measure_of_tick(doc: dict, tick: int) -> int:
 
 
 def rhythm_cells_for_measure(m: dict, meter: dict, pickup_ticks: int) -> list[str]:
+    """Cells of one bar, read per metronome beat (PLAN ruling 46, 02 §2.2).
+
+    Ticks are scaled so that one metronome beat (`countUnitTicks`: the half note in 2/2, the eighth in 3/8, the dotted
+    quarter in compound meters) is 480 ticks (720 in compound meters), exactly as tools/corpus-build features.bar_cells
+    does. In 2/4, 3/4 and 4/4 the scale is 1, so those bars are unchanged.
+    """
     bt = bar_ticks(meter)
     evs = m["events"]
     if not evs:
         return []
     base = m["startTick"] - (bt - pickup_ticks if m["isPickup"] else 0)
-    items = [((e["tick"] - base), e["dur"], e["kind"] == "rest", e.get("tuplet")) for e in evs]
     comp = compound(meter)
     unit = 720 if comp else 480
+    scale = Fraction(unit, meter["countUnitTicks"])
+    items = [(Fraction(e["tick"] - base) * scale, Fraction(e["dur"]) * scale, e["kind"] == "rest", e.get("tuplet")) for e in evs]
     cells: list[str] = []
     i = 0
     n = len(items)

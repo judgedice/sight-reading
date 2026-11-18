@@ -368,7 +368,15 @@ export interface GradingConfig {
     lowFundamentalHz: number;
   };
   /** Grade table (02 §4.7). */
-  grades: Sourced & { scale: GradeRow[]; passGrade: LetterGrade };
+  grades: Sourced & {
+    scale: GradeRow[];
+    passGrade: LetterGrade;
+    /**
+     * PLAN ruling 43: an S needs no wrong-pitch and no missed note in the take. When true, a take that scores in the
+     * S band with either is graded A (stars and shine from the A row; the score is unchanged).
+     */
+    sRequiresNoWrongOrMissed: boolean;
+  };
   /** Gates (02 §4.7). */
   gates: Sourced & {
     /** Matched (excluding displaced) / N below this is incomplete (0.5). */
@@ -1151,6 +1159,17 @@ export interface ManifestEntry {
   dedupeGroup: string;
   corpus: CorpusId;
   license: Licence;
+  /**
+   * Peak notes per metronome beat in any one-beat window (`DifficultyFeatures.peakNotesPerBeat`), for the NPS clip of
+   * 03 §7.5 rule 5 without loading a chunk (PLAN ruling 44).
+   */
+  peakNotesPerBeat: number;
+  /**
+   * Note events per concert spelled pitch class, keyed by letter and alteration ("C0", "F1", "B-1", "G2"); tie
+   * continuations count, as every note event is spelled. Enough to decide 03 §7.5 rule 3 (double and triple
+   * accidentals after a spelled transposition) for any interval without loading a chunk (PLAN ruling 44).
+   */
+  spelling: Record<string, number>;
 }
 
 /** Manifest stats for 04's empty states and chips (03 §7.1). */
@@ -1429,6 +1448,17 @@ export interface DspConfig {
   clickTemplate: Float32Array | null;
   /** Expected same-pitch re-articulations (01 §7.5): centre and half-width, seconds. */
   repeatHints: { t: ClockSeconds; halfWidthSec: number }[];
+  /**
+   * Attack excluded from the steady statistics, ms: `grading.intonation.attackExcludeMsByFamily[family]` (01 §7.5;
+   * PLAN ruling 44).
+   */
+  attackExcludeMs: number;
+  /**
+   * `Calibration.clickLeakDb` of the route, dBFS in the low band, or null without a calibration. Inside click windows
+   * the energy-onset floor is `max(gate, clickLeakDb + 6 dB)` (01 §7.6 item 5) until a confident template fit
+   * measures the click's own leak (speakers only; PLAN ruling 44).
+   */
+  clickLeakDb: number | null;
 }
 
 /** One pitch frame, stamped at the window centre (01 §7.3). */
@@ -1467,6 +1497,11 @@ export interface DetectedNote {
   /** NSDF value at the expected octave's lag, for score-informed octave correction (01 §7.3). */
   altOctaveClarity: number | null;
   onsetCause: 'pitch-change' | 'repeat' | 'flux' | 'from-silence';
+  /**
+   * The confirming frames sit on one semitone (01 §9.3 item 3: a wrong pitch at confirmation needs them to agree).
+   * False when they straddle a semitone (an attack scoop) or when the note started with no frames of its own.
+   */
+  framesAgree: boolean;
 }
 
 export type DspEvent =
@@ -1601,7 +1636,29 @@ export interface FollowConfig {
   cfg: Configs;
   /** Tuning-note offset (winds/brass/strings) or 0, cents. */
   voiceReferenceCents: number;
+  /**
+   * Decimated analysis rate of the DSP pipeline, Hz (`CaptureBlock.analysisRate`: 16000, 14700 at 44.1 kHz). Sets
+   * confirmDelay = W/2 + 3 hops (01 §9.3) (PLAN ruling 44).
+   */
+  analysisRate: number;
+  /** The written key signature the player reads (R1), for ghost spelling (02 §4.8) (PLAN ruling 44). */
+  writtenKey: KeySig;
 }
+
+/** What the live follower last showed for one expected note at take end (01 §9.7 `rejudged`). */
+export interface LiveNoteOutcome {
+  status: 'matched' | 'missed';
+  detectedId: number | null;
+  timing: TimingVerdict | null;
+  pitch: PitchVerdict | null;
+  marginal: boolean;
+}
+
+/**
+ * Live outcome per expectedIdx, from the take's follower event stream; an expected note the follower never resolved
+ * (still pending) is absent. `FollowApi.finalAlign` compares against it for `NoteJudgment.rejudged` (PLAN ruling 44).
+ */
+export type LiveOutcome = Map<number, LiveNoteOutcome>;
 
 // =====================================================================================
 // 01 §5.8 notation data (04 owns the look)
@@ -2079,6 +2136,8 @@ export interface GradeInput {
   tuning: { used: boolean; offsetCents: number } | null;
   /** Voice drift reference: final offset and offset at one third of the excerpt, cents (E23). */
   voiceReference: { finalOffsetCents: number; offsetAtThirdCents: number } | null;
+  /** The written key signature the player read (R1), for E12, E13 and E18 (PLAN ruling 44). */
+  writtenKey: KeySig;
   signal: { medianClarity: number | null; clippingFrac: number };
   /** Timing patterns are off without a measured calibration (02 §6.1). */
   calibrationMeasured: boolean;

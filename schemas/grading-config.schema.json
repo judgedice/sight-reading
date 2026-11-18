@@ -457,6 +457,10 @@
             "passGrade": {
               "$ref": "#/definitions/LetterGrade"
             },
+            "sRequiresNoWrongOrMissed": {
+              "type": "boolean",
+              "description": "PLAN ruling 43: an S needs no wrong-pitch and no missed note in the take. When true, a take that scores in the S band with either is graded A (stars and shine from the A row; the score is unchanged)."
+            },
             "_source": {
               "type": "string"
             }
@@ -464,6 +468,7 @@
           "required": [
             "_source",
             "passGrade",
+            "sRequiresNoWrongOrMissed",
             "scale"
           ],
           "description": "Grade table (02 §4.7)."

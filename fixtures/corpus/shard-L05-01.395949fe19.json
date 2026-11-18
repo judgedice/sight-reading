@@ -4,18 +4,18 @@
    "barRhythmLevel": [
     1,
     1,
-    1,
+    2,
     5,
-    1,
+    2,
     5,
-    1,
+    2,
     1,
     1,
     1
    ],
    "breathMaxGapBars": 6.5,
    "cadenceEnd": "IAC",
-   "contentHash": "sha256:b9f9c9a7e8f09eaa022a0a49bdbbd88829fd87fc1a8454741a5d5953c32892ce",
+   "contentHash": "sha256:f7770cd368d866e61edae08acedab3c8812957113a04c0140968018e882d7a80",
    "dedupeGroup": "fp-4eecd4ba",
    "extremes": {
     "highId": "e12",
@@ -473,7 +473,7 @@
    "phraseQuality": "complete-phrase",
    "pickupTicks": 0,
    "quality": {
-    "interest": 0.7838
+    "interest": 0.7928
    },
    "rangeConcert": {
     "max": 64,
@@ -488,9 +488,9 @@
    "rhythmCells": [
     "EE",
     "H",
-    "Hr",
     "Q",
-    "W",
+    "Qr",
+    "SSSS",
     "tieBeat"
    ],
    "schemaVersion": 1,

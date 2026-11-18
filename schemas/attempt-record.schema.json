@@ -881,6 +881,10 @@
             "flux",
             "from-silence"
           ]
+        },
+        "framesAgree": {
+          "type": "boolean",
+          "description": "The confirming frames sit on one semitone (01 §9.3 item 3: a wrong pitch at confirmation needs them to agree). False when they straddle a semitone (an attack scoop) or when the note started with no frames of its own."
         }
       },
       "required": [
@@ -894,7 +898,8 @@
         "pitchSdCents",
         "clarity",
         "altOctaveClarity",
-        "onsetCause"
+        "onsetCause",
+        "framesAgree"
       ],
       "additionalProperties": false,
       "description": "A detected note (01 §5.6)."

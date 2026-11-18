@@ -2093,7 +2093,7 @@
    ],
    "breathMaxGapBars": 7,
    "cadenceEnd": "IAC",
-   "contentHash": "sha256:abee34f75413d95089df01aa6b602f0d7f3d25d5fb42c9da21d30431dff40636",
+   "contentHash": "sha256:267aef38d367491ed5ccb35030d00f241056dabf3522aaddf7648ebaa6cd4418",
    "dedupeGroup": "fp-da117c45",
    "extremes": {
     "highId": "e2",
@@ -2451,8 +2451,8 @@
    },
    "rhythmCells": [
     "H",
-    "Hr",
-    "W",
+    "Q",
+    "Qr",
     "pickup1",
     "tieBar"
    ],
