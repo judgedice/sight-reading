@@ -12,17 +12,17 @@
  * | E13 | up to 4 written accidentals ignored |
  * | E22 | the whole take 30 cents sharp or flat (no tuning note) |
  * | E23 | voice sinking or rising linearly to 60 cents by the last note |
- * | E1 / E2 | steady rushing or dragging: at least 0.375 beat (or 1.5 tRed) over the excerpt |
+ * | E1 / E2 | steady rushing or dragging: max(1.2 tRed, 0.33 beat) over the excerpt, at least 0.06 beat per bar |
  * | E28 / E29 | pickup or first note late by max(1.4 tRed, 0.35 beat) |
  * | E9 | every entry after a rest of 1 beat or more early by tRed + max(25 ms, 0.08 beat) |
- * | E7 / E8 | dotted figures played at a 1.5 (else 1.8) long:short ratio |
- * | E4 | every downbeat not after a rest late by max(0.2 beat, 80 ms) |
+ * | E7 / E8 | dotted figures played at a 1.5 (else 1.75) long:short ratio |
+ * | E4 | downbeats not after a rest late by max(0.2 beat, 80 ms), at most 30% of the notes, spread over the bars |
  * | E18 | 60% of the notes with 2 or more ledger lines read one diatonic step off |
  * | E26 | every other note of each beat in the densest quarter of beats dropped |
  * | E16 | up to 3 trumpet notes on the neighbouring partial of the same valve combination |
  * | E31 | every clarinet note that crosses the break (written B♭4/B4) a whole tone off |
  *
- * Shifts stay inside 0.75 of the match window, so the note is still matched (late or early) and not missed plus
+ * Excerpts come from the shipped corpus at served levels (`shipped.ts`). Shifts stay inside 0.75 of the match window, so the note is still matched (late or early) and not missed plus
  * extra. A recipe that finds no fitting excerpt for its instrument returns null and the planner tries the next
  * scenario; patterns limited to one instrument (E16 trumpet, E31 clarinet, E23 voice) search only that instrument.
  */
@@ -31,7 +31,8 @@ import type { Configs, ExpectedNote, ResolvedTolerance, SpelledPitch, Step, Test
 import { expectedSteadyMs, resolveTolerances } from '../../rules/index.ts';
 import { toMidi } from '../../theory/index.ts';
 import type { NoteMod, PerformSpec } from '../../../fixtures/follow/gen/perform.ts';
-import { planScenario, scenarioConfigs, scenarioSeed, type PerturbationKind, type ScenarioBase, type ScenarioPlan } from '../scenarios/index.ts';
+import { scenarioConfigs, scenarioSeed, type PerturbationKind, type ScenarioBase, type ScenarioPlan } from '../scenarios/index.ts';
+import { planShipped } from './shipped.ts';
 import { INJECTED_PATTERNS, LAUNCH_TIMBRES, type InjectedPattern } from './types.ts';
 
 export const TIP_SEED = 0x7195_e30a;
@@ -68,14 +69,28 @@ const median = (xs: number[]): number => {
   return s.length % 2 ? (s[m] as number) : ((s[m - 1] as number) + (s[m] as number)) / 2;
 };
 
-/** Keep every other index, never two neighbours. */
-function spaced(xs: readonly number[]): number[] {
-  const out: number[] = [];
-  for (const x of xs) if (out.length === 0 || x - (out[out.length - 1] as number) >= 2) out.push(x);
-  return out;
+/**
+ * Up to `count` candidates, never two neighbours, spread over as many bars as possible (evidence must span 2 bars,
+ * 02 section 6.1): one per bar first, then the rest in note order. Returned in note order.
+ */
+function spread<T extends { i: number }>(c: Ctx, cands: readonly T[], count: number): T[] {
+  const ok = (sel: T[], x: T): boolean => sel.every((y) => Math.abs(y.i - x.i) >= 2);
+  const sel: T[] = [];
+  const bars = new Set<number>();
+  for (const x of cands) {
+    const bar = (c.e[x.i] as ExpectedNote).bar;
+    if (sel.length < count && !bars.has(bar) && ok(sel, x)) {
+      sel.push(x);
+      bars.add(bar);
+    }
+  }
+  for (const x of cands) if (sel.length < count && !sel.includes(x) && ok(sel, x)) sel.push(x);
+  return sel.sort((a, b) => a.i - b.i);
 }
 
-function wrongNotes(c: Ctx, picks: { i: number; semis: number }[], kind: PerturbationKind = 'semitone'): Injection {
+const barCount = (c: Ctx, xs: readonly { i: number }[]): number => new Set(xs.map((x) => (c.e[x.i] as ExpectedNote).bar)).size;
+
+function wrongNotes(picks: { i: number; semis: number }[], kind: PerturbationKind = 'semitone'): Injection {
   const mods: Record<number, NoteMod> = {};
   const marks: Record<number, PerturbationKind> = {};
   for (const p of picks) {
@@ -107,12 +122,9 @@ function e12(c: Ctx): Injection | null {
       if (n.idx >= 1 && inRange(c, n.concertMidi + semis) && distinct(c, n.idx, n.concertMidi + semis)) cands.push({ i: n.idx, semis });
     } else if (!n.explicitAccidental && s !== undefined && s !== n.writtenPitch.alter) eligible++;
   }
-  const picks = spaced(cands.map((x) => x.i)).map((i) => cands.find((x) => x.i === i) as { i: number; semis: number });
-  const need = Math.max(2, Math.ceil(0.5 * eligible));
-  const chosen = picks.slice(0, Math.max(need, Math.ceil(picks.length * 0.6)));
-  if (chosen.length < 2 || chosen.length < 0.3 * eligible + 0.5) return null;
-  if (new Set(chosen.map((p) => c.e[p.i]?.bar)).size < 2) return null;
-  return wrongNotes(c, chosen);
+  const chosen = spread(c, cands, Math.max(2, Math.ceil(0.5 * eligible)));
+  if (chosen.length < 2 || chosen.length < 0.3 * eligible + 0.5 || barCount(c, chosen) < 2) return null;
+  return wrongNotes(chosen);
 }
 
 function e13(c: Ctx): Injection | null {
@@ -124,9 +136,9 @@ function e13(c: Ctx): Injection | null {
     if (semis === 0 || !inRange(c, n.concertMidi + semis) || !distinct(c, n.idx, n.concertMidi + semis)) continue;
     cands.push({ i: n.idx, semis });
   }
-  const ids = spaced(cands.map((x) => x.i)).slice(0, 4);
-  if (ids.length < 2) return null;
-  return wrongNotes(c, ids.map((i) => cands.find((x) => x.i === i) as { i: number; semis: number }));
+  const chosen = spread(c, cands, 4);
+  if (chosen.length < 2 || barCount(c, chosen) < 2) return null;
+  return wrongNotes(chosen);
 }
 
 function diatonicNeighbour(p: SpelledPitch, steps: number, sig: Map<Step, number>): number {
@@ -150,10 +162,10 @@ function e18(c: Ctx): Injection | null {
       break;
     }
   }
-  const ids = spaced(cands.map((x) => x.i));
   const need = Math.max(2, Math.ceil(0.6 * ledger.length));
-  if (ids.length < need) return null;
-  return wrongNotes(c, ids.slice(0, need).map((i) => cands.find((x) => x.i === i) as { i: number; semis: number }));
+  const chosen = spread(c, cands, need);
+  if (chosen.length < need || barCount(c, chosen) < 2) return null;
+  return wrongNotes(chosen);
 }
 
 function e26(c: Ctx): Injection | null {
@@ -199,9 +211,9 @@ function e16(c: Ctx): Injection | null {
       .sort((a, b) => Math.abs(a) - Math.abs(b));
     if (opts.length) cands.push({ i: n.idx, semis: opts[0] as number });
   }
-  const ids = spaced(cands.map((x) => x.i)).slice(0, 3);
-  if (ids.length < 2) return null;
-  return wrongNotes(c, ids.map((i) => cands.find((x) => x.i === i) as { i: number; semis: number }));
+  const chosen = spread(c, cands, 3);
+  if (chosen.length < 2 || barCount(c, chosen) < 2) return null;
+  return wrongNotes(chosen);
 }
 
 function e31(c: Ctx): Injection | null {
@@ -221,9 +233,9 @@ function e31(c: Ctx): Injection | null {
       }
     }
   }
-  const ids = spaced(cands.map((x) => x.i));
-  if (ids.length < 3) return null;
-  return wrongNotes(c, ids.map((i) => cands.find((x) => x.i === i) as { i: number; semis: number }));
+  const chosen = spread(c, cands, cands.length);
+  if (chosen.length < 3 || barCount(c, chosen) < 2) return null;
+  return wrongNotes(chosen);
 }
 
 // ---- intonation ----------------------------------------------------------------------------
@@ -256,12 +268,15 @@ function drift(c: Ctx, sign: 1 | -1): Injection | null {
   const first = c.e[0] as ExpectedNote;
   const last = c.e[c.e.length - 1] as ExpectedNote;
   const spanBars = (last.onsetBeat - first.onsetBeat) / bpb;
-  if (c.e.length < 14 || spanBars < 6.5) return null;
+  if (c.e.length < 14 || spanBars < 6) return null;
+  // Total drift over the excerpt: past tRed and the 0.25-beat minimum with margin, yet every note stays matched.
   const tRedBeats = median(c.e.map((n) => tRedMs(c, n.idx))) / c.beatMs;
-  const total = Math.max(1.5 * tRedBeats, 0.375);
+  const total = Math.max(1.2 * tRedBeats, 0.33);
   const slope = Math.max(0.06, total / spanBars);
-  const maxMs = slope * spanBars * c.beatMs;
-  if (maxMs > MAX_SHIFT_OF_WINDOW * median(c.e.map((n) => windowMs(c, n.idx)))) return null;
+  for (const n of c.e) {
+    const at = Math.abs(slope * ((n.onsetBeat - first.onsetBeat) / bpb) * c.beatMs);
+    if (at > 0.85 * windowMs(c, n.idx)) return null;
+  }
   const marks: Record<number, PerturbationKind> = {};
   for (const n of c.e) marks[n.idx] = 'timing';
   return { spec: { driftBeatsPerBar: sign * slope }, marks };
@@ -293,42 +308,65 @@ function e9(c: Ctx): Injection | null {
   return Object.keys(mods).length >= 3 ? { spec: { mods }, marks } : null;
 }
 
+/**
+ * Dotted figures evened out: the short note comes early by `s` ((long - s) / (short + s) = ratio). Where that would
+ * leave 0.75 of the match window, the dotted note (off a downbeat) also comes late by `s` ((long - 2s) / (short + s)).
+ */
 function dotted(c: Ctx, longQ: number, shortQ: number, minShortMs: number): Injection | null {
   const unitQ = c.base.meter.countUnitTicks / TPQ;
   const q = (beats: number): number => beats * unitQ;
   const mods: Record<number, NoteMod> = {};
   const marks: Record<number, PerturbationKind> = {};
+  let figures = 0;
   for (let i = 0; i + 2 < c.e.length; i++) {
     const a = c.e[i] as ExpectedNote;
     const b = c.e[i + 1] as ExpectedNote;
     const d = c.e[i + 2] as ExpectedNote;
-    if (b.precededByRest || d.precededByRest || mods[a.idx] || mods[b.idx]) continue;
+    if (b.precededByRest || d.precededByRest || mods[b.idx] || mods[d.idx]) continue;
     if (Math.abs(q(b.onsetBeat - a.onsetBeat) - longQ) > EPS || Math.abs(q(d.onsetBeat - b.onsetBeat) - shortQ) > EPS) continue;
     if ((d.onsetSec - b.onsetSec) * 1000 < minShortMs - EPS) continue;
-    const totalMs = (longQ + shortQ) * c.quarterMs;
-    for (const ratio of [1.5, 1.8]) {
-      const shift = Math.round((totalMs * ratio) / (1 + ratio) - longQ * c.quarterMs);
-      if (Math.abs(shift) <= MAX_SHIFT_OF_WINDOW * windowMs(c, b.idx)) {
-        mods[b.idx] = { shiftMs: shift };
-        marks[b.idx] = 'timing';
-        break;
+    // The short note early (the dotted note held short); only when that leaves the match window, the dotted note
+    // also comes late, never on a downbeat (that would be a barline hesitation, E4).
+    const aFree = !mods[a.idx] && a.idx > 0 && Math.abs(a.beatInBar - 1) > EPS;
+    for (const both of [false, true]) {
+      if (both && !aFree) break;
+      const ratio = [1.5, 1.75].find((x) => {
+        const sMs = ((longQ - x * shortQ) / (both ? 2 + x : 1 + x)) * c.quarterMs;
+        return sMs <= MAX_SHIFT_OF_WINDOW * windowMs(c, b.idx) && (!both || sMs <= MAX_SHIFT_OF_WINDOW * windowMs(c, a.idx));
+      });
+      if (ratio === undefined) continue;
+      const sMs = Math.round(((longQ - ratio * shortQ) / (both ? 2 + ratio : 1 + ratio)) * c.quarterMs);
+      if (both) {
+        mods[a.idx] = { shiftMs: sMs };
+        marks[a.idx] = 'timing';
       }
+      mods[b.idx] = { shiftMs: -sMs };
+      marks[b.idx] = 'timing';
+      figures++;
+      break;
     }
   }
-  return Object.keys(mods).length >= 3 ? { spec: { mods }, marks } : null;
+  return figures >= 3 ? { spec: { mods }, marks } : null;
 }
 
 function e4(c: Ctx): Injection | null {
-  const mods: Record<number, NoteMod> = {};
-  const marks: Record<number, PerturbationKind> = {};
+  const s = Math.round(Math.max(0.2 * c.beatMs, 80));
+  const cands: { i: number }[] = [];
   for (const n of c.e) {
     if (n.idx === 0 || Math.abs(n.beatInBar - 1) > EPS || n.precededByRest) continue;
-    const s = Math.round(Math.max(0.2 * c.beatMs, 80));
     if (s > MAX_SHIFT_OF_WINDOW * windowMs(c, n.idx) || (n.ioiNextSec ?? Infinity) * 1000 - s < 120) continue;
-    mods[n.idx] = { shiftMs: s };
-    marks[n.idx] = 'timing';
+    cands.push({ i: n.idx });
   }
-  return Object.keys(mods).length >= 5 ? { spec: { mods }, marks } : null;
+  // Hesitations are relative to the take's median timing, so at most 30% of the notes may carry one.
+  const chosen = spread(c, cands, Math.floor(0.3 * c.e.length));
+  if (chosen.length < 5) return null;
+  const mods: Record<number, NoteMod> = {};
+  const marks: Record<number, PerturbationKind> = {};
+  for (const { i } of chosen) {
+    mods[i] = { shiftMs: s };
+    marks[i] = 'timing';
+  }
+  return { spec: { mods }, marks };
 }
 
 const RECIPES: Record<Exclude<InjectedPattern, 'E6'>, (c: Ctx) => Injection | null> = {
@@ -369,9 +407,14 @@ function ctxOf(base: ScenarioBase, r: number): Ctx {
 
 const patternSeed = (p: InjectedPattern): number => scenarioSeed(TIP_SEED, INJECTED_PATTERNS.indexOf(p) + 1);
 
-/** A clean scenario plan for perfect take `r` (tip suite): launch timbre r mod 8. */
+/** A clean shipped-corpus plan for perfect take `r` (tip suite): launch timbre r mod 8. */
 export function planPerfect(r: number): ScenarioPlan {
-  return planScenario(TIP_SEED, r, { timbre: LAUNCH_TIMBRES[r % LAUNCH_TIMBRES.length] as TestkitTimbre, perturb: { clean: true } });
+  const timbre = LAUNCH_TIMBRES[r % LAUNCH_TIMBRES.length] as TestkitTimbre;
+  for (let a = 0; a < MAX_TRIES; a++) {
+    const plan = planShipped(TIP_SEED, r * 1009 + a, timbre, { clean: true });
+    if (plan) return plan;
+  }
+  throw new Error(`no shipped excerpt builds for ${timbre}`);
 }
 
 function applyInjection(plan: ScenarioPlan, inj: Injection): ScenarioPlan {
@@ -398,7 +441,8 @@ function applyInjection(plan: ScenarioPlan, inj: Injection): ScenarioPlan {
 /** E6: the generator's stop or restart, with its random note errors and extras stripped. */
 function planE6(seed: number, idx: number, timbre: TestkitTimbre, r: number): ScenarioPlan | null {
   const structural = r % 2 === 0 ? 'stop' : 'restart';
-  const plan = planScenario(seed, idx, { timbre, perturb: { structural } });
+  const plan = planShipped(seed, idx, timbre, { structural });
+  if (!plan) return null;
   const p = plan.perturbation;
   if (p.structural !== structural) return null;
   const mods: Record<number, NoteMod> = {};
@@ -430,7 +474,8 @@ export function planInjected(p: InjectedPattern, r: number): ScenarioPlan | null
         if (plan) return plan;
         continue;
       }
-      const plan = planScenario(seed, idx, { timbre, perturb: { clean: true } });
+      const plan = planShipped(seed, idx, timbre, { clean: true });
+      if (!plan) continue;
       const inj = RECIPES[p](ctxOf(plan.base, r));
       if (inj) return applyInjection({ ...plan, id: `${p}:${r}:${plan.id}` }, inj);
     }

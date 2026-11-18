@@ -178,7 +178,7 @@ export function runTake(r: ScenarioRender, o: RunTakeOptions = {}): TakeRun {
     send({ v: 1, type: 'block', block });
   }
   now = endT;
-  send({ v: 1, type: 'end', t: endT as ClockSeconds, reason: 'complete' });
+  send({ v: 1, type: 'end', t: endT as ClockSeconds, reason: { reason: 'complete' } });
   if (error) throw new Error(`DSP worker error: ${error}`);
   const d = done as Extract<WorkerReply, { type: 'done' }> | null;
   if (!d || !core.alignment) throw new Error('DSP worker did not finish the take');
