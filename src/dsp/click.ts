@@ -8,9 +8,10 @@
  *    shift with a windowed sinc, its gain fitted by least squares (clamped to [0, 2 x nominal]), and subtracted from
  *    the low band before the envelope, flux and pitch analysis see it. Lag and gain are fitted on whitened signals.
  *    When the music dominates the window (the fit is not `confident`), the lag and level come from the recent clicks
- *    that stood out (the count-in, rests), since a least-squares fit there would mostly fit the music. The subtractor holds back only the samples around a click
- *    until the whole template span (plus the search margin) has arrived, so it adds at most about 24 ms of latency,
- *    and only to audio near a click; everything else passes straight through.
+ *    that stood out (the count-in, rests), since a least-squares fit there would mostly fit the music. The
+ *    subtractor holds back only the samples around a click until the whole template span (plus the search margin)
+ *    has arrived, so it adds at most about 24 ms of latency, and only to audio near a click; everything else passes
+ *    straight through.
  * 3-5. Time gating, flux exclusion and the leak floor are applied by the segmenter (segmenter.ts) inside the click
  *    windows `[arrival - 5 ms, arrival + 35 ms]`, using the per-click leak levels measured here (`ClickFit`).
  *

@@ -13,3 +13,4 @@ export {
   type SelectAndPrepareResult,
 } from './select/index.ts';
 export { prepareExcerpt, TranspositionError, fitsInKey, type TranspositionErrorCode } from './transpose/index.ts';
+export { buildExpectedNotes } from './expected/index.ts';

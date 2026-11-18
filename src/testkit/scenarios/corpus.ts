@@ -1,11 +1,13 @@
 /**
  * Scenario bases from the fixture corpus (01 section 13.2: "from the 24-excerpt fixture corpus until P5
  * delivers"). Expected notes are built with the fixture generator's port of P0e's rules
- * (fixtures/follow/gen/expected.ts, proven against fixtures/expected/ by its own test), so a scenario's expected
- * notes are what P9c must produce for the same excerpt, instrument and tempo. Node only (reads the fixture files).
+ * (src/corpus/expected, P9c's buildExpectedNotes, proven against fixtures/expected/ by its own test) on an excerpt
+ * prepared with the fixture generator's transposition plan. Node only (reads the fixture files).
  */
-import type { Clef, Configs, ExcerptDoc, ExpectedNote, Instrument, KeySig, Meter, TestkitTimbre } from '../../core/types.ts';
-import { excerptExpected, plan } from '../../../fixtures/follow/gen/expected.ts';
+import type { Clef, Configs, ExcerptDoc, ExpectedNote, Instrument, KeySig, Meter, PreparedExcerpt, PreparedMeasure, SelectionResult, TestkitTimbre } from '../../core/types.ts';
+import { plan, type Plan } from '../../../fixtures/follow/gen/expected.ts';
+import { buildExpectedNotes } from '../../corpus/expected/index.ts';
+import { planTransposition, spellExcerpt } from '../../corpus/transpose/spell.ts';
 import { configs, corpusDocs } from '../../../fixtures/follow/gen/io.ts';
 
 export interface ScenarioBase {
@@ -72,12 +74,55 @@ export function clipTempo(expectedAt60: readonly ExpectedNote[], inst: Instrumen
   return Math.max(20, Math.min(bpm, Math.floor(maxBpm)));
 }
 
+/** The excerpt as prepareExcerpt would give it for the fixture plan, without the selection's tempo checks (scenarios pick their own tempo). */
+function prepareForPlan(d: ExcerptDoc, inst: Instrument, pl: Plan, bpm: number, cfg: Configs): PreparedExcerpt | null {
+  const tp = planTransposition(d.keyConcert, pl.writtenKey, pl.transposition.chromatic, inst);
+  const spelled = spellExcerpt(d, tp, inst, cfg.levelByNumber[d.level]?.doubleAccidentals ?? false);
+  if (spelled.verdict !== 'ok') return null;
+  let bar = 1;
+  const measures: PreparedMeasure[] = d.measures.map((m) => ({
+    index: m.index,
+    isPickup: m.isPickup,
+    startTick: m.startTick,
+    displayBar: m.isPickup ? 0 : bar++,
+    events: m.events.map((e) => {
+      if (e.kind === 'rest') return { ...e };
+      const { pitch: _pitch, ...rest } = e;
+      return { ...rest, concertPitch: spelled.concert.get(e.id)!, writtenPitch: spelled.written.get(e.id)! };
+    }),
+  }));
+  return {
+    excerptId: d.id,
+    instrumentId: inst.id,
+    source: d.source,
+    meter: d.meter,
+    pickupTicks: d.pickupTicks,
+    writtenKey: pl.writtenKey,
+    concertKey: tp.concertKey,
+    modal: d.modal,
+    clef: pl.clef,
+    transposition: tp.concertInterval,
+    measures,
+    rangeWritten: { min: 0, max: 127 },
+    modifications: [],
+    barRhythmLevel: d.barRhythmLevel,
+    extremes: d.extremes,
+    dedupeGroup: d.dedupeGroup,
+    levelServed: d.level,
+    stretch: false,
+    bpmRange: { minBpm: bpm, maxBpm: bpm },
+    selection: {} as SelectionResult,
+  };
+}
+
 /** Build a base, or null when the excerpt does not fit the instrument (03 section 7.3 planning). */
 export function buildBase(d: ExcerptDoc, instrumentId: string, bpm: number, cfg: Configs = configs()): ScenarioBase | null {
   const inst = cfg.instrumentById[instrumentId];
   if (!inst || !inst.testkitTimbre) return null;
   const pl = plan(d, inst, cfg.levels);
   if (!pl) return null;
+  const prepared = prepareForPlan(d, inst, pl, bpm, cfg);
+  if (!prepared) return null;
   return {
     excerptId: d.id,
     instrumentId,
@@ -89,7 +134,7 @@ export function buildBase(d: ExcerptDoc, instrumentId: string, bpm: number, cfg:
     beatsPerBar: d.meter.countsPerBar,
     writtenKey: pl.writtenKey,
     clef: pl.clef,
-    expected: excerptExpected(d, inst, pl, bpm, cfg.grading),
+    expected: buildExpectedNotes(prepared, bpm, cfg),
   };
 }
 
