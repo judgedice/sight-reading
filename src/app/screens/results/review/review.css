@@ -1,0 +1,171 @@
+/* Review interactions (04 sections 6.5, 6.6, 8.3). Tokens only; rem, never px. */
+
+.rv-review {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-inline-size: 0;
+}
+
+.rv-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  justify-content: space-between;
+}
+
+.rv-show {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.rv-show-label,
+.rv-slip-count,
+.rv-filter {
+  color: var(--text-muted);
+  font-size: var(--type-small-size);
+  line-height: var(--type-small-line);
+}
+
+.rv-stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.rv-step,
+.rv-all-slips {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-block-size: var(--target-min);
+  min-inline-size: var(--target-min);
+  padding-inline: var(--space-3);
+  border: 0.0625rem solid var(--border);
+  border-radius: var(--radius-m);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--type-small-size);
+  cursor: pointer;
+}
+
+.rv-step:hover,
+.rv-all-slips:hover {
+  background: var(--surface-2-hover);
+}
+
+.rv-step:active,
+.rv-all-slips:active {
+  background: var(--surface-2-pressed);
+}
+
+.rv-step[aria-disabled='true'] {
+  opacity: var(--opacity-disabled);
+  cursor: default;
+}
+
+.rv-step:focus-visible,
+.rv-all-slips:focus-visible {
+  outline: 0.125rem solid var(--focus-ring);
+  outline-offset: 0.125rem;
+}
+
+.rv-filter {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.rv-score {
+  min-inline-size: 0;
+}
+
+/* Notes as buttons (roving tabindex, 04 section 8.3). The ring is drawn in SVG (rv-select-ring). */
+.rv-score .rv-note {
+  cursor: pointer;
+}
+
+.rv-score .rv-note:focus {
+  outline: none;
+}
+
+.rv-score .rv-note:focus-visible {
+  outline: 0.125rem solid var(--focus-ring);
+}
+
+.rv-score .sr-ghost {
+  cursor: pointer;
+}
+
+/* Clean score hides the overlay and restores ink (04 section 6.5). */
+.rv-review[data-show='clean'] .sr-overlay {
+  visibility: hidden;
+}
+
+/* Heat strip: track, hatches (8 / 4 apart) and solid error at 60% (04 section 6.5). */
+.rv-heat-track {
+  fill: var(--track);
+}
+
+.rv-hatch-line {
+  stroke: var(--error);
+}
+
+.rv-heat-solid {
+  fill: var(--error);
+  fill-opacity: 0.6;
+}
+
+.rv-heat-cell:focus {
+  outline: none;
+}
+
+.rv-heat-cell:focus-visible .rv-heat-track {
+  stroke: var(--focus-ring);
+  stroke-width: 0.125rem;
+}
+
+/* Replay bracket "bars 5–6 replayed" over the replayed ghosts. */
+.rv-bracket-line {
+  stroke: var(--ghost-replay);
+  stroke-width: 0.0625rem;
+}
+
+.rv-bracket-label {
+  fill: var(--ghost-replay);
+  font-family: var(--font-ui);
+  font-size: var(--type-caption-size);
+}
+
+/* Ghost duration tails: a 3 px bar at 35% (04 section 6.2). */
+.rv-tail {
+  fill: var(--ghost);
+  fill-opacity: 0.35;
+}
+
+.rv-tail-replay {
+  fill: var(--ghost-replay);
+}
+
+.rv-select-ring {
+  stroke: var(--focus-ring);
+  stroke-width: 0.125rem;
+}
+
+.rv-inspector {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.rv-inspector p {
+  margin: 0;
+}
+
+.rv-inspector-head {
+  font-weight: var(--type-h3-weight);
+}
