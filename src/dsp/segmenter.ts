@@ -581,7 +581,9 @@ export class Segmenter {
         const dip = this.localDip(ref, newMed, cur);
         const tOn = Math.max(cur.onset + 1e-3, dip ?? ref);
         this.pending = null;
-        const moved = [...cur.frames.filter((x) => x.t >= tOn), ...cand.filter((x) => x.t >= tOn)];
+        // Frames after the onset that still read the old pitch (window overlap; a room's tail) are not the new note's.
+        const newSide = (x: Fr): boolean => Math.abs((x.midi as number) - newMed) < Math.abs((x.midi as number) - med);
+        const moved = [...cur.frames.filter((x) => x.t >= tOn && newSide(x)), ...cand.filter((x) => x.t >= tOn)];
         if (moved.length === 0) moved.push(f);
         this.split(tOn, 'pitch-change', moved, out);
       }
