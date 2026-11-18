@@ -4,7 +4,7 @@
  * wrong pitch on a key-signature note, missed, a marginal re-judged note, an extra, and a replayed run of bar 1 played
  * during bar 6.
  */
-import type { AttemptRecord, DetectedNote, ExpectedNote, NoteJudgment, PreparedExcerpt, ResolvedTolerance } from '../../../../core/types.ts';
+import type { AttemptRecord, ClockSeconds, DetectedNote, ExpectedNote, NoteJudgment, PreparedExcerpt, ResolvedTolerance, SelectionResult } from '../../../../core/types.ts';
 // eslint-disable-next-line boundaries/dependencies -- test data only (not shipped)
 import { buildExpectedNotes } from '../../../../corpus/index.ts';
 // eslint-disable-next-line boundaries/dependencies -- test data only (not shipped)
@@ -28,7 +28,7 @@ export const LATE = 1; // C5, bar 1 beat 2, eighth: 120 ms late
 export const SHARP = 3; // G4, bar 1 beat 3: 38 cents sharp
 export const WRONG = 15; // B♭4, bar 4 beat 1, half: played B natural
 export const MISSED = 10; // D4, bar 3 beat 1
-export const REJUDGED = 12; // F4, bar 3 beat 2.5: on time, marginal 55 ms late, live showed late
+export const REJUDGED = 12; // F4, bar 3 beat 2.5: on time, marginal 90 ms late, live showed late
 export const DISPLACED_IDS = [200, 201, 202, 203, 204];
 export const EXTRA_ID = 300;
 
@@ -44,8 +44,8 @@ const sec = (beats: number): number => (beats * 60) / BPM;
 function detected(id: number, onset: number, durSec: number, midi: number): DetectedNote {
   return {
     id,
-    onset,
-    offset: onset + durSec,
+    onset: onset as ClockSeconds,
+    offset: (onset + durSec) as ClockSeconds,
     provisionalMidi: midi,
     midi,
     stableMedianCents: (midi - Math.round(midi)) * 100,
@@ -59,7 +59,9 @@ function detected(id: number, onset: number, durSec: number, midi: number): Dete
 }
 
 export function reviewFixture(over: Partial<AttemptRecord> = {}): ReviewFixture {
-  const prepared: PreparedExcerpt = { ...preparedFromDoc(fixtureDoc(FIXTURE_ID), 'treble'), instrumentId: 'flute' };
+  // The selection carries only the take tempo, which is all session's planTake reads from it.
+  const selection = { settings: { bpm: BPM } } as unknown as SelectionResult;
+  const prepared: PreparedExcerpt = { ...preparedFromDoc(fixtureDoc(FIXTURE_ID), 'treble'), instrumentId: 'flute', selection };
   const expected = buildExpectedNotes(prepared, BPM, cfg);
   const instrument = cfg.instrumentById.flute!;
   const tolerances = resolveTolerances(expected, { instrument, level: 4, bpm: BPM, meter: prepared.meter }, cfg);
@@ -97,7 +99,7 @@ export function reviewFixture(over: Partial<AttemptRecord> = {}): ReviewFixture 
       cents = 0;
     }
     if (e.idx === REJUDGED) {
-      errMs = 55;
+      errMs = 90;
       marginal = true;
       rejudged = true;
       o = 0.9;

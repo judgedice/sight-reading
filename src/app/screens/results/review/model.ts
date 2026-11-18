@@ -352,7 +352,10 @@ function verdictLines(c: Ctx, e: ExpectedNote, j: NoteJudgment): string[] {
     }
   }
   const cents = j.centsError;
-  const intonationShown = j.pitch === 'sharp' || j.pitch === 'flat' || (j.marginal && j.pitch === 'in-tune' && cents !== null && Math.abs(cents) >= 1);
+  // A marginal in-tune note shows its cents when intonation is what cost the credit (beyond good cents).
+  const intonationMarginal =
+    j.marginal && j.pitch === 'in-tune' && cents !== null && (tol ? tol.goodCents !== null && Math.abs(cents) > tol.goodCents : j.credit.n !== null && j.credit.n < 1);
+  const intonationShown = j.pitch === 'sharp' || j.pitch === 'flat' || intonationMarginal;
   if (intonationShown && cents !== null) {
     const dir = j.pitch === 'flat' || (j.pitch !== 'sharp' && cents < 0) ? 'flat' : 'sharp';
     const direction = rtext(dir === 'flat' ? 'verdict.flat' : 'verdict.sharp');
@@ -423,7 +426,8 @@ export function buildReview(input: ReviewInput): ReviewModel {
     let played: SpelledPitch | null = null;
     if (j.status === 'matched') {
       const scoreBeat = e.onsetBeat + beatsOfSec((j.timingErrorMs ?? 0) / 1000, bpm);
-      const sameSpot = j.pitch === 'sharp' || j.pitch === 'flat' || !(j.pitch === 'wrong-pitch' || j.pitch === 'octave');
+      // Only a wrong note or a wrong octave is played at another pitch; sharp and flat sit on the written note (02 §4.8).
+      const sameSpot = !(j.pitch === 'wrong-pitch' || j.pitch === 'octave');
       played = sameSpot || j.playedConcertMidi === null ? { ...e.writtenPitch } : spell(j.playedConcertMidi, e, key, instrument);
       if (kind !== null && j.detectedId !== null) {
         ghost = {
