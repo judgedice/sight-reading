@@ -7,7 +7,7 @@ import { copy } from '../../../ui/copy/copy.ts';
 import { takesTuningNote } from '../../../session/take-plan.ts';
 import { Banner } from '../../../ui/components/containers/index.ts';
 import { Button } from '../../../ui/components/form/index.ts';
-import { ChecklistItem, ScanTimer } from '../../../ui/components/domain/index.ts';
+import { BeatUnitText, ChecklistItem, ScanTimer } from '../../../ui/components/domain/index.ts';
 import { Glyph, Modal, Popover, Sheet, openOverlayCount, useToast } from '../../../ui/primitives/index.ts';
 import { useNavigate } from '../../router.tsx';
 import type { ScreenProps } from '../../route-types.ts';
@@ -332,7 +332,7 @@ export function ScanScreen(_props: ScreenProps) {
         <Button label={copy('nav.home')} variant="tertiary" icon="chevron-left" onClick={leave} className="scan-home" />
         {prepared ? (
           <div className="scan-summary-block">
-            <p className="scan-summary">{scanSummary(prepared)}</p>
+            <p className="scan-summary"><BeatUnitText text={scanSummary(prepared)} /></p>
             {note ? <span className="scan-quiet-chip">{note}</span> : null}
             {sLine ? (
               <button type="button" className="scan-source-line" onClick={() => setDialog('licence')}>
@@ -418,7 +418,7 @@ export function ScanScreen(_props: ScreenProps) {
                 <span className="scan-cover-clef" aria-hidden="true">
                   {CLEF_MARK[prepared.clef] ?? ''}
                 </span>
-                <span className="scan-cover-fact">{scanSummary(prepared)}</span>
+                <span className="scan-cover-fact"><BeatUnitText text={scanSummary(prepared)} /></span>
               </div>
               <p className="scan-cover-text">{copy('scan.cover')}</p>
               {mode === 'ranked' ? (

@@ -1,0 +1,2716 @@
+{
+ "generated": "2026-11-18T21:42:48.735Z",
+ "scale": "full",
+ "commit": "dc3587e",
+ "liveProvisionalMs": 80,
+ "onsetByClass": {
+  "clean": {
+   "articulated": {
+    "n": 5354,
+    "mean": 0.16880712955023142,
+    "sd": 2.358471283966198,
+    "rms": 2.3642850341228434,
+    "e90": 1.8409501295728603
+   },
+   "slurred": {
+    "n": 928,
+    "mean": 0.9194030480835113,
+    "sd": 4.4191685552238775,
+    "rms": 4.511464113634912,
+    "e90": 6.565091369789222
+   },
+   "voice": {
+    "n": 823,
+    "mean": -1.235860144924717,
+    "sd": 6.062633565624397,
+    "rms": 6.183705655085655,
+    "e90": 8.144971841924864
+   }
+  },
+  "device": {
+   "articulated": {
+    "n": 5302,
+    "mean": 2.3003116326719013,
+    "sd": 3.492789535038018,
+    "rms": 4.181950669776836,
+    "e90": 6.342301543558193
+   },
+   "slurred": {
+    "n": 925,
+    "mean": 1.2490777133431292,
+    "sd": 4.750391377092194,
+    "rms": 4.909380557454919,
+    "e90": 7.686999562747765
+   },
+   "voice": {
+    "n": 819,
+    "mean": 1.4583534475001068,
+    "sd": 7.442500611827918,
+    "rms": 7.579576365583447,
+    "e90": 11.855309717176965
+   }
+  },
+  "planned": {
+   "articulated": {
+    "n": 5132,
+    "mean": 4.4458054699771035,
+    "sd": 7.902352587167921,
+    "rms": 9.066432291362554,
+    "e90": 16.422755637979236
+   },
+   "slurred": {
+    "n": 861,
+    "mean": 3.876644343289749,
+    "sd": 8.532557712172103,
+    "rms": 9.367409159215269,
+    "e90": 16.41651195632754
+   },
+   "voice": {
+    "n": 759,
+    "mean": 3.6072314287470295,
+    "sd": 10.847817483353673,
+    "rms": 11.425069934887858,
+    "e90": 20.529596758970925
+   }
+  }
+ },
+ "onsetByRule": {
+  "clean": {
+   "flute": {
+    "silence": {
+     "n": 461,
+     "mean": 0.7617891730707965,
+     "sd": 0.8103105255786069,
+     "rms": 1.1115311917495532,
+     "e90": 1.8675628215918394
+    },
+    "pitch-change": {
+     "n": 149,
+     "mean": -0.0338546294365713,
+     "sd": 1.2603862736051956,
+     "rms": 1.256605796229938,
+     "e90": 2.0210300374507995
+    },
+    "dip": {
+     "n": 400,
+     "mean": 0.37095895150677544,
+     "sd": 0.4111110085456153,
+     "rms": 0.5533536612303481,
+     "e90": 0.8873198849670416
+    }
+   },
+   "clarinet": {
+    "silence": {
+     "n": 502,
+     "mean": 0.5580674753577427,
+     "sd": 0.7971050163860635,
+     "rms": 0.972393965502621,
+     "e90": 1.8869764891062957
+    },
+    "dip": {
+     "n": 306,
+     "mean": 0.0767478746998907,
+     "sd": 0.21628820340727264,
+     "rms": 0.22916794162583107,
+     "e90": 0.3937590881069042
+    },
+    "pitch-change": {
+     "n": 149,
+     "mean": -0.5769881335857184,
+     "sd": 2.7052095751890386,
+     "rms": 2.757165028059613,
+     "e90": 3.86848939216744
+    }
+   },
+   "sax": {
+    "silence": {
+     "n": 404,
+     "mean": 0.797993948250627,
+     "sd": 0.8058735836319356,
+     "rms": 1.1334103708338297,
+     "e90": 1.7555675368079449
+    },
+    "pitch-change": {
+     "n": 183,
+     "mean": 1.7669802982185914,
+     "sd": 6.378207150627154,
+     "rms": 6.601624224942332,
+     "e90": 11.944757022380514
+    },
+    "dip": {
+     "n": 239,
+     "mean": -0.013215404652171777,
+     "sd": 0.8646073850270427,
+     "rms": 0.8628978907865695,
+     "e90": 1.0013822867946942
+    }
+   },
+   "trumpet": {
+    "silence": {
+     "n": 470,
+     "mean": 0.9760500219587468,
+     "sd": 0.8286483963410276,
+     "rms": 1.2797932783483401,
+     "e90": 2.154047928103253
+    },
+    "pitch-change": {
+     "n": 151,
+     "mean": 4.203459726105935,
+     "sd": 5.565586753657836,
+     "rms": 6.959862938672862,
+     "e90": 13.668055169480553
+    },
+    "dip": {
+     "n": 258,
+     "mean": -0.05669677501487261,
+     "sd": 0.7135730980372403,
+     "rms": 0.7144420894638883,
+     "e90": 0.895790317837708
+    }
+   },
+   "violin": {
+    "silence": {
+     "n": 447,
+     "mean": 0.4572805700916131,
+     "sd": 1.1120066793548444,
+     "rms": 1.2012069029968215,
+     "e90": 2.365382093109769
+    },
+    "pitch-change": {
+     "n": 184,
+     "mean": 0.055083186057041024,
+     "sd": 1.8024622546936664,
+     "rms": 1.7984013550460856,
+     "e90": 2.806765014641499
+    },
+    "dip": {
+     "n": 215,
+     "mean": -0.9304116968856975,
+     "sd": 4.6097175689977545,
+     "rms": 4.692155914524302,
+     "e90": 3.941143055884666
+    }
+   },
+   "cello": {
+    "silence": {
+     "n": 528,
+     "mean": 1.3207720084596097,
+     "sd": 1.4139737845700482,
+     "rms": 1.9339012299865317,
+     "e90": 3.0304575288235824
+    },
+    "pitch-change": {
+     "n": 112,
+     "mean": -0.2142278494524501,
+     "sd": 3.8318950811145163,
+     "rms": 3.8207605945210283,
+     "e90": 4.494925275931649
+    },
+    "dip": {
+     "n": 256,
+     "mean": -4.907945875748562,
+     "sd": 7.256557946708233,
+     "rms": 8.748706880070431,
+     "e90": 16.9179740297416
+    }
+   },
+   "voice": {
+    "silence": {
+     "n": 407,
+     "mean": 0.9296418244308987,
+     "sd": 1.361937641475829,
+     "rms": 1.647589339211182,
+     "e90": 2.658975256433216
+    },
+    "dip": {
+     "n": 273,
+     "mean": -5.247883297252262,
+     "sd": 8.363620965875642,
+     "rms": 9.86074069662115,
+     "e90": 20.244242088324427
+    },
+    "pitch-change": {
+     "n": 143,
+     "mean": 0.26010502331083407,
+     "sd": 5.180282369115441,
+     "rms": 5.168686528371765,
+     "e90": 6.7302594270266525
+    }
+   },
+   "piano": {
+    "silence": {
+     "n": 868,
+     "mean": -0.12448840102291024,
+     "sd": 0.46312216695350006,
+     "rms": 0.47930408330365787,
+     "e90": 0.5931291131506811
+    }
+   }
+  },
+  "device": {
+   "flute": {
+    "silence": {
+     "n": 459,
+     "mean": 3.5320085866714153,
+     "sd": 1.0508477757616248,
+     "rms": 3.6846926416026853,
+     "e90": 4.666749255418878
+    },
+    "pitch-change": {
+     "n": 149,
+     "mean": 0.09223415706210582,
+     "sd": 1.265981354257095,
+     "rms": 1.2650926820703254,
+     "e90": 2.101716661019992
+    },
+    "dip": {
+     "n": 400,
+     "mean": 0.5070033858240923,
+     "sd": 0.43213369884266295,
+     "rms": 0.6658266426618462,
+     "e90": 1.0672931201298752
+    }
+   },
+   "clarinet": {
+    "silence": {
+     "n": 493,
+     "mean": 3.3921831921134564,
+     "sd": 0.8987839570499936,
+     "rms": 3.5089999779414347,
+     "e90": 4.45430338630004
+    },
+    "dip": {
+     "n": 305,
+     "mean": 0.33343594423823825,
+     "sd": 0.35839584223301857,
+     "rms": 0.48908687268652845,
+     "e90": 0.7895656654319794
+    },
+    "pitch-change": {
+     "n": 149,
+     "mean": 0.3873370768733264,
+     "sd": 4.34899378070811,
+     "rms": 4.351647850765241,
+     "e90": 5.370864877894732
+    }
+   },
+   "sax": {
+    "silence": {
+     "n": 403,
+     "mean": 4.207451876429597,
+     "sd": 1.3578134988551485,
+     "rms": 4.420603347694043,
+     "e90": 5.955076987230967
+    },
+    "pitch-change": {
+     "n": 184,
+     "mean": 1.8274371836843553,
+     "sd": 6.234409537663322,
+     "rms": 6.480443700985691,
+     "e90": 11.253060418593641
+    },
+    "dip": {
+     "n": 239,
+     "mean": 0.18878778047963152,
+     "sd": 0.9007692914724986,
+     "rms": 0.9184939982799023,
+     "e90": 1.125332206797225
+    }
+   },
+   "trumpet": {
+    "silence": {
+     "n": 469,
+     "mean": 4.689481627418678,
+     "sd": 1.5140547292362292,
+     "rms": 4.927343289456487,
+     "e90": 6.54902995309925
+    },
+    "pitch-change": {
+     "n": 151,
+     "mean": 3.836254544374677,
+     "sd": 4.955159767939857,
+     "rms": 6.2536269937845494,
+     "e90": 12.123160465726812
+    },
+    "dip": {
+     "n": 258,
+     "mean": 0.05222498324206006,
+     "sd": 0.58816697896682,
+     "rms": 0.5893445425019505,
+     "e90": 0.9402963545852572
+    }
+   },
+   "violin": {
+    "silence": {
+     "n": 446,
+     "mean": 5.048335159175732,
+     "sd": 1.606311980629381,
+     "rms": 5.297182342631434,
+     "e90": 6.994395663397768
+    },
+    "pitch-change": {
+     "n": 184,
+     "mean": 0.03891008780198255,
+     "sd": 1.6276626755721244,
+     "rms": 1.6236999378182937,
+     "e90": 2.7518775155028763
+    },
+    "dip": {
+     "n": 215,
+     "mean": -2.170397863624848,
+     "sd": 6.322839409117116,
+     "rms": 6.671055351810451,
+     "e90": 15.883133850834064
+    }
+   },
+   "cello": {
+    "silence": {
+     "n": 524,
+     "mean": 6.332911619780494,
+     "sd": 2.23414846607695,
+     "rms": 6.714734793194955,
+     "e90": 9.205871599096582
+    },
+    "pitch-change": {
+     "n": 108,
+     "mean": 1.4931336743699348,
+     "sd": 6.750460872979037,
+     "rms": 6.883039848502206,
+     "e90": 10.125618368009626
+    },
+    "dip": {
+     "n": 256,
+     "mean": -3.7911036510944065,
+     "sd": 6.502962187747863,
+     "rms": 7.516368444152245,
+     "e90": 14.914342425698557
+    }
+   },
+   "voice": {
+    "silence": {
+     "n": 403,
+     "mean": 6.198029656461853,
+     "sd": 2.358210365584953,
+     "rms": 6.630454611553688,
+     "e90": 9.535081773716314
+    },
+    "dip": {
+     "n": 275,
+     "mean": -5.108178395815258,
+     "sd": 8.068675143398911,
+     "rms": 9.537309108215537,
+     "e90": 19.82091277147191
+    },
+    "pitch-change": {
+     "n": 141,
+     "mean": 0.718684970196137,
+     "sd": 5.508157090994355,
+     "rms": 5.535442780633033,
+     "e90": 6.982065367951762
+    }
+   },
+   "piano": {
+    "silence": {
+     "n": 835,
+     "mean": 0.6129404731025502,
+     "sd": 0.40066657953425483,
+     "rms": 0.732145802135876,
+     "e90": 1.064088449473033
+    }
+   }
+  },
+  "planned": {
+   "flute": {
+    "silence": {
+     "n": 448,
+     "mean": 6.320185235750053,
+     "sd": 6.2320183160566245,
+     "rms": 8.871082325446539,
+     "e90": 14.907968339192834
+    },
+    "pitch-change": {
+     "n": 136,
+     "mean": 2.8625141293393757,
+     "sd": 8.261973693599106,
+     "rms": 8.71506070837225,
+     "e90": 16.735564067508868
+    },
+    "dip": {
+     "n": 374,
+     "mean": 2.5746691817028453,
+     "sd": 8.453754882174618,
+     "rms": 8.82631335935446,
+     "e90": 14.625147781098136
+    }
+   },
+   "clarinet": {
+    "silence": {
+     "n": 479,
+     "mean": 4.841850121266029,
+     "sd": 8.53479302027901,
+     "rms": 9.804801480403906,
+     "e90": 16.39294011438075
+    },
+    "dip": {
+     "n": 290,
+     "mean": 2.7838901623874586,
+     "sd": 7.569498875996741,
+     "rms": 8.052936155699259,
+     "e90": 15.209996647007173
+    },
+    "pitch-change": {
+     "n": 133,
+     "mean": 3.867305774987551,
+     "sd": 9.30140940257588,
+     "rms": 10.041004579241243,
+     "e90": 19.456051128546648
+    }
+   },
+   "sax": {
+    "silence": {
+     "n": 385,
+     "mean": 5.917681428793145,
+     "sd": 7.095508832945791,
+     "rms": 9.232249434564054,
+     "e90": 13.42937496726293
+    },
+    "pitch-change": {
+     "n": 172,
+     "mean": 5.274236416015783,
+     "sd": 8.309594786181838,
+     "rms": 9.821684452429096,
+     "e90": 15.704418693585076
+    },
+    "dip": {
+     "n": 227,
+     "mean": 1.9955358034799997,
+     "sd": 8.262761465089508,
+     "rms": 8.482607326599155,
+     "e90": 16.90622222297211
+    }
+   },
+   "trumpet": {
+    "silence": {
+     "n": 466,
+     "mean": 6.186172997399075,
+     "sd": 4.310867487917396,
+     "rms": 7.537402465592271,
+     "e90": 10.90689388049526
+    },
+    "pitch-change": {
+     "n": 134,
+     "mean": 3.063168616456326,
+     "sd": 8.216054515720392,
+     "rms": 8.739725163232489,
+     "e90": 13.9828769584458
+    },
+    "dip": {
+     "n": 249,
+     "mean": 2.027478838894466,
+     "sd": 4.336575811646047,
+     "rms": 4.779229493400678,
+     "e90": 6.415769575668584
+    }
+   },
+   "violin": {
+    "silence": {
+     "n": 435,
+     "mean": 9.79854657299861,
+     "sd": 7.748391704828863,
+     "rms": 12.486435501902172,
+     "e90": 21.390483581403608
+    },
+    "pitch-change": {
+     "n": 178,
+     "mean": 2.808279939930623,
+     "sd": 7.984340243823885,
+     "rms": 8.442628798497074,
+     "e90": 14.924943612006025
+    },
+    "dip": {
+     "n": 204,
+     "mean": -2.164810260812386,
+     "sd": 8.482463277326517,
+     "rms": 8.73417883580754,
+     "e90": 16.78416278459105
+    }
+   },
+   "cello": {
+    "silence": {
+     "n": 482,
+     "mean": 10.78782689843636,
+     "sd": 9.112287696387545,
+     "rms": 14.115194897152493,
+     "e90": 24.281442083466942
+    },
+    "pitch-change": {
+     "n": 108,
+     "mean": 5.709537985569093,
+     "sd": 9.056940858143312,
+     "rms": 10.670870702646528,
+     "e90": 19.848284814429462
+    },
+    "dip": {
+     "n": 245,
+     "mean": -0.30973429981050804,
+     "sd": 8.451327544144965,
+     "rms": 8.439747759189588,
+     "e90": 15.794999338531568
+    }
+   },
+   "voice": {
+    "silence": {
+     "n": 382,
+     "mean": 8.32606180876347,
+     "sd": 8.111444079774502,
+     "rms": 11.616651441282988,
+     "e90": 20.740324449858516
+    },
+    "dip": {
+     "n": 249,
+     "mean": -4.042502896681599,
+     "sd": 10.212948446651895,
+     "rms": 10.964818868016543,
+     "e90": 20.457671882347483
+    },
+    "pitch-change": {
+     "n": 128,
+     "mean": 4.405595818320844,
+     "sd": 10.905242014906603,
+     "rms": 11.721965782143755,
+     "e90": 21.65079062955222
+    }
+   },
+   "piano": {
+    "silence": {
+     "n": 848,
+     "mean": 0.9804753589402813,
+     "sd": 4.008663298267889,
+     "rms": 4.124531928123027,
+     "e90": 2.711494270927872
+    }
+   }
+  }
+ },
+ "measuredSigma": {
+  "articulated": {
+   "measured": 4.181950669776836,
+   "table": 8,
+   "used": 8
+  },
+  "slurred": {
+   "measured": 4.909380557454919,
+   "table": 12,
+   "used": 12
+  },
+  "voice": {
+   "measured": 7.579576365583447,
+   "table": 22,
+   "used": 22
+  }
+ },
+ "measuredC90": {
+  "measured": 3.9450378386575835,
+  "table": 10
+ },
+ "c90ByInstrument": {
+  "clean": {
+   "flute": {
+    "steady": 0.2226272983961053,
+    "all": 0.4151059765902687,
+    "n": 558
+   },
+   "clarinet": {
+    "steady": 0.35072312962256547,
+    "all": 0.35491135503775695,
+    "n": 623
+   },
+   "sax": {
+    "steady": 0.2221321897280859,
+    "all": 0.2293170137619427,
+    "n": 547
+   },
+   "trumpet": {
+    "steady": 0.3900058625092129,
+    "all": 0.39180997991223876,
+    "n": 612
+   },
+   "violin": {
+    "steady": 3.4331686598932265,
+    "all": 5.69845675733518,
+    "n": 386
+   },
+   "cello": {
+    "steady": 3.124799164861969,
+    "all": 4.665032959039195,
+    "n": 457
+   },
+   "voice": {
+    "steady": 3.839548009995042,
+    "all": 6.956503973415806,
+    "n": 349
+   },
+   "piano": {
+    "steady": 4.0619705410549045,
+    "all": 4.5765029207856855,
+    "n": 552
+   }
+  },
+  "device": {
+   "flute": {
+    "steady": 0.20427405433594004,
+    "all": 0.3964656182304793,
+    "n": 552
+   },
+   "clarinet": {
+    "steady": 0.34633047246188653,
+    "all": 0.34801827033419386,
+    "n": 625
+   },
+   "sax": {
+    "steady": 0.2230938927624493,
+    "all": 0.2290263862207098,
+    "n": 560
+   },
+   "trumpet": {
+    "steady": 0.3887171060270589,
+    "all": 0.3887171060270589,
+    "n": 615
+   },
+   "violin": {
+    "steady": 3.6002810633277704,
+    "all": 5.7117089227418205,
+    "n": 385
+   },
+   "cello": {
+    "steady": 3.035119775409356,
+    "all": 4.831231348120468,
+    "n": 453
+   },
+   "voice": {
+    "steady": 3.8871586681473502,
+    "all": 7.425190178107499,
+    "n": 345
+   },
+   "piano": {
+    "steady": 4.154924513683511,
+    "all": 4.6762844167609785,
+    "n": 522
+   }
+  },
+  "planned": {
+   "flute": {
+    "steady": 0.7926653855378163,
+    "all": 1.6603156856277224,
+    "n": 545
+   },
+   "clarinet": {
+    "steady": 0.6037863477075689,
+    "all": 0.6314711986100008,
+    "n": 599
+   },
+   "sax": {
+    "steady": 0.418262174442674,
+    "all": 0.49465334547420525,
+    "n": 543
+   },
+   "trumpet": {
+    "steady": 0.6438149724459663,
+    "all": 0.6537807021217645,
+    "n": 609
+   },
+   "violin": {
+    "steady": 5.916839721746214,
+    "all": 7.126435620662619,
+    "n": 377
+   },
+   "cello": {
+    "steady": 5.101101846420875,
+    "all": 5.7150694255831525,
+    "n": 442
+   },
+   "voice": {
+    "steady": 7.8200832190866265,
+    "all": 9.040914041486303,
+    "n": 322
+   },
+   "piano": {
+    "steady": 4.710758600138831,
+    "all": 5.284262552669361,
+    "n": 523
+   }
+  }
+ },
+ "latency": {
+  "512": {
+   "n": 6309,
+   "p50": 35.17255594218405,
+   "p95": 58.86125049828195,
+   "max": 164.1010539152905
+  },
+  "1024": {
+   "n": 7300,
+   "p50": 43.32348236298955,
+   "p95": 75.90689655172511,
+   "max": 187.2731129785592
+  }
+ },
+ "intonationLatency": {},
+ "gates": [
+  {
+   "id": "onset-f1",
+   "scope": "flute / clean",
+   "metric": "onset F1 at ±30 ms",
+   "value": 1,
+   "op": ">=",
+   "threshold": 0.97,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "pitch-class",
+   "scope": "flute / clean",
+   "metric": "pitch-class accuracy on matched notes",
+   "value": 1,
+   "op": ">=",
+   "threshold": 0.99,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "octave",
+   "scope": "flute / clean",
+   "metric": "octave error rate",
+   "value": 0,
+   "op": "<=",
+   "threshold": 0.005,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "verdict",
+   "scope": "flute / clean",
+   "metric": "judgment agreement with ground truth",
+   "value": 1,
+   "op": ">=",
+   "threshold": 0.95,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "false-missed",
+   "scope": "flute / clean",
+   "metric": "false missed rate",
+   "value": 0,
+   "op": "<=",
+   "threshold": 0.01,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "false-extras",
+   "scope": "flute / clean",
+   "metric": "false extras per take",
+   "value": 0,
+   "op": "<=",
+   "threshold": 1,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "divergence",
+   "scope": "flute / clean",
+   "metric": "live vs final divergence",
+   "value": 0.0009606147934678194,
+   "op": "<=",
+   "threshold": 0.03,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "false-red",
+   "scope": "flute / clean",
+   "metric": "live sharp/flat on in-tune notes",
+   "value": 0,
+   "op": "<=",
+   "threshold": 0.01,
+   "source": "PLAN R19",
+   "pass": true
+  },
+  {
+   "id": "c90",
+   "scope": "flute / clean",
+   "metric": "c90, vibrato, >= 360 ms steady",
+   "value": 0.2226272983961053,
+   "op": "<=",
+   "threshold": 5,
+   "source": "01 §8.4",
+   "pass": true
+  },
+  {
+   "id": "onset-f1",
+   "scope": "clarinet / clean",
+   "metric": "onset F1 at ±30 ms",
+   "value": 1,
+   "op": ">=",
+   "threshold": 0.97,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "pitch-class",
+   "scope": "clarinet / clean",
+   "metric": "pitch-class accuracy on matched notes",
+   "value": 1,
+   "op": ">=",
+   "threshold": 0.99,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "octave",
+   "scope": "clarinet / clean",
+   "metric": "octave error rate",
+   "value": 0,
+   "op": "<=",
+   "threshold": 0.005,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "verdict",
+   "scope": "clarinet / clean",
+   "metric": "judgment agreement with ground truth",
+   "value": 1,
+   "op": ">=",
+   "threshold": 0.95,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "false-missed",
+   "scope": "clarinet / clean",
+   "metric": "false missed rate",
+   "value": 0,
+   "op": "<=",
+   "threshold": 0.01,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "false-extras",
+   "scope": "clarinet / clean",
+   "metric": "false extras per take",
+   "value": 0,
+   "op": "<=",
+   "threshold": 1,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "divergence",
+   "scope": "clarinet / clean",
+   "metric": "live vs final divergence",
+   "value": 0.011351909184726523,
+   "op": "<=",
+   "threshold": 0.03,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "false-red",
+   "scope": "clarinet / clean",
+   "metric": "live sharp/flat on in-tune notes",
+   "value": 0,
+   "op": "<=",
+   "threshold": 0.01,
+   "source": "PLAN R19",
+   "pass": true
+  },
+  {
+   "id": "c90",
+   "scope": "clarinet / clean",
+   "metric": "c90, non-vibrato, >= 250 ms steady",
+   "value": 0.35072312962256547,
+   "op": "<=",
+   "threshold": 5,
+   "source": "01 §8.4",
+   "pass": true
+  },
+  {
+   "id": "onset-f1",
+   "scope": "sax / clean",
+   "metric": "onset F1 at ±30 ms",
+   "value": 0.9987908101571947,
+   "op": ">=",
+   "threshold": 0.97,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "pitch-class",
+   "scope": "sax / clean",
+   "metric": "pitch-class accuracy on matched notes",
+   "value": 1,
+   "op": ">=",
+   "threshold": 0.99,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "octave",
+   "scope": "sax / clean",
+   "metric": "octave error rate",
+   "value": 0,
+   "op": "<=",
+   "threshold": 0.005,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "verdict",
+   "scope": "sax / clean",
+   "metric": "judgment agreement with ground truth",
+   "value": 1,
+   "op": ">=",
+   "threshold": 0.95,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "false-missed",
+   "scope": "sax / clean",
+   "metric": "false missed rate",
+   "value": 0,
+   "op": "<=",
+   "threshold": 0.01,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "false-extras",
+   "scope": "sax / clean",
+   "metric": "false extras per take",
+   "value": 0,
+   "op": "<=",
+   "threshold": 1,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "divergence",
+   "scope": "sax / clean",
+   "metric": "live vs final divergence",
+   "value": 0.008120649651972157,
+   "op": "<=",
+   "threshold": 0.03,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "false-red",
+   "scope": "sax / clean",
+   "metric": "live sharp/flat on in-tune notes",
+   "value": 0,
+   "op": "<=",
+   "threshold": 0.01,
+   "source": "PLAN R19",
+   "pass": true
+  },
+  {
+   "id": "c90",
+   "scope": "sax / clean",
+   "metric": "c90, non-vibrato, >= 250 ms steady",
+   "value": 0.2221321897280859,
+   "op": "<=",
+   "threshold": 5,
+   "source": "01 §8.4",
+   "pass": true
+  },
+  {
+   "id": "onset-f1",
+   "scope": "trumpet / clean",
+   "metric": "onset F1 at ±30 ms",
+   "value": 1,
+   "op": ">=",
+   "threshold": 0.97,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "pitch-class",
+   "scope": "trumpet / clean",
+   "metric": "pitch-class accuracy on matched notes",
+   "value": 1,
+   "op": ">=",
+   "threshold": 0.99,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "octave",
+   "scope": "trumpet / clean",
+   "metric": "octave error rate",
+   "value": 0,
+   "op": "<=",
+   "threshold": 0.005,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "verdict",
+   "scope": "trumpet / clean",
+   "metric": "judgment agreement with ground truth",
+   "value": 1,
+   "op": ">=",
+   "threshold": 0.95,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "false-missed",
+   "scope": "trumpet / clean",
+   "metric": "false missed rate",
+   "value": 0,
+   "op": "<=",
+   "threshold": 0.01,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "false-extras",
+   "scope": "trumpet / clean",
+   "metric": "false extras per take",
+   "value": 0,
+   "op": "<=",
+   "threshold": 1,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "divergence",
+   "scope": "trumpet / clean",
+   "metric": "live vs final divergence",
+   "value": 0.013318534961154272,
+   "op": "<=",
+   "threshold": 0.03,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "false-red",
+   "scope": "trumpet / clean",
+   "metric": "live sharp/flat on in-tune notes",
+   "value": 0,
+   "op": "<=",
+   "threshold": 0.01,
+   "source": "PLAN R19",
+   "pass": true
+  },
+  {
+   "id": "c90",
+   "scope": "trumpet / clean",
+   "metric": "c90, non-vibrato, >= 250 ms steady",
+   "value": 0.3900058625092129,
+   "op": "<=",
+   "threshold": 5,
+   "source": "01 §8.4",
+   "pass": true
+  },
+  {
+   "id": "onset-f1",
+   "scope": "violin / clean",
+   "metric": "onset F1 at ±30 ms",
+   "value": 0.9994093325457767,
+   "op": ">=",
+   "threshold": 0.97,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "pitch-class",
+   "scope": "violin / clean",
+   "metric": "pitch-class accuracy on matched notes",
+   "value": 0.9987684729064039,
+   "op": ">=",
+   "threshold": 0.99,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "octave",
+   "scope": "violin / clean",
+   "metric": "octave error rate",
+   "value": 0,
+   "op": "<=",
+   "threshold": 0.005,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "verdict",
+   "scope": "violin / clean",
+   "metric": "judgment agreement with ground truth",
+   "value": 0.9966024915062288,
+   "op": ">=",
+   "threshold": 0.95,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "false-missed",
+   "scope": "violin / clean",
+   "metric": "false missed rate",
+   "value": 0.0012300123001230013,
+   "op": "<=",
+   "threshold": 0.01,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "false-extras",
+   "scope": "violin / clean",
+   "metric": "false extras per take",
+   "value": 0,
+   "op": "<=",
+   "threshold": 1,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "divergence",
+   "scope": "violin / clean",
+   "metric": "live vs final divergence",
+   "value": 0.0078125,
+   "op": "<=",
+   "threshold": 0.03,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "false-red",
+   "scope": "violin / clean",
+   "metric": "live sharp/flat on in-tune notes",
+   "value": 0,
+   "op": "<=",
+   "threshold": 0.01,
+   "source": "PLAN R19",
+   "pass": true
+  },
+  {
+   "id": "c90",
+   "scope": "violin / clean",
+   "metric": "c90, vibrato, >= 360 ms steady",
+   "value": 3.4331686598932265,
+   "op": "<=",
+   "threshold": 5,
+   "source": "01 §8.4",
+   "pass": true
+  },
+  {
+   "id": "onset-f1",
+   "scope": "cello / clean",
+   "metric": "onset F1 at ±30 ms",
+   "value": 0.9977728285077951,
+   "op": ">=",
+   "threshold": 0.97,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "pitch-class",
+   "scope": "cello / clean",
+   "metric": "pitch-class accuracy on matched notes",
+   "value": 0.9988331388564761,
+   "op": ">=",
+   "threshold": 0.99,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "octave",
+   "scope": "cello / clean",
+   "metric": "octave error rate",
+   "value": 0,
+   "op": "<=",
+   "threshold": 0.005,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "verdict",
+   "scope": "cello / clean",
+   "metric": "judgment agreement with ground truth",
+   "value": 0.9966996699669967,
+   "op": ">=",
+   "threshold": 0.95,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "false-missed",
+   "scope": "cello / clean",
+   "metric": "false missed rate",
+   "value": 0.0011641443538998836,
+   "op": "<=",
+   "threshold": 0.01,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "false-extras",
+   "scope": "cello / clean",
+   "metric": "false extras per take",
+   "value": 0,
+   "op": "<=",
+   "threshold": 1,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "divergence",
+   "scope": "cello / clean",
+   "metric": "live vs final divergence",
+   "value": 0.00980392156862745,
+   "op": "<=",
+   "threshold": 0.03,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "false-red",
+   "scope": "cello / clean",
+   "metric": "live sharp/flat on in-tune notes",
+   "value": 0,
+   "op": "<=",
+   "threshold": 0.01,
+   "source": "PLAN R19",
+   "pass": true
+  },
+  {
+   "id": "c90",
+   "scope": "cello / clean",
+   "metric": "c90, vibrato, >= 360 ms steady",
+   "value": 3.124799164861969,
+   "op": "<=",
+   "threshold": 5,
+   "source": "01 §8.4",
+   "pass": true
+  },
+  {
+   "id": "onset-f1",
+   "scope": "voice / clean",
+   "metric": "onset F1 at ±30 ms",
+   "value": 0.9879951980792316,
+   "op": ">=",
+   "threshold": 0.97,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "pitch-class",
+   "scope": "voice / clean",
+   "metric": "pitch-class accuracy on matched notes",
+   "value": 0.987146529562982,
+   "op": ">=",
+   "threshold": 0.99,
+   "source": "01 §13.2",
+   "pass": false
+  },
+  {
+   "id": "octave",
+   "scope": "voice / clean",
+   "metric": "octave error rate",
+   "value": 0,
+   "op": "<=",
+   "threshold": 0.005,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "verdict",
+   "scope": "voice / clean",
+   "metric": "judgment agreement with ground truth",
+   "value": 0.9689298043728424,
+   "op": ">=",
+   "threshold": 0.95,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "false-missed",
+   "scope": "voice / clean",
+   "metric": "false missed rate",
+   "value": 0.018915510718789406,
+   "op": "<=",
+   "threshold": 0.01,
+   "source": "01 §13.2",
+   "pass": false
+  },
+  {
+   "id": "false-extras",
+   "scope": "voice / clean",
+   "metric": "false extras per take",
+   "value": 0,
+   "op": "<=",
+   "threshold": 1,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "divergence",
+   "scope": "voice / clean",
+   "metric": "live vs final divergence",
+   "value": 0.025142857142857144,
+   "op": "<=",
+   "threshold": 0.03,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "false-red",
+   "scope": "voice / clean",
+   "metric": "live sharp/flat on in-tune notes",
+   "value": 0,
+   "op": "<=",
+   "threshold": 0.01,
+   "source": "PLAN R19",
+   "pass": true
+  },
+  {
+   "id": "c90",
+   "scope": "voice / clean",
+   "metric": "c90, vibrato, >= 360 ms steady",
+   "value": 3.839548009995042,
+   "op": "<=",
+   "threshold": 5,
+   "source": "01 §8.4",
+   "pass": true
+  },
+  {
+   "id": "onset-f1",
+   "scope": "piano / clean",
+   "metric": "onset F1 at ±30 ms",
+   "value": 1,
+   "op": ">=",
+   "threshold": 0.97,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "pitch-class",
+   "scope": "piano / clean",
+   "metric": "pitch-class accuracy on matched notes",
+   "value": 1,
+   "op": ">=",
+   "threshold": 0.99,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "octave",
+   "scope": "piano / clean",
+   "metric": "octave error rate",
+   "value": 0,
+   "op": "<=",
+   "threshold": 0.005,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "verdict",
+   "scope": "piano / clean",
+   "metric": "judgment agreement with ground truth",
+   "value": 1,
+   "op": ">=",
+   "threshold": 0.95,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "false-missed",
+   "scope": "piano / clean",
+   "metric": "false missed rate",
+   "value": 0,
+   "op": "<=",
+   "threshold": 0.01,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "false-extras",
+   "scope": "piano / clean",
+   "metric": "false extras per take",
+   "value": 0,
+   "op": "<=",
+   "threshold": 1,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "divergence",
+   "scope": "piano / clean",
+   "metric": "live vs final divergence",
+   "value": 0.006711409395973154,
+   "op": "<=",
+   "threshold": 0.03,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "c90",
+   "scope": "piano / clean",
+   "metric": "c90, non-vibrato, >= 250 ms steady",
+   "value": 4.0619705410549045,
+   "op": "<=",
+   "threshold": 5,
+   "source": "01 §8.4",
+   "pass": true
+  },
+  {
+   "id": "onset-f1",
+   "scope": "flute / device",
+   "metric": "onset F1 at ±30 ms",
+   "value": 0.9985141158989599,
+   "op": ">=",
+   "threshold": 0.97,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "pitch-class",
+   "scope": "flute / device",
+   "metric": "pitch-class accuracy on matched notes",
+   "value": 1,
+   "op": ">=",
+   "threshold": 0.99,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "octave",
+   "scope": "flute / device",
+   "metric": "octave error rate",
+   "value": 0,
+   "op": "<=",
+   "threshold": 0.005,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "verdict",
+   "scope": "flute / device",
+   "metric": "judgment agreement with ground truth",
+   "value": 0.9990234375,
+   "op": ">=",
+   "threshold": 0.95,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "false-missed",
+   "scope": "flute / device",
+   "metric": "false missed rate",
+   "value": 0.0010235414534288639,
+   "op": "<=",
+   "threshold": 0.01,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "false-extras",
+   "scope": "flute / device",
+   "metric": "false extras per take",
+   "value": 0,
+   "op": "<=",
+   "threshold": 1,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "click-extras",
+   "scope": "flute / device",
+   "metric": "click-induced extras",
+   "value": 0,
+   "op": "==",
+   "threshold": 0,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "divergence",
+   "scope": "flute / device",
+   "metric": "live vs final divergence",
+   "value": 0.002881844380403458,
+   "op": "<=",
+   "threshold": 0.03,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "false-red",
+   "scope": "flute / device",
+   "metric": "live sharp/flat on in-tune notes",
+   "value": 0,
+   "op": "<=",
+   "threshold": 0.01,
+   "source": "PLAN R19",
+   "pass": true
+  },
+  {
+   "id": "onset-f1",
+   "scope": "clarinet / device",
+   "metric": "onset F1 at ±30 ms",
+   "value": 0.988517745302714,
+   "op": ">=",
+   "threshold": 0.97,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "pitch-class",
+   "scope": "clarinet / device",
+   "metric": "pitch-class accuracy on matched notes",
+   "value": 0.9988938053097345,
+   "op": ">=",
+   "threshold": 0.99,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "octave",
+   "scope": "clarinet / device",
+   "metric": "octave error rate",
+   "value": 0,
+   "op": "<=",
+   "threshold": 0.005,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "verdict",
+   "scope": "clarinet / device",
+   "metric": "judgment agreement with ground truth",
+   "value": 0.9979101358411703,
+   "op": ">=",
+   "threshold": 0.95,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "false-missed",
+   "scope": "clarinet / device",
+   "metric": "false missed rate",
+   "value": 0.0011049723756906078,
+   "op": "<=",
+   "threshold": 0.01,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "false-extras",
+   "scope": "clarinet / device",
+   "metric": "false extras per take",
+   "value": 0,
+   "op": "<=",
+   "threshold": 1,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "click-extras",
+   "scope": "clarinet / device",
+   "metric": "click-induced extras",
+   "value": 0,
+   "op": "==",
+   "threshold": 0,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "divergence",
+   "scope": "clarinet / device",
+   "metric": "live vs final divergence",
+   "value": 0.015479876160990712,
+   "op": "<=",
+   "threshold": 0.03,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "false-red",
+   "scope": "clarinet / device",
+   "metric": "live sharp/flat on in-tune notes",
+   "value": 0,
+   "op": "<=",
+   "threshold": 0.01,
+   "source": "PLAN R19",
+   "pass": true
+  },
+  {
+   "id": "onset-f1",
+   "scope": "sax / device",
+   "metric": "onset F1 at ±30 ms",
+   "value": 0.9951807228915662,
+   "op": ">=",
+   "threshold": 0.97,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "pitch-class",
+   "scope": "sax / device",
+   "metric": "pitch-class accuracy on matched notes",
+   "value": 1,
+   "op": ">=",
+   "threshold": 0.99,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "octave",
+   "scope": "sax / device",
+   "metric": "octave error rate",
+   "value": 0,
+   "op": "<=",
+   "threshold": 0.005,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "verdict",
+   "scope": "sax / device",
+   "metric": "judgment agreement with ground truth",
+   "value": 1,
+   "op": ">=",
+   "threshold": 0.95,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "false-missed",
+   "scope": "sax / device",
+   "metric": "false missed rate",
+   "value": 0,
+   "op": "<=",
+   "threshold": 0.01,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "false-extras",
+   "scope": "sax / device",
+   "metric": "false extras per take",
+   "value": 0,
+   "op": "<=",
+   "threshold": 1,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "click-extras",
+   "scope": "sax / device",
+   "metric": "click-induced extras",
+   "value": 0,
+   "op": "==",
+   "threshold": 0,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "divergence",
+   "scope": "sax / device",
+   "metric": "live vs final divergence",
+   "value": 0.015081206496519721,
+   "op": "<=",
+   "threshold": 0.03,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "false-red",
+   "scope": "sax / device",
+   "metric": "live sharp/flat on in-tune notes",
+   "value": 0,
+   "op": "<=",
+   "threshold": 0.01,
+   "source": "PLAN R19",
+   "pass": true
+  },
+  {
+   "id": "onset-f1",
+   "scope": "trumpet / device",
+   "metric": "onset F1 at ±30 ms",
+   "value": 0.9994308480364257,
+   "op": ">=",
+   "threshold": 0.97,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "pitch-class",
+   "scope": "trumpet / device",
+   "metric": "pitch-class accuracy on matched notes",
+   "value": 1,
+   "op": ">=",
+   "threshold": 0.99,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "octave",
+   "scope": "trumpet / device",
+   "metric": "octave error rate",
+   "value": 0,
+   "op": "<=",
+   "threshold": 0.005,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "verdict",
+   "scope": "trumpet / device",
+   "metric": "judgment agreement with ground truth",
+   "value": 0.998868778280543,
+   "op": ">=",
+   "threshold": 0.95,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "false-missed",
+   "scope": "trumpet / device",
+   "metric": "false missed rate",
+   "value": 0.0011904761904761906,
+   "op": "<=",
+   "threshold": 0.01,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "false-extras",
+   "scope": "trumpet / device",
+   "metric": "false extras per take",
+   "value": 0,
+   "op": "<=",
+   "threshold": 1,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "click-extras",
+   "scope": "trumpet / device",
+   "metric": "click-induced extras",
+   "value": 0,
+   "op": "==",
+   "threshold": 0,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "divergence",
+   "scope": "trumpet / device",
+   "metric": "live vs final divergence",
+   "value": 0.013318534961154272,
+   "op": "<=",
+   "threshold": 0.03,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "false-red",
+   "scope": "trumpet / device",
+   "metric": "live sharp/flat on in-tune notes",
+   "value": 0,
+   "op": "<=",
+   "threshold": 0.01,
+   "source": "PLAN R19",
+   "pass": true
+  },
+  {
+   "id": "onset-f1",
+   "scope": "violin / device",
+   "metric": "onset F1 at ±30 ms",
+   "value": 0.9988179669030733,
+   "op": ">=",
+   "threshold": 0.97,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "pitch-class",
+   "scope": "violin / device",
+   "metric": "pitch-class accuracy on matched notes",
+   "value": 0.998766954377312,
+   "op": ">=",
+   "threshold": 0.99,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "octave",
+   "scope": "violin / device",
+   "metric": "octave error rate",
+   "value": 0,
+   "op": "<=",
+   "threshold": 0.005,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "verdict",
+   "scope": "violin / device",
+   "metric": "judgment agreement with ground truth",
+   "value": 0.9954699886749717,
+   "op": ">=",
+   "threshold": 0.95,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "false-missed",
+   "scope": "violin / device",
+   "metric": "false missed rate",
+   "value": 0.0024600246002460025,
+   "op": "<=",
+   "threshold": 0.01,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "false-extras",
+   "scope": "violin / device",
+   "metric": "false extras per take",
+   "value": 0,
+   "op": "<=",
+   "threshold": 1,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "click-extras",
+   "scope": "violin / device",
+   "metric": "click-induced extras",
+   "value": 0,
+   "op": "==",
+   "threshold": 0,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "divergence",
+   "scope": "violin / device",
+   "metric": "live vs final divergence",
+   "value": 0.006696428571428571,
+   "op": "<=",
+   "threshold": 0.03,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "false-red",
+   "scope": "violin / device",
+   "metric": "live sharp/flat on in-tune notes",
+   "value": 0,
+   "op": "<=",
+   "threshold": 0.01,
+   "source": "PLAN R19",
+   "pass": true
+  },
+  {
+   "id": "onset-f1",
+   "scope": "cello / device",
+   "metric": "onset F1 at ±30 ms",
+   "value": 0.9888641425389755,
+   "op": ">=",
+   "threshold": 0.97,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "pitch-class",
+   "scope": "cello / device",
+   "metric": "pitch-class accuracy on matched notes",
+   "value": 0.9988304093567252,
+   "op": ">=",
+   "threshold": 0.99,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "octave",
+   "scope": "cello / device",
+   "metric": "octave error rate",
+   "value": 0,
+   "op": "<=",
+   "threshold": 0.005,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "verdict",
+   "scope": "cello / device",
+   "metric": "judgment agreement with ground truth",
+   "value": 0.9922992299229924,
+   "op": ">=",
+   "threshold": 0.95,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "false-missed",
+   "scope": "cello / device",
+   "metric": "false missed rate",
+   "value": 0.004656577415599534,
+   "op": "<=",
+   "threshold": 0.01,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "false-extras",
+   "scope": "cello / device",
+   "metric": "false extras per take",
+   "value": 0.030303030303030304,
+   "op": "<=",
+   "threshold": 1,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "click-extras",
+   "scope": "cello / device",
+   "metric": "click-induced extras",
+   "value": 0,
+   "op": "==",
+   "threshold": 0,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "divergence",
+   "scope": "cello / device",
+   "metric": "live vs final divergence",
+   "value": 0.00980392156862745,
+   "op": "<=",
+   "threshold": 0.03,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "false-red",
+   "scope": "cello / device",
+   "metric": "live sharp/flat on in-tune notes",
+   "value": 0,
+   "op": "<=",
+   "threshold": 0.01,
+   "source": "PLAN R19",
+   "pass": true
+  },
+  {
+   "id": "onset-f1",
+   "scope": "voice / device",
+   "metric": "onset F1 at ±30 ms",
+   "value": 0.9837837837837838,
+   "op": ">=",
+   "threshold": 0.97,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "pitch-class",
+   "scope": "voice / device",
+   "metric": "pitch-class accuracy on matched notes",
+   "value": 0.9897039897039897,
+   "op": ">=",
+   "threshold": 0.99,
+   "source": "01 §13.2",
+   "pass": false
+  },
+  {
+   "id": "octave",
+   "scope": "voice / device",
+   "metric": "octave error rate",
+   "value": 0,
+   "op": "<=",
+   "threshold": 0.005,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "verdict",
+   "scope": "voice / device",
+   "metric": "judgment agreement with ground truth",
+   "value": 0.9654775604142692,
+   "op": ">=",
+   "threshold": 0.95,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "false-missed",
+   "scope": "voice / device",
+   "metric": "false missed rate",
+   "value": 0.0201765447667087,
+   "op": "<=",
+   "threshold": 0.01,
+   "source": "01 §13.2",
+   "pass": false
+  },
+  {
+   "id": "false-extras",
+   "scope": "voice / device",
+   "metric": "false extras per take",
+   "value": 0,
+   "op": "<=",
+   "threshold": 1,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "click-extras",
+   "scope": "voice / device",
+   "metric": "click-induced extras",
+   "value": 0,
+   "op": "==",
+   "threshold": 0,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "divergence",
+   "scope": "voice / device",
+   "metric": "live vs final divergence",
+   "value": 0.032,
+   "op": "<=",
+   "threshold": 0.03,
+   "source": "01 §13.2",
+   "pass": false
+  },
+  {
+   "id": "false-red",
+   "scope": "voice / device",
+   "metric": "live sharp/flat on in-tune notes",
+   "value": 0,
+   "op": "<=",
+   "threshold": 0.01,
+   "source": "PLAN R19",
+   "pass": true
+  },
+  {
+   "id": "onset-f1",
+   "scope": "piano / device",
+   "metric": "onset F1 at ±30 ms",
+   "value": 0.9630911188004614,
+   "op": ">=",
+   "threshold": 0.97,
+   "source": "01 §13.2",
+   "pass": false
+  },
+  {
+   "id": "pitch-class",
+   "scope": "piano / device",
+   "metric": "pitch-class accuracy on matched notes",
+   "value": 1,
+   "op": ">=",
+   "threshold": 0.99,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "octave",
+   "scope": "piano / device",
+   "metric": "octave error rate",
+   "value": 0,
+   "op": "<=",
+   "threshold": 0.005,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "verdict",
+   "scope": "piano / device",
+   "metric": "judgment agreement with ground truth",
+   "value": 0.9966178128523112,
+   "op": ">=",
+   "threshold": 0.95,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "false-missed",
+   "scope": "piano / device",
+   "metric": "false missed rate",
+   "value": 0.0035294117647058825,
+   "op": "<=",
+   "threshold": 0.01,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "false-extras",
+   "scope": "piano / device",
+   "metric": "false extras per take",
+   "value": 0,
+   "op": "<=",
+   "threshold": 1,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "click-extras",
+   "scope": "piano / device",
+   "metric": "click-induced extras",
+   "value": 0,
+   "op": "==",
+   "threshold": 0,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "divergence",
+   "scope": "piano / device",
+   "metric": "live vs final divergence",
+   "value": 0.007829977628635347,
+   "op": "<=",
+   "threshold": 0.03,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "room-f1",
+   "scope": "flute / planned",
+   "metric": "onset F1 at ±30 ms",
+   "value": 0.9382957884427032,
+   "op": ">=",
+   "threshold": 0.93,
+   "source": "PLAN R45",
+   "note": "known limit in reverberant rooms (PLAN R54)",
+   "pass": true
+  },
+  {
+   "id": "room-f1",
+   "scope": "clarinet / planned",
+   "metric": "onset F1 at ±30 ms",
+   "value": 0.9386056191467221,
+   "op": ">=",
+   "threshold": 0.93,
+   "source": "PLAN R45",
+   "pass": true
+  },
+  {
+   "id": "room-f1",
+   "scope": "sax / planned",
+   "metric": "onset F1 at ±30 ms",
+   "value": 0.944578313253012,
+   "op": ">=",
+   "threshold": 0.93,
+   "source": "PLAN R45",
+   "pass": true
+  },
+  {
+   "id": "room-f1",
+   "scope": "trumpet / planned",
+   "metric": "onset F1 at ±30 ms",
+   "value": 0.9598643301300169,
+   "op": ">=",
+   "threshold": 0.93,
+   "source": "PLAN R45",
+   "pass": true
+  },
+  {
+   "id": "room-f1",
+   "scope": "violin / planned",
+   "metric": "onset F1 at ±30 ms",
+   "value": 0.9583577712609971,
+   "op": ">=",
+   "threshold": 0.93,
+   "source": "PLAN R45",
+   "note": "known limit in reverberant rooms (PLAN R54)",
+   "pass": true
+  },
+  {
+   "id": "room-f1",
+   "scope": "cello / planned",
+   "metric": "onset F1 at ±30 ms",
+   "value": 0.9329608938547486,
+   "op": ">=",
+   "threshold": 0.93,
+   "source": "PLAN R45",
+   "note": "known limit in reverberant rooms (PLAN R54)",
+   "pass": true
+  },
+  {
+   "id": "room-f1",
+   "scope": "voice / planned",
+   "metric": "onset F1 at ±30 ms",
+   "value": 0.875937680323139,
+   "op": ">=",
+   "threshold": 0.93,
+   "source": "PLAN R45",
+   "note": "known limit in reverberant rooms (PLAN R54)",
+   "pass": false
+  },
+  {
+   "id": "room-f1",
+   "scope": "piano / planned",
+   "metric": "onset F1 at ±30 ms",
+   "value": 0.9630891538898353,
+   "op": ">=",
+   "threshold": 0.93,
+   "source": "PLAN R45",
+   "pass": true
+  },
+  {
+   "id": "latency",
+   "scope": "window 512",
+   "metric": "sound to judgment p95, ms",
+   "value": 58.86125049828195,
+   "op": "<=",
+   "threshold": 60,
+   "source": "01 §12",
+   "pass": true
+  },
+  {
+   "id": "latency",
+   "scope": "window 1024",
+   "metric": "sound to judgment p95, ms",
+   "value": 75.90689655172511,
+   "op": "<=",
+   "threshold": 79,
+   "source": "01 §12, PLAN R47 (79 ms accepted)",
+   "note": "budget 75 ms",
+   "pass": true
+  },
+  {
+   "id": "false-red-all",
+   "scope": "all launch / clean",
+   "metric": "live sharp/flat on in-tune notes",
+   "value": 0,
+   "op": "<=",
+   "threshold": 0.01,
+   "source": "PLAN R19",
+   "pass": true
+  },
+  {
+   "id": "false-red-all",
+   "scope": "all launch / device",
+   "metric": "live sharp/flat on in-tune notes",
+   "value": 0,
+   "op": "<=",
+   "threshold": 0.01,
+   "source": "PLAN R19",
+   "pass": true
+  },
+  {
+   "id": "floors",
+   "scope": "all",
+   "metric": "floor check with measured sigma and c90 (violations)",
+   "value": 0,
+   "op": "==",
+   "threshold": 0,
+   "source": "01 §8.2, §13.2",
+   "pass": true
+  },
+  {
+   "id": "displacement",
+   "scope": "stop-bar-5",
+   "metric": "renders with the expected segments",
+   "value": 1,
+   "op": ">=",
+   "threshold": 0.95,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "displacement",
+   "scope": "back-2-beats",
+   "metric": "renders with the expected segments",
+   "value": 0.95,
+   "op": ">=",
+   "threshold": 0.95,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "displacement",
+   "scope": "skip-bar-ahead",
+   "metric": "renders with the expected segments",
+   "value": 1,
+   "op": ">=",
+   "threshold": 0.95,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "displacement",
+   "scope": "rejoin-next-downbeat",
+   "metric": "renders with the expected segments",
+   "value": 1,
+   "op": ">=",
+   "threshold": 0.95,
+   "source": "01 §13.2",
+   "pass": true
+  },
+  {
+   "id": "tips-perfect",
+   "scope": "300 perfect takes",
+   "metric": "takes firing a pattern other than E30",
+   "value": 0,
+   "op": "==",
+   "threshold": 0,
+   "source": "02 §6.2",
+   "pass": true
+  },
+  {
+   "id": "tips-hit",
+   "scope": "E6",
+   "metric": "injected pattern fires",
+   "value": 0.9666666666666667,
+   "op": ">=",
+   "threshold": 0.9,
+   "source": "02 §6.2",
+   "pass": true
+  },
+  {
+   "id": "tips-cross",
+   "scope": "E6",
+   "metric": "worst cross-firing",
+   "value": 0,
+   "op": "<=",
+   "threshold": 0.05,
+   "source": "02 §6.2",
+   "pass": true
+  },
+  {
+   "id": "tips-hit",
+   "scope": "E12",
+   "metric": "injected pattern fires",
+   "value": 1,
+   "op": ">=",
+   "threshold": 0.9,
+   "source": "02 §6.2",
+   "pass": true
+  },
+  {
+   "id": "tips-cross",
+   "scope": "E12",
+   "metric": "worst cross-firing",
+   "value": 0,
+   "op": "<=",
+   "threshold": 0.05,
+   "source": "02 §6.2",
+   "pass": true
+  },
+  {
+   "id": "tips-hit",
+   "scope": "E13",
+   "metric": "injected pattern fires",
+   "value": 1,
+   "op": ">=",
+   "threshold": 0.9,
+   "source": "02 §6.2",
+   "pass": true
+  },
+  {
+   "id": "tips-cross",
+   "scope": "E13",
+   "metric": "worst cross-firing",
+   "value": 0,
+   "op": "<=",
+   "threshold": 0.05,
+   "source": "02 §6.2",
+   "pass": true
+  },
+  {
+   "id": "tips-hit",
+   "scope": "E22",
+   "metric": "injected pattern fires",
+   "value": 1,
+   "op": ">=",
+   "threshold": 0.9,
+   "source": "02 §6.2",
+   "pass": true
+  },
+  {
+   "id": "tips-cross",
+   "scope": "E22",
+   "metric": "worst cross-firing",
+   "value": 0,
+   "op": "<=",
+   "threshold": 0.05,
+   "source": "02 §6.2",
+   "pass": true
+  },
+  {
+   "id": "tips-hit",
+   "scope": "E23",
+   "metric": "injected pattern fires",
+   "value": 1,
+   "op": ">=",
+   "threshold": 0.9,
+   "source": "02 §6.2",
+   "pass": true
+  },
+  {
+   "id": "tips-cross",
+   "scope": "E23",
+   "metric": "worst cross-firing",
+   "value": 0,
+   "op": "<=",
+   "threshold": 0.05,
+   "source": "02 §6.2",
+   "pass": true
+  },
+  {
+   "id": "tips-hit",
+   "scope": "E1",
+   "metric": "injected pattern fires",
+   "value": 1,
+   "op": ">=",
+   "threshold": 0.9,
+   "source": "02 §6.2",
+   "pass": true
+  },
+  {
+   "id": "tips-cross",
+   "scope": "E1",
+   "metric": "worst cross-firing",
+   "value": 0,
+   "op": "<=",
+   "threshold": 0.05,
+   "source": "02 §6.2",
+   "pass": true
+  },
+  {
+   "id": "tips-hit",
+   "scope": "E2",
+   "metric": "injected pattern fires",
+   "value": 0.9333333333333333,
+   "op": ">=",
+   "threshold": 0.9,
+   "source": "02 §6.2",
+   "pass": true
+  },
+  {
+   "id": "tips-cross",
+   "scope": "E2",
+   "metric": "worst cross-firing",
+   "value": 0,
+   "op": "<=",
+   "threshold": 0.05,
+   "source": "02 §6.2",
+   "pass": true
+  },
+  {
+   "id": "tips-hit",
+   "scope": "E28",
+   "metric": "injected pattern fires",
+   "value": 1,
+   "op": ">=",
+   "threshold": 0.9,
+   "source": "02 §6.2",
+   "pass": true
+  },
+  {
+   "id": "tips-cross",
+   "scope": "E28",
+   "metric": "worst cross-firing",
+   "value": 0,
+   "op": "<=",
+   "threshold": 0.05,
+   "source": "02 §6.2",
+   "pass": true
+  },
+  {
+   "id": "tips-hit",
+   "scope": "E29",
+   "metric": "injected pattern fires",
+   "value": 1,
+   "op": ">=",
+   "threshold": 0.9,
+   "source": "02 §6.2",
+   "pass": true
+  },
+  {
+   "id": "tips-cross",
+   "scope": "E29",
+   "metric": "worst cross-firing",
+   "value": 0,
+   "op": "<=",
+   "threshold": 0.05,
+   "source": "02 §6.2",
+   "pass": true
+  },
+  {
+   "id": "tips-hit",
+   "scope": "E9",
+   "metric": "injected pattern fires",
+   "value": 0.9,
+   "op": ">=",
+   "threshold": 0.9,
+   "source": "02 §6.2",
+   "pass": true
+  },
+  {
+   "id": "tips-cross",
+   "scope": "E9",
+   "metric": "worst cross-firing",
+   "value": 0,
+   "op": "<=",
+   "threshold": 0.05,
+   "source": "02 §6.2",
+   "pass": true
+  },
+  {
+   "id": "tips-hit",
+   "scope": "E7",
+   "metric": "injected pattern fires",
+   "value": 1,
+   "op": ">=",
+   "threshold": 0.9,
+   "source": "02 §6.2",
+   "pass": true
+  },
+  {
+   "id": "tips-cross",
+   "scope": "E7",
+   "metric": "worst cross-firing",
+   "value": 0,
+   "op": "<=",
+   "threshold": 0.05,
+   "source": "02 §6.2",
+   "pass": true
+  },
+  {
+   "id": "tips-hit",
+   "scope": "E8",
+   "metric": "injected pattern fires",
+   "value": 0.9,
+   "op": ">=",
+   "threshold": 0.9,
+   "source": "02 §6.2",
+   "pass": true
+  },
+  {
+   "id": "tips-cross",
+   "scope": "E8",
+   "metric": "worst cross-firing",
+   "value": 0,
+   "op": "<=",
+   "threshold": 0.05,
+   "source": "02 §6.2",
+   "pass": true
+  },
+  {
+   "id": "tips-hit",
+   "scope": "E4",
+   "metric": "injected pattern fires",
+   "value": 1,
+   "op": ">=",
+   "threshold": 0.9,
+   "source": "02 §6.2",
+   "pass": true
+  },
+  {
+   "id": "tips-cross",
+   "scope": "E4",
+   "metric": "worst cross-firing",
+   "value": 0,
+   "op": "<=",
+   "threshold": 0.05,
+   "source": "02 §6.2",
+   "pass": true
+  },
+  {
+   "id": "tips-hit",
+   "scope": "E18",
+   "metric": "injected pattern fires",
+   "value": 1,
+   "op": ">=",
+   "threshold": 0.9,
+   "source": "02 §6.2",
+   "pass": true
+  },
+  {
+   "id": "tips-cross",
+   "scope": "E18",
+   "metric": "worst cross-firing",
+   "value": 0,
+   "op": "<=",
+   "threshold": 0.05,
+   "source": "02 §6.2",
+   "pass": true
+  },
+  {
+   "id": "tips-hit",
+   "scope": "E26",
+   "metric": "injected pattern fires",
+   "value": 1,
+   "op": ">=",
+   "threshold": 0.9,
+   "source": "02 §6.2",
+   "pass": true
+  },
+  {
+   "id": "tips-cross",
+   "scope": "E26",
+   "metric": "worst cross-firing",
+   "value": 0,
+   "op": "<=",
+   "threshold": 0.05,
+   "source": "02 §6.2",
+   "pass": true
+  },
+  {
+   "id": "tips-hit",
+   "scope": "E16",
+   "metric": "injected pattern fires",
+   "value": 1,
+   "op": ">=",
+   "threshold": 0.9,
+   "source": "02 §6.2",
+   "pass": true
+  },
+  {
+   "id": "tips-cross",
+   "scope": "E16",
+   "metric": "worst cross-firing",
+   "value": 0,
+   "op": "<=",
+   "threshold": 0.05,
+   "source": "02 §6.2",
+   "pass": true
+  },
+  {
+   "id": "tips-hit",
+   "scope": "E31",
+   "metric": "injected pattern fires",
+   "value": 1,
+   "op": ">=",
+   "threshold": 0.9,
+   "source": "02 §6.2",
+   "pass": true
+  },
+  {
+   "id": "tips-cross",
+   "scope": "E31",
+   "metric": "worst cross-firing",
+   "value": 0,
+   "op": "<=",
+   "threshold": 0.05,
+   "source": "02 §6.2",
+   "pass": true
+  },
+  {
+   "id": "ghost-spelling",
+   "scope": "all wrong notes with a ghost",
+   "metric": "ghosts spelled per ruling 50",
+   "value": 0.9933155080213903,
+   "op": ">=",
+   "threshold": 1,
+   "source": "PLAN R50",
+   "pass": false
+  }
+ ]
+}

@@ -133,3 +133,46 @@
     white-space: nowrap;
   }
 }
+
+/* Phone portrait: Stop, beat dots and the right group share the first row; the bar and tempo text takes the second
+   row at full width, so it never ellipsises (it was cut to "Bar 1 · ..." at 390 px and to nothing at 320 px). */
+@media (max-width: 30rem) {
+  .perform-toolbar {
+    grid-template-columns: auto 1fr auto;
+    row-gap: 0;
+  }
+  .perform-stop {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .perform-centre {
+    display: contents;
+  }
+  .perform-centre > :first-child {
+    grid-column: 2;
+    grid-row: 1;
+    justify-self: center;
+  }
+  .perform-right {
+    grid-column: 3;
+    grid-row: 1;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: var(--space-1);
+  }
+  /* The score already numbers its systems at the left, so the range of lines is dropped on a phone. */
+  .perform-lines {
+    display: none;
+  }
+  .perform-centre-text,
+  .perform-indeterminate {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    justify-self: center;
+    text-align: center;
+    padding-block-end: var(--space-1);
+  }
+  .perform-indeterminate {
+    grid-row: 3;
+  }
+}

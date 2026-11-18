@@ -1,5 +1,6 @@
 import { useState, type CSSProperties, type KeyboardEvent } from 'react';
 import { copy } from '../../copy/copy.ts';
+import { BeatUnitText } from '../domain/BeatUnitText.tsx';
 import './form.css';
 
 export interface TempoSliderProps {
@@ -49,7 +50,7 @@ export function TempoSlider({ value, min, max, beatUnit, onChange, ariaLabel, di
 
   return (
     <div className="ui-tempo">
-      <span className="ui-tempo-marking">{copy('tempo.marking', { unit: beatUnit, bpm: value })}</span>
+      <span className="ui-tempo-marking"><BeatUnitText text={copy('tempo.marking', { unit: beatUnit, bpm: value })} /></span>
       <div className="ui-tempo-row">
         <input
           type="range"

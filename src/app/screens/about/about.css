@@ -72,3 +72,11 @@
 .src-row dd {
   margin: 0;
 }
+
+/* Links stand alone on their lines: give each a full-size target under a coarse pointer (04 13.1 item 3). */
+.cred-list a,
+.cred-links a {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--target-min);
+}

@@ -122,7 +122,7 @@ export function CalibrationCard({ services, onDone, allowSkip = false, embedded 
   const showMeasured = state.step === 'measured' || state.step === 'finished';
   const canFinish = state.step === 'finished' || (state.step === 'measured' && (state.method === 'play-along' || state.audibility === 'not-really'));
   const outputOptions = OUTPUT_OPTIONS.map((o) => ({ value: o.value, label: text(o.key) }));
-  const inputOptions = [{ value: '', label: text('calibrate.inputDevice') }, ...devices.map((d) => ({ value: d.id, label: d.label }))];
+  const inputOptions = [{ value: '', label: text('settings.audio.defaultDevice') }, ...devices.map((d) => ({ value: d.id, label: d.label }))];
 
   return (
     <Card className="cal-card">

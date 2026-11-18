@@ -65,6 +65,25 @@ function instrumentTable(s: Summary, c: ConditionId): string[] {
   return out;
 }
 
+/**
+ * Causes found by P18 for gates that failed in its runs (shown only while the gate fails). Each names the evidence and
+ * the owning package; none is fixed here because the fix lies in another package's state machine or frozen config.
+ */
+const DIAGNOSES: { id: RegExp; scope: RegExp; text: string }[] = [
+  {
+    id: /^onset-f1$/,
+    scope: /^piano \/ device$/,
+    text:
+      'Piano under a noise floor. The -50 / -45 dBFS noise keeps the damped gaps between piano notes (about 100 ms) from reading as silence, so the segmenter splits the next note at the pitch-change crossing, the midpoint of the unvoiced gap, about 40 to 55 ms before the attack, instead of at the attack (the dip / attack-from-silence route does not take it). The fp and fn counts are the same notes, displaced past ±30 ms. Isolated in P18: noise alone (no phone mic, no bleed) gives piano F1 0.966 at -50 dBFS and 0.958 at -45 dBFS; the phone mic alone gives 1.000; clean gives 1.000. Repro: scenario 151 (mayer cello mp68-76 on piano-rh at 68 bpm) with noiseDbfs -50: truth onset 12.850 s (silence rule), detected 12.798 s with onsetCause pitch-change; pitch frames 12.784 to 12.816 s are unvoiced at -52 to -58 dB. Owner: P4c (src/dsp/segmenter.ts, `crossing` / `localDip` across an unvoiced gap).',
+  },
+  {
+    id: /^(false-missed|pitch-class|divergence)$/,
+    scope: /^voice \//,
+    text:
+      'Voice semitone steps on short notes. Almost every voice false miss is a pair of adjacent notes a semitone apart (about 120 to 160 ms each, slurred or not) that the segmenter keeps as one note: the second is missed and the first reads wrong-pitch from the blended median (the same notes make the pitch-class and live-vs-final figures). Examples: scenario 114 notes 7-8 (64 to 65, 123 ms), 195 notes 13-14 (64 to 65), 267 notes 16-17 (60 to 61), 96 notes 26-27 (53 to 52), 294 notes 26-27 (65 to 64). This is the open P4c gap "voice 1-semitone slurs with vibrato miss": the voice changeCents of 80 in the frozen config/instruments.json against ±15 to 30 c of vibrato. Owner: P4c with the architect (changeCents is frozen).',
+  },
+];
+
 function statsCell(e: ErrorStats | undefined): string {
   return e ? `${e.n} | ${f(e.mean, 2)} | ${f(e.sd, 2)} | ${f(e.rms, 2)} | ${f(e.e90, 2)}` : 'n/a | | | |';
 }
@@ -89,6 +108,14 @@ export function renderReport(s: Summary, m: ReportMeta): string {
     L.push('| Gate | Scope | Metric | Value | Threshold | Source | Note |');
     L.push('| --- | --- | --- | --- | --- | --- | --- |');
     for (const g of failing) L.push(`| ${g.id} | ${g.scope} | ${g.metric} | ${g.value === null ? 'n/a' : f(g.value, 4)} | ${g.op} ${g.threshold} | ${g.source} | ${g.note ?? ''} |`);
+    L.push('');
+  }
+
+  const diag = DIAGNOSES.filter((d) => failing.some((g) => d.id.test(g.id) && d.scope.test(g.scope)));
+  if (diag.length) {
+    L.push('Diagnosis of the failing gates:');
+    L.push('');
+    for (const d of diag) L.push(`- ${d.text}`);
     L.push('');
   }
 
@@ -155,7 +182,7 @@ export function renderReport(s: Summary, m: ReportMeta): string {
 
   L.push('## Latency (01 §12, PLAN R47)');
   L.push('');
-  L.push('Sound (true onset) to the first live judgment event for the note, input latency excluded, clean and device takes. Event times are the end of the analysed capture block (256 frames), as in the worker. Sharp/flat marks: sound to the first live sharp or flat on notes with an injected intonation error.');
+  L.push('Sound (true onset) to the first live judgment event for the note, input latency excluded, clean and device takes. Event times are the end of the analysed capture block (256 frames), as in the worker. Sharp/flat marks: sound to the first live sharp or flat on notes with an injected intonation error beyond red + hysteresis + 5 c.');
   L.push('');
   L.push('| Window | n | p50 ms | p95 ms | max ms | Limit |');
   L.push('| --- | --- | --- | --- | --- | --- |');
@@ -164,9 +191,13 @@ export function renderReport(s: Summary, m: ReportMeta): string {
     L.push(`| ${w} | ${v.n} | ${f(v.p50, 1)} | ${gateCell(s.gates, 'latency', `window ${w}`, f(v.p95, 1))} | ${f(v.max, 1)} | p95 ≤ ${lim?.limit} (${lim?.source}) |`);
   }
   L.push('');
-  L.push('| Instrument | Sharp/flat marks n | p50 ms | p95 ms |');
-  L.push('| --- | --- | --- | --- |');
-  for (const [t, v] of Object.entries(s.intonationLatency)) L.push(`| ${LAUNCH_NAMES[t]} | ${v.n} | ${f(v.p50, 0)} | ${f(v.p95, 0)} |`);
+  if (Object.keys(s.intonationLatency).length) {
+    L.push('| Instrument | Sharp/flat marks n | p50 ms | p95 ms |');
+    L.push('| --- | --- | --- | --- |');
+    for (const [t, v] of Object.entries(s.intonationLatency)) L.push(`| ${LAUNCH_NAMES[t]} | ${v.n} | ${f(v.p50, 0)} | ${f(v.p95, 0)} |`);
+  } else {
+    L.push('Sharp/flat marks: no scenario note was played far enough out of tune to enter a live mark during the note (|deviation| ≥ red + hysteresis + 5 c; the generator injects 15 to 40 c against red bands of 35 to 45 c), so live marks on these notes came at note-off. The 01 §12 sharp/flat visibility budget (p95 ≤ 300 / 350 ms) is not measured here.');
+  }
   L.push('');
   L.push(`Worker analysis cost per capture block, p95 over takes (wall clock of this run, Node): ${f(s.hopP95Ms, 2)} ms.`);
   L.push('');

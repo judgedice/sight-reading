@@ -576,3 +576,11 @@
 .dom-empty-action {
   margin-block-start: var(--space-2);
 }
+
+.ui-beat-unit {
+  display: inline-block;
+  height: 1.15em;
+  width: auto;
+  margin-inline: 0.08em 0.12em;
+  vertical-align: -0.2em;
+}

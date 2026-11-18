@@ -318,6 +318,7 @@ function dotted(c: Ctx, longQ: number, shortQ: number, minShortMs: number): Inje
   const mods: Record<number, NoteMod> = {};
   const marks: Record<number, PerturbationKind> = {};
   let figures = 0;
+  let eligible = 0;
   for (let i = 0; i + 2 < c.e.length; i++) {
     const a = c.e[i] as ExpectedNote;
     const b = c.e[i + 1] as ExpectedNote;
@@ -325,6 +326,7 @@ function dotted(c: Ctx, longQ: number, shortQ: number, minShortMs: number): Inje
     if (b.precededByRest || d.precededByRest || mods[b.idx] || mods[d.idx]) continue;
     if (Math.abs(q(b.onsetBeat - a.onsetBeat) - longQ) > EPS || Math.abs(q(d.onsetBeat - b.onsetBeat) - shortQ) > EPS) continue;
     if ((d.onsetSec - b.onsetSec) * 1000 < minShortMs - EPS) continue;
+    eligible++;
     // The short note early (the dotted note held short); only when that leaves the match window, the dotted note
     // also comes late, never on a downbeat (that would be a barline hesitation, E4).
     const aFree = !mods[a.idx] && a.idx > 0 && Math.abs(a.beatInBar - 1) > EPS;
@@ -346,7 +348,9 @@ function dotted(c: Ctx, longQ: number, shortQ: number, minShortMs: number): Inje
       break;
     }
   }
-  return figures >= 3 ? { spec: { mods }, marks } : null;
+  // The detector takes the median over every figure, so the evened figures must be a clear majority of them (where the
+  // match window is too narrow for the evened short note, the error cannot be measured on that excerpt).
+  return figures >= 3 && figures >= (2 * eligible) / 3 ? { spec: { mods }, marks } : null;
 }
 
 function e4(c: Ctx): Injection | null {

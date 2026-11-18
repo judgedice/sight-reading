@@ -209,3 +209,10 @@
   font-weight: 400;
   color: var(--text-muted);
 }
+
+/* The headline takes focus when a step opens (focus management for assistive technology). It is not operable, so it
+   draws no focus ring; a ring on load made it look like a control. */
+.ob-title:focus,
+.ob-title:focus-visible {
+  outline: none;
+}

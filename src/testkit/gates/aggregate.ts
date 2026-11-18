@@ -96,7 +96,7 @@ export interface Summary {
 const scenarioRecords = (rs: readonly TakeRecord[], c: ConditionId, timbre?: string): TakeRecord[] =>
   rs.filter((r) => r.job.kind === 'scenario' && r.condition === c && (timbre === undefined || r.timbre === timbre));
 
-function instrumentStats(rs: readonly TakeRecord[]): InstrumentStats {
+export function instrumentStats(rs: readonly TakeRecord[]): InstrumentStats {
   const sum = (f: (r: TakeRecord) => number): number => rs.reduce((a, r) => a + f(r), 0);
   const tp = sum((r) => r.onset.tp);
   const fp = sum((r) => r.onset.fp);
@@ -162,7 +162,7 @@ function sigmaBudget(budget: MeasurementBudget, measured: Record<string, number 
   return { budget: { ...budget, onsetError: { ...budget.onsetError, totals } }, info };
 }
 
-function segmentsMatch(got: TakeRecord['displaced'], want: TakeRecord['expectedDisplaced']): boolean {
+export function segmentsMatch(got: TakeRecord['displaced'], want: TakeRecord['expectedDisplaced']): boolean {
   if (got.length !== want.length) return false;
   return want.every((w) => got.some((g) => Math.abs(g.offsetBeats - w.offsetBeats) < 0.25 && Math.abs(g.fromIdx - w.fromIdx) <= 1 && Math.abs(g.toIdx - w.toIdx) <= 1));
 }

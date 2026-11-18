@@ -9,7 +9,8 @@
  * Guard band: a note whose true timing error lies within `TIMING_GUARD_MS` of tRed or of the match window, whose true
  * deviation lies within `CENTS_GUARD` of redCents, or whose true steady time lies within `STEADY_GUARD_MS` of the
  * minimum steady time while its deviation is beyond red, has no measurable right answer (the detector's own error is
- * of that size: 01 section 8.1, 8.4). Those notes are counted and compared separately (`boundary`) and kept out of
+ * of that size: 01 section 8.1, 8.4). So has a skipped note (restart, skip) whose replayed or extra stand-in of the same
+ * pitch sounds inside its match window. Those notes are counted and compared separately (`boundary`) and kept out of
  * the agreement gate.
  */
 import type { Configs, ExpectedNote, FollowerEvent, PitchVerdict, ResolvedTolerance } from '../../core/types.ts';
@@ -88,7 +89,14 @@ interface TruthVerdict {
 }
 
 function truthVerdict(e: ExpectedNote, tol: ResolvedTolerance, t: ScenarioTruthNote | undefined, r: ScenarioRender, cfg: Configs): TruthVerdict {
-  if (!t) return { status: 'missed', timing: null, pitch: 'ok', boundary: false };
+  if (!t) {
+    // A missed note with a replayed (displaced) or extra note of its own pitch inside its match window: the score
+    // cannot tell the two readings apart (BUILD-NOTES P10b: "indistinguishable at δ = 0").
+    const ambiguous = r.truth.some(
+      (x) => x.truth.kind !== 'match' && Math.abs(x.scoreOnsetSec - e.onsetSec) <= tol.matchWindowSec && Math.abs(x.midi + x.cents / 100 - e.concertMidi) < 0.5,
+    );
+    return { status: 'missed', timing: null, pitch: 'ok', boundary: ambiguous };
+  }
   const inst = r.plan.base.inst;
   const deltaMs = (t.scoreOnsetSec - e.onsetSec) * 1000;
   const c = classifyPitch(e.concertMidi, t.midi + t.cents / 100, 0, inst, cfg);
@@ -142,15 +150,15 @@ export function measureTake(r: ScenarioRender, run: TakeRun, meta: MeasureMeta):
   });
   const finalBy = new Map(run.alignment.judgments.map((j) => [j.expectedIdx, j]));
   const liveBy = new Map<number, { t: number; pitch: string | null; timing: string | null }[]>();
-  const ghostBy = new Map<number, Extract<FollowerEvent, { type: 'ghost' }>['ghost']>();
+  const ghostByDetected = new Map<number, Extract<FollowerEvent, { type: 'ghost' }>['ghost']>();
   let lostPlace = 0;
   for (const { t, event } of run.live) {
     if (event.type === 'judgment') {
       const list = liveBy.get(event.judgment.expectedIdx) ?? [];
       list.push({ t, pitch: event.judgment.pitch, timing: event.judgment.timing });
       liveBy.set(event.judgment.expectedIdx, list);
-    } else if (event.type === 'ghost' && event.ghost.targetExpectedIdx !== null) {
-      ghostBy.set(event.ghost.targetExpectedIdx, event.ghost);
+    } else if (event.type === 'ghost') {
+      ghostByDetected.set(event.ghost.detectedId, event.ghost);
     } else if (event.type === 'status' && event.kind === 'lost-place') lostPlace++;
   }
 
@@ -206,21 +214,25 @@ export function measureTake(r: ScenarioRender, run: TakeRun, meta: MeasureMeta):
       if (lives.some((x) => x.pitch === 'wrong-pitch' || x.pitch === 'octave')) falseRed.liveWrong++;
       if (j.pitch === 'sharp' || j.pitch === 'flat') falseRed.final++;
     }
-    if (nt?.errors.includes('cents') && tv.pitch !== 'ok') {
+    // Live marks need |dev| > red + hysteresis to enter (R19); between red and that, the mark comes at note-off.
+    const clearlyOff = tol.redCents !== null && c.kind === 'correct' && Math.abs(c.devCents) >= tol.redCents + tol.liveHysteresisCents + CENTS_GUARD;
+    if (nt?.errors.includes('cents') && tv.pitch !== 'ok' && clearlyOff && liveIntonationEligible(e, tol)) {
       const first = lives.find((x) => x.pitch === tv.pitch);
       if (first) intonationLatencyMs.push((first.t - t.onsetSec) * 1000);
     }
-    if (nt && nt.semis !== 0 && j?.pitch === 'wrong-pitch') {
-      const g = ghostBy.get(e.idx);
+    if (nt && nt.semis !== 0 && j?.pitch === 'wrong-pitch' && j.detectedId !== null) {
+      // Spelling is judged against the ghost's own pitch: a live ghost can carry a provisional pitch the final
+      // alignment later corrects (that is live-vs-final divergence and the pitch gates, not spelling).
+      const g = ghostByDetected.get(j.detectedId);
       if (g && g.kind === 'wrong-pitch') {
         ghostSpelling.n++;
-        const playedWritten = e.concertMidi + nt.semis + inst.semis;
-        const sameLetter = g.writtenPitch.step === e.writtenPitch.step;
-        const ok = toMidi(g.writtenPitch) === playedWritten && (Math.abs(nt.semis) <= 1 ? sameLetter : !sameLetter);
+        const diff = toMidi(g.writtenPitch) - (e.concertMidi + inst.semis);
+        const pos = (p: { step: string; octave: number }): number => 7 * p.octave + 'CDEFGAB'.indexOf(p.step);
+        const ok = diff !== 0 && (Math.abs(diff) <= 1 ? g.writtenPitch.step === e.writtenPitch.step : pos(g.writtenPitch) !== pos(e.writtenPitch));
         if (ok) ghostSpelling.ok++;
         else if (ghostSpelling.examples.length < 5) {
           const w = g.writtenPitch;
-          ghostSpelling.examples.push(`#${e.idx} target ${e.writtenPitch.step}${e.writtenPitch.alter}/${e.writtenPitch.octave} played ${nt.semis > 0 ? '+' : ''}${nt.semis} st, ghost ${w.step}${w.alter}/${w.octave}`);
+          ghostSpelling.examples.push(`#${e.idx} target ${e.writtenPitch.step}${e.writtenPitch.alter}/${e.writtenPitch.octave}, ghost ${w.step}${w.alter}/${w.octave} (${diff > 0 ? '+' : ''}${diff} st)`);
         }
       }
     }

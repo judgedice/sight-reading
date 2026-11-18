@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { FollowerEvent, SessionEvent } from '../../../core/types.ts';
 import { visualStateFromJudgment } from '../../../notation/visual-states.ts';
 import { copy } from '../../../ui/copy/copy.ts';
-import { BeatDots, LevelMeter } from '../../../ui/components/domain/index.ts';
+import { BeatDots, BeatUnitText, LevelMeter } from '../../../ui/components/domain/index.ts';
 import { Button } from '../../../ui/components/form/index.ts';
 import { Modal, openOverlayCount } from '../../../ui/primitives/index.ts';
 import { ScoreFrame, type ScoreFrameController } from '../../../ui/score-frame/index.ts';
@@ -172,7 +172,7 @@ export function PerformScreen(_props: ScreenProps) {
         </div>
         <div className="perform-centre">
           <BeatIndicator svc={svc} beatsPerBar={prepared.meter.countsPerBar} grouping={beatGrouping(prepared.meter.beats, prepared.meter.beatType, prepared.meter.countsPerBar)} bpm={bpm} />
-          <span className="perform-centre-text">{centreText}</span>
+          <span className="perform-centre-text"><BeatUnitText text={centreText} /></span>
           {finishing ? <span className="perform-indeterminate" aria-hidden="true" /> : null}
         </div>
         <div className="perform-right">
@@ -207,7 +207,7 @@ export function PerformScreen(_props: ScreenProps) {
         <footer className="perform-status">
           <span>{message}</span>
           {source ? <span className="perform-source">{source}</span> : null}
-          <span>{copy('tempo.marking', { unit: '♩', bpm })}</span>
+          <span><BeatUnitText text={copy('tempo.marking', { unit: '♩', bpm })} /></span>
         </footer>
       )}
       <p className="ui-visually-hidden" role="status" aria-live="polite">

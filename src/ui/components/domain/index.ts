@@ -22,3 +22,4 @@ export { TipCard } from './TipCard.tsx';
 export type { TipCardProps, TipContent } from './TipCard.tsx';
 export { EmptyState } from './EmptyState.tsx';
 export type { EmptyStateProps } from './EmptyState.tsx';
+export { BeatUnitText } from './BeatUnitText.tsx';

@@ -103,3 +103,11 @@
     min-width: 0;
   }
 }
+
+.home-credits {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-block-size: var(--target-min);
+  min-inline-size: var(--target-min);
+}

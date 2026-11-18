@@ -214,6 +214,7 @@
   align-items: center;
   justify-content: center;
   min-height: var(--segment-height);
+  min-width: var(--target-min);
   padding: 0 var(--segment-x-padding);
   border: 0.0625rem solid transparent;
   border-radius: var(--radius-s);

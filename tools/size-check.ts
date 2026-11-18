@@ -2,6 +2,8 @@
 // into dist-size/, so the production dist/ stays clean), then gzips every emitted .js and .css file.
 //   initial = files index.html loads (script, modulepreload, stylesheet) and their static imports
 //   total   = every .js and .css file
+// Font assets (PLAN ruling 53): every .woff2 is reported separately by its file size (already compressed) and must be at
+// most 260 KB each; fonts do not count toward the JavaScript and CSS budgets.
 // Limits: 150 KB gzip initial, 500 KB gzip total (1 KB = 1000 bytes). Pass --dist <dir> to measure an existing build.
 // Exits 1 over budget.
 
@@ -12,6 +14,7 @@ import { gzipSync } from 'node:zlib';
 
 export const INITIAL_LIMIT = 150_000;
 export const TOTAL_LIMIT = 500_000;
+export const FONT_LIMIT = 260_000;
 
 function walk(dir: string): string[] {
   return readdirSync(dir).flatMap((n) => {
@@ -26,6 +29,8 @@ export interface SizeReport {
   initial: number;
   total: number;
   files: { file: string; gzip: number; initial: boolean }[];
+  /** woff2 assets by raw size in bytes. */
+  fonts: { file: string; bytes: number }[];
 }
 
 /** Pure measurement of a built directory. */
@@ -48,7 +53,12 @@ export function measure(dist: string): SizeReport {
   };
   for (const m of html.matchAll(/(?:src|href)="\.?\/?([^"]+\.(?:js|css))"/g)) visit(m[1]!);
   const files = all.map((file) => ({ file, gzip: gz(readFileSync(join(dist, file))), initial: initial.has(file) }));
+  const fonts = walk(dist)
+    .map((p) => posix.relative(dist.split('\\').join('/'), p.split('\\').join('/')))
+    .filter((f) => f.endsWith('.woff2'))
+    .map((file) => ({ file, bytes: statSync(join(dist, file)).size }));
   return {
+    fonts,
     initial: files.filter((f) => f.initial).reduce((a, f) => a + f.gzip, 0),
     total: files.reduce((a, f) => a + f.gzip, 0),
     files,
@@ -71,7 +81,9 @@ function main(): void {
   for (const f of [...r.files].sort((a, b) => b.gzip - a.gzip)) process.stdout.write(`${kb(f.gzip)} gzip  ${f.initial ? 'initial' : 'lazy   '}  ${f.file}\n`);
   process.stdout.write(`initial ${kb(r.initial)} (limit ${INITIAL_LIMIT / 1000} KB)\n`);
   process.stdout.write(`total   ${kb(r.total)} (limit ${TOTAL_LIMIT / 1000} KB)\n`);
-  const bad = r.initial > INITIAL_LIMIT || r.total > TOTAL_LIMIT;
+  for (const f of r.fonts) process.stdout.write(`${kb(f.bytes)} woff2  font      ${f.file} (limit ${FONT_LIMIT / 1000} KB)\n`);
+  if (r.fonts.length === 0) console.error('No woff2 font asset found in the build.');
+  const bad = r.initial > INITIAL_LIMIT || r.total > TOTAL_LIMIT || r.fonts.length === 0 || r.fonts.some((f) => f.bytes > FONT_LIMIT);
   if (bad) console.error('Bundle budget exceeded.');
   process.exit(bad ? 1 : 0);
 }

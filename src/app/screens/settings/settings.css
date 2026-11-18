@@ -173,3 +173,20 @@
   clip-path: inset(50%);
   white-space: nowrap;
 }
+
+/* Targets: at a coarse pointer --target-min is 44 px (04 13.1 item 3); at a fine pointer it is the 24 px minimum. */
+.set-nav-link,
+.set-link {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--target-min);
+  min-inline-size: var(--target-min);
+}
+
+.set-range {
+  min-block-size: var(--target-min);
+}
+
+.set-row-control .ui-toggle {
+  min-inline-size: var(--toggle-hit-size);
+}
