@@ -153,6 +153,8 @@ const SMOOTH_MAX_SEC = 0.02;
 const CUM_RING = 1 << 16;
 /** Leak floor margin inside click windows (01 section 7.6 item 5). */
 export const CLICK_LEAK_MARGIN_DB = 6;
+/** An in-window re-articulation must gather its pitch evidence within this time of its onset (7.6 item 3). */
+export const CLICK_EVIDENCE_SEC = 0.1;
 
 const median = (xs: readonly number[]): number => {
   if (xs.length === 0) return NaN;
@@ -223,7 +225,8 @@ export class Segmenter {
   private cur: Note | null = null;
   private idleCand: Fr[] = [];
   private pitchCand: Fr[] = [];
-  private pending: { dip: Dip; flux: boolean; support: number } | null = null;
+  /** The split to make at a detectable dip; `support` counts the gate's evidence frames, `midi` their last pitch. */
+  private pending: { dip: Dip; flux: boolean; support: number; midi: number } | null = null;
   private silence = 0;
   private nextId = 1;
   private boundary = false;
@@ -409,7 +412,6 @@ export class Segmenter {
     cur.sinceUpdate++;
     if (!f.voiced) {
       this.pitchCand = [];
-      if (this.pending && f.t >= this.pending.dip.tOn && this.inClickWindow(this.pending.dip.tOn)) this.pending = null;
       // A frame with energy but an unclear pitch (two pitches in one window, a reverberant change) counts half
       // towards the offset: the note has not stopped sounding.
       this.silence += f.rmsDb >= this.gateDb && f.clarity >= AMBIGUOUS_CLARITY ? 0.5 : 1;
@@ -425,9 +427,16 @@ export class Segmenter {
     // A detectable dip is its own evidence: split on the first voiced frame centred at or after its onset (the
     // frames of the new note so far move with it; a pitch that settles within the new note's first 60 ms re-pitches
     // it, see below).
-    const p = this.pending;
+    let p = this.pending;
+    if (p && f.t > p.dip.tOn + CLICK_EVIDENCE_SEC && p.support > 0 && p.support < this.o.onsetConfirmFrames) {
+      // 7.6 item 3: no pitch evidence for the in-window re-articulation in time; drop it.
+      this.pending = null;
+      p = null;
+    }
     if (p && f.t >= p.dip.tOn && this.inClickWindow(p.dip.tOn) && ++p.support < this.o.onsetConfirmFrames) {
-      // 7.6 item 3: inside a click window the split waits for pitch evidence; the frame stays with the note.
+      // 7.6 item 3: inside a click window the split waits for pitch evidence (onsetConfirm voiced frames from the
+      // onset on, unvoiced frames between them allowed); the frame stays with the note until then.
+      p.midi = f.midi as number;
       cur.frames.push(f);
       cur.lastVoicedT = f.t;
       this.maybeUpdate(cur, out);
@@ -743,7 +752,7 @@ export class Segmenter {
       this.dipCursor++;
       if (d.tOn <= cur.onset + this.o.minNoteSec) continue;
       const v = this.detectable(d, cur);
-      if (v) this.pending = { dip: d, flux: v === 'flux', support: 0 };
+      if (v) this.pending = { dip: d, flux: v === 'flux', support: 0, midi: NaN };
     }
   }
 
@@ -831,7 +840,13 @@ export class Segmenter {
 
   private scanEnvelope(): void {
     const cur = this.cur;
-    const len = cur ? this.smoothLen(this.noteMedian(cur)) : this.smoothLen(this.idleCand.length > 0 ? (this.idleCand[0] as Fr).midi as number : NaN);
+    const held = this.pending && this.pending.support > 0 ? this.pending.midi : NaN;
+    // While a gated split waits for its evidence, the envelope is already the new note's: smooth over its periods.
+    const len = Number.isFinite(held)
+      ? this.smoothLen(held)
+      : cur
+        ? this.smoothLen(this.noteMedian(cur))
+        : this.smoothLen(this.idleCand.length > 0 ? ((this.idleCand[0] as Fr).midi as number) : NaN);
     this.trkLen = len;
     const lag = Math.ceil(len / 2 / (this.envHop * this.rate)) + 1;
     const end = this.envLen - lag;
@@ -938,6 +953,18 @@ export class Segmenter {
       return;
     }
     const ser = this.series(i0, iEnd + 1, len, clamp);
+    if (this.capClickBumps(ser, this.envT(iMin))) {
+      // The pre-dip peak was (partly) the click's own energy: re-take it from the capped series.
+      iPre = i0;
+      pre = -Infinity;
+      for (let k = i0; k < iMin; k++) {
+        const v = ser.values[k - Math.max(0, i0)] as number;
+        if (v > pre) {
+          pre = v;
+          iPre = k;
+        }
+      }
+    }
     const r = repeatedOnset(ser, { searchStartT: this.envT(i0), searchEndT: this.envT(iEnd + 1), noteStartT: this.envT(i0) });
     if (!r || r.dipDb < MIN_EVAL_DIP_DB) return;
     let tOn = r.t;
@@ -949,7 +976,9 @@ export class Segmenter {
       const s = this.attackOnset(this.riseStart(this.envIndex(r.minT), len, clamp), clamp);
       if (s !== null && s > r.minT - 0.004) tOn = s;
     }
-    const fp = this.fluxPeakIn(r.minT - 0.01, r.halfRiseT + 0.01);
+    // Detection may use flux inside click windows (an on-beat repeat's flux coincides with the click); the 7.6
+    // item 3 gate then asks for pitch evidence. Only timing refinement ignores it (item 4).
+    const fp = this.fluxPeakIn(r.minT - 0.01, r.halfRiseT + 0.01, true);
     this.dips.push({
       tOn,
       minT: r.minT,
@@ -1048,6 +1077,37 @@ export class Segmenter {
     return { startT: this.envT(a), hopSec: this.envHop, values };
   }
 
+  /**
+   * 7.6 items 3 and 5 for dips: a click's energy is not note level. Before the dip minimum `minT`, envelope points
+   * inside a click window are capped at the level just before that window, so a click bump on a held or decaying
+   * note cannot pose as the pre-dip peak of a re-articulation. Returns true when anything was capped.
+   */
+  private capClickBumps(ser: EnvelopeSeries, minT: number): boolean {
+    if (this.clickWins.length === 0) return false;
+    const v = ser.values as Float64Array;
+    let changed = false;
+    let ref = NaN;
+    let inWin = -1;
+    for (let j = 0; j < v.length; j++) {
+      const t = ser.startT + j * ser.hopSec;
+      if (t >= minT) break;
+      const w = this.clickWindowIndex(t);
+      if (w < 0) {
+        inWin = -1;
+        continue;
+      }
+      if (w !== inWin) {
+        inWin = w;
+        ref = j > 0 ? (v[j - 1] as number) : NaN;
+      }
+      if (Number.isFinite(ref) && (v[j] as number) > ref) {
+        v[j] = ref;
+        changed = true;
+      }
+    }
+    return changed;
+  }
+
   private noteNoise(v: number): void {
     const cap = Math.min(this.noiseRing.length, Math.max(8, Math.round(NOISE_WINDOW_SEC / this.envHop)));
     this.noiseRing[this.noiseHead] = v;
@@ -1076,15 +1136,18 @@ export class Segmenter {
     return lo;
   }
 
-  /** Flux samples in [a, b] outside click windows (7.6 item 4), with a parabolic peak-time refinement. */
-  private fluxSamples(a: number, b: number): FluxSample[] {
+  /**
+   * Flux samples in [a, b], with a parabolic peak-time refinement. Samples inside click windows are left out (7.6
+   * item 4) unless `inClick` (detection only, never timing).
+   */
+  private fluxSamples(a: number, b: number, inClick = false): FluxSample[] {
     const out: FluxSample[] = [];
     let i = this.fluxIndex(a);
     if (i < 0) return out;
     while (i > 0 && (this.fluxT[i] as number) > a) i--;
     for (; i < this.fluxT.length && (this.fluxT[i] as number) <= b; i++) {
       const t = this.fluxT[i] as number;
-      if (t < a || this.fluxClick[i]) continue;
+      if (t < a || (this.fluxClick[i] && !inClick)) continue;
       out.push({ t: this.refinedFluxT(i), value: this.fluxV[i] as number });
     }
     return out;
@@ -1105,9 +1168,9 @@ export class Segmenter {
     return Math.abs(d) <= 1 ? t + d * hop : t;
   }
 
-  private fluxPeakIn(a: number, b: number): FluxSample | null {
+  private fluxPeakIn(a: number, b: number, inClick = false): FluxSample | null {
     let best: FluxSample | null = null;
-    for (const s of this.fluxSamples(a, b)) if (!best || s.value > best.value) best = s;
+    for (const s of this.fluxSamples(a, b, inClick)) if (!best || s.value > best.value) best = s;
     return best;
   }
 

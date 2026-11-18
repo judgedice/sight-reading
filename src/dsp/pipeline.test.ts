@@ -104,7 +104,9 @@ describe('DspPipeline assembly', () => {
   it('stamps pitch frames at window centres every hop, with flux and click-window flags', () => {
     const r = line();
     const clicks = [{ arrival: 1.0 as ClockSeconds, accent: true }];
-    const { frames } = runOffline(r.samples, r.sampleRate, { ...CFG, clicks });
+    // Click windows exist on speakers only (01 section 7.6: all click handling is off in headphone modes).
+    const { frames } = runOffline(r.samples, r.sampleRate, { ...CFG, outputMode: 'speakers', clicks });
+    expect(runOffline(r.samples, r.sampleRate, { ...CFG, clicks }).frames.some((f) => f.inClickWindow)).toBe(false);
     expect(frames[0]?.t).toBeCloseTo(512 / 16000, 9);
     for (let i = 1; i < frames.length; i++) expect((frames[i]?.t as number) - (frames[i - 1]?.t as number)).toBeCloseTo(0.008, 9);
     const inWin = frames.filter((f) => f.inClickWindow).map((f) => f.t);

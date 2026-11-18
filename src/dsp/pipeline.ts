@@ -55,7 +55,7 @@ export class DspPipeline {
   private sigLevel = -Infinity;
   private sigVoiced = false;
   private sigPeak = 0;
-  private readonly clickArrivals: number[];
+  private readonly clicks: { arrival: number; accent: boolean }[];
   private sub: ClickSubtractor | null = null;
   private fitsSeen = 0;
   missingBlocks = 0;
@@ -87,11 +87,11 @@ export class DspPipeline {
     };
     this.fluxThr = new AdaptiveThreshold(FLUX_THRESHOLD_WINDOW_SEC / (this.flux.hop / rate), this.segmenterOptions.fluxMadK);
     // 01 section 7.6: all click handling is off in headphone modes.
-    this.clickArrivals = clickHandlingActive(cfg.outputMode) ? cfg.clicks.map((c) => c.arrival as number) : [];
+    this.clicks = clickHandlingActive(cfg.outputMode) ? cfg.clicks.map((c) => ({ arrival: c.arrival as number, accent: c.accent })) : [];
     this.seg = new Segmenter(
       this.segmenterOptions,
       cfg.repeatHints.map((h) => ({ t: h.t as number, halfWidthSec: h.halfWidthSec })),
-      this.clickArrivals,
+      this.clicks.map((c) => c.arrival),
     );
   }
 
@@ -116,8 +116,8 @@ export class DspPipeline {
       this.t0 = b.startT as number;
       this.seg.startEnvelope(this.t0 + (0.5 * this.env.hop) / rate, this.env.hopSec, this.t0, rate);
       const tpl = this.cfg.clickTemplate;
-      if (tpl && tpl.length > 0 && this.clickArrivals.length > 0) {
-        this.sub = new ClickSubtractor(tpl, this.clickArrivals, rate, this.t0, { leakWindowSec: this.cfg.windowSamples / rate });
+      if (tpl && tpl.length > 0 && this.clicks.length > 0) {
+        this.sub = new ClickSubtractor(tpl, this.clicks, rate, this.t0, { leakWindowSec: this.cfg.windowSamples / rate });
       }
     }
     const raw = b.lowband;

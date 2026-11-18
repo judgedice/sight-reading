@@ -13,8 +13,10 @@
  *    windows `[arrival - 5 ms, arrival + 35 ms]`, using the per-click leak levels measured here (`ClickFit`).
  *
  * Template convention (shared with calibration, which builds templates with `buildClickTemplate`): a template is
- * the low-band (decimated, analysis-rate) click as received, sample 0 at `arrival - CLICK_TEMPLATE_PRE_SEC`, for
- * a click of unit gain. Accented clicks use the same template; the least-squares gain absorbs the +5 dB.
+ * the low-band (decimated, analysis-rate) plain click as received at the take's metronome level, sample 0 at
+ * `arrival - CLICK_TEMPLATE_PRE_SEC`. Whoever builds the DspConfig scales the calibration template by the ratio of
+ * the take's click gain to the calibration's. Accented clicks use the same template with a nominal gain of +5 dB;
+ * the least-squares gain is free within [0, CLICK_GAIN_MAX x nominal].
  */
 import type { OutputMode } from '../core/types.ts';
 
@@ -24,6 +26,14 @@ export const CLICK_TEMPLATE_PRE_SEC = 0.002;
 export const CLICK_TEMPLATE_SEC = 0.02;
 /** Alignment search, +- seconds around the nominal arrival (7.6 item 2). */
 export const CLICK_ALIGN_SEC = 0.001;
+/**
+ * The fitted gain is limited to [0, CLICK_GAIN_MAX x nominal] (nominal 1 for a plain click, the accent gain for an
+ * accented one). Without the limit, a template far below the music (Tick, 35 to 48 dB down in the low band) would
+ * be scaled up to fit the instrument and subtract part of the note.
+ */
+export const CLICK_GAIN_MAX = 2;
+/** Accent level over a plain click (01 section 7.6: +5 dB). */
+export const CLICK_ACCENT_GAIN = Math.pow(10, 5 / 20);
 /** Windowed-sinc half-width for fractional shifts, samples. */
 const SINC_HALF = 8;
 
@@ -36,7 +46,7 @@ export interface ClickFit {
   arrival: number;
   /** Fitted shift of the template against the nominal arrival, seconds (within +-CLICK_ALIGN_SEC). */
   shiftSec: number;
-  /** Least-squares gain of the template (0 when the fit was rejected). */
+  /** Least-squares gain of the template, limited to [0, CLICK_GAIN_MAX x nominal]. */
   gain: number;
   /** Peak 2 ms RMS of the fitted click, dBFS: what the click alone adds to the envelope. */
   leakEnvDb: number;
@@ -105,6 +115,7 @@ export class ClickSubtractor {
   /** Template start indices (fractional, in stream samples) of the clicks, sorted. */
   private readonly starts: Float64Array;
   private readonly arrivals: Float64Array;
+  private readonly accents: Uint8Array;
   private readonly search: number;
   private readonly leakWindow: number;
   private readonly envHop: number;
@@ -115,15 +126,24 @@ export class ClickSubtractor {
   private bufLen = 0;
   private out: Float32Array;
   private shifted: Float64Array;
+  private readonly corr: Float64Array;
 
-  constructor(template: Float32Array, arrivals: readonly number[], rate: number, startT: number, opts: ClickSubtractorOptions) {
+  constructor(
+    template: Float32Array,
+    clicks: readonly { arrival: number; accent: boolean }[],
+    rate: number,
+    startT: number,
+    opts: ClickSubtractorOptions,
+  ) {
     this.rate = rate;
     this.tpl = template;
     let e = 0;
     for (let i = 0; i < template.length; i++) e += (template[i] as number) ** 2;
     this.tplEnergy = e;
-    const arr = [...arrivals].sort((a, b) => a - b);
+    const sorted = [...clicks].sort((a, b) => a.arrival - b.arrival);
+    const arr = sorted.map((c) => c.arrival);
     this.arrivals = Float64Array.from(arr);
+    this.accents = Uint8Array.from(sorted.map((c) => (c.accent ? 1 : 0)));
     this.starts = Float64Array.from(arr.map((a) => (a - CLICK_TEMPLATE_PRE_SEC - startT) * rate));
     this.search = Math.max(1, Math.round((opts.alignSec ?? CLICK_ALIGN_SEC) * rate));
     this.leakWindow = Math.max(1, Math.round(opts.leakWindowSec * rate));
@@ -132,6 +152,7 @@ export class ClickSubtractor {
     this.buf = new Float64Array(Math.max(4096, 4 * span));
     this.out = new Float32Array(4096);
     this.shifted = new Float64Array(span);
+    this.corr = new Float64Array(2 * this.search + 1);
     // Clicks whose template would start before the stream cannot be fitted; skip them.
     while (this.next < this.starts.length && (this.starts[this.next] as number) - this.search - SINC_HALF < 0) this.next++;
   }
@@ -199,7 +220,7 @@ export class ClickSubtractor {
     const at = (j: number): number => (j >= base && j < end ? (buf[j - base] as number) : 0);
     // Integer lags around the nominal start: template sample i sits at stream index round(s0) + lag + i.
     const r0 = Math.round(s0);
-    const corr = new Float64Array(2 * S + 1);
+    const corr = this.corr;
     let bestL = 0;
     let best = -Infinity;
     for (let l = -S; l <= S; l++) {
@@ -237,7 +258,8 @@ export class ClickSubtractor {
       xt += x * v;
       xx += x * x;
     }
-    const gain = best > 0 && tt > 0 ? Math.max(0, xt / tt) : 0;
+    const nominal = this.accents[idx] ? CLICK_ACCENT_GAIN : 1;
+    const gain = best > 0 && tt > 0 ? Math.min(CLICK_GAIN_MAX * nominal, Math.max(0, xt / tt)) : 0;
     let after = 0;
     for (let k = 0; k < n; k++) {
       const j = j0 + k;
@@ -262,9 +284,8 @@ export class ClickSubtractor {
 /**
  * Builds a low-band click template from a recording of clicks alone (calibration, P14): every received click is
  * cut at its arrival (windowed-sinc, so fractional arrivals are exact), aligned to the first-pass mean within
- * +-`alignSec` by cross-correlation, and averaged. With `normalize` (default) the template is scaled to the mean
- * click's gain divided by `gainOf(accent)`, so a template from mixed accented and plain clicks is a unit-gain plain
- * click when `gainOf` gives the accents' linear gain.
+ * +-`alignSec` by cross-correlation, and averaged, with accented clicks divided by `accentGain` (default +5 dB), so
+ * the result is the plain click at the calibration's metronome level.
  */
 export function buildClickTemplate(
   low: ArrayLike<number>,
@@ -275,7 +296,7 @@ export function buildClickTemplate(
 ): Float32Array {
   const L = Math.max(8, Math.round((opts.lengthSec ?? CLICK_TEMPLATE_SEC) * rate));
   const S = Math.max(1, Math.round((opts.alignSec ?? CLICK_ALIGN_SEC) * rate));
-  const accentGain = opts.accentGain ?? Math.pow(10, 5 / 20);
+  const accentGain = opts.accentGain ?? CLICK_ACCENT_GAIN;
   const cut = (startIdx: number): Float64Array => {
     const seg = new Float64Array(L);
     for (let i = 0; i < L; i++) seg[i] = interp(low, startIdx + i);
