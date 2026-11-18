@@ -55,6 +55,10 @@ export class CaptureCore {
   private readonly free: BufferPair[] = [];
   private fill = 0;
   private originFrame = -1;
+  /** `framesProcessed` at the capture's first quantum; -1 when not capturing. */
+  private startFp = -1;
+  /** `currentFrame() − framesProcessed` read in the latest quantum. */
+  private frameBase = 0;
   private seq = 0;
   private posted = 0;
   private dropped = 0;
@@ -90,11 +94,12 @@ export class CaptureCore {
   process(channels: readonly Float32Array[] | undefined, quantumFrames = 128): boolean {
     const first = channels?.[0];
     const n = first ? first.length : quantumFrames;
+    // The context frame of this quantum's first sample, as an offset from our own frame count. Chromium reports a
+    // `currentFrame` one render callback (512 frames) stale in a new node's first quantum, so the origin is fixed
+    // from the base read when the first block is emitted (2 quanta in), not from the first quantum's reading.
+    this.frameBase = this.currentFrame() - this.framesProcessed;
     if (this.mode !== 'idle') {
-      if (this.originFrame < 0) {
-        this.originFrame = this.currentFrame();
-        this.post({ type: 'started', originFrame: this.originFrame, analysisRate: this.analysisRate });
-      }
+      if (this.startFp < 0) this.startFp = this.framesProcessed;
       const nch = channels ? channels.length : 0;
       let i = 0;
       while (i < n) {
@@ -134,6 +139,10 @@ export class CaptureCore {
   }
 
   private emitBlock(): void {
+    if (this.originFrame < 0) {
+      this.originFrame = this.frameBase + this.startFp;
+      this.post({ type: 'started', originFrame: this.originFrame, analysisRate: this.analysisRate });
+    }
     const dec = this.decimator;
     // Exact integer input position of the first decimated sample of this block, read before process().
     const startT = (this.originFrame + dec.nextOutputInputPos) / this.sampleRate;
@@ -211,6 +220,7 @@ export class CaptureCore {
         this.dropped = 0;
         this.maxOutstanding = 0;
         this.originFrame = -1;
+        this.startFp = -1;
         this.detachWorkerPort();
         if (m.relay || !m.port) {
           this.mode = 'relay';

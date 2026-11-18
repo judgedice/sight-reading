@@ -56,6 +56,13 @@
   list-style: decimal inside;
 }
 
+.sheet-pattern-tip {
+  display: block;
+  margin-block-start: var(--space-1);
+  color: var(--text-muted);
+  font-size: var(--type-small-size);
+}
+
 .sheet-focus {
   padding: var(--space-3);
   border: 0.0625rem solid var(--border);

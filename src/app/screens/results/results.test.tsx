@@ -514,6 +514,46 @@ describe('ResultsScreen', () => {
     expect(off.hash.value).toBe('#/practice/scan');
   });
 
+  it('after every 10th attempt Next opens the session summary first; Keep going moves on, Finish goes Home', () => {
+    const rec = attemptFrom('case05-key-signature-f-sharp');
+    const ten = Array.from({ length: 10 }, (_, k) => ({ ...rec, id: `s${k}` }));
+    const f = fixture({ record: ten[9]! });
+    let finished = 0;
+    f.services.sessionAttempts = () => ten;
+    f.services.onFinish = () => void finished++;
+    renderScreen(f);
+    click(button(copy('action.nextExcerpt')));
+    expect(f.hash.value).toBe('#/practice/results');
+    expect($('[data-testid="session-summary"]').textContent).toContain('10 takes');
+    // Each top pattern carries its tip.
+    const items = [...document.querySelectorAll('[data-pattern]')];
+    expect(items.length).toBeGreaterThan(0);
+    for (const li of items) expect(li.querySelector('.sheet-pattern-tip')?.textContent?.length ?? 0).toBeGreaterThan(0);
+    click(button(copy('action.keepGoing')));
+    expect(f.hash.value).toBe('#/practice/tips');
+    m?.unmount();
+    document.body.innerHTML = '';
+
+    const g = fixture({ record: ten[9]! });
+    g.services.sessionAttempts = () => ten;
+    g.services.onFinish = () => void finished++;
+    renderScreen(g);
+    click(button(copy('action.nextExcerpt')));
+    click(button(copy('action.finish')));
+    expect(finished).toBe(1);
+    expect(g.hash.value).toBe('#/');
+  });
+
+  it('Next goes straight on when the summary is not due (9 attempts)', () => {
+    const rec = attemptFrom('case05-key-signature-f-sharp');
+    const f = fixture({ record: rec });
+    f.services.sessionAttempts = () => Array.from({ length: 9 }, (_, k) => ({ ...rec, id: `s${k}` }));
+    renderScreen(f);
+    click(button(copy('action.nextExcerpt')));
+    expect(q('[data-testid="session-summary"]')).toBeNull();
+    expect(f.hash.value).toBe('#/practice/tips');
+  });
+
   it('Try again goes to the scan; a handled action does not navigate', () => {
     const f = fixture();
     f.services.actions.tryAgain = () => true;

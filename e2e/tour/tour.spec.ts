@@ -157,8 +157,12 @@ test('screen tour: onboarding, home, scan, take with a wrong and a late note, re
   await expect(page.locator(`[data-expected-idx="${wrongIdx}"]`).first()).toHaveClass(/n-error/);
   await expect(page.locator(`[data-expected-idx="${lateIdx}"]`).first()).toHaveClass(/n-error/);
 
-  // Tips.
-  await page.getByRole('button', { name: 'Next excerpt' }).click();
+  // Tips. A wrong and a late note in different bars fire no pattern, and since PLAN ruling 51 red notes rule out the
+  // clean-read tip, so Next would skip the interstitial; open it directly then (it shows the "no tips" card).
+  const tipsShown = await page.evaluate(() => (window as unknown as { __sr: { session: { record: { score: { tipsShown: string[] } | null } | null } } }).__sr.session.record?.score?.tipsShown ?? []);
+  expect(tipsShown).not.toContain('U18');
+  if (tipsShown.length > 0) await page.getByRole('button', { name: 'Next excerpt' }).click();
+  else await page.evaluate(() => { window.location.hash = '#/practice/tips'; });
   const tips = page.getByTestId('screen-practice.tips');
   await expect(tips).toBeVisible({ timeout: 10_000 });
   await shot('tips');

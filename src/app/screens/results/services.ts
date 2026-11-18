@@ -43,6 +43,13 @@ export interface ResultsServices {
   rankUps?: RankUpMemory;
   /** Wait before a rank-up or install sheet opens, so the panel settles first (ms; default 600). */
   settleMs?: number;
+  /**
+   * Attempts of this practice session, oldest first. With it, Next after every 10th attempt opens the session summary
+   * first (02 section 6.1 item 8, 04 section 5.10); Keep going then moves on as Next would.
+   */
+  sessionAttempts?(): readonly AttemptRecord[];
+  /** The player pressed Finish in the summary (Home follows). */
+  onFinish?(): void;
 }
 
 export type { ProgressEvent };

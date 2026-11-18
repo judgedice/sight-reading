@@ -127,6 +127,21 @@ describe('CaptureCore', () => {
     });
   }
 
+  it("a stale currentFrame in a new node's first quantum does not move the origin (Chromium, e2e/synthetic d = 110 flake)", () => {
+    // Measured in headless Chromium at 44.1 kHz: a capture started with the node's first quantum read currentFrame
+    // 896 there and 1536 in the second (frame base 896, then 1408 for good), so the origin came out 512 frames early
+    // and every loopback lag read 11.6 ms short (98.1 instead of 109.7 ms at d = 110), about one take in seven.
+    const rate = 44100;
+    const ctl = new Ctl();
+    let q = 0;
+    const core = new CaptureCore(rate, ctl, () => (q === 0 ? 896 : 1408 + 128 * q));
+    start(ctl);
+    for (; q < 8; q++) core.process([new Float32Array(128)]);
+    const started = ctl.out.find((m) => m.type === 'started') as Extract<FromWorklet, { type: 'started' }>;
+    expect(started.originFrame).toBe(1408);
+    expect(ctl.blocks()[0]!.startT).toBe(1408 / rate);
+  });
+
   it('downmixes stereo to the mean of the channels', () => {
     const rate = 48000;
     const x = signal(rate, 0.2);

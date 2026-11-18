@@ -6,7 +6,8 @@
  * - The top `selection.summary.topPatterns` patterns of the session (the clean read excluded), ranked by how many
  *   attempts fired them, then by their total lostPoints, then by catalog order. Each carries its tip: the tip the
  *   player was last shown for that pattern in this session, else the first enabled universal tip of the pattern at the
- *   level of its latest attempt whose placeholders fill. The evidence line is the latest attempt's.
+ *   level of its latest attempt whose placeholders fill, else (given `familyOf`) such a family tip of that attempt's
+ *   instrument that asserts no cause (02 §6.1 item 5). The evidence line is the latest attempt's.
  * - A text-only focus card when one pattern was primary in at least `focus.minPrimary` of the last `focus.ofLast`
  *   attempts (recent primaries, most recent first; the clean read never becomes a focus).
  *
@@ -23,6 +24,11 @@ export interface SessionSummaryInput {
   recentPrimaries: readonly string[];
   /** The profile's streak, days (0 when none). */
   streakDays: number;
+  /**
+   * Family of an instrument id (tips/ may not read the instrument table). With it, a pattern that has no universal
+   * tip (E16 is family-only) falls back to a family tip of the attempt's instrument that asserts no cause.
+   */
+  familyOf?: (instrumentId: string) => string | undefined;
 }
 
 export interface SummaryPattern {
@@ -91,7 +97,7 @@ function tipOf(def: TipDef, occ: Occurrence, catalog: TipCatalog): Tip | null {
 }
 
 /** The tip for a pattern from its occurrences in the session (latest last). */
-function summaryTip(patternId: string, occs: readonly Occurrence[], catalog: TipCatalog): Tip | null {
+function summaryTip(patternId: string, occs: readonly Occurrence[], catalog: TipCatalog, familyOf: SessionSummaryInput['familyOf']): Tip | null {
   const forPattern = catalog.tips.filter((t) => t.enabled && t.patterns.includes(patternId));
   // The tip last shown for this pattern.
   for (let k = occs.length - 1; k >= 0; k--) {
@@ -105,8 +111,18 @@ function summaryTip(patternId: string, occs: readonly Occurrence[], catalog: Tip
   const latest = occs[occs.length - 1];
   if (!latest) return null;
   const level = latest.attempt.levelServed;
+  const inLevel = (d: TipDef): boolean => level >= d.minLevel && level <= d.maxLevel;
   for (const def of forPattern) {
-    if (def.scope !== 'universal' || level < def.minLevel || level > def.maxLevel) continue;
+    if (def.scope !== 'universal' || !inLevel(def)) continue;
+    const tip = tipOf(def, latest, catalog);
+    if (tip) return tip;
+  }
+  const instrumentId = latest.attempt.instrumentId;
+  const family = familyOf?.(instrumentId);
+  if (family === undefined) return null;
+  for (const def of forPattern) {
+    if (def.scope !== 'family' || def.family !== family || def.assertsCause || !inLevel(def)) continue;
+    if (def.instruments && !def.instruments.includes(instrumentId)) continue;
     const tip = tipOf(def, latest, catalog);
     if (tip) return tip;
   }
@@ -146,7 +162,7 @@ export function summarizeSession(i: SessionSummaryInput): SessionSummary {
     .map(([id, occs]) => ({ id, occs, count: occs.length, lostPoints: occs.reduce((n, o) => n + o.result.lostPoints, 0) }))
     .sort((a, b) => b.count - a.count || b.lostPoints - a.lostPoints || order(a.id) - order(b.id))
     .slice(0, sel.summary.topPatterns)
-    .map((p) => ({ id: p.id, name: name(p.id), count: p.count, lostPoints: Math.round(p.lostPoints * 10) / 10, tip: summaryTip(p.id, p.occs, cat) }));
+    .map((p) => ({ id: p.id, name: name(p.id), count: p.count, lostPoints: Math.round(p.lostPoints * 10) / 10, tip: summaryTip(p.id, p.occs, cat, i.familyOf) }));
 
   const focusId = focusPatternId(i.recentPrimaries, cat);
   return {

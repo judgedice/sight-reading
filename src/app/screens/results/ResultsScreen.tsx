@@ -6,6 +6,8 @@ import { Link, useNavigate } from '../../router.tsx';
 import type { ScreenProps } from '../../route-types.ts';
 import { InstallCoach, installCoachDue } from '../sheets/InstallCoach.tsx';
 import { RankUpCard } from '../sheets/RankUpCard.tsx';
+import { SessionSummary } from '../sheets/SessionSummary.tsx';
+import { summarizeSession, summaryDue } from '../sheets/summary.ts';
 import { creditLine, rankUpEvent } from './model.ts';
 import { ResultsPanel } from './ResultsPanel.tsx';
 import type { ResultsServices } from './services.ts';
@@ -81,10 +83,29 @@ export function ResultsScreen(_props: ScreenProps) {
   const candidate: Pending = rankUpDue ? 'rankup' : installDue ? 'install' : null;
   const pending = usePendingSheet(candidate, services.settleMs ?? DEFAULT_SETTLE_MS);
 
-  const next = (): void => {
+  // 02 section 6.1 item 8: every 10 attempts the session summary comes before the next excerpt (once per visit).
+  const [summaryOpen, setSummaryOpen] = useState(false);
+  const [summaryShownFor, setSummaryShownFor] = useState<string | null>(null);
+  const attemptsNow = services.sessionAttempts?.() ?? null;
+  const summaryNow = record !== null && attemptsNow !== null && summaryShownFor !== record.id && summaryDue(attemptsNow.length, cfg);
+
+  const proceed = (): void => {
     if (actions.next?.() === true) return;
     if (settings.practicePrefs.showTips && view.tips.length > 0 && record?.score) navigate('/practice/tips');
     else navigate('/practice/scan');
+  };
+  const next = (): void => {
+    if (summaryNow && record) {
+      setSummaryShownFor(record.id);
+      setSummaryOpen(true);
+      return;
+    }
+    proceed();
+  };
+  const finishSession = (): void => {
+    setSummaryOpen(false);
+    services.onFinish?.();
+    navigate('/');
   };
   const tryAgain = (): void => {
     if (actions.tryAgain?.() !== true) navigate('/practice/scan');
@@ -173,6 +194,17 @@ export function ResultsScreen(_props: ScreenProps) {
       </div>
       {rankUp ? <RankUpCard open={pending === 'rankup'} configs={cfg} rank={rankUp.to} name={rankUp.name} onContinue={closeRankUp} /> : null}
       <InstallCoach open={pending === 'install'} onGotIt={closeInstall} />
+      {attemptsNow !== null && summaryShownFor === record.id ? (
+        <SessionSummary
+          open={summaryOpen}
+          data={summarizeSession(attemptsNow, cfg, profile)}
+          onKeepGoing={() => {
+            setSummaryOpen(false);
+            proceed();
+          }}
+          onFinish={finishSession}
+        />
+      ) : null}
     </section>
   );
 }

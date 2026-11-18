@@ -334,6 +334,11 @@ export function composeApp(rt: AppRuntime): ComposedApp {
     session: session.view,
     profile,
     settings,
+    // 02 section 6.1 item 8: the every-10-attempts session summary opens from Next on results.
+    sessionAttempts: () => sessionAttempts,
+    onFinish() {
+      rt.keepAwake.leavePractice();
+    },
     actions: {
       next() {
         // The tips interstitial prepares the next excerpt when the player leaves it.

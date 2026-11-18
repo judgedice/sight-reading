@@ -1,4 +1,4 @@
-/** Session summary (04 section 5.10): takes, average, XP, best take, top patterns, streak, optional focus card. */
+/** Session summary (04 section 5.10): takes, average, XP, best take, top patterns with their tips, streak, optional focus card. */
 import { Button } from '../../../ui/components/form/index.ts';
 import { Modal } from '../../../ui/primitives/index.ts';
 import { Link } from '../../router.tsx';
@@ -38,7 +38,12 @@ export function SessionSummary({ open, data, onKeepGoing, onFinish }: SessionSum
                 <ol className="sheet-patterns">
                   {data.patterns.map((p) => (
                     <li key={p.id} data-pattern={p.id}>
-                      {text('summary.pattern', { pattern: p.name, n: p.count })}
+                      <span className="sheet-pattern-name">{text('summary.pattern', { pattern: p.name, n: p.count })}</span>
+                      {p.tip ? (
+                        <span className="sheet-pattern-tip" data-tip={p.tip.id}>
+                          {p.tip.text}
+                        </span>
+                      ) : null}
                     </li>
                   ))}
                 </ol>
