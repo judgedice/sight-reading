@@ -1,0 +1,79 @@
+/* Setup rows (04 section 5.2). Tokens only. */
+.setup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.setup-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+@media (min-width: 48em) {
+  .setup-row {
+    grid-template-columns: 7rem 1fr auto;
+  }
+}
+
+.setup-label {
+  grid-column: 1 / -1;
+  padding: 0;
+  font-weight: 600;
+  color: var(--text);
+}
+
+@media (min-width: 48em) {
+  .setup-label {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .setup-control {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .setup-chip {
+    grid-column: 3;
+    grid-row: 1;
+  }
+  .setup-caption {
+    grid-column: 2 / -1;
+  }
+}
+
+.setup-control {
+  min-width: 0;
+}
+
+.setup-caption {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.setup-stock {
+  font-weight: 600;
+}
+
+.setup-stock[data-stock='none'] {
+  color: var(--text);
+}
+
+.setup-is-random,
+.setup-is-random select {
+  font-style: italic;
+}
+
+.setup-xp-hint {
+  margin: 0;
+  color: var(--text-muted);
+}

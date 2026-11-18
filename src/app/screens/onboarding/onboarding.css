@@ -1,0 +1,211 @@
+/* Onboarding (04 section 5.1). Tokens only; rem, never px. */
+
+.ob {
+  display: flex;
+  justify-content: center;
+  padding-block: var(--space-5);
+}
+
+.ob-card {
+  inline-size: 100%;
+  max-inline-size: 35rem;
+}
+
+.ob-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-block-end: var(--space-4);
+}
+
+.ob-step {
+  margin: 0;
+  font-size: var(--type-small-size);
+  color: var(--text-muted);
+}
+
+.ob-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.ob-title {
+  margin: 0;
+  font-size: var(--type-h1-size);
+  line-height: var(--type-h1-line);
+  font-weight: var(--type-h1-weight);
+}
+
+.ob-title:focus {
+  outline: none;
+}
+
+.ob-title:focus-visible {
+  outline: 0.125rem solid var(--focus-ring);
+  outline-offset: 0.25rem;
+}
+
+.ob-text {
+  margin: 0;
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+}
+
+.ob-mic-glyph {
+  color: var(--accent);
+}
+
+.ob-name {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.ob-label {
+  font-size: var(--type-small-size);
+  color: var(--text-muted);
+}
+
+.ob-hint {
+  font-size: var(--type-caption-size);
+  color: var(--text-muted);
+}
+
+.ob-input {
+  box-sizing: border-box;
+  min-block-size: var(--select-height);
+  padding-inline: var(--select-x-padding);
+  border: 0.0625rem solid var(--border-strong);
+  border-radius: var(--radius-m);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+
+.ob-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+.ob-actions-stack {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.ob-choose {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  align-items: flex-start;
+}
+
+.ob-groups {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.ob-family {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-inline-size: 0;
+}
+
+.ob-legend {
+  padding: 0;
+  margin-block-end: var(--space-2);
+  font-size: var(--type-small-size);
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+/* 4 per row from the sm breakpoint, 2 on phones. */
+.ob-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-3);
+}
+
+@media (min-width: 40rem) {
+  .ob-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+.ob-instrument {
+  position: relative;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  min-block-size: var(--target-min);
+  padding: var(--space-3);
+  border: 0.0625rem solid var(--border);
+  border-radius: var(--radius-m);
+  background: var(--surface);
+  text-align: center;
+  cursor: pointer;
+}
+
+.ob-instrument[data-checked='true'] {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 0.0625rem var(--accent);
+}
+
+.ob-instrument:focus-within {
+  outline: 0.125rem solid var(--focus-ring);
+  outline-offset: 0.125rem;
+}
+
+/* Visually hidden but focusable: the native radio keeps arrow-key behaviour. */
+.ob-radio {
+  position: absolute;
+  inline-size: 0.0625rem;
+  block-size: 0.0625rem;
+  margin: 0;
+  opacity: 0;
+}
+
+.ob-circle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--instrument-circle);
+  block-size: var(--instrument-circle);
+  border-radius: 50%;
+  background: var(--ink-accent-soft);
+  color: var(--text);
+  font-size: var(--type-small-size);
+  font-weight: 600;
+}
+
+.ob-instrument-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.ob-instrument-name {
+  font-size: var(--type-small-size);
+  font-weight: 600;
+}
+
+.ob-instrument-sub {
+  font-size: var(--type-caption-size);
+  color: var(--text-muted);
+}
+
+.ob-badge {
+  margin-inline-start: var(--space-1);
+  padding-inline: var(--space-1);
+  border: 0.0625rem solid var(--border-strong);
+  border-radius: var(--radius-s);
+  font-size: var(--type-caption-size);
+  font-weight: 400;
+  color: var(--text-muted);
+}

@@ -90,7 +90,7 @@ const flush = async (): Promise<void> => {
 function setup(opts: { wakeLock?: WakeLockLike | undefined; idleMs?: number } = {}) {
   const timers = new Timers();
   const lock = opts.wakeLock === undefined && 'wakeLock' in opts ? undefined : (opts.wakeLock ?? new FakeWakeLock());
-  const ctrl = new KeepAwakeController({ wakeLock: lock, timers, idleMs: opts.idleMs });
+  const ctrl = new KeepAwakeController({ wakeLock: lock, timers, ...(opts.idleMs !== undefined ? { idleMs: opts.idleMs } : {}) });
   return { timers, ctrl, lock: lock as FakeWakeLock | undefined };
 }
 
@@ -163,6 +163,8 @@ describe('IOS4 keep-awake: request timing', () => {
   it('a request still in flight when practice ends is released as soon as it is granted', async () => {
     const timers = new Timers();
     const lock = new FakeWakeLock();
+    // A non-null `deferred` makes the next request stay pending until the test settles it.
+    lock.deferred = { resolve: () => undefined, reject: () => undefined };
     const ctrl = new KeepAwakeController({ wakeLock: lock, timers });
     const pending = ctrl.startPractice();
     ctrl.leavePractice();

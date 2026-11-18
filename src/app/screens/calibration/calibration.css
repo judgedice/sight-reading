@@ -1,0 +1,196 @@
+/* Calibration card and self-test (04 section 5.9). Tokens only; rem, never px. */
+
+.cal-screen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  align-items: center;
+  padding-block: var(--space-5);
+}
+
+.cal-screen-title {
+  margin: 0;
+  align-self: stretch;
+  max-inline-size: 35rem;
+  margin-inline: auto;
+  inline-size: 100%;
+  font-size: var(--type-h1-size);
+  line-height: var(--type-h1-line);
+  font-weight: var(--type-h1-weight);
+}
+
+.cal-card {
+  inline-size: 100%;
+  max-inline-size: 35rem;
+}
+
+.cal {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.cal-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+}
+
+.cal-title {
+  margin: 0;
+  font-size: var(--type-h2-size);
+  line-height: var(--type-h2-line);
+  font-weight: var(--type-h2-weight);
+}
+
+.cal-beta {
+  font-size: var(--type-caption-size);
+  color: var(--text-muted);
+}
+
+.cal-intro,
+.cal-step-text,
+.cal-progress,
+.cal-result-main,
+.cal-result-spread {
+  margin: 0;
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+}
+
+.cal-result-spread,
+.cal-progress {
+  font-size: var(--type-small-size);
+  color: var(--text-muted);
+}
+
+.cal-setup {
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 40rem) {
+  .cal-setup {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.cal-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.cal-label {
+  font-size: var(--type-small-size);
+  color: var(--text-muted);
+}
+
+.cal-dots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cal-dot-cell {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  inline-size: var(--space-5);
+  block-size: var(--space-6);
+}
+
+.cal-dot {
+  box-sizing: border-box;
+  inline-size: var(--beat-dot-other);
+  block-size: var(--beat-dot-other);
+  border-radius: 50%;
+  border: var(--beat-dot-outline) solid var(--text-muted);
+  background: transparent;
+}
+
+.cal-dot[data-state='heard'] {
+  border-color: var(--correct);
+  background: var(--correct);
+}
+
+/* A missed click is a hollow dot with a slash, so it never relies on colour alone. */
+.cal-dot[data-state='missed'] {
+  border-color: var(--error);
+  background: linear-gradient(to top right, transparent calc(50% - 0.0625rem), var(--error) 50%, transparent calc(50% + 0.0625rem));
+}
+
+.cal-tick {
+  position: absolute;
+  inset-block-end: 0;
+  inset-inline-start: calc(50% + var(--cal-tick, 0) * 50%);
+  inline-size: 0.125rem;
+  block-size: var(--space-3);
+  background: var(--accent);
+}
+
+.cal-pulse {
+  margin: 0;
+  font-size: var(--type-count-size);
+  line-height: var(--type-count-line);
+  font-weight: var(--type-count-weight);
+  color: var(--accent);
+  animation: cal-pulse var(--dur-slow) var(--ease-in-out) infinite alternate;
+}
+
+@keyframes cal-pulse {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0.5;
+  }
+}
+
+.cal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.cal-fail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.cal-fail p {
+  margin: 0;
+}
+
+.cal-checks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cal-check {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding-block: var(--space-2);
+  border-block-end: 0.0625rem solid var(--border);
+}
+
+.cal-check[data-status='fail'] .cal-check-status {
+  color: var(--error);
+  font-weight: 600;
+}
+
+.cal-check-status {
+  color: var(--text-muted);
+}
