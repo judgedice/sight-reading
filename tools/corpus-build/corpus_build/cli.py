@@ -1,8 +1,9 @@
 """Command line: `python -m corpus_build [stage ...]`. Run from tools/corpus-build (or put it on PYTHONPATH).
 
-Stages: fetch, lock, verify, composers, gate, read, normalize, extract, windows, augment, features. With no stage, runs every stage except lock.
-`lock` rewrites sources.lock.yaml and is never part of the default run, because the default run must not change
-the pinned inputs. Later stages (C3a onward) register in STAGES.
+Stages: fetch, lock, verify, composers, gate, read, normalize, extract, windows, augment, features, filters, dedupe,
+plus the developer stages familiar and calibrate. With no stage, runs every stage except lock, familiar and calibrate.
+`lock` rewrites sources.lock.yaml, `familiar` rewrites familiar.yaml and `calibrate` writes a fitted filters file to
+build/calibration/; none is part of the default run, because the default run must not change committed inputs. Later stages (C3a onward) register in STAGES.
 """
 
 from __future__ import annotations
@@ -16,6 +17,10 @@ from .candidate import write_jsonl
 from .composers import ComposerIndex, build_composers, load_composers, write_composers
 from .fetch import FetchError, fetch_records, fetch_source, load_lock, verify_lock, write_lock
 from .feature_stage import run_features
+from .familiar import write_familiar
+from .filter_stage import run_filters
+from .calibration import run_calibration
+from .dedupe import run_dedupe
 from .gate import run_gate
 from .pipeline import run_extract, run_normalize, run_read
 from .paths import COMPOSERS_YAML, build_root, cache_root
@@ -167,6 +172,55 @@ def stage_features(ctx: Ctx) -> int:
     return 0
 
 
+def stage_familiar(ctx: Ctx) -> int:
+    if not (ctx.build / "extract" / "candidates.jsonl").exists():
+        print("familiar: build/extract/candidates.jsonl is missing. Run `extract` first.", file=sys.stderr)
+        return 1
+    res = write_familiar(ctx.build)
+    for p in res["problems"]:
+        print(f"familiar: {p}", file=sys.stderr)
+    print(f"familiar: {res['tunes']} tunes, incipits recomputed in familiar.yaml")
+    return 1 if res["problems"] else 0
+
+
+def stage_filters(ctx: Ctx) -> int:
+    if not (ctx.build / "features" / "candidates.jsonl").exists():
+        print("filters: build/features/candidates.jsonl is missing. Run `features` first.", file=sys.stderr)
+        return 1
+    summary = run_filters(ctx.build, ctx.workers)
+    for corpus, s in summary["byCorpus"].items():
+        print(f"filters: {corpus}: {s['kept']} kept of {s['windows']}; rejected {s['rejectedByReason']}; kept by level {s['keptByLevel']}; flags {s['flags']}; familiar {s['familiar']}")
+    return 0
+
+
+def stage_calibrate(ctx: Ctx) -> int:
+    if not (ctx.build / "features" / "candidates.jsonl").exists():
+        print("calibrate: build/features/candidates.jsonl is missing. Run `features` first.", file=sys.stderr)
+        return 1
+    rep = run_calibration(ctx.build)
+    for name in ("atStartingValues", "atCommittedValues", "atFittedValues"):
+        e = rep[name]
+        print(f"calibrate: {name}: positives {e['positives']} accepted {e['positiveAcceptance']:.1%}; negatives {e['negativesReal']} real + {e['negativesSynthetic']} synthetic rejected {e['negativeRejection']:.1%}")
+    print(f"calibrate: fitted {rep['fitted']}; meets target: {rep['meetsTarget']}; committed values meet target: {rep['committedMeetsTarget']}")
+    print("calibrate: wrote build/calibration/report.json and filters.fitted.yaml; copy the fitted values into config/filters.yaml to commit them")
+    return 0
+
+
+def stage_dedupe(ctx: Ctx) -> int:
+    if not (ctx.build / "filters" / "candidates.jsonl").exists():
+        print("dedupe: build/filters/candidates.jsonl is missing. Run `filters` first.", file=sys.stderr)
+        return 1
+    s = run_dedupe(ctx.build)
+    for corpus, c in s["byCorpus"].items():
+        print(f"dedupe: {corpus}: {c['kept']} kept of {c['windows']}; rejected {c['rejectedByReason']}")
+    cov = s["coverage"]
+    print(f"dedupe: {s['kept']} kept in {s['groups']} groups; by level {cov['byLevel']}; served levels {cov['servedLevels']}")
+    for name in ("viabilityBeforeReview", "viabilityWithoutReview"):
+        v = cov[name]
+        print(f"dedupe: {name}: total {v['total']}, served {v['servedLevels']}, empty launch cells {len(v['emptyCells'])} {v['emptyCells'][:8]}")
+    return 0
+
+
 STAGES: dict[str, Callable[[Ctx], int]] = {
     "fetch": stage_fetch,
     "lock": stage_lock,
@@ -179,8 +233,12 @@ STAGES: dict[str, Callable[[Ctx], int]] = {
     "windows": stage_windows,
     "augment": stage_augment,
     "features": stage_features,
+    "familiar": stage_familiar,
+    "filters": stage_filters,
+    "calibrate": stage_calibrate,
+    "dedupe": stage_dedupe,
 }
-DEFAULT_RUN = ["fetch", "verify", "composers", "gate", "read", "normalize", "extract", "windows", "augment", "features"]
+DEFAULT_RUN = ["fetch", "verify", "composers", "gate", "read", "normalize", "extract", "windows", "augment", "features", "filters", "dedupe"]
 
 
 def main(argv: list[str] | None = None) -> int:

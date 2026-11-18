@@ -77,16 +77,34 @@ def test_pd_yaml_and_licences_yaml_hold_the_ruled_values():
 
 
 def test_filters_yaml_carries_the_spec_thresholds():
+    """02-owned thresholds keep the spec's values; the ones C7 fits (corpus_build.calibration.FITTED) record the spec's
+    starting values and the control-set result next to the committed value (03 6.9, "the fitted values are committed")."""
+    from corpus_build.calibration import FITTED, get_path
+
     f = load_yaml(CONFIG_DIR / "filters.yaml")
     h = f["hard_rejects"]
-    assert h["rests"]["rest_ratio_max"] == 0.25
-    assert h["repetition"]["repeated_note_ratio_max"] == 0.35
-    assert h["fragments_min_notes_per_8_bars"] == 12
-    assert f["interest"]["reject_below"] == 0.35 and f["interest"]["reject_below_quartet_inner_and_cello_L1_L2"] == 0.25
+    assert h["rests"]["rest_ratio_max"] == 0.25 and h["rests"]["max_rest_bars"] == 1
+    assert h["repetition"]["literal_bar_repeat_max_in_a_row"] == 2
+    assert h["pitch_variety_min_distinct_pcs"] == {"L1": 3, "L2": 4, "L3_plus": 5}
+    assert f["interest"]["reject_below_quartet_inner_and_cello_L1_L2"] == 0.25
+    assert f["soft_score"]["keep_if_mean_at_least"] == 0.6 and f["flags"]["leapy"]["leap_share_max"] == 0.25
     assert f["dedupe"]["near_duplicate_jaccard"] == 0.8 and f["dedupe"]["near_duplicate_jaccard_same_work"] == 0.7
     assert sum(f["interest"]["weights"].values()) == pytest.approx(1.0)
     assert f["outliers"]["tail_percent"] == 2 and f["control_calibration"]["negative_rejection_min"] == 0.9
     re.compile(h["repetition"]["tempo_text_reject"])
+    cal = f["calibration"]
+    spec = {
+        "hard_rejects.repetition.repeated_note_ratio_max": 0.35, "hard_rejects.broken_chord.interval_share_max": 0.5,
+        "hard_rejects.pedal_alternation_share_max": 0.25, "hard_rejects.static_contour.contour_changes_per_note_min": 0.12,
+        "hard_rejects.sustained_harmony_share_max": 0.6, "hard_rejects.fragments_min_notes_per_8_bars": 12,
+        "hard_rejects.quartet_melodic_role.onset_coincidence_max": 0.7, "interest.reject_below": 0.35,
+    }
+    assert cal["startingValues"] == spec
+    for path, grid in FITTED:
+        assert get_path(f, path) in grid and spec[".".join(path)] in grid
+    fit = cal["atFittedValues"]
+    assert fit["positiveAcceptance"] >= f["control_calibration"]["positive_acceptance_min"]
+    assert fit["negativeRejection"] >= f["control_calibration"]["negative_rejection_min"]
 
 
 def test_requirements_pin_every_package_and_include_music21():

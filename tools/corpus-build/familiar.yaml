@@ -1,0 +1,218 @@
+# Familiar melodies (03 section 6.8). Agent-written list of widely known tunes that occur in the v1 sources.
+# A window whose fingerprint contains a tune's incipit (the first 8 tokens of 03 6.10) is familiarity 2: practice only.
+# Each tune says where it is in the corpus: `file` (path suffix of the upstream file), `part` (role: voice, vn1, inner,
+# cello, or a role label such as Va), `movement` (1-based) and optionally `fromMeasure` (printed number where the tune
+# starts; default the part's first note in the movement). The `incipit` ("interval:IOI-ratio" tokens) is generated:
+# run `python -m corpus_build familiar` after editing, never type them by hand. `titles` lists Mutopia hymn tunes that
+# match by exact title (none ship in v1 until job C3b yields files). A false positive only moves a window to practice.
+titles: []
+tunes:
+- file: 3_Heidenröslein,_D.257/lc30321236.mxl
+  id: schubert-heidenroeslein
+  incipit: 0:1 0:1 0:1 3:1/2 -2:1 0:1 -1:1 -2:4
+  part: voice
+  title: Heidenröslein
+- file: Die_Forelle,_Op.32,_D550d/lc6900961.mxl
+  id: schubert-forelle
+  incipit: 5:1 0:1 4:1 0:1 -4:2 -5:2/3 0:1/3 0:3
+  part: voice
+  title: Die Forelle
+- file: 04_Ständchen/lc5004835.mxl
+  id: schubert-staendchen-d957
+  incipit: 1:1 -1:1 5:4 -5:1/3 -2:2/3 2:1 -2:1 7:3
+  part: voice
+  title: Ständchen (Leise flehen)
+- file: lc6389103.mxl
+  id: schubert-ave-maria
+  incipit: -1:1/4 1:1 4:4 -2:1/4 -2:4 2:1/2 -2:1/4 -1:1
+  part: voice
+  title: Ellens Gesang III (Ave Maria)
+- file: An_die_Musik,_D.547/lc6180725.mxl
+  id: schubert-an-die-musik
+  incipit: 5:1 0:1 -8:3 5:1/3 -9:3/2 0:1/3 4:1 -2:1
+  part: voice
+  title: An die Musik
+- file: 05_Der_Lindenbaum/lc5016466.mxl
+  id: schubert-lindenbaum
+  incipit: 0:3 -3:1/3 0:1 0:1 0:2 -4:3/2 0:1/3 2:3
+  part: voice
+  title: Der Lindenbaum
+- file: 01_Gute_Nacht/lc5015378.mxl
+  id: schubert-gute-nacht
+  incipit: -1:1 -2:1 -5:1 -4:1 -1:3/2 1:1/3 -1:2 10:1
+  part: voice
+  title: Gute Nacht
+- file: 01_Das_Wandern/lc5004731.mxl
+  id: schubert-das-wandern
+  incipit: 0:1 5:1 -1:1 6:1 -1:1/2 3:1 -3:1 -4:1
+  part: voice
+  title: Das Wandern
+- file: 02_Wohin/lc4982535.mxl
+  id: schubert-wohin
+  incipit: 1:1 2:2 0:1 0:1 0:1 0:3/2 -3:1/3 -4:2
+  part: voice
+  title: Wohin?
+- file: 07_Ungeduld/lc4985951.mxl
+  id: schubert-ungeduld
+  incipit: 9:3/2 -2:1/3 -2:3 -1:1/3 3:3 -2:1/3 -1:3 -2:1/3
+  part: voice
+  title: Ungeduld
+- file: Gretchen_am_Spinnrade,_D.118/lc7111114.mxl
+  id: schubert-gretchen
+  incipit: 2:1 2:4 1:1/4 -1:1 0:4 0:1/4 5:4 -5:1/4
+  part: voice
+  title: Gretchen am Spinnrade
+- file: Ständchen,_D.889/lc5133353.mxl
+  id: schubert-staendchen-d889
+  incipit: 1:2 -6:1/2 0:2 0:1/2 3:2 -2:1/2 0:2 -5:1/2
+  part: voice
+  title: Ständchen (Horch, horch, die Lerch)
+- file: lc5014023.mxl
+  id: schubert-leiermann
+  incipit: -5:1 5:1 2:1 1:1 -3:1 -5:1 5:1 -1:1
+  part: voice
+  title: Der Leiermann
+- file: 11_Frühlingstraum/lc5023603.mxl
+  id: schubert-fruehlingstraum
+  incipit: 0:3/2 2:1/3 -2:2 9:2 0:1/2 -4:2 0:3/2 0:1/3
+  part: voice
+  title: Frühlingstraum
+- file: 13_Die_Post/lc5007176.mxl
+  id: schubert-die-post
+  incipit: 0:1 0:2 0:1/2 -3:2 0:1/2 3:2 0:1/2 -3:4
+  part: voice
+  title: Die Post
+- file: 13_Der_Doppelgänger/lc4985964.mxl
+  id: schubert-doppelgaenger
+  incipit: 0:2/3 0:1/3 0:4 0:1/4 0:4 -4:2/3 -3:1/3 7:4
+  part: voice
+  title: Der Doppelgänger
+- file: 12_Am_Meer/lc4985965.mxl
+  id: schubert-am-meer
+  incipit: 0:3 0:1/3 4:2 -2:1/2 -2:1 -1:3 3:1/3 -2:3
+  part: voice
+  title: Am Meer
+- file: 10_Das_Fischermädchen/lc5098612.mxl
+  id: schubert-fischermaedchen
+  incipit: 9:2 0:1/2 0:1 -2:1 -3:1 1:3 -5:1 -3:1/2
+  part: voice
+  title: Das Fischermädchen
+- file: lc5093803.mxl
+  id: schubert-sehnsucht
+  incipit: 2:2/3 0:1/2 1:2 0:1/4 -1:1 -2:4 2:1 1:1/2
+  part: voice
+  title: Nur wer die Sehnsucht kennt
+- file: 4_Wiegenlied/lc5701612.mxl
+  id: brahms-wiegenlied
+  incipit: 0:1 3:3 -3:1/3 0:2 3:2 -3:1/4 3:1 5:2
+  part: voice
+  title: Wiegenlied (Guten Abend, gut' Nacht)
+- file: 3_Sonntag/lc5654342.mxl
+  id: brahms-sonntag
+  incipit: 5:1 2:1 2:2 -2:1 5:1/2 -2:1 -1:1 -4:1
+  part: voice
+  title: Sonntag
+- file: 01_Widmung/lc6885211.mxl
+  id: schumann-widmung
+  incipit: 0:1/2 0:1 3:3 -7:1/3 0:2 2:1 2:4 -4:1/4
+  part: voice
+  title: Widmung
+- file: 03_Der_Nussbaum/lc6891758.mxl
+  id: schumann-nussbaum
+  incipit: 0:3/2 0:1/3 0:2 0:2 0:1/2 0:2 5:1/2 -2:4
+  part: voice
+  title: Der Nussbaum
+- file: 05_Mondnacht/lc4987640.mxl
+  id: schumann-mondnacht
+  incipit: 0:2 0:1/2 0:3/2 2:1/3 2:1 1:1 0:4 -7:3/2
+  part: voice
+  title: Mondnacht
+- file: 07_Ich_grolle_nicht/lc4978382.mxl
+  id: schumann-ich-grolle-nicht
+  incipit: -2:3/2 -2:1/3 5:4 0:1/4 0:1 0:1 3:4 -1:1/4
+  part: voice
+  title: Ich grolle nicht
+- file: 03_Die_Rose,_die_Lilie/lc4976849.mxl
+  id: schumann-die-rose-die-lilie
+  incipit: 5:2 -1:1/2 0:1 -2:2 2:1/2 0:1 1:2 -1:1/2
+  part: voice
+  title: Die Rose, die Lilie
+- file: 4_Du_Ring_an_meinem_Finger/lc4978488.mxl
+  id: schumann-du-ring
+  incipit: 0:3/2 3:1/3 -7:2 4:1 -7:3/2 2:1/3 1:2 0:1/2
+  part: voice
+  title: Du Ring an meinem Finger
+- file: Home,_Sweet_Home/lc6486038.mxl
+  id: bishop-home-sweet-home
+  incipit: 4:3/2 1:1/3 0:3 2:1/3 0:3 -3:1/3 0:4 1:2/3
+  part: voice
+  title: Home, Sweet Home
+- file: Rule,_Britannia!/lc29233346.mxl
+  id: arne-rule-britannia
+  incipit: 5:2 0:1 0:1/4 2:1 2:1 1:1 2:2 -7:1
+  part: voice
+  title: Rule, Britannia!
+- file: The_Lost_Chord/lc6205441.mxl
+  id: sullivan-lost-chord
+  incipit: 0:1/2 0:1 0:2 0:1/2 0:1 0:2 0:2 0:1/4
+  part: voice
+  title: The Lost Chord
+- file: Op.76_No.3/sq20428156.mxl
+  id: haydn-emperor
+  incipit: 2:1/3 2:2 -2:1 3:1 -1:1 -2:1/2 -3:1 1:2
+  movement: 2
+  part: vn1
+  title: String Quartet Op. 76 No. 3 'Emperor', II (Gott erhalte)
+- file: Op.76_No.4/sq17317312.mxl
+  id: haydn-sunrise
+  incipit: 1:3/2 4:1/3 1:1 -1:1 1:1 4:1 3:3 -8:1/3
+  part: vn1
+  title: String Quartet Op. 76 No. 4 'Sunrise', I
+- file: Op.76_No.2/sq12772795.mxl
+  id: haydn-fifths
+  incipit: -7:1 2:1 -7:1 5:1/4 -1:1 1:1 2:1 3:1
+  part: vn1
+  title: String Quartet Op. 76 No. 2 'Fifths', I
+- file: Op.64_No.5/sq7284122.mxl
+  id: haydn-lark
+  incipit: 0:1 0:1 0:4 9:2/3 -2:1/4 -2:1 0:4 -1:1/3
+  part: vn1
+  title: String Quartet Op. 64 No. 5 'Lark', I
+- file: (The_Horseman)/sq10313029.mxl
+  id: haydn-rider
+  incipit: 12:1 0:1 -9:1 12:1 0:1 -8:1 12:1 0:1
+  part: vn1
+  title: String Quartet Op. 74 No. 3 'Rider', I
+- file: K.458_(Op._10,_No._3)/sq7353137.mxl
+  id: mozart-hunt
+  incipit: 0:1 -3:1 0:1 0:1 -4:1 0:1 0:2 4:1/2
+  part: vn1
+  title: String Quartet K. 458 'Hunt', I
+- file: (“Death_and_the_Maiden”)/sq7397765.mxl
+  id: schubert-death-and-the-maiden
+  incipit: 0:1/2 0:1 0:2 2:1/2 1:1 -1:2 -2:1/2 -1:1
+  movement: 2
+  part: vn1
+  title: String Quartet D. 810 'Death and the Maiden', II
+- file: String_Quartet_No.1,_Op.11/sq11738245.mxl
+  id: tchaikovsky-andante-cantabile
+  incipit: 4:1 0:1 -4:1 5:2 -1:1 -2:1 -5:1/2 -2:1
+  movement: 2
+  part: vn1
+  title: String Quartet No. 1 Op. 11, II (Andante cantabile)
+- file: Borodin,_Alexander/String_Quartet_No.2/sq10675759.mxl
+  id: borodin-notturno
+  incipit: -1:1/4 -2:1 2:1 -4:4 -2:1/4 2:1 -2:1 2:1
+  movement: 3
+  part: cello
+  title: String Quartet No. 2, III (Notturno)
+- file: (“American”)/sq8885439.mxl
+  id: dvorak-american-i
+  incipit: 4:2 3:1/2 2:3/2 3:1/3 -3:4 -2:2/3 -3:1/3 -4:2
+  part: Va
+  title: String Quartet Op. 96 'American', I
+- file: Op.18_No.1/sq8071278.mxl
+  id: beethoven-op18-1
+  incipit: 2:1/4 -2:1 -1:2 1:1 -5:4 5:1/2 2:1/4 -2:1
+  part: vn1
+  title: String Quartet Op. 18 No. 1, I

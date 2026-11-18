@@ -2,7 +2,8 @@
 
 Python pipeline that turns the pinned public-domain sources into the shipped corpus (spec: `docs/spec/03-score-corpus.md`).
 This directory currently holds jobs C1 (fetch and lock), C2 (licence and public-domain gate), C3a (read and normalize), C4 (melody extraction and part roles) C5 (boundaries,
-cadences, mode, window proposal, hard rules, augmentation) and C6 (difficulty features, level tagging, density, first histogram). Later stages (C7 onward) register in `corpus_build/cli.py` and write to `build/<stage>/`.
+cadences, mode, window proposal, hard rules, augmentation), C6 (difficulty features, level tagging, density, first histogram) and C7 (quality and
+accompaniment filters, interest, control-set calibration, familiarity, dedupe). Later stages (C8 onward) register in `corpus_build/cli.py` and write to `build/<stage>/`.
 
 ## Run
 
@@ -15,6 +16,9 @@ python -m corpus_build verify gate     # re-run without the network
 python -m corpus_build read normalize extract   # C3a and C4 only (about 3 minutes on 4 cores; --workers N, --corpus ID, --limit N)
 python -m corpus_build windows augment          # C5 only (about 50 s on 4 cores; needs build/extract)
 python -m corpus_build features                 # C6 only (about 8 s; needs build/augment)
+python -m corpus_build filters dedupe           # C7 only (about 15 s; needs build/features and build/extract)
+python -m corpus_build calibrate                # C7 developer stage: refit config/filters.yaml thresholds (about 40 s)
+python -m corpus_build familiar                 # C7 developer stage: recompute the incipits in familiar.yaml
 python -m pytest                       # tests (real-source tests skip if the cache is empty)
 ```
 
@@ -31,7 +35,8 @@ python -m pytest                       # tests (real-source tests skip if the ca
 | `denylist.yaml` | takedowns and misattributions, by id, path prefix or composer. Empty at launch. |
 | `config/pd.yaml` | the public-domain cutoff constants (composer died before 1931, edition year 1930 or earlier). |
 | `config/licences.yaml` | the allowlist (`PD`, `CC0-1.0`, `CC-BY-4.0`) and the Mutopia header table. |
-| `config/filters.yaml` | quality and accompaniment thresholds for C7. Not read by C1 or C2. |
+| `config/filters.yaml` | quality and accompaniment thresholds (C7), with the calibration record of the fitted ones. |
+| `familiar.yaml` | familiar tunes (03 6.8): where each is in the corpus, and its generated incipit. |
 | `schemas/candidate.schema.json` | the JSON Lines record every stage writes. |
 | `build/` | git-ignored stage output. |
 
@@ -134,3 +139,49 @@ of window starts and 80% of ends must sit on a lyric-line boundary within one no
 - Event ids in `extremes` are `e<n>` in window order from 1, as in the fixture builder. C9 must emit event ids with the same scheme or remap these two.
 - Resolution (reject reasons): `bars-exceed-level` (a 9 to 12 bar window whose level does not allow its length; its 8-bar `fallbackFor` window is kept in its place and carries `replaces`), `fallback-unused`, `aug-level-above-3` (an x2 variant must re-tag at L1 to L3), `no-notes` (fewer than two sounding notes).
 - `histogram.json` counts kept windows (before dedupe, quality filters and review): per level by source, meter, mode and minor form, the binding feature per level, rhythm cell counts, and the fit of each instrument at each level in each allowed written key (03 7.3 closed form, tier band of the level; modal windows are excluded because they are served only under a random key).
+
+## Quality filters, familiarity, calibration, dedupe (job C7, 03 sections 6.8 to 6.10)
+
+| Stage | Module | Writes | What |
+| --- | --- | --- | --- |
+| `filters` | `quality.py`, `filter_stage.py`, `familiar.py` | `build/filters/` | Every kept features-stage window is measured and judged by `config/filters.yaml`. Rejected windows carry the first failing rule as `reason` and every failing rule in `failedRules`. All carry `quality` (soft score and S1 to S5, interest, its threshold and margin, the measured metrics), `flags`, `familiarity`, `fingerprint` and, for quartet inner and cello parts, `melodicRole` (Vn I's interest and onset coincidence in the same bars, the cello bass test). |
+| `dedupe` | `dedupe.py`, `coverage.py` | `build/dedupe/` | Exact and near duplicates (03 6.10). Survivors pass with `dedupeGroup` and `work`; losers carry `dupOf`. `coverage.json` counts survivors per level and per instrument range (see below). |
+| `calibrate` | `calibration.py` | `build/calibration/` | Developer stage, not in the default run: fits the 03-owned thresholds on the control sets and writes `report.json` and `filters.fitted.yaml`. Copy fitted values into `config/filters.yaml` and update its `calibration` block. |
+| `familiar` | `familiar.py` | `familiar.yaml` | Developer stage: recomputes each tune's incipit from the normalized parts. |
+
+The served level used by the level-dependent rules is `effectiveLevel` (C6: a half cadence is only allowed from L3).
+
+Rule reason codes, in the order `quality.decide` checks them: `rest-ratio` (rests over 25% of the full bars), `rest-bar` (a run of rests of a bar
+or longer), `leading-rest` (over one beat), `bar-repeated` (a bar repeated literally more than twice in a row), `repeated-notes` (ratio of
+consecutive same-pitch notes), `recitative` (tempo text in force matches /recit/i), `pitch-variety` (3, 4, 5 pitch classes at L1, L2, L3+),
+`rhythm-variety` (fewer than 2 cells from L2; pickup and tie marker cells do not count), `broken-chord`, `pedal-alternation`, `static-contour`,
+`sustained-harmony`, `melodic-role-homorhythm` / `melodic-role-subordinate` / `melodic-role-unknown` (quartet inner parts and cello from L3: Vn I is
+more interesting over the same bars, with or without 70% coinciding onsets), `bass-line-above-level`, `fragment`, `detector-limit` (at the density
+level's slowest tempo the shortest pitch change is under 70 ms or the shortest repeat under 100 ms), `encoding-error`, `soft-score` (mean of S1 to S5
+under 0.6) and `interest`.
+
+Definitions 03 leaves open: notes are tie-merged; a leap is 5 semitones or more (02 2.3) and a step 1 or 2; contour changes are reversals between
+non-zero intervals; the rhythm-cell entropy is normalised by log(distinct cells); the broken-chord test looks for a 2-, 3- or 4-interval figure of
+interval classes (direction x unison, step, leap of 3 or more), at least half leaps, repeated back to back. Soft rules: S1 1 for a period or a bar
+count in 4-bar units (0.5 for 2-bar units); S2 1 for a single highest note outside the first bar (0.5 if it recurs, 0 in bar 1); S3 0.5 each for a
+first and a last note in the tonic triad; S4 distinct cells over 3 (2 at L1); S5 1 if bars 3 to 7 hold the bar of highest rhythm level, the largest
+leap or a chromatic note. Flags: `noBreath` (02 2.4: no rest for more than 4 bars at L1-L4, or 12 seconds at the level's slowest tempo from L5),
+`leapy` (over 25% of intervals are leaps, L1-L6), `bass-line` (cello: over 80% of downbeats lowest of the four parts and over 40% of intervals 4ths
+or 5ths).
+
+Familiarity: a window whose fingerprint contains a `familiar.yaml` incipit anywhere is familiarity 2. Fingerprint tokens are `interval:ratio`, the
+IOI to the next onset divided by the previous one, quantised on a log scale; the last note's IOI is its duration.
+
+Calibration (03 6.9): positives are Vn I windows that open a movement and end in a PAC; negatives are viola and cello windows whose Vn I is at least
+0.2 more interesting in the same bars, plus a synthetic Alberti rendering of each control window's harmony. 02's pedagogical thresholds are fixed;
+the 03-owned ones move only when moving them accepts more positives while negative rejection stays at least 90%.
+
+Dedupe: exact (identical fingerprint) and near (4-gram Jaccard at least 0.8, or 0.7 in the same work = composer, file and movement) duplicates.
+Augmented variants form one family with their original (`dedupeWith`, else `augmentOf`), share its `dedupeGroup` and are kept or dropped with it.
+Priority: source `dedupe_priority`, then soft score, then id.
+
+`coverage.json`: per instrument and level, `atLevel` (windows at L that fit the tier band in at least one written key allowed at L), `selectable`
+(the 02 2.6 pool after bars, modes, flags, range fit and the tempo floors), `rankedSelectable` (familiarity 0), `noReviewSelectable` (items that need
+no agent veto under ruling 29: not L1-L3, not a variant, not a quartet inner or cello part, interest at least 0.10 above its threshold) and
+`keysWith10` (G2-launch). `viabilityBeforeReview` and `viabilityWithoutReview` apply ruling 24 (at least 300 excerpts, a non-empty selection for every
+launch instrument at every served level of at least 30 excerpts).

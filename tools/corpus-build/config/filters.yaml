@@ -1,53 +1,55 @@
-# Quality and accompaniment filter thresholds (03 section 6.9, 6.10, 6.12). Values are the spec's starting
-# points. Job C7 refits the fitted ones against the control sets and commits the result. C1 and C2 read none
-# of this file except through the tests that check it parses and is complete.
-version: 1
+# Quality and accompaniment filter thresholds (03 sections 6.9, 6.10, 6.12), read by job C7 (corpus_build/quality.py)
+# and, for the outliers block, by C8. Values are the spec's starting points except where the `calibration` block below
+# records a fitted value: C7 refits those with `python -m corpus_build calibrate` against the automated control sets
+# (corpus_build/calibration.py) and the result is committed here. Thresholds 02 owns (rests, literal bar repeats, pitch
+# and rhythm variety, leapy, the soft-score cut, the 0.25 interest floor for quartet inner parts at L1-L2) are not fitted.
+version: 2
 hard_rejects:
   rests:
-    rest_ratio_max: 0.25
-    max_rest_bars: 1            # any rest of this many bars or longer rejects
+    rest_ratio_max: 0.25        # 02 3.1 item 6
+    max_rest_bars: 1            # any rest of this many bars or longer rejects (02 3.1 item 6)
     leading_rest_max_beats: 1
   repetition:
-    literal_bar_repeat_max_in_a_row: 2
-    repeated_note_ratio_max: 0.35
+    literal_bar_repeat_max_in_a_row: 2   # 02 3.1 item 5
+    repeated_note_ratio_max: 0.48        # fitted (spec 0.35)
     tempo_text_reject: '(?i)recit'
-  pitch_variety_min_distinct_pcs:
+  pitch_variety_min_distinct_pcs:        # 02 3.1 item 5
     L1: 3
     L2: 4
     L3_plus: 5
-  rhythm_variety:
+  rhythm_variety:                        # 02 3.1 item 5
     min_distinct_cells_from_level: 2
     min_distinct_cells: 2
   broken_chord:
     pattern_lengths: [2, 3, 4]
-    interval_share_max: 0.5
-  pedal_alternation_share_max: 0.25
+    interval_share_max: 0.5              # fitted (unchanged)
+  pedal_alternation_share_max: 0.26      # fitted (spec 0.25)
   static_contour:
-    contour_changes_per_note_min: 0.12
+    contour_changes_per_note_min: 0.12   # fitted (unchanged)
     step_share_exempt: 0.7
-  sustained_harmony_share_max: 0.6
+  sustained_harmony_share_max: 0.6       # fitted (unchanged)
   quartet_melodic_role:
     applies_from_level: 3
-    onset_coincidence_max: 0.7
+    onset_coincidence_max: 0.7           # fitted (unchanged)
   cello_bass_function:
     downbeat_lowest_share_min: 0.8
     fourth_fifth_interval_share_min: 0.4
     keep_up_to_level: 5
-  fragments_min_notes_per_8_bars: 12
+  fragments_min_notes_per_8_bars: 12     # fitted (unchanged)
 flags:
   leapy:
-    leap_share_max: 0.25
+    leap_share_max: 0.25                 # 02 3.1 item 4
     levels: [1, 2, 3, 4, 5, 6]
 soft_score:
-  keep_if_mean_at_least: 0.6
+  keep_if_mean_at_least: 0.6             # 02 3.2
 interest:
   weights:
     contour_changes_per_note: 0.3
     distinct_pcs_over_7: 0.3
     rhythm_cell_entropy: 0.2
     non_repeated_note: 0.2
-  reject_below: 0.35
-  reject_below_quartet_inner_and_cello_L1_L2: 0.25
+  reject_below: 0.35                     # fitted (unchanged)
+  reject_below_quartet_inner_and_cello_L1_L2: 0.25   # 02 3.1
   near_threshold_margin: 0.10   # items within this margin above the threshold require the agent veto
 dedupe:
   ioi_ratio_quantisation: [0.25, 0.3333333333333333, 0.5, 0.6666666666666666, 1, 1.5, 2, 3, 4]
@@ -72,3 +74,21 @@ window_proposal:
   window_overlap_max: 0.5
   bars_min: 8
   bars_max: 12
+# Result of `python -m corpus_build calibrate` on the build of sources.lock.yaml (lockedAt 2026-11-18), job C7.
+# startingValues are the spec's values; the search starts there and breaks ties towards them. Rates are over the
+# control sets of corpus_build/calibration.py: positives = Vn I movement-opening windows ending in a PAC (no Mutopia hymn
+# phrases exist yet); negatives = viola and cello windows whose Vn I is at least 0.2 more interesting in the same bars,
+# plus one synthetic Alberti rendering of the harmony of each control window's bars.
+calibration:
+  startingValues:
+    hard_rejects.repetition.repeated_note_ratio_max: 0.35
+    hard_rejects.broken_chord.interval_share_max: 0.5
+    hard_rejects.pedal_alternation_share_max: 0.25
+    hard_rejects.static_contour.contour_changes_per_note_min: 0.12
+    hard_rejects.sustained_harmony_share_max: 0.6
+    hard_rejects.fragments_min_notes_per_8_bars: 12
+    hard_rejects.quartet_melodic_role.onset_coincidence_max: 0.7
+    interest.reject_below: 0.35
+  controls: {positives: 34, negativesReal: 344, negativesSynthetic: 298, mutopiaHymnPhrases: 0}
+  atStartingValues: {positiveAcceptance: 0.6471, negativeRejection: 0.9688}
+  atFittedValues: {positiveAcceptance: 0.7647, negativeRejection: 0.9517, negativeRejectionReal: 1.0, negativeRejectionSynthetic: 0.896}
