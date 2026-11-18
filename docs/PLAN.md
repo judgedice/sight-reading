@@ -81,6 +81,16 @@ Every tolerance and weight lives in `config/grading-config.json`. The follower, 
 47. Note-on latency of 79 ms at the 95th percentile on the long analysis window is accepted against the 75 ms budget.
 48. The agent review in ruling 29 runs in wave 3 on levels 1 to 3 only. Other flagged excerpts stay excluded in v1. Mutopia (C3b) is dropped from v1.
 
+## Rulings after wave 3 (R49 to R55)
+
+49. The corpus rule that rejects every excerpt above level 6 whose level rests on a single feature is report-only. It removed 687 of 762 candidates at levels 7 to 10 and left those levels unserved. The relaxed key-agreement reading (reject only when the best-fit key is not closely related to the signature) stands.
+50. A ghost note keeps the written note's letter only when the played pitch is within 1 semitone. Beyond that it is spelled from the key signature, so it sits at the played pitch's own staff position.
+51. The "clean read" tip appears only when the take has no red note.
+52. The S-grade cap in ruling 43 also counts octave errors on non-voice instruments.
+53. Size limits count JavaScript and CSS (150 KB initial, 500 KB total, gzip). The music font ships as a separate woff2 asset of at most 260 KB and is reported by the size check.
+54. Ruling 45's room target was missed for voice, cello, violin, and flute in strong rooms. Reverberant rooms are a known limit, and voice is labelled beta outside quiet, dry rooms.
+55. The DSP worker posts the count-in recheck and the voice drift reference, so speaker takes can be ranked in port mode and the voice drift pattern can fire. The session summary in 02 section 6.1 is built.
+
 ## What the owner should know
 
 - Early, late, and wrong-note marks appear within about 150 ms of the note. Sharp and flat marks appear about 260 to 350 ms after the note starts, because pitch needs roughly 100 ms of steady tone after the attack before it can be measured to the cent.
