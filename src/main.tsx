@@ -1,6 +1,5 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { App } from './app/App.tsx';
 
 const container = document.getElementById('root');
 if (!container) {
@@ -32,9 +31,7 @@ if (sliceDev && /^#\/dev\/slice(?:[?/]|$)/.test(window.location.hash)) {
     );
   });
 } else {
-  root.render(
-    <StrictMode>
-      <App />
-    </StrictMode>,
-  );
+  // The composition root and every screen load as one lazy chunk, so the initial chunk is React and this file
+  // (PLAN ruling 39: 150 KB gzip initial).
+  void import('./app/main.tsx').then(({ boot }) => boot(root));
 }

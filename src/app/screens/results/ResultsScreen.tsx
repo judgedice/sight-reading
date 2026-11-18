@@ -26,6 +26,8 @@ function useReadable<T>(r: { get(): T; subscribe(l: () => void): () => void }): 
 }
 
 export const DEFAULT_SETTLE_MS = 600;
+/** Session states after Next or Try again: the practice routes follow the session from here. */
+const MOVING_ON: ReadonlySet<string> = new Set(['loading', 'covered', 'scanning', 'count-in', 'performing']);
 const POLL_MS = 100;
 
 type Pending = 'rankup' | 'install' | null;
@@ -93,7 +95,9 @@ export function ResultsScreen(_props: ScreenProps) {
   };
 
   useEffect(() => {
-    if (!record && view.state !== 'finishing') navigate('/', { replace: true });
+    // No take to show: Home. Next and Try again clear the record while the session moves on to the next excerpt or
+    // the scan, which the scan route follows, so those states stay.
+    if (!record && view.state !== 'finishing' && !MOVING_ON.has(view.state)) navigate('/', { replace: true });
   }, [record, view.state, navigate]);
 
   useEffect(() => {

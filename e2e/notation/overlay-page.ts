@@ -16,6 +16,8 @@ async function overlayBundle(): Promise<string> {
     platform: 'browser',
     target: 'es2022',
     logLevel: 'silent',
+    // The notation font is a woff2 asset in the app build; here it is inlined so the page needs no server.
+    loader: { '.woff2': 'dataurl' },
   });
   bundle = out.outputFiles[0]!.text;
   return bundle;

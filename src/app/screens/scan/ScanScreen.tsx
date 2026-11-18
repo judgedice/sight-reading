@@ -33,6 +33,7 @@ import {
   type StarsId,
 } from './model.ts';
 import { usePracticeFlowServices, type PracticeFlowServices } from './services.ts';
+import { PractiseWithoutListeningNotice } from '../states/States.tsx';
 import './scan.css';
 
 const NEVER: Readable<boolean> = { get: () => false, subscribe: () => () => undefined };
@@ -387,6 +388,7 @@ export function ScanScreen(_props: ScreenProps) {
           </button>
         </div>
       </Popover>
+      {settings.practice.listening ? null : <PractiseWithoutListeningNotice />}
       {wakeLockFailed ? <p className="scan-hint">{copy('scan.wakeLockHint')}</p> : null}
       {scanning && breakpoint === 'xs' && portrait ? <p className="scan-hint scan-rotate">{copy('scan.rotate')}</p> : null}
       <div className="scan-body">

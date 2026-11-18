@@ -1,5 +1,5 @@
-// Font readiness. Importing ./font/vexflow-bravura.ts registers Bravura only (not Academico) as a FontFace from a data:
-// URL, so no font file is ever fetched. Layout does not wait for it (text-metrics.ts
+// Font readiness. Importing ./font/vexflow-bravura.ts registers Bravura only (not Academico) as a FontFace from the bundled
+// woff2 asset (a relative URL, never a CDN). Layout does not wait for it (text-metrics.ts
 // measures from a table); this only lets a caller hold the reveal until the glyphs can paint.
 
 import { bravuraLoaded } from './font/vexflow-bravura.ts';

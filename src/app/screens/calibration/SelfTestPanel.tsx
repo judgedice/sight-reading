@@ -14,7 +14,7 @@ export const SELF_TEST_LABEL: Record<SelfTestItemId, TextKey> = {
   'frame-rate': 'calibrate.check.screenRefresh',
 };
 
-const STATUS_KEY = { pass: 'calibrate.selfTest.pass', fail: 'calibrate.selfTest.fail', skipped: 'calibrate.selfTest.skipped' } as const;
+const STATUS_KEY = { pass: 'calibrate.selfTest.pass', fail: 'calibrate.selfTest.fail', skipped: 'calibrate.selfTest.notRun' } as const;
 
 /** Audio self-test (04 section 5.9 item 7): [Check audio], a pass/fail list, [Export diagnostics] (no audio). */
 export function SelfTestPanel({ services }: { services: CalibrationServices }) {

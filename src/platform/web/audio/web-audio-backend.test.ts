@@ -381,6 +381,38 @@ describe('capture (01 §7.2)', () => {
   });
 });
 
+describe('input switching (R13 practise without listening; 01 §13.4 test clock)', () => {
+  it('setInputEnabled(false): unlock builds the output path without asking for the microphone', async () => {
+    const { world, be } = setup();
+    be.setInputEnabled(false);
+    const route = await be.unlock();
+    expect(world.gumCount).toBe(0);
+    expect(route.inputKind).toBe('unknown');
+    const { clicks } = await be.scheduleTake(takeParams());
+    expect(clicks.length).toBeGreaterThan(0);
+    // Back on: the next unlock opens the microphone and keeps the context.
+    be.setInputEnabled(true);
+    await be.unlock();
+    expect(world.gumCount).toBe(1);
+    expect(world.contexts.length).toBe(1);
+  });
+
+  it('reopenInput stops the old track and opens a fresh stream on the same context', async () => {
+    const { world, be } = setup();
+    await be.unlock();
+    expect(world.gumCount).toBe(1);
+    const first = world.tracks[0]!;
+    await be.reopenInput();
+    expect(world.gumCount).toBe(2);
+    expect(first.readyState).toBe('ended');
+    expect(world.tracks[1]!.readyState).toBe('live');
+    expect(world.contexts.length).toBe(1);
+    const port = workerPort();
+    await startRunning(world, be, port.sink);
+    expect(be.captureOrigin()).not.toBeNull();
+  });
+});
+
 describe('metronome on the backend (W9)', () => {
   it('schedules every click at Start on the context clock; a 200 ms stall moves nothing', async () => {
     const { world, be } = setup();

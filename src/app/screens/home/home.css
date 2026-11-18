@@ -61,7 +61,7 @@
 .home-rank-bar {
   flex: 1 1 auto;
   height: 0.5rem;
-  border-radius: var(--radius-s, 4px);
+  border-radius: var(--radius-s);
   background: var(--surface-2);
   overflow: hidden;
 }

@@ -36,9 +36,11 @@ export function TipsScreen(_props: ScreenProps) {
   const rootRef = useRef<HTMLElement>(null);
   const record = view.record;
 
+  // No take to show: go home. Next clears the record while the next excerpt loads; the scan route follows that.
+  const noTake = view.state !== 'loading' && view.state !== 'covered' && view.state !== 'scanning';
   useEffect(() => {
-    if (!record) navigate('/', { replace: true });
-  }, [record, navigate]);
+    if (!record && noTake) navigate('/', { replace: true });
+  }, [record, noTake, navigate]);
   const hasRecord = record !== null;
   useEffect(() => {
     if (hasRecord) rootRef.current?.querySelector<HTMLElement>('[data-autofocus]')?.focus();

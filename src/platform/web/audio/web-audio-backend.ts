@@ -151,6 +151,7 @@ export class WebAudioBackend implements AudioBackend {
   private readonly faultCbs = new Set<(f: CaptureFault) => void>();
   private readonly cleanups: (() => void)[] = [];
   private globalListeners = false;
+  private inputEnabled = true;
   private readonly moduleLoaded = new WeakSet<AudioContextLike>();
 
   constructor(opts: WebAudioBackendOptions) {
@@ -173,7 +174,7 @@ export class WebAudioBackend implements AudioBackend {
   unlock(): Promise<AudioRouteInfo> {
     if (this.unlocking) return this.unlocking;
     const ctxAlive = this.ctx !== null && this.ctx.state !== 'closed';
-    if (ctxAlive && this.node && this.trackLive()) {
+    if (ctxAlive && this.node && (this.trackLive() || !this.inputEnabled)) {
       // W2: reuse the session's context and stream; a resume here is still inside the gesture.
       const ctx = this.ctx as AudioContextLike;
       if (ctx.state !== 'running') ctx.resume().catch(() => undefined);
@@ -206,7 +207,7 @@ export class WebAudioBackend implements AudioBackend {
   }
 
   private async completeUnlock(ctx: AudioContextLike): Promise<AudioRouteInfo> {
-    if (!this.trackLive()) {
+    if (this.inputEnabled && !this.trackLive()) {
       const md = this.deps.mediaDevices;
       if (!md) throw new Error('getUserMedia is not available');
       const stream = await md.getUserMedia({ audio: { ...GUM_CONSTRAINTS.audio } });
@@ -218,7 +219,7 @@ export class WebAudioBackend implements AudioBackend {
     }
     this.installGlobalListeners();
     if (!this.node) await this.buildGraph(ctx);
-    const settings = (this.track as TrackLike).getSettings();
+    const settings = this.track?.getSettings() ?? {};
     this.trackSampleRate = finite(settings.sampleRate) ? settings.sampleRate : null;
     // W3 (1): a reported track rate that differs from the context rate recreates the context once.
     if (this.trackSampleRate !== null && this.trackSampleRate !== (this.ctx as AudioContextLike).sampleRate && !this.contextRecreated) {
@@ -226,6 +227,25 @@ export class WebAudioBackend implements AudioBackend {
     }
     this.route = this.computeRoute();
     return this.route;
+  }
+
+  /**
+   * Stops the current input track and opens a fresh one on the same context, rebuilding the capture graph (the
+   * worklet module stays loaded). Test clock only (01 §13.4): Chromium's fake capture device plays its WAV from the
+   * start of each opened stream, so reopening right before `startCapture` lines the file up with the capture origin.
+   * Capture must not be running.
+   */
+  async reopenInput(): Promise<AudioRouteInfo> {
+    const ctx = this.ctx;
+    if (!ctx || !this.track) throw new Error('WebAudioBackend: call unlock() first');
+    if (this.cap) this.stopCapture();
+    const old = this.track;
+    this.track = null;
+    old.stop();
+    for (const t of this.stream?.getAudioTracks() ?? []) if (t !== old) t.stop();
+    this.stream = null;
+    this.teardownGraph();
+    return this.completeUnlock(ctx);
   }
 
   private setStream(stream: MediaStreamLike, track: TrackLike): void {
@@ -279,8 +299,9 @@ export class WebAudioBackend implements AudioBackend {
       channelInterpretation: 'speakers',
     });
     node.port.onmessage = (ev: MessageEvent) => this.onWorklet(node, ev.data as FromWorklet);
-    const src = ctx.createMediaStreamSource(this.stream as MediaStreamLike);
-    src.connect(node);
+    // Output only (practise without listening, R13): no stream, so the worklet has no input and nothing is captured.
+    const src = this.stream ? ctx.createMediaStreamSource(this.stream) : null;
+    src?.connect(node);
     const zero = ctx.createGain();
     zero.gain.value = 0;
     node.connect(zero);
@@ -375,6 +396,15 @@ export class WebAudioBackend implements AudioBackend {
   private currentRoute(): AudioRouteInfo {
     this.route = this.computeRoute();
     return this.route;
+  }
+
+  /**
+   * Practise without listening (R13): with input off, `unlock` builds the output path (context, metronome) without
+   * asking for the microphone. Turning it back on makes the next `unlock` open the microphone. Takes effect at the
+   * next `unlock`; a live track is kept.
+   */
+  setInputEnabled(on: boolean): void {
+    this.inputEnabled = on;
   }
 
   /** The player's declared output mode changes the route key (W7). */

@@ -132,6 +132,11 @@ export interface PracticeSessionOptions {
   accentDb?: number;
   /** Display name of a new profile. */
   displayName?: string;
+  /**
+   * Test clock (01 §13.4 `?testClock=1`): use this round-trip latency, ms, instead of the stored or reported
+   * calibration. The test WAV is rendered with bar 1 beat 1 at the backend's test-clock t0, so RTL is 0.
+   */
+  rtlOverrideMs?: number;
 }
 
 /** A session error with one of 04's copy codes. */
@@ -150,6 +155,8 @@ type DoneReply = Extract<WorkerReply, { type: 'done' }>;
 interface BackendExtras {
   onCaptureFault?: (cb: (f: { kind: 'backlog' | 'capture-gap' }) => void) => () => void;
   setOutputMode?: (mode: PracticeSettings['outputMode']) => void;
+  /** Practise without listening (R13): unlock without asking for the microphone. */
+  setInputEnabled?: (on: boolean) => void;
   captureStats?: () => { droppedBlocks: number; maxQueueMs: number };
 }
 
@@ -321,6 +328,24 @@ export class PracticeSession implements PracticeSessionInstance {
     return this.lastRecord;
   }
 
+  /** The profile as the session last saw or changed it, or null before the first `prepare`. */
+  get currentProfile(): PlayerProfile | null {
+    return this.profile;
+  }
+
+  /** The take plan of the excerpt on screen (expected notes, tempo, take length), or null. */
+  get plan(): TakePlan | null {
+    return this.current?.plan ?? null;
+  }
+
+  /**
+   * Drops the cached profile so the next `prepare` reads it from the store again. The composition root calls this
+   * after it saves a profile change the session did not make (level offers, placement, settings, import).
+   */
+  invalidateProfile(): void {
+    if (!this.inTake()) this.profile = null;
+  }
+
   // ---- prepare and reveal -------------------------------------------------------------------
 
   async prepare(s: PracticeSettings): Promise<PreparedExcerpt> {
@@ -366,6 +391,8 @@ export class PracticeSession implements PracticeSessionInstance {
     // 05 W1: the backend's synchronous part (audio session type, context, resume) must run inside the gesture.
     const mode = this.current?.settings.outputMode;
     if (mode && typeof this.audio.setOutputMode === 'function') this.audio.setOutputMode(mode);
+    const listening = this.current?.settings.listening;
+    if (listening !== undefined && typeof this.audio.setInputEnabled === 'function') this.audio.setInputEnabled(listening);
     let p: Promise<AudioRouteInfo>;
     try {
       p = this.audio.unlock();
@@ -463,7 +490,7 @@ export class PracticeSession implements PracticeSessionInstance {
 
     const stored = (await this.platform.repos.calibrations.get(route.routeKey)) ?? null;
     const used = stored ?? reportedCalibration(route, audio.capabilities.platform, this.cfg.budget.calibration, this.platform.clockWall(), audio.audioInfo().clockRateError);
-    const rtlSec = listening ? used.roundTripMs / 1000 : 0;
+    const rtlSec = listening ? (this.opts.rtlOverrideMs ?? used.roundTripMs) / 1000 : 0;
     const tuningCents = takesTuningNote(plan.inst) ? this.tuning.get(plan.inst.id) : undefined;
     let resolveDone: (d: DoneReply | null) => void = () => undefined;
     const done = new Promise<DoneReply | null>((r) => {
@@ -742,11 +769,16 @@ export class PracticeSession implements PracticeSessionInstance {
     // 01 §7.1, §7.7: the first count-in click never arrived: restart the count-in once.
     if (!r.firstClickFound && c && c.firstClickRestarts === 0 && !take.firstNoteHeard && !take.ending) {
       c.firstClickRestarts++;
-      this.restartCountIn('first-click-missing');
+      this.restartTakeCountIn('first-click-missing');
     }
   }
 
-  private restartCountIn(reason: 'first-click-missing' | 'stop-before-first-note'): void {
+  /** 04 §4.4: a rotation during the count-in cancels and restarts it. Ignored outside the count-in. */
+  restartCountIn(reason: 'rotation'): void {
+    if (this._state === 'count-in' && this.take && !this.take.performing) this.restartTakeCountIn(reason);
+  }
+
+  private restartTakeCountIn(reason: 'first-click-missing' | 'stop-before-first-note' | 'rotation'): void {
     const c = this.current;
     const t = this.take;
     if (!c || !t) return;
@@ -792,7 +824,7 @@ export class PracticeSession implements PracticeSessionInstance {
     if (c.mode === 'ranked' && t.listening && !t.firstNoteHeard) {
       c.stopsBeforeFirstNote++;
       if (c.stopsBeforeFirstNote === 1) {
-        this.restartCountIn('stop-before-first-note');
+        this.restartTakeCountIn('stop-before-first-note');
         return Promise.resolve(null);
       }
       return this.voidTake('stopped-before-first-note') ?? Promise.resolve(null);

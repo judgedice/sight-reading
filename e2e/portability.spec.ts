@@ -14,6 +14,7 @@ const types: Record<string, string> = {
   '.json': 'application/json',
   '.map': 'application/json',
   '.svg': 'image/svg+xml',
+  '.woff2': 'font/woff2',
 };
 
 let server: Server;
@@ -64,7 +65,8 @@ test('dist boots from another origin under a subpath, same-origin requests only'
     if (r.status() >= 400) failed.push(`${r.status()} ${r.url()}`);
   });
   await page.goto(`${origin}${prefix}`);
-  await expect(page.getByTestId('app-placeholder')).toBeVisible();
+  // A first run boots the composition root (corpus manifest, store) and lands on onboarding.
+  await expect(page.getByTestId('screen-welcome')).toBeVisible({ timeout: 30_000 });
   expect(foreign).toEqual([]);
   expect(failed).toEqual([]);
 });

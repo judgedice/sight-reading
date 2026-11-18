@@ -4,16 +4,7 @@
  */
 import { copy, formatMessage, isCopyKey, type CopyKey, type CopyVars } from '../../../ui/copy/copy.ts';
 
-export const PENDING_COPY = {
-  'history.filter.all': 'All instruments',
-  'history.filter.clear': 'Show all takes',
-  'history.loading': 'Loading takes…',
-  'history.more': 'Show more takes',
-  'history.tempo': '{bpm} bpm',
-  'history.notFound': "That take isn't on this device.",
-  'history.backToList': 'Back to history',
-  'history.error': "Your takes couldn't be read. Reload the page, or export a backup first.",
-} as const;
+export const PENDING_COPY = {} as const;
 
 export type PendingKey = keyof typeof PENDING_COPY;
 export type HistoryTextKey = CopyKey | PendingKey;

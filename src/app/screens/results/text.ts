@@ -6,33 +6,7 @@
  */
 import { copy, formatMessage, isCopyKey, type CopyKey, type CopyVars } from '../../../ui/copy/copy.ts';
 
-export const PENDING_COPY = {
-  'results.tipPreview': 'Tip: {headline}',
-  'results.xp.details': 'Details',
-  'results.xp.factor.tempo': 'Tempo ×{value}',
-  'results.xp.factor.countInOnly': 'Count-in only ×{value}',
-  'results.xp.factor.random': 'Random settings ×{value}',
-  'tips.dimension.notes': 'Notes',
-  'tips.dimension.in-tune': 'In tune',
-  'tips.dimension.rhythm': 'Rhythm',
-  'tips.dimension.flow': 'Flow',
-  'tips.dimension.none': 'Clean read',
-  'tips.noTips': 'No tips this time. Keep reading.',
-  'tips.showBetween': 'Show tips between exercises',
-  'rankup.next': 'Next: {rank}, at {xp} XP and level {level} on any instrument.',
-  'rankup.top': "That's the top rank.",
-  'summary.title': 'Session summary',
-  'summary.takes': '{n, plural, one {# take} other {# takes}}',
-  'summary.average': 'Average score {score}',
-  'summary.xp': '+{xp} XP',
-  'summary.best': 'Best take: {score}, {title}',
-  'summary.patterns': 'Most common slips',
-  'summary.pattern': '{pattern}, {n, plural, one {# time} other {# times}}',
-  'summary.streak': 'Streak {days, plural, one {# day} other {# days}}',
-  'summary.streak.none': 'No streak yet. A streak day needs 3 ranked takes.',
-  'summary.empty': 'No takes in this session yet.',
-  'install.title': 'Add to Home Screen',
-} as const;
+export const PENDING_COPY = {} as const;
 
 export type PendingKey = keyof typeof PENDING_COPY;
 export type TextKey = CopyKey | PendingKey;

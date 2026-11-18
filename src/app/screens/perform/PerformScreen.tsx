@@ -16,6 +16,7 @@ import { barCount, meterString, sourceLine } from '../scan/model.ts';
 import { useReadable, useStoreSlice, useWindowInfo } from '../scan/hooks.ts';
 import { usePracticeFlowServices, type PracticeFlowServices } from '../scan/services.ts';
 import { barTempoText, beatGrouping, beatInBar, countInBeat, meterStep, statusMessage, stopVariant } from './model.ts';
+import { PractiseWithoutListeningNotice } from '../states/States.tsx';
 import './perform.css';
 
 /** Applies one follower event to the overlay (the S1 reference wiring). */
@@ -182,6 +183,7 @@ export function PerformScreen(_props: ScreenProps) {
           </span>
         </div>
       </header>
+      {listening ? null : <PractiseWithoutListeningNotice />}
       <div className="perform-score" data-testid="perform-score">
         <ScoreFrame
           ref={frameRef}

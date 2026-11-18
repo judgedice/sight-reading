@@ -20,6 +20,8 @@ async function frameBundle(): Promise<{ js: string; css: string }> {
     jsx: 'automatic',
     define: { 'process.env.NODE_ENV': '"production"' },
     logLevel: 'silent',
+    // The notation font is a woff2 asset in the app build; here it is inlined so the page needs no server.
+    loader: { '.woff2': 'dataurl' },
   });
   const js = out.outputFiles.find((f) => f.path.endsWith('.js'))!.text;
   const css = out.outputFiles.find((f) => f.path.endsWith('.css'))?.text ?? '';
