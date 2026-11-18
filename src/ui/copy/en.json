@@ -281,7 +281,7 @@
   "session.focusCard": "This week's focus: {pattern}.",
   "install.coach": "Add Sightread to your Home Screen: tap Share, then Add to Home Screen. It keeps your progress safe and the screen awake.",
   "home.today": "Streak {days, plural, one {# day} other {# days}} · {takes, plural, one {# take} other {# takes}} · {xp} XP today",
-  "home.keyRandom": "Any key up to {max} sharps or flats",
+  "home.keyRandom": "Any key up to {max, plural, one {# sharp or flat} other {# sharps or flats}}",
   "home.levelNoMusic": "More music coming",
   "home.levelFewMusic": "Not much music here yet",
   "home.keyFootnote": "More keys from level {n}",

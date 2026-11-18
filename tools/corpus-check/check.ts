@@ -99,6 +99,9 @@ export function installDom(): void {
   }
 }
 
+/** Draws for an excerpt that only the L - 1 pool can serve: each draw takes it with p 0.2 (it is that pool's only member). */
+const BELOW_POOL_DRAWS = 64;
+
 const mkSettings = (instrumentId: string, level: number): PracticeSettings => ({
   instrumentId,
   level,
@@ -262,7 +265,25 @@ export async function runCheck(opts: CheckOptions = {}): Promise<CheckReport> {
     for (const inst of fitting) {
       for (const lv of [e.level, e.level + 1, e.level - 1]) {
         if (lv < 1 || lv > 10) continue;
-        const sel = selectExcerptWith(solo, { ...mkSettings(inst.id, lv), seed: 1 }, history(lv), cfg, createRng(1), {});
+        let sel = selectExcerptWith(solo, { ...mkSettings(inst.id, lv), seed: 1 }, history(lv), cfg, createRng(1), {});
+        if ('error' in sel && lv === e.level + 1) {
+          // At L + 1 the excerpt sits in the L - 1 pool, which is never served alone (its share is capped at 20%), so
+          // a single-entry manifest always refuses it. Serve it next to the real level-L + 1 excerpts and draw until
+          // the selector picks it (each draw takes the L - 1 pool with probability maxFracFromLevelBelow).
+          const others = m.entries.filter((x) => x.level === lv);
+          const beside: CorpusManifest = { ...m, entries: [e, ...others], stats: { ...m.stats, servedLevels: [lv] } };
+          const without: CorpusManifest = { ...beside, entries: others };
+          if (countEligible(beside, inst.id, lv, null, cfg) <= countEligible(without, inst.id, lv, null, cfg)) continue;
+          for (let seed = 1; seed <= BELOW_POOL_DRAWS; seed++) {
+            const s2 = selectExcerptWith(beside, { ...mkSettings(inst.id, lv), seed }, history(lv), cfg, createRng(seed), {});
+            if ('error' in s2) break;
+            if (s2.entry.id === e.id) {
+              sel = s2;
+              break;
+            }
+          }
+          if (!('error' in sel) && sel.entry.id !== e.id) continue;
+        }
         if ('error' in sel) continue;
         try {
           const p = prepareExcerpt(doc, sel, inst, cfg);

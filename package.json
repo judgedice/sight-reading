@@ -21,13 +21,16 @@
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test --project=chromium --project=chromium-audio",
-    "test:e2e:webkit": "playwright test --project=webkit --project=webkit-iphone --project=webkit-ipad",
+    "test:e2e:webkit": "IOS_WEBKIT=1 playwright test --project=webkit --project=webkit-iphone --project=webkit-ipad",
     "schemas": "tsx tools/generate-schemas.ts",
     "schemas:check": "tsx tools/generate-schemas.ts --check",
     "tokens": "tsx tools/generate-tokens.ts",
     "tokens:check": "tsx tools/generate-tokens.ts --check",
     "test:bare": "tsx tools/bare-runtime/run.ts",
-    "size": "tsx tools/size-check.ts"
+    "size": "tsx tools/size-check.ts",
+    "gates": "tsx tools/gates/run.ts",
+    "corpus:check": "tsx --import ./tools/corpus-check/register.mjs tools/corpus-check/run.ts",
+    "lint:copy": "tsx tools/lint-copy.ts"
   },
   "dependencies": {
     "idb": "8.0.4",
@@ -46,6 +49,7 @@
     "@vitest/coverage-v8": "4.1.12",
     "ajv": "8.20.0",
     "ajv-formats": "3.0.1",
+    "axe-core": "4.14.1",
     "dependency-cruiser": "18.8.0",
     "esbuild": "0.28.2",
     "eslint": "9.39.5",

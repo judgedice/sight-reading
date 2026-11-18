@@ -36,6 +36,7 @@ from .coverage import fitting_keys, flag_allowed, needs_review, pool_of, tempo_o
 from .emit_checks import check_documents
 from .emit_report import render
 from .features import levels_config
+from .gate import load_denylist
 from .histogram import instruments
 from .paths import LICENSES_DIR, PUBLIC_CORPUS, REPO_ROOT, SHIPPED_SCHEMA_DIR, CONFIG_DIR, TOOL_DIR
 from .review import BATCHES_JSONL, VERDICTS_JSONL, load_cache, review_config
@@ -535,6 +536,17 @@ def build_corpus(inp: Inputs, validate: bool = True) -> Emission:
     rec_of = {ids[r["id"]]: r for r in inp.records}
     docs = [make_doc(r, ids[r["id"]], inp) for r in inp.records]
     trimmed = None
+    # Excerpts named in denylist.yaml (takedowns, and C10's `corpus:check` failures by excerpt id) and excerpts that no
+    # launch instrument could ever be served (03 7.5 rule 5: the excerpt's own tempo range, bars, flags or IOI/NPS
+    # clipping) are dropped before any size trim, so the trims below spend their budget on servable excerpts.
+    deny = load_denylist()
+    before_serve = len(docs)
+    denied = [d["id"] for d in docs if d["id"] in deny.ids]
+    docs = [d for d in docs if d["id"] not in deny.ids]
+    unservable = [d["id"] for d in docs if not servable(d)]
+    docs = [d for d in docs if d["id"] not in set(unservable)]
+    if denied or unservable:
+        trimmed = {"servableBefore": before_serve, "denylisted": len(denied), "unservable": len(unservable), "servableAfter": len(docs)}
 
     def assemble(ds: list[dict[str, Any]]) -> tuple[dict[str, bytes], list[dict[str, Any]], dict[str, Any], dict[str, Any], dict[str, Any]]:
         ds = sorted(ds, key=lambda d: (d["level"], d["id"]))
@@ -582,7 +594,7 @@ def build_corpus(inp: Inputs, validate: bool = True) -> Emission:
         frac = cfg["size_limit_bytes"] / total * 0.97
         before = len(docs)
         docs = trim_by_interest(docs, frac)
-        trimmed = {"before": before, "after": len(docs), "bytesBefore": total, "keepFraction": round(frac, 4)}
+        trimmed = {**(trimmed or {}), "before": before, "after": len(docs), "bytesBefore": total, "keepFraction": round(frac, 4)}
         files, entries, stats, index, attrs = assemble(docs)
 
     # The manifest budget (01 section 12) caps the number of excerpts: cap the crowded levels, never the thin ones.
@@ -660,6 +672,23 @@ def marking_tempo_ok(e: dict[str, Any], lvdef: dict[str, Any]) -> bool:
     return max(lo, e["minBpm"]) <= min(hi, e["maxBpm"]) + 1e-9
 
 
+
+
+def servable(doc: dict[str, Any]) -> bool:
+    """True if some launch instrument can be served this excerpt at some level (its own, one above it as the level-down
+    pool, or one below it as stretch), by the same checks `viability` counts as selectable."""
+    lvs = {lv["level"]: lv for lv in levels_config()}
+    lj = _levels_json()
+    e = manifest_entry(doc, "shard")
+    r = dict(fit_view(e), id=e["id"], meter=e["meter"], bars=e["bars"], flags=e["flags"], familiarity=e["familiarity"], features=doc["features"], featureLevels=doc["featureLevels"], minLevelCadence=3 if e["cadenceEnd"] == "HC" else 1)
+    for ins in (i for i in instruments() if i["status"] == "launch"):
+        for L in range(max(1, e["level"] - 1), min(10, e["level"] + 1) + 1):
+            lvdef = lvs[L]
+            if pool_of(r, L) is None or not fitting_keys(r, ins, lvdef):
+                continue
+            if r["bars"] in lvdef["bars"] and flag_allowed(r, ins, L) and tempo_ok(r, ins, lvdef, lj) and marking_tempo_ok(e, lvdef):
+                return True
+    return False
 
 
 def viability(docs: list[dict[str, Any]], entries: list[dict[str, Any]], stats: dict[str, Any], cfg: dict[str, Any]) -> dict[str, Any]:

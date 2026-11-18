@@ -21,6 +21,8 @@ jobs:
         with: { node-version: 22, cache: pnpm }
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
+      # Every copy key is used (tools/lint-copy.baseline.json lists the known debt, which may only shrink).
+      - run: pnpm lint:copy
       # Negative fixtures must fail lint as intended.
       - run: pnpm lint:fixtures
 
@@ -73,7 +75,35 @@ jobs:
       - run: pip install -r requirements.txt
       - run: python -m pytest -q
 
-  # The scenario (synthetic suite) job is added by P18 once its suite exists.
+  # P18 synthetic accuracy gates (01 section 13.2) for the eight launch instruments. Exits 1 on a blocking gate failure.
+  gates:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm gates
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: accuracy-report
+          path: |
+            docs/accuracy-report.md
+            tools/gates/artifacts/accuracy.json
+
+  # C10 corpus validation of public/corpus/v1 (render, fit, selector viability, stats, sources, dedupe).
+  corpus-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm corpus:check
 
   build:
     runs-on: ubuntu-latest
@@ -117,10 +147,14 @@ jobs:
         env: { PW_CHROMIUM_PATH: '', IOS_WEBKIT: '1' }
       - run: pnpm exec playwright test -c src/platform/web/sw/playwright.pwa.config.ts
         env: { PW_CHROMIUM_PATH: '', IOS_WEBKIT: '1' }
+      - run: pnpm exec playwright test -c e2e/design/playwright.design.config.ts
+        env: { PW_CHROMIUM_PATH: '' }
+      - run: pnpm exec playwright test -c e2e/tour/playwright.tour.config.ts
+        env: { PW_CHROMIUM_PATH: '' }
 
   deploy:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    needs: [lint, typecheck, unit, bare-runtime, build, e2e]
+    needs: [lint, typecheck, unit, bare-runtime, corpus-pytest, gates, corpus-check, build, e2e]
     runs-on: ubuntu-latest
     permissions:
       contents: read

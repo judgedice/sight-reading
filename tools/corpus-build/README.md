@@ -32,7 +32,7 @@ python -m pytest                       # tests (real-source tests skip if the ca
 | `sources.lock.yaml` | generated. SHA-256 of every file used and of each upstream `LICENSE.txt`. Committed. |
 | `composers.yaml` | generated from OpenScore `data/composers.yaml` (name, born, died). Committed. |
 | `composers-extra.yaml` | composers outside that file (Lowell Mason). Each entry cites references. |
-| `denylist.yaml` | takedowns and misattributions, by id, path prefix or composer. Empty at launch. |
+| `denylist.yaml` | takedowns and misattributions, by id, path prefix or composer, plus excerpt ids that fail `pnpm corpus:check` (`pnpm corpus:check --write-denylist` adds them; `emit` drops them). |
 | `config/pd.yaml` | the public-domain cutoff constants (composer died before 1931, edition year 1930 or earlier). |
 | `config/licences.yaml` | the allowlist (`PD`, `CC0-1.0`, `CC-BY-4.0`) and the Mutopia header table. |
 | `config/filters.yaml` | quality and accompaniment thresholds (C7), with the calibration record of the fitted ones. |

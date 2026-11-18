@@ -13,6 +13,8 @@ from typing import Any
 
 import pytest
 
+from corpus_build.gate import load_denylist
+
 from corpus_build.emit import (
     MANIFEST_COLUMNS,
     build_corpus,
@@ -29,6 +31,7 @@ from corpus_build.emit import (
     spelling_counts,
     tempo_of,
     cap_levels_by_interest,
+    servable,
     trim_by_interest,
     viability,
 )
@@ -265,8 +268,13 @@ def test_every_gate_passes_on_the_real_build(emission: Any) -> None:
     assert em.problems == []
     passing = sum(1 for r in inp.all_records if r["status"] == "pass")
     # the only reduction is the manifest-budget level cap, which spares every level at or under the cap
-    assert len(em.docs) == (em.trimmed["manifestAfter"] if em.trimmed else passing) <= passing
-    assert em.trimmed is None or em.trimmed["manifestBefore"] == passing
+    # the reductions are the servability filter (denylisted and never-servable excerpts) and the manifest-budget
+    # level cap, which spares every level at or under the cap
+    servable_n = em.trimmed.get("servableAfter", passing) if em.trimmed else passing
+    assert len(em.docs) == (em.trimmed.get("manifestAfter", servable_n) if em.trimmed else passing) <= servable_n <= passing
+    assert em.trimmed is None or em.trimmed.get("manifestBefore", servable_n) == servable_n
+    assert all(servable(d) for d in em.docs)
+    assert not {d["id"] for d in em.docs} & load_denylist().ids
 
 
 @needs_review_build

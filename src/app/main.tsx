@@ -20,6 +20,7 @@ import { WebAudioBackend } from '../platform/web/audio/index.ts';
 import { CAPTURE_WORKLET_URL } from '../platform/web/audio/worklet-url.ts';
 import { createDspWorker } from '../platform/web/audio/dsp-worker-factory.ts';
 import { readBrowserCapabilities } from '../platform/web/capabilities.ts';
+import { registerServiceWorker } from '../platform/web/sw/register.ts';
 import { iosBetaLabelKey } from '../platform/web/ios/hints.ts';
 import { InterruptionController } from '../platform/web/ios/interruption-wiring.ts';
 import { KeepAwakeController, createPersistTrigger, wakeLockFromNavigator } from '../platform/web/ios/keep-awake.ts';
@@ -239,6 +240,17 @@ export async function boot(root: Root): Promise<void> {
     if (start !== null) window.history.replaceState(window.history.state, '', hashFromPath(start));
 
     if (testClock) (window as unknown as { __sr: unknown }).__sr = { session: composed.session, configs };
+
+    // Offline shell and corpus cache (P19). Production builds only: dev has no worker. A new build waits and takes
+    // over on the next launch (all tabs closed); there is no in-app update prompt in v1, so a take is never reloaded.
+    if (import.meta.env.PROD) {
+      void registerServiceWorker({
+        container: navigator.serviceWorker as unknown as Parameters<typeof registerServiceWorker>[0]['container'],
+        capabilities,
+        reload: () => window.location.reload(),
+        onUpdateReady: () => undefined,
+      });
+    }
 
     root.render(
       <StrictMode>

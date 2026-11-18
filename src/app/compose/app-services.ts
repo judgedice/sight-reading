@@ -424,6 +424,10 @@ export function composeApp(rt: AppRuntime): ComposedApp {
   );
   const SettingsRoute: ScreenComponent = (props: ScreenProps) => createElement(Suspense, { fallback: null }, createElement(LazySettings, props));
 
+  // `import.meta.env.DEV` is a build-time constant, so a production build drops the replay chunk altogether.
+  const LazyReplay = import.meta.env.DEV ? lazy(() => import('../dev/replay/index.ts').then((m) => ({ default: m.DevReplayScreen }))) : null;
+  const DevReplayRoute: ScreenComponent = () => (LazyReplay ? createElement(Suspense, { fallback: null }, createElement(LazyReplay)) : null);
+
   // ---- route table ---------------------------------------------------------------------------------
   const withProvider = <S>(Provider: ComponentType<{ value: S; children?: ReactNode }>, value: S, Screen: ScreenComponent): ScreenComponent =>
     function Bound(props: ScreenProps) {
@@ -441,6 +445,8 @@ export function composeApp(rt: AppRuntime): ComposedApp {
     welcome: withProvider(OnboardingServicesProvider, onboarding, OnboardingScreen),
     calibrate: withProvider(CalibrationServicesProvider, calibration, CalibrationScreen),
     settings: SettingsRoute,
+    // P20 dev replay (01 section 13.6): dev builds only, loaded on demand so it never reaches the production bundle.
+    ...(rt.dev && LazyReplay ? { 'dev.replay': DevReplayRoute } : {}),
   };
 
   rt.pruneDebug();

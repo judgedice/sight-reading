@@ -770,3 +770,51 @@ Final status (this review): typecheck, lint (eslint, stylelint, depcruise), 2851
 - P20 replay route: #/dev/replay is still a placeholder; the attempt review (history attempt) works and can host it.
 - P21 WebKit projects: no WebKit run exists for any suite. CI now sets IOS_WEBKIT=1 for e2e/ios and e2e/synthetic; the root config lists webkit, webkit-iphone and webkit-ipad. Add WebKit to the tour config when available; check resume() after the W3 recreate and real env(safe-area-inset-*).
 - D13 design QA: start from docs/screenshots/ and the unfixed findings above (ghost overlap, ♩ fallback glyph, clean-read tip with red notes, select placeholder, headline focus ring, toolbar ellipsis at 390 px). The tour's raw-key and overflow checks report none after the repairs.
+
+## From wave 4
+
+### Packages
+
+- C-FIX: the level-confidence rejection above L6 is report-only (R49, `level_confidence_1_report_only` in config/filters.yaml), which brought L7, L8 and L10 into service. A manifest-budget level cap was added to emit.py; after the final review's servability filter the manifest fits its budget without it.
+- FIX-A: R50 ghost spelling, R51 clean-read rule, R52 octave errors cap S, R55 worker recheck in port mode and the voice drift reference in 'done', the session summary, and the e2e/synthetic 110 ms flake (stale `currentFrame` in a worklet node's first quantum). The recheck spec rides on the DspConfig object under `srRecheck` because the frozen WorkerMessage has no field for it.
+- C10: tools/corpus-check (`pnpm corpus:check`): headless render through the runtime selector, H-fit, H-viable, stats.fit cross-check, source and credit checks, H-dedupe with same-group exemption, and the new H-serve check (every excerpt can be served to some launch instrument).
+- P19: manifest, icons, service worker with network-first index and cache-first hashed files, and the PWA Playwright suite (offline reload, other origin under a subpath).
+- P20: the dev replay screen (render streams and attempt exports, diagnostics export without audio).
+- P21: WebKit projects behind `IOS_WEBKIT=1` in every config that can use them; CI installs WebKit.
+- D13: axe on every route in both themes, tap targets, reduced motion, grayscale distinctness, the copy-key lint and the font size budget; the wave 3 visual findings were fixed.
+- P18: the full synthetic accuracy gates (`pnpm gates`, tools/gates/run.ts) and a fast subset in `pnpm test`; report in docs/accuracy-report.md.
+
+### Final review
+
+Repairs:
+
+- Corpus servability. C10's H-serve check failed 384 of 1003 excerpts, and about 67 of those were false positives: the check served each excerpt from a single-entry manifest, so an excerpt reachable only through the L - 1 pool (never served alone, its share is capped at 20%) always failed. tools/corpus-check/check.ts now serves such an excerpt next to the real level-L + 1 excerpts and draws until the selector picks it (after a `countEligible` test that it is eligible at all).
+- The emitter now drops excerpts that no launch instrument could be served (`servable` in tools/corpus-build/corpus_build/emit.py, the same checks as `viability`: pools, key fit, bars, flags, IOI and NPS clipping, the excerpt's own tempo range) and excerpt ids on denylist.yaml, before the size trims. That frees the manifest budget, so L5 and L6 are no longer capped. The TypeScript check is still the final word: the residual disagreements (38 excerpts the Python model calls servable, mostly spelling and combined tempo clipping) are on denylist.yaml with gate and reason, with the two Holmes strophe repeats (H-dedupe). The denylist had held C10's 385 ids, including the false positives; it was rebuilt.
+- Result (corpus c1-42a07a738c): 970 excerpts, 6.13 MB. L1 7, L2 7, L3 104, L4 96, L5 214, L6 301, L7 94, L8 80, L9 18, L10 49. Served: L3 to L8 and L10. 1341 review survivors, 40 denylisted, 331 unservable. `pnpm corpus:check` passes with every excerpt rendered; ruling 24 passes. v1.0 launch gates: total under 1000, L2 and L9 under 40, G3 variety not met (L6 Schubert, L9 Mozart, L10 Haydn).
+- package.json: scripts `gates`, `corpus:check` and `lint:copy`; `test:e2e:webkit` sets `IOS_WEBKIT=1`; axe-core 4.14.1 is a devDependency (D13 no longer needs AXE_CORE_PATH).
+- CI: `lint:copy` in the lint job; new `gates` job (uploads the accuracy report) and `corpus-check` job; the design and tour suites in the e2e job; deploy waits for every job including corpus pytest, gates and corpus check. The gates job is red until the P4c issues below are fixed.
+- src/app/main.tsx registers the service worker in production builds (it was built but never registered). A new build takes over on the next launch; there is no update prompt, so a take is never reloaded.
+- src/app/compose/app-services.ts mounts the P20 replay screen at #/dev/replay in dev builds, behind `import.meta.env.DEV` so production drops the chunk.
+- Copy: `home.keyRandom` pluralises ("up to 1 sharp or flat").
+- New e2e/tour/first-user.spec.ts: onboarding, three takes in a row (flute ranked on headphones, cello practice, trumpet ranked on speakers), results and tips after each, history, progress, export, reload, import. Every take ends on its own and is graded with the injected wrong note found; ranked requests without calibration are recorded unranked with reason `calibration` (and `measurement` on speakers, where the fake microphone hears no count-in); history survives reload and import; no raw copy keys or console errors. Passes on all four tour projects.
+
+Reviewed for correctness (no defect found): the wave 4 diffs in src/session (port-mode recheck spec, fresh voice reference after a recheck shift), src/follow (`alignFinalWithReference`, `oneThirdSec`), src/grade (R52 cap, R51 red check), src/platform/web/audio (worker recheck runs on the copied block, after the buffers go back to the worklet; capture origin fix), src/calibration/recheck.ts. src/grade/progression did not change in wave 4.
+
+Not fixed (need the P4c owner or the architect):
+
+- `pnpm gates`: 188 of 195 gates pass, 6 blocking failures, unchanged from P18: voice false missed 1.9 % clean and 2.0 % device (gate 1 %), voice pitch class 98.7 % and 99.0 % (99 %), voice live-vs-final divergence 3.2 % on device (3 %), piano device onset F1 0.963 (0.97). Plus voice room F1 0.876 against R45, the accepted R54 limit. Causes are in src/dsp/segmenter.ts (voice semitone steps on short notes merged, tied to the frozen voice changeCents 80; piano damper gaps under a noise floor split at the crossing midpoint). Definition of done item 2 is not met.
+- WebKit has never run: the sandbox cannot download it (playwright install webkit fails). Definition of done item 3 is met for Chromium only.
+- iOS and real devices, real instruments, Lighthouse installability: not run.
+- C10's denylist remains the mechanism for TS-only rejections; a future pipeline change that alters ids needs `pnpm corpus:check --write-denylist` and a re-emit.
+- The axe contrast hit seen once by D13 on /settings/about did not recur in this review (design suite 18/18).
+- docs/screenshots/ was refreshed by the tour before the `home.keyRandom` plural fix, so the home screenshots still read "up to 1 sharps or flats".
+
+Final status (this review, Chromium only):
+
+- `pnpm install --frozen-lockfile` up to date; `pnpm typecheck` pass; `pnpm lint` pass (eslint, stylelint, depcruise 405 modules); `pnpm lint:copy` 648 keys, 0 unused; `pnpm lint:fixtures` 45 passed; `pnpm schemas:check` and `pnpm tokens:check` pass.
+- `pnpm test`: 140 files, 3007 tests passed (run before and after the corpus re-emit).
+- `pnpm build` pass; `pnpm size` 70.1 KB initial, 466.3 KB total gzip, font 247.2 KB; `pnpm test:bare` 66 scenarios byte-identical.
+- `pnpm gates`: exit 1, 188/195, 6 blocking failures (above). Run with `--no-write`, so docs/accuracy-report.md is P18's (same numbers).
+- `pnpm corpus:check`: pass, 970 excerpts, 970 rendered, 77 selector cells, 0 stats.fit mismatches. Corpus pytest: 352 passed.
+- Playwright: root 96 passed / 42 skipped (WebKit and gated suites); notation 22; audio 6; slice 1; loop 2; ios 48; synthetic 7; pwa 2; design 18; tour 8 (tour.spec and first-user.spec on desktop and iPhone, light and dark).
+- Not run: any WebKit project, CI itself, Lighthouse, real devices.

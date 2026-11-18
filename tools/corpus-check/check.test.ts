@@ -52,7 +52,7 @@ describe('fit and fingerprint helpers', () => {
 
 describe('shipped corpus (public/corpus/v1)', () => {
   it(
-    'passes every gate except for excerpts already on the denylist',
+    'passes every gate, and no denylisted excerpt is shipped',
     async () => {
       const r = await runCheck();
       expect(r.excerpts).toBeGreaterThanOrEqual(MIN_EXCERPTS);
@@ -60,7 +60,9 @@ describe('shipped corpus (public/corpus/v1)', () => {
       const deny = denied();
       const open = r.failures.filter((f) => !deny.has(f.id));
       expect(open, open.map((f) => `${f.gate} ${f.id}: ${f.reason}`).join('\n')).toEqual([]);
-      expect(r.rendered).toBeGreaterThan(0);
+      // The emitter drops denylisted excerpts, so the shipped corpus passes outright and renders every excerpt.
+      expect(r.failures, r.failures.map((f) => `${f.gate} ${f.id}: ${f.reason}`).join('\n')).toEqual([]);
+      expect(r.rendered).toBe(r.excerpts);
     },
     300_000,
   );
