@@ -52,7 +52,7 @@
   inline-size: 40%;
   background: var(--accent);
   content: '';
-  animation: perform-sweep 1.2s var(--ease-in-out) infinite;
+  animation: perform-sweep var(--dur-slow) var(--ease-in-out) infinite;
 }
 
 @keyframes perform-sweep {

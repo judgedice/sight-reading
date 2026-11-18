@@ -99,7 +99,7 @@ function Counts({ record, h }: { record: AttemptRecord; h: ResultsHandlers }) {
   const select = h.onSelectVerdict;
   return (
     <p className="res-counts" data-testid="res-counts">
-      {parts.map((p, i) => (
+      {parts.map((p) => (
         <span key={p.kind} className="res-count-part">
           {select && p.kind !== 'total' ? (
             <button type="button" className="res-count-button" data-count={p.kind} onClick={() => select(p.kind)}>

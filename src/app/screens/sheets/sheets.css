@@ -1,0 +1,110 @@
+/* Sheets and the tips interstitial (04 sections 5.6, 5.10). Tokens only; rem, never px. */
+
+.sheet-card {
+  inline-size: 100%;
+}
+
+.sheet-rankup {
+  max-inline-size: 25rem;
+}
+
+.sheet-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.sheet-center {
+  align-items: center;
+  text-align: center;
+}
+
+.sheet-note,
+.sheet-credit,
+.sheet-focus,
+.sheet-best {
+  margin: 0;
+  color: var(--text);
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+}
+
+.sheet-credit {
+  color: var(--text-muted);
+  font-size: var(--type-small-size);
+  line-height: var(--type-small-line);
+}
+
+.sheet-heading {
+  margin: 0 0 var(--space-2);
+  font-size: var(--type-h3-size);
+  line-height: var(--type-h3-line);
+}
+
+.sheet-stats,
+.sheet-patterns {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-variant-numeric: tabular-nums;
+}
+
+.sheet-patterns {
+  list-style: decimal inside;
+}
+
+.sheet-focus {
+  padding: var(--space-3);
+  border: 0.0625rem solid var(--border);
+  border-radius: var(--radius-m);
+  background: var(--surface-2);
+}
+
+.sheet-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+/* ---- tips interstitial ---- */
+
+.tips-screen {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-4);
+}
+
+.tips-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  inline-size: 100%;
+  max-inline-size: 40rem;
+}
+
+.tips-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.tips-heading {
+  margin: 0 0 var(--space-3);
+  font-size: var(--type-h2-size);
+  line-height: var(--type-h2-line);
+}
+
+.tips-body,
+.tips-incomplete {
+  margin: 0 0 var(--space-3);
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+}
+
+.tips-incomplete {
+  color: var(--text-muted);
+}
