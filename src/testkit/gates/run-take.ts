@@ -140,7 +140,7 @@ export function runTake(r: ScenarioRender, o: RunTakeOptions = {}): TakeRun {
   const analysisRate = new PhaseDecimator(r.sampleRate).analysisRate;
   const tolerances = resolveTolerances(base.expected, { instrument: base.inst, level: base.level, bpm: base.bpm, meter: base.meter }, cfg);
   const dspCfg = gateDspConfig(r, tolerances, analysisRate, cfg);
-  const tuning = base.inst.family !== 'voice' && base.inst.pitchKind === 'continuous' ? { used: o.tuningCents != null, offsetCents: o.tuningCents ?? 0 } : null;
+  const tuning = base.inst.family !== 'voice' && base.inst.pitchKind === 'continuous' ? { used: o.tuningCents !== null && o.tuningCents !== undefined, offsetCents: o.tuningCents ?? 0 } : null;
   const config: FollowConfig = {
     expected: base.expected,
     tolerances,

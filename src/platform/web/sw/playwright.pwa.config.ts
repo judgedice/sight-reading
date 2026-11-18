@@ -2,6 +2,7 @@
 //   pnpm exec playwright test -c src/platform/web/sw/playwright.pwa.config.ts
 import { join } from 'node:path';
 import { defineConfig, devices } from '@playwright/test';
+import { webkitProjects } from '../../../../e2e/webkit.ts';
 
 const executablePath = process.env['PW_CHROMIUM_PATH'] ?? '/opt/pw-browsers/chromium';
 
@@ -19,5 +20,7 @@ export default defineConfig({
       name: 'chromium-pwa',
       use: { ...devices['Desktop Chrome'], launchOptions: { executablePath, args: ['--no-sandbox'] } },
     },
+    // Service worker and cache behaviour on WebKit (IOS_WEBKIT=1).
+    ...webkitProjects(['desktop']),
   ],
 });

@@ -2,6 +2,7 @@
 // WebKit projects are added when IOS_WEBKIT=1 (a WebKit install, CI only). No webServer: the spec builds its page.
 // pnpm exec playwright test -c e2e/ios/playwright.ios.config.ts
 import { defineConfig, devices } from '@playwright/test';
+import { webkitProjects } from '../webkit.ts';
 
 const executablePath = process.env['PW_CHROMIUM_PATH'] ?? '/opt/pw-browsers/chromium';
 const launchOptions = { executablePath, args: ['--no-sandbox'] };
@@ -16,11 +17,6 @@ export default defineConfig({
   projects: [
     { name: 'chromium-iphone', use: asChromium(devices['iPhone 14']) },
     { name: 'chromium-ipad', use: asChromium(devices['iPad Pro 11']) },
-    ...(process.env['IOS_WEBKIT']
-      ? [
-          { name: 'webkit-iphone', use: { ...devices['iPhone 14'] } },
-          { name: 'webkit-ipad', use: { ...devices['iPad Pro 11'] } },
-        ]
-      : []),
+    ...webkitProjects(['iphone', 'ipad']),
   ],
 });

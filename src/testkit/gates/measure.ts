@@ -180,7 +180,7 @@ export function measureTake(r: ScenarioRender, run: TakeRun, meta: MeasureMeta):
       if (agree) verdict.agree++;
       else if (verdict.examples.length < 5) {
         const tt = t ? ` true Δ ${((t.scoreOnsetSec - e.onsetSec) * 1000).toFixed(0)} ms, ${(t.midi + t.cents / 100 - e.concertMidi).toFixed(2)} st` : '';
-        verdict.examples.push(`#${e.idx}: truth ${tv.status} ${tv.timing ?? ''} ${tv.pitch}${tt}; final ${got.status} ${got.timing ?? ''} ${got.pitch}${j?.timingErrorMs != null ? ` (${j.timingErrorMs.toFixed(0)} ms)` : ''}`);
+        verdict.examples.push(`#${e.idx}: truth ${tv.status} ${tv.timing ?? ''} ${tv.pitch}${tt}; final ${got.status} ${got.timing ?? ''} ${got.pitch}${j?.timingErrorMs !== null && j?.timingErrorMs !== undefined ? ` (${j.timingErrorMs.toFixed(0)} ms)` : ''}`);
       }
     }
     if (!t || tv.status !== 'matched') continue;

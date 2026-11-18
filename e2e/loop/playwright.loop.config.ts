@@ -8,6 +8,7 @@
 import { join } from 'node:path';
 import { defineConfig, devices } from '@playwright/test';
 import { loadLoopHelpers } from './bundle.ts';
+import { webkitProjects } from '../webkit.ts';
 
 // The specs need this config's build and fake microphone; the root config's e2e run skips them without this marker.
 process.env['E2E_LOOP'] = '1';
@@ -34,6 +35,8 @@ export default defineConfig({
     timeout: 180_000,
   },
   projects: [
+    // WebKit has no fake microphone: it runs the practise-without-listening flow only (IOS_WEBKIT=1).
+    ...webkitProjects(['desktop', 'iphone'], { testMatch: /without-listening\.spec\.ts$/ }),
     {
       name: 'chromium-audio',
       use: {

@@ -15,7 +15,6 @@ export interface ReportMeta {
 
 const f = (x: number | null | undefined, d = 3): string => (x === null || x === undefined ? 'n/a' : x.toFixed(d));
 const pct = (x: number | null | undefined, d = 1): string => (x === null || x === undefined ? 'n/a' : `${(100 * x).toFixed(d)}%`);
-const mark = (ok: boolean): string => (ok ? 'pass' : '**FAIL**');
 
 function gateCell(gates: readonly GateResult[], id: string, scope: string, text: string): string {
   const g = gates.find((x) => x.id === id && x.scope === scope);

@@ -2,6 +2,7 @@
 //   pnpm exec playwright test -c e2e/synthetic/playwright.synthetic.config.ts
 // The WebKit project is added when IOS_WEBKIT=1 (a WebKit install; CI sets it), as in e2e/ios.
 import { defineConfig, devices } from '@playwright/test';
+import { webkitProjects } from '../webkit.ts';
 
 process.env['E2E_SYNTHETIC'] = '1';
 
@@ -14,6 +15,6 @@ export default defineConfig({
   workers: 1,
   projects: [
     { name: 'chromium-synthetic', use: { ...devices['Desktop Chrome'], launchOptions: { executablePath, args: ['--no-sandbox', '--autoplay-policy=no-user-gesture-required'] } } },
-    ...(process.env['IOS_WEBKIT'] === '1' ? [{ name: 'webkit', use: { ...devices['Desktop Safari'] } }] : []),
+    ...webkitProjects(['desktop']),
   ],
 });

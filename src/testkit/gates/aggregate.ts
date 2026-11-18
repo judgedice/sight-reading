@@ -71,7 +71,7 @@ export interface GateResult {
   threshold: number;
   pass: boolean;
   source: string;
-  note?: string;
+  note?: string | undefined;
 }
 
 export interface Summary {

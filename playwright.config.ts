@@ -1,4 +1,5 @@
 import { defineConfig, devices } from '@playwright/test';
+import { webkitProjects } from './e2e/webkit.ts';
 
 // Chromium is preinstalled; no browser download. Override with PW_CHROMIUM_PATH.
 const executablePath = process.env['PW_CHROMIUM_PATH'] ?? '/opt/pw-browsers/chromium';
@@ -47,9 +48,7 @@ export default defineConfig({
         launchOptions: { executablePath, args: audioArgs },
       },
     },
-    // WebKit projects need a WebKit install (CI only; not available in the agent sandbox).
-    { name: 'webkit', use: { ...devices['Desktop Safari'] } },
-    { name: 'webkit-iphone', use: { ...devices['iPhone 14'] } },
-    { name: 'webkit-ipad', use: { ...devices['iPad Pro 11'] } },
+    // WebKit projects need a WebKit install (CI only; not available in the agent sandbox): opt in with IOS_WEBKIT=1.
+    ...webkitProjects(['desktop', 'iphone', 'ipad']),
   ],
 });
