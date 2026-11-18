@@ -1,7 +1,7 @@
 {
- "generated": "2026-11-18T21:42:48.735Z",
+ "generated": "2026-11-18T21:49:36.912Z",
  "scale": "full",
- "commit": "dc3587e",
+ "commit": "be3ce7d",
  "liveProvisionalMs": 80,
  "onsetByClass": {
   "clean": {
@@ -2706,11 +2706,11 @@
    "id": "ghost-spelling",
    "scope": "all wrong notes with a ghost",
    "metric": "ghosts spelled per ruling 50",
-   "value": 0.9933155080213903,
+   "value": 1,
    "op": ">=",
    "threshold": 1,
    "source": "PLAN R50",
-   "pass": false
+   "pass": true
   }
  ]
 }
