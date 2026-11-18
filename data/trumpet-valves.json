@@ -1,0 +1,160 @@
+{
+  "_source": "02 §4.5, §10 (written F#3 to C6). Standard fingerings: pitch = open partial minus valve semitones (2=1, 1=2, 12=3, 23=4, 13=5, 123=6). Partial 7 is not used (B-flat5 is fingered 1 on partial 8). For E16, two partials are adjacent when they are neighbours among the partials this table uses for that valve combination (for example 6 and 8 on open), and not an octave apart.",
+  "entries": [
+    {
+      "writtenMidi": 54,
+      "valves": "123",
+      "partial": 2
+    },
+    {
+      "writtenMidi": 55,
+      "valves": "13",
+      "partial": 2
+    },
+    {
+      "writtenMidi": 56,
+      "valves": "23",
+      "partial": 2
+    },
+    {
+      "writtenMidi": 57,
+      "valves": "12",
+      "partial": 2
+    },
+    {
+      "writtenMidi": 58,
+      "valves": "1",
+      "partial": 2
+    },
+    {
+      "writtenMidi": 59,
+      "valves": "2",
+      "partial": 2
+    },
+    {
+      "writtenMidi": 60,
+      "valves": "0",
+      "partial": 2
+    },
+    {
+      "writtenMidi": 61,
+      "valves": "123",
+      "partial": 3
+    },
+    {
+      "writtenMidi": 62,
+      "valves": "13",
+      "partial": 3
+    },
+    {
+      "writtenMidi": 63,
+      "valves": "23",
+      "partial": 3
+    },
+    {
+      "writtenMidi": 64,
+      "valves": "12",
+      "partial": 3
+    },
+    {
+      "writtenMidi": 65,
+      "valves": "1",
+      "partial": 3
+    },
+    {
+      "writtenMidi": 66,
+      "valves": "2",
+      "partial": 3
+    },
+    {
+      "writtenMidi": 67,
+      "valves": "0",
+      "partial": 3
+    },
+    {
+      "writtenMidi": 68,
+      "valves": "23",
+      "partial": 4
+    },
+    {
+      "writtenMidi": 69,
+      "valves": "12",
+      "partial": 4
+    },
+    {
+      "writtenMidi": 70,
+      "valves": "1",
+      "partial": 4
+    },
+    {
+      "writtenMidi": 71,
+      "valves": "2",
+      "partial": 4
+    },
+    {
+      "writtenMidi": 72,
+      "valves": "0",
+      "partial": 4
+    },
+    {
+      "writtenMidi": 73,
+      "valves": "12",
+      "partial": 5
+    },
+    {
+      "writtenMidi": 74,
+      "valves": "1",
+      "partial": 5
+    },
+    {
+      "writtenMidi": 75,
+      "valves": "2",
+      "partial": 5
+    },
+    {
+      "writtenMidi": 76,
+      "valves": "0",
+      "partial": 5
+    },
+    {
+      "writtenMidi": 77,
+      "valves": "1",
+      "partial": 6
+    },
+    {
+      "writtenMidi": 78,
+      "valves": "2",
+      "partial": 6
+    },
+    {
+      "writtenMidi": 79,
+      "valves": "0",
+      "partial": 6
+    },
+    {
+      "writtenMidi": 80,
+      "valves": "23",
+      "partial": 8
+    },
+    {
+      "writtenMidi": 81,
+      "valves": "12",
+      "partial": 8
+    },
+    {
+      "writtenMidi": 82,
+      "valves": "1",
+      "partial": 8
+    },
+    {
+      "writtenMidi": 83,
+      "valves": "2",
+      "partial": 8
+    },
+    {
+      "writtenMidi": 84,
+      "valves": "0",
+      "partial": 8
+    }
+  ]
+}

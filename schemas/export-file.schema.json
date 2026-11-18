@@ -1,0 +1,2429 @@
+{
+  "$id": "export-file.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/ExportFileV1",
+  "definitions": {
+    "AppSettings": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "type": "number",
+          "const": 1
+        },
+        "practice": {
+          "$ref": "#/definitions/PracticeSettings"
+        },
+        "audio": {
+          "type": "object",
+          "properties": {
+            "inputDeviceId": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "metronomeVolume": {
+              "type": "number",
+              "description": "0..100."
+            }
+          },
+          "required": [
+            "inputDeviceId",
+            "metronomeVolume"
+          ],
+          "additionalProperties": false
+        },
+        "display": {
+          "type": "object",
+          "properties": {
+            "theme": {
+              "type": "string",
+              "enum": [
+                "system",
+                "light",
+                "dark"
+              ]
+            },
+            "liveFeedback": {
+              "type": "string",
+              "enum": [
+                "full",
+                "after-take"
+              ],
+              "description": "\"After the take\" hides the overlay during the take (R11)."
+            },
+            "showCentsMs": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "theme",
+            "liveFeedback",
+            "showCentsMs"
+          ],
+          "additionalProperties": false
+        },
+        "practicePrefs": {
+          "type": "object",
+          "properties": {
+            "showStars": {
+              "type": "boolean"
+            },
+            "showTips": {
+              "type": "boolean"
+            },
+            "showBeta": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "showStars",
+            "showTips",
+            "showBeta"
+          ],
+          "additionalProperties": false
+        },
+        "accessibility": {
+          "type": "object",
+          "properties": {
+            "reduceMotion": {
+              "type": "string",
+              "enum": [
+                "system",
+                "on",
+                "off"
+              ]
+            },
+            "highContrast": {
+              "type": "boolean"
+            },
+            "keyboardShortcuts": {
+              "type": "boolean"
+            },
+            "announceResults": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "reduceMotion",
+            "highContrast",
+            "keyboardShortcuts",
+            "announceResults"
+          ],
+          "additionalProperties": false
+        },
+        "onboardingDone": {
+          "type": "boolean"
+        },
+        "shown": {
+          "type": "object",
+          "properties": {
+            "installCoach": {
+              "type": "boolean"
+            },
+            "autoLockHint": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "installCoach",
+            "autoLockHint"
+          ],
+          "additionalProperties": false,
+          "description": "One-time hints and sheets already shown (05 W11, W13)."
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "practice",
+        "audio",
+        "display",
+        "practicePrefs",
+        "accessibility",
+        "onboardingDone",
+        "shown"
+      ],
+      "additionalProperties": false,
+      "description": "App settings (04 §5.11; last practice settings kept, 04 §5.2)."
+    },
+    "AppliedProcessing": {
+      "type": "object",
+      "properties": {
+        "echoCancellation": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "noiseSuppression": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "autoGainControl": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "echoCancellation",
+        "noiseSuppression",
+        "autoGainControl"
+      ],
+      "additionalProperties": false,
+      "description": "Input processing flags as read back from `track.getSettings()`; null when not reported (05 W5)."
+    },
+    "AttemptRecheck": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "measured",
+            "unmeasured"
+          ],
+          "description": "`measured`: ≥ min clicks with acceptable MAD. `unmeasured`: on speakers but could not measure (fails gate `recheck`)."
+        },
+        "measuredMs": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "Measured RTL, ms; null when unmeasured."
+        },
+        "clicks": {
+          "type": "number"
+        },
+        "madMs": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "ms; null when unmeasured."
+        },
+        "usedFresh": {
+          "type": "boolean",
+          "description": "The take used the fresh value (differs from stored by more than the threshold)."
+        },
+        "promptRecalibrate": {
+          "type": "boolean",
+          "description": "Calibration marked stale; results prompt recalibration (R31)."
+        }
+      },
+      "required": [
+        "status",
+        "measuredMs",
+        "clicks",
+        "madMs",
+        "usedFresh",
+        "promptRecalibrate"
+      ],
+      "additionalProperties": false,
+      "description": "Recheck result on the attempt (01 §7.7; R31)."
+    },
+    "AttemptRecord": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "type": "number",
+          "const": 1
+        },
+        "id": {
+          "type": "string",
+          "description": "UUID."
+        },
+        "profileId": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "ISO 8601 UTC."
+        },
+        "appVersion": {
+          "type": "string"
+        },
+        "configVersion": {
+          "type": "string"
+        },
+        "corpusVersion": {
+          "type": "string"
+        },
+        "coreVersion": {
+          "type": "string"
+        },
+        "excerptId": {
+          "type": "string"
+        },
+        "dedupeGroup": {
+          "type": "string"
+        },
+        "instrumentId": {
+          "type": "string"
+        },
+        "beta": {
+          "type": "boolean"
+        },
+        "levelServed": {
+          "type": "number"
+        },
+        "stretch": {
+          "type": "boolean"
+        },
+        "placement": {
+          "type": "boolean",
+          "description": "Placement attempt (02 §5.1): earns XP, not in the level window."
+        },
+        "settingsResolved": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "seed": {
+              "type": "number"
+            },
+            "instrumentId": {
+              "type": "string"
+            },
+            "level": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string",
+                  "const": "random"
+                }
+              ]
+            },
+            "writtenKey": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/KeySig"
+                },
+                {
+                  "type": "string",
+                  "const": "random"
+                }
+              ],
+              "description": "R1: the key the player reads."
+            },
+            "meter": {
+              "type": "string",
+              "description": "\"beats/beatType\", for example \"6/8\"."
+            },
+            "bpm": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string",
+                  "const": "random"
+                }
+              ],
+              "description": "Metronome beats per minute."
+            },
+            "bars": {
+              "type": [
+                "number",
+                "string"
+              ],
+              "enum": [
+                8,
+                10,
+                12,
+                "random"
+              ],
+              "description": "A preference, not a filter (04 §5.2)."
+            },
+            "mode": {
+              "type": "string",
+              "enum": [
+                "ranked",
+                "practice"
+              ]
+            },
+            "listening": {
+              "type": "boolean",
+              "description": "false = practise without listening (R13)."
+            },
+            "metronome": {
+              "$ref": "#/definitions/MetronomeMode"
+            },
+            "clickTimbre": {
+              "$ref": "#/definitions/ClickTimbre"
+            },
+            "outputMode": {
+              "$ref": "#/definitions/OutputMode"
+            },
+            "a4Hz": {
+              "type": "number",
+              "description": "Concert A4 reference, Hz, 415..446."
+            }
+          },
+          "required": [
+            "a4Hz",
+            "bars",
+            "bpm",
+            "clickTimbre",
+            "instrumentId",
+            "level",
+            "listening",
+            "meter",
+            "metronome",
+            "mode",
+            "outputMode",
+            "seed",
+            "writtenKey"
+          ],
+          "description": "The settings as requested, with the seed resolved."
+        },
+        "transposition": {
+          "$ref": "#/definitions/Interval"
+        },
+        "writtenKey": {
+          "$ref": "#/definitions/KeySig"
+        },
+        "concertKey": {
+          "$ref": "#/definitions/KeySig"
+        },
+        "clef": {
+          "$ref": "#/definitions/Clef"
+        },
+        "bpm": {
+          "type": "number"
+        },
+        "scanSeconds": {
+          "type": "number",
+          "description": "Scan time actually used, seconds."
+        },
+        "listening": {
+          "type": "boolean"
+        },
+        "calibration": {
+          "type": "object",
+          "properties": {
+            "method": {
+              "type": "string",
+              "enum": [
+                "loopback",
+                "play-along",
+                "reported",
+                "none"
+              ]
+            },
+            "latencyCompensationMs": {
+              "type": "number"
+            },
+            "outputMode": {
+              "$ref": "#/definitions/OutputMode"
+            },
+            "recheck": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/AttemptRecheck"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "null in headphone modes or when not listening."
+            }
+          },
+          "required": [
+            "method",
+            "latencyCompensationMs",
+            "outputMode",
+            "recheck"
+          ],
+          "additionalProperties": false
+        },
+        "tuning": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "used": {
+                  "type": "boolean"
+                },
+                "offsetCents": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "used",
+                "offsetCents"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Tuning note used and its offset, cents; null for voice and fixed pitch."
+        },
+        "audioEnv": {
+          "$ref": "#/definitions/AudioEnv",
+          "description": "05 §5.2, with gateFailures[]."
+        },
+        "detected": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/DetectedNote"
+          }
+        },
+        "judgments": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/NoteJudgment"
+          }
+        },
+        "extras": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ExtraNote"
+          }
+        },
+        "displaced": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/DisplacedSegment"
+          }
+        },
+        "score": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/AttemptScore"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "null when void or not listening."
+        },
+        "endReason": {
+          "type": "string",
+          "enum": [
+            "complete",
+            "stopped",
+            "void"
+          ]
+        },
+        "voidReason": {
+          "$ref": "#/definitions/VoidReason"
+        },
+        "excerptBurned": {
+          "type": "boolean",
+          "description": "The excerpt is burned for ranked play (seen at reveal; a void after the first note still burns, 02 §4.7)."
+        },
+        "countsAsSkip": {
+          "type": "boolean",
+          "description": "Counts against the post-reveal skip limit (skip after reveal; interruption void after the first note, R33)."
+        },
+        "credit": {
+          "$ref": "#/definitions/ExcerptCreditSnapshot"
+        },
+        "debug": {
+          "type": "object",
+          "properties": {
+            "live": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/LiveJudgment"
+              }
+            },
+            "frames": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/PitchFrame"
+              }
+            }
+          },
+          "required": [
+            "live"
+          ],
+          "additionalProperties": false,
+          "description": "Dev flag only; pruned after 7 days; never audio."
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "id",
+        "profileId",
+        "createdAt",
+        "appVersion",
+        "configVersion",
+        "corpusVersion",
+        "coreVersion",
+        "excerptId",
+        "dedupeGroup",
+        "instrumentId",
+        "beta",
+        "levelServed",
+        "stretch",
+        "placement",
+        "settingsResolved",
+        "transposition",
+        "writtenKey",
+        "concertKey",
+        "clef",
+        "bpm",
+        "scanSeconds",
+        "listening",
+        "calibration",
+        "tuning",
+        "audioEnv",
+        "detected",
+        "judgments",
+        "extras",
+        "displaced",
+        "score",
+        "endReason",
+        "excerptBurned",
+        "countsAsSkip",
+        "credit"
+      ],
+      "additionalProperties": false,
+      "description": "One attempt; about 5 KB; never audio (01 §6.5, R9)."
+    },
+    "AttemptScore": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "ok",
+            "incomplete"
+          ]
+        },
+        "components": {
+          "type": "object",
+          "properties": {
+            "P": {
+              "type": "number"
+            },
+            "I": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "R": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "P",
+            "I",
+            "R"
+          ],
+          "additionalProperties": false,
+          "description": "0..100 each; I null = \"not enough notes to judge\" (weight moved to P)."
+        },
+        "weights": {
+          "type": "object",
+          "properties": {
+            "P": {
+              "type": "number"
+            },
+            "I": {
+              "type": "number"
+            },
+            "R": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "P",
+            "I",
+            "R"
+          ],
+          "additionalProperties": false,
+          "description": "Weights actually used (after moving I's weight where applicable)."
+        },
+        "score": {
+          "type": "number",
+          "description": "0..100, rounded; capped at 50 when incomplete."
+        },
+        "grade": {
+          "$ref": "#/definitions/LetterGrade"
+        },
+        "stars": {
+          "type": "number",
+          "enum": [
+            0,
+            1,
+            2,
+            3
+          ]
+        },
+        "shine": {
+          "type": "boolean"
+        },
+        "ranked": {
+          "type": "boolean"
+        },
+        "rankedReasons": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/RankedReason"
+          }
+        },
+        "diagnostics": {
+          "type": "object",
+          "properties": {
+            "matched": {
+              "type": "number",
+              "description": "Matched notes excluding displaced, and N."
+            },
+            "n": {
+              "type": "number"
+            },
+            "stops": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/StopDiagnostic"
+              }
+            },
+            "restarts": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/RestartDiagnostic"
+              }
+            },
+            "driftMsAtEnd": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "description": "Least-squares drift at the end, ms; + = behind; null when too few notes."
+            },
+            "counts": {
+              "$ref": "#/definitions/VerdictCounts"
+            },
+            "signal": {
+              "type": "object",
+              "properties": {
+                "medianClarity": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "clippingFrac": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "medianClarity",
+                "clippingFrac"
+              ],
+              "additionalProperties": false,
+              "description": "Signal quality for the clipping banner and tip gating (02 §6.1)."
+            },
+            "voiceDriftCents": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "description": "Final voice reference offset, cents (voice only)."
+            }
+          },
+          "required": [
+            "matched",
+            "n",
+            "stops",
+            "restarts",
+            "driftMsAtEnd",
+            "counts",
+            "signal",
+            "voiceDriftCents"
+          ],
+          "additionalProperties": false
+        },
+        "patterns": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/PatternResult"
+          }
+        },
+        "tipsShown": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Filled by the session after `selectTips`; `grade()` returns []."
+        },
+        "xp": {
+          "$ref": "#/definitions/XpBreakdown"
+        },
+        "configVersion": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "components",
+        "weights",
+        "score",
+        "grade",
+        "stars",
+        "shine",
+        "ranked",
+        "rankedReasons",
+        "diagnostics",
+        "patterns",
+        "tipsShown",
+        "xp",
+        "configVersion"
+      ],
+      "additionalProperties": false,
+      "description": "The score part of an attempt (02 §4, §9; R15: three components plus diagnostics)."
+    },
+    "AudioEnv": {
+      "type": "object",
+      "properties": {
+        "platform": {
+          "$ref": "#/definitions/PlatformKind",
+          "description": "'ios' = the later native target."
+        },
+        "osFamily": {
+          "$ref": "#/definitions/OsFamily"
+        },
+        "displayMode": {
+          "$ref": "#/definitions/DisplayMode"
+        },
+        "appBuild": {
+          "type": "string"
+        },
+        "coreVersion": {
+          "type": "string",
+          "description": "Version of the shared pure core."
+        },
+        "inputPath": {
+          "type": "string",
+          "const": "mic",
+          "description": "'midi' later."
+        },
+        "metronomeMode": {
+          "$ref": "#/definitions/MetronomeMode"
+        },
+        "clickTimbre": {
+          "$ref": "#/definitions/ClickTimbre"
+        },
+        "outputMode": {
+          "$ref": "#/definitions/OutputMode"
+        },
+        "route": {
+          "type": "object",
+          "properties": {
+            "inputKind": {
+              "type": "string",
+              "enum": [
+                "built-in",
+                "wired",
+                "bluetooth",
+                "usb-interface",
+                "unknown"
+              ]
+            },
+            "sampleRate": {
+              "type": "number",
+              "description": "Context sample rate, Hz."
+            },
+            "appliedProcessing": {
+              "$ref": "#/definitions/AppliedProcessing"
+            }
+          },
+          "required": [
+            "inputKind",
+            "sampleRate",
+            "appliedProcessing"
+          ],
+          "additionalProperties": false
+        },
+        "contextSampleRate": {
+          "type": "number",
+          "description": "Hz."
+        },
+        "contextRecreated": {
+          "type": "boolean"
+        },
+        "clockRateError": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "Fractional clock-rate error (0.088 = 8.8% fast), null when not measured."
+        },
+        "audioSessionType": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "`navigator.audioSession.type` as set, or null."
+        },
+        "latencyCompensationMs": {
+          "type": "number",
+          "description": "What follow/ subtracted, ms."
+        },
+        "calibrationMethod": {
+          "type": "string",
+          "enum": [
+            "loopback",
+            "play-along",
+            "reported",
+            "none"
+          ]
+        },
+        "captureRelay": {
+          "type": "boolean",
+          "description": "Main-thread relay used (01 §7.2)."
+        },
+        "droppedBlocks": {
+          "type": "number"
+        },
+        "maxQueueMs": {
+          "type": "number",
+          "description": "Largest DSP queue during the take, ms of audio."
+        },
+        "dspHopP95Ms": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "DSP worker per-hop time p95, ms (diagnostics only)."
+        },
+        "gateFailures": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/GateId"
+          }
+        }
+      },
+      "required": [
+        "platform",
+        "osFamily",
+        "displayMode",
+        "appBuild",
+        "coreVersion",
+        "inputPath",
+        "metronomeMode",
+        "clickTimbre",
+        "outputMode",
+        "route",
+        "contextSampleRate",
+        "contextRecreated",
+        "clockRateError",
+        "audioSessionType",
+        "latencyCompensationMs",
+        "calibrationMethod",
+        "captureRelay",
+        "droppedBlocks",
+        "maxQueueMs",
+        "dspHopP95Ms",
+        "gateFailures"
+      ],
+      "additionalProperties": false,
+      "description": "Audio environment of an attempt; platform-neutral, JSON only, never identifies the person or device (05 §5.2)."
+    },
+    "Beats": {
+      "type": "number",
+      "description": "Float, in metronome beats (02 conventions: quarter in x/4, half in 2/2, dotted quarter in 6/8) (01 §5.1)."
+    },
+    "Calibration": {
+      "type": "object",
+      "properties": {
+        "routeKey": {
+          "type": "string"
+        },
+        "platform": {
+          "$ref": "#/definitions/PlatformKind"
+        },
+        "outputMode": {
+          "$ref": "#/definitions/OutputMode"
+        },
+        "method": {
+          "type": "string",
+          "enum": [
+            "loopback",
+            "play-along",
+            "reported"
+          ]
+        },
+        "roundTripMs": {
+          "type": "number",
+          "description": "Round-trip latency, ms."
+        },
+        "outputLatencyMs": {
+          "type": "number"
+        },
+        "spreadMs": {
+          "type": "number",
+          "description": "MAD of the arrivals, ms."
+        },
+        "clicksDetected": {
+          "type": "number"
+        },
+        "clickLeakDb": {
+          "type": "number",
+          "description": "Click level in the low band, dBFS."
+        },
+        "noiseFloorDb": {
+          "type": "number"
+        },
+        "templates": {
+          "type": "object",
+          "properties": {
+            "tick": {
+              "type": "object",
+              "properties": {
+                "rate": {
+                  "type": "number"
+                },
+                "samples": {
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  }
+                }
+              },
+              "required": [
+                "rate",
+                "samples"
+              ],
+              "additionalProperties": false
+            },
+            "wood": {
+              "type": "object",
+              "properties": {
+                "rate": {
+                  "type": "number"
+                },
+                "samples": {
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  }
+                }
+              },
+              "required": [
+                "rate",
+                "samples"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false,
+          "description": "Low-band click templates per timbre: rate in Hz and samples."
+        },
+        "sanityToneCents": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "Sanity tone reading, cents; null when not run (headphones)."
+        },
+        "aecSuspected": {
+          "type": "boolean"
+        },
+        "clockRateError": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "measuredAt": {
+          "type": "string",
+          "description": "ISO 8601 UTC."
+        },
+        "stale": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "routeKey",
+        "platform",
+        "outputMode",
+        "method",
+        "roundTripMs",
+        "spreadMs",
+        "clicksDetected",
+        "clickLeakDb",
+        "noiseFloorDb",
+        "templates",
+        "sanityToneCents",
+        "aecSuspected",
+        "clockRateError",
+        "measuredAt",
+        "stale"
+      ],
+      "additionalProperties": false,
+      "description": "Calibration per route (01 §6.6, §7.8)."
+    },
+    "Clef": {
+      "type": "string",
+      "enum": [
+        "treble",
+        "bass",
+        "alto",
+        "tenor",
+        "treble-8vb"
+      ]
+    },
+    "ClickTimbre": {
+      "type": "string",
+      "enum": [
+        "tick",
+        "wood"
+      ],
+      "description": "Metronome click sound: Tick 5.5–9 kHz noise burst (speaker default) or Wood 1.5–4 kHz (01 §7.6)."
+    },
+    "ClockSeconds": {
+      "type": "number",
+      "description": "Seconds on the audio backend's clock (the AudioContext clock on web). Opaque and branded so that score time and clock time cannot be mixed by accident. Serialised as a plain number (01 §5.2, §7.1)."
+    },
+    "CorpusId": {
+      "type": "string",
+      "enum": [
+        "openscore-lieder",
+        "openscore-quartets",
+        "mutopia"
+      ],
+      "description": "v1 corpus sources, all fetched from GitHub (R4, R27)."
+    },
+    "DetectedNote": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "number",
+          "description": "Unique per take, increasing."
+        },
+        "onset": {
+          "$ref": "#/definitions/ClockSeconds",
+          "description": "Per core/onset-definition.ts."
+        },
+        "offset": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ClockSeconds"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "provisionalMidi": {
+          "type": "number",
+          "description": "Median of the confirming frames, fractional concert MIDI."
+        },
+        "midi": {
+          "type": "number",
+          "description": "Fractional concert MIDI, median of the steady part so far."
+        },
+        "stableMedianCents": {
+          "type": "number",
+          "description": "Steady median as cents relative to the nearest semitone of `midi`, cents."
+        },
+        "steadyMs": {
+          "type": "number",
+          "description": "Steady duration (01 §7.5), ms."
+        },
+        "pitchSdCents": {
+          "type": "number",
+          "description": "Pitch SD over the steady part, cents."
+        },
+        "clarity": {
+          "type": "number",
+          "description": "Median clarity, 0..1."
+        },
+        "altOctaveClarity": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "NSDF value at the expected octave's lag, for score-informed octave correction (01 §7.3)."
+        },
+        "onsetCause": {
+          "type": "string",
+          "enum": [
+            "pitch-change",
+            "repeat",
+            "flux",
+            "from-silence"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "onset",
+        "offset",
+        "provisionalMidi",
+        "midi",
+        "stableMedianCents",
+        "steadyMs",
+        "pitchSdCents",
+        "clarity",
+        "altOctaveClarity",
+        "onsetCause"
+      ],
+      "additionalProperties": false,
+      "description": "A detected note (01 §5.6)."
+    },
+    "DisplacedSegment": {
+      "type": "object",
+      "properties": {
+        "fromIdx": {
+          "type": "number",
+          "description": "Expected-note index range the played notes matched, inclusive."
+        },
+        "toIdx": {
+          "type": "number"
+        },
+        "offsetBeats": {
+          "$ref": "#/definitions/Beats",
+          "description": "Offset of the player from the metronome, beats (negative = went back)."
+        },
+        "detectedIds": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        }
+      },
+      "required": [
+        "fromIdx",
+        "toIdx",
+        "offsetBeats",
+        "detectedIds"
+      ],
+      "additionalProperties": false,
+      "description": "A replayed or skipped-ahead run at a constant offset (01 §9.5, §9.6)."
+    },
+    "DisplayMode": {
+      "type": "string",
+      "enum": [
+        "browser",
+        "standalone"
+      ],
+      "description": "Whether the app runs in a browser tab or as an installed home-screen app (05 §5.1, W13)."
+    },
+    "ExcerptCreditSnapshot": {
+      "type": "object",
+      "properties": {
+        "composer": {
+          "type": "string"
+        },
+        "composerDates": {
+          "type": "string"
+        },
+        "work": {
+          "type": "string"
+        },
+        "catalog": {
+          "type": "string"
+        },
+        "movement": {
+          "type": "string"
+        },
+        "sourceMeasures": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "corpus": {
+          "$ref": "#/definitions/CorpusId"
+        },
+        "license": {
+          "$ref": "#/definitions/Licence"
+        }
+      },
+      "required": [
+        "composer",
+        "work",
+        "sourceMeasures",
+        "corpus",
+        "license"
+      ],
+      "additionalProperties": false,
+      "description": "Excerpt credit snapshot stored with the attempt, for history rows and the results header (03 §9.1 item 5)."
+    },
+    "ExportFileV1": {
+      "type": "object",
+      "properties": {
+        "format": {
+          "type": "string",
+          "const": "sightread-export"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "exportedAt": {
+          "type": "string",
+          "description": "ISO 8601 UTC."
+        },
+        "appVersion": {
+          "type": "string"
+        },
+        "profile": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/PlayerProfile"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "attempts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/AttemptRecord"
+          }
+        },
+        "calibrations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Calibration"
+          }
+        },
+        "settings": {
+          "$ref": "#/definitions/AppSettings"
+        },
+        "kv": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/JsonValue"
+          }
+        }
+      },
+      "required": [
+        "format",
+        "version",
+        "exportedAt",
+        "appVersion",
+        "profile",
+        "attempts",
+        "calibrations",
+        "settings",
+        "kv"
+      ],
+      "additionalProperties": false,
+      "description": "Versioned, platform-neutral export file (01 §11, 05 §5.3 item 6)."
+    },
+    "ExtraNote": {
+      "type": "object",
+      "properties": {
+        "detectedId": {
+          "type": "number"
+        },
+        "onsetSec": {
+          "$ref": "#/definitions/ScoreSeconds"
+        },
+        "concertMidi": {
+          "type": "number",
+          "description": "Fractional concert MIDI."
+        },
+        "cents": {
+          "type": "number",
+          "description": "Cents from the nearest semitone."
+        },
+        "durSec": {
+          "type": "number",
+          "description": "Seconds."
+        },
+        "duringRest": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "detectedId",
+        "onsetSec",
+        "concertMidi",
+        "cents",
+        "durSec",
+        "duringRest"
+      ],
+      "additionalProperties": false,
+      "description": "An unmatched played note (02 §4.1)."
+    },
+    "GateId": {
+      "type": "string",
+      "enum": [
+        "sample-rate",
+        "calibration-unmeasured",
+        "calibration-quality",
+        "aec-suspected",
+        "processing-on",
+        "recheck",
+        "capture-gap",
+        "rtl-high"
+      ],
+      "description": "Per-take measurement gate checks (05 §4). Each failure makes the take unranked (`calibration` or `measurement`)."
+    },
+    "InstrumentProgress": {
+      "type": "object",
+      "properties": {
+        "level": {
+          "type": "number"
+        },
+        "window": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/LevelWindowEntry"
+          },
+          "description": "Last ranked attempts at the current level, oldest first, at most the window size."
+        },
+        "attemptsRanked": {
+          "type": "number"
+        },
+        "bestByLevel": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "number"
+          },
+          "description": "Level → best score."
+        },
+        "patternCounts": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "number"
+          },
+          "description": "Pattern id → times fired."
+        },
+        "recentPrimaryPatterns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Primary pattern per recent attempt on this instrument, most recent first (02 §6.1 item 5)."
+        },
+        "tuningOffsetCents": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "Tuning-note offset, cents."
+        },
+        "offerSuppressedUntil": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "Level-up offer suppressed until `attemptsRanked` reaches this; null = not suppressed (02 §5.6)."
+        },
+        "pendingOffer": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "to": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "to"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "A level-up offer waiting for the player's answer (02 §5.6), or null."
+        },
+        "autoLevelUpUndo": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "from": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "from"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Level before the last auto level-up, for Undo on results (02 §5.6), or null."
+        },
+        "autoRun": {
+          "type": "object",
+          "properties": {
+            "count": {
+              "type": "number"
+            },
+            "atMidTempo": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "count",
+            "atMidTempo"
+          ],
+          "additionalProperties": false,
+          "description": "Consecutive ranked attempts ≥ the auto level-up score, and how many were at mid tempo (02 §5.6)."
+        },
+        "placement": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "step": {
+                  "type": "number"
+                },
+                "results": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "level": {
+                        "type": "number"
+                      },
+                      "score": {
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "level",
+                      "score"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "step",
+                "results"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Placement in progress (02 §5.1), or null."
+        }
+      },
+      "required": [
+        "level",
+        "window",
+        "attemptsRanked",
+        "bestByLevel",
+        "patternCounts",
+        "recentPrimaryPatterns",
+        "tuningOffsetCents",
+        "offerSuppressedUntil",
+        "pendingOffer",
+        "autoLevelUpUndo",
+        "autoRun",
+        "placement"
+      ],
+      "additionalProperties": false,
+      "description": "Per-instrument progress; level is per instrument (R5, 02 §5.6, §5.7)."
+    },
+    "Interval": {
+      "type": "object",
+      "properties": {
+        "diatonic": {
+          "type": "number",
+          "description": "Letter steps, signed (a rising third is +2; an octave is +7)."
+        },
+        "chromatic": {
+          "type": "number",
+          "description": "Semitones, signed."
+        }
+      },
+      "required": [
+        "diatonic",
+        "chromatic"
+      ],
+      "additionalProperties": false,
+      "description": "A spelled interval (01 §5.3, 03 §7.4)."
+    },
+    "JsonValue": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/JsonValue"
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/JsonValue"
+          }
+        }
+      ],
+      "description": "JSON value (for kv documents and predicates)."
+    },
+    "KeySig": {
+      "type": "object",
+      "properties": {
+        "fifths": {
+          "type": "number",
+          "description": "Sharps positive, flats negative, −7..7."
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "major",
+            "minor"
+          ]
+        }
+      },
+      "required": [
+        "fifths",
+        "mode"
+      ],
+      "additionalProperties": false,
+      "description": "A key signature (01 §5.3)."
+    },
+    "LetterGrade": {
+      "type": "string",
+      "enum": [
+        "S",
+        "A",
+        "B",
+        "C",
+        "D",
+        "F"
+      ]
+    },
+    "LevelWindowEntry": {
+      "type": "object",
+      "properties": {
+        "attemptId": {
+          "type": "string"
+        },
+        "score": {
+          "type": "number",
+          "description": "Score as entered (incomplete at its capped score)."
+        },
+        "atMidTempo": {
+          "type": "boolean",
+          "description": "Played at or above the level's mid tempo."
+        }
+      },
+      "required": [
+        "attemptId",
+        "score",
+        "atMidTempo"
+      ],
+      "additionalProperties": false,
+      "description": "One entry of an instrument's level window (02 §5.6, §5.7)."
+    },
+    "Licence": {
+      "type": "string",
+      "enum": [
+        "PD",
+        "CC0-1.0",
+        "CC-BY-4.0"
+      ],
+      "description": "Licence allowlist (03 §1, R8: no CC BY-SA)."
+    },
+    "LiveJudgment": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "provisional": {
+          "type": "boolean"
+        },
+        "expectedIdx": {
+          "type": "number"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "matched",
+            "missed"
+          ]
+        },
+        "detectedId": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "timing": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/TimingVerdict"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "timingErrorMs": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "Played minus expected onset, ms; + = late."
+        },
+        "pitch": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/PitchVerdict"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "playedConcertMidi": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "Fractional concert MIDI of the played note."
+        },
+        "centsError": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "Deviation from the target after tuning or voice reference offset, cents."
+        },
+        "octaveDisplaced": {
+          "type": "boolean",
+          "description": "Voice: true but credited as correct (R7)."
+        },
+        "duration": {
+          "type": "string",
+          "enum": [
+            "ok",
+            "short",
+            "not-graded"
+          ]
+        },
+        "heldRatio": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "Played duration / written duration."
+        },
+        "marginal": {
+          "type": "boolean",
+          "description": "Beyond good but within red on timing or intonation (02 §4.8 `correct-marginal`)."
+        }
+      },
+      "required": [
+        "centsError",
+        "detectedId",
+        "duration",
+        "expectedIdx",
+        "heldRatio",
+        "marginal",
+        "octaveDisplaced",
+        "pitch",
+        "playedConcertMidi",
+        "provisional",
+        "status",
+        "timing",
+        "timingErrorMs"
+      ]
+    },
+    "MetronomeMode": {
+      "type": "string",
+      "enum": [
+        "audible",
+        "countInOnly"
+      ],
+      "description": "Metronome mode. `'visual'` is later (01 §7.6, 02 §5.2)."
+    },
+    "NoteJudgment": {
+      "type": "object",
+      "properties": {
+        "expectedIdx": {
+          "type": "number"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "matched",
+            "missed"
+          ]
+        },
+        "detectedId": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "timing": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/TimingVerdict"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "timingErrorMs": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "Played minus expected onset, ms; + = late."
+        },
+        "pitch": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/PitchVerdict"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "playedConcertMidi": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "Fractional concert MIDI of the played note."
+        },
+        "centsError": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "Deviation from the target after tuning or voice reference offset, cents."
+        },
+        "octaveDisplaced": {
+          "type": "boolean",
+          "description": "Voice: true but credited as correct (R7)."
+        },
+        "duration": {
+          "type": "string",
+          "enum": [
+            "ok",
+            "short",
+            "not-graded"
+          ]
+        },
+        "heldRatio": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "Played duration / written duration."
+        },
+        "credit": {
+          "type": "object",
+          "properties": {
+            "p": {
+              "type": "number"
+            },
+            "n": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "o": {
+              "type": "number"
+            },
+            "d": {
+              "type": [
+                "number",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "p",
+            "n",
+            "o",
+            "d"
+          ],
+          "additionalProperties": false,
+          "description": "Per-note credits 0..1 (02 §4.3); null n or d = not graded."
+        },
+        "marginal": {
+          "type": "boolean",
+          "description": "Beyond good but within red on timing or intonation (02 §4.8 `correct-marginal`)."
+        },
+        "rejudged": {
+          "type": "boolean",
+          "description": "Final state or ghost kind differs from live (01 §9.7)."
+        }
+      },
+      "required": [
+        "expectedIdx",
+        "status",
+        "detectedId",
+        "timing",
+        "timingErrorMs",
+        "pitch",
+        "playedConcertMidi",
+        "centsError",
+        "octaveDisplaced",
+        "duration",
+        "heldRatio",
+        "credit",
+        "marginal",
+        "rejudged"
+      ],
+      "additionalProperties": false,
+      "description": "Final judgment of one expected note (01 §6.5, 02 §4.3)."
+    },
+    "OsFamily": {
+      "type": "string",
+      "enum": [
+        "ios",
+        "ipados",
+        "macos",
+        "android",
+        "windows",
+        "linux",
+        "other"
+      ],
+      "description": "OS family, for labels, copy and diagnostics only; never a grading branch (05 §5.1)."
+    },
+    "OutputMode": {
+      "type": "string",
+      "enum": [
+        "speakers",
+        "wired",
+        "bluetooth"
+      ],
+      "description": "Output route declared by the player; the web cannot detect it reliably (01 §1, §7.8)."
+    },
+    "PatternResult": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "E1 .. E31."
+        },
+        "lostPoints": {
+          "type": "number",
+          "description": "Σ over its notes of component weight × (1 − credit) × 100 / N."
+        },
+        "notes": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "description": "Expected-note indices that are the evidence."
+        },
+        "bars": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "description": "Displayed bar numbers of the evidence (for \"Seen in bars {bars}.\")."
+        },
+        "params": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "number"
+          },
+          "description": "Template parameters, for example U22's `offset` (cents) and `direction` (+1 sharp, −1 flat)."
+        }
+      },
+      "required": [
+        "id",
+        "lostPoints",
+        "notes",
+        "bars"
+      ],
+      "additionalProperties": false,
+      "description": "A fired tip pattern (02 §6.1)."
+    },
+    "PitchFrame": {
+      "type": "object",
+      "properties": {
+        "t": {
+          "$ref": "#/definitions/ClockSeconds"
+        },
+        "midi": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "Fractional concert MIDI, null when unvoiced."
+        },
+        "clarity": {
+          "type": "number",
+          "description": "NSDF clarity, 0..1."
+        },
+        "rmsDb": {
+          "type": "number",
+          "description": "dBFS."
+        },
+        "flux": {
+          "type": "number",
+          "description": "Band-limited spectral flux, arbitrary units."
+        },
+        "inClickWindow": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "t",
+        "midi",
+        "clarity",
+        "rmsDb",
+        "flux",
+        "inClickWindow"
+      ],
+      "additionalProperties": false,
+      "description": "One pitch frame, stamped at the window centre (01 §7.3)."
+    },
+    "PitchVerdict": {
+      "type": "string",
+      "enum": [
+        "in-tune",
+        "sharp",
+        "flat",
+        "wrong-pitch",
+        "octave",
+        "not-graded"
+      ],
+      "description": "`octave` earns no pitch credit on non-voice instruments (R20)."
+    },
+    "PlatformKind": {
+      "type": "string",
+      "enum": [
+        "web",
+        "ios"
+      ],
+      "description": "Runtime platform: the web app, or the later native iOS target (01 §5.2, 05 §5.2)."
+    },
+    "PlayerProfile": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "type": "number",
+          "const": 1
+        },
+        "id": {
+          "type": "string",
+          "description": "UUID."
+        },
+        "displayName": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "ISO 8601 UTC."
+        },
+        "xp": {
+          "type": "number",
+          "description": "Per player; never decreases."
+        },
+        "rank": {
+          "type": "number",
+          "description": "Per player, 1..10; never goes down."
+        },
+        "streak": {
+          "type": "object",
+          "properties": {
+            "days": {
+              "type": "number"
+            },
+            "lastDay": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "days",
+            "lastDay"
+          ],
+          "additionalProperties": false,
+          "description": "Local calendar days (YYYY-MM-DD) with ≥ 3 ranked attempts. No freezes in v1 (02 §5.4)."
+        },
+        "daily": {
+          "type": "object",
+          "properties": {
+            "day": {
+              "type": "string"
+            },
+            "rankedCount": {
+              "type": "number"
+            },
+            "attemptCount": {
+              "type": "number"
+            },
+            "repeats": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "number"
+              }
+            }
+          },
+          "required": [
+            "day",
+            "rankedCount",
+            "attemptCount",
+            "repeats"
+          ],
+          "additionalProperties": false,
+          "description": "Per local day (YYYY-MM-DD): ranked and all attempts (practice counts toward the cap), per-excerpt repeats."
+        },
+        "instruments": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/InstrumentProgress"
+          },
+          "description": "Level is per instrument."
+        },
+        "seenGroups": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "dedupeGroup → first reveal time (ISO 8601 UTC), all instruments (02 §5.3)."
+        },
+        "recentTips": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Most recent first."
+        },
+        "rankedIndex": {
+          "type": "number",
+          "description": "Ranked attempts so far, and the ranked index of the last post-reveal skip (02 §5.3; R33)."
+        },
+        "lastSkipRankedIndex": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "activeInstrumentId": {
+          "type": "string"
+        },
+        "configVersion": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "id",
+        "displayName",
+        "createdAt",
+        "xp",
+        "rank",
+        "streak",
+        "daily",
+        "instruments",
+        "seenGroups",
+        "recentTips",
+        "rankedIndex",
+        "lastSkipRankedIndex",
+        "activeInstrumentId",
+        "configVersion"
+      ],
+      "additionalProperties": false,
+      "description": "One local player (R5; 02 §5.7)."
+    },
+    "PracticeSettings": {
+      "type": "object",
+      "properties": {
+        "instrumentId": {
+          "type": "string"
+        },
+        "level": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string",
+              "const": "random"
+            }
+          ]
+        },
+        "writtenKey": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/KeySig"
+            },
+            {
+              "type": "string",
+              "const": "random"
+            }
+          ],
+          "description": "R1: the key the player reads."
+        },
+        "meter": {
+          "type": "string",
+          "description": "\"beats/beatType\", for example \"6/8\"."
+        },
+        "bpm": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string",
+              "const": "random"
+            }
+          ],
+          "description": "Metronome beats per minute."
+        },
+        "bars": {
+          "type": [
+            "number",
+            "string"
+          ],
+          "enum": [
+            8,
+            10,
+            12,
+            "random"
+          ],
+          "description": "A preference, not a filter (04 §5.2)."
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "ranked",
+            "practice"
+          ]
+        },
+        "listening": {
+          "type": "boolean",
+          "description": "false = practise without listening (R13)."
+        },
+        "metronome": {
+          "$ref": "#/definitions/MetronomeMode"
+        },
+        "clickTimbre": {
+          "$ref": "#/definitions/ClickTimbre"
+        },
+        "outputMode": {
+          "$ref": "#/definitions/OutputMode"
+        },
+        "a4Hz": {
+          "type": "number",
+          "description": "Concert A4 reference, Hz, 415..446."
+        },
+        "seed": {
+          "type": "number",
+          "description": "Selection seed; drawn from the injected RNG when absent."
+        }
+      },
+      "required": [
+        "instrumentId",
+        "level",
+        "writtenKey",
+        "meter",
+        "bpm",
+        "bars",
+        "mode",
+        "listening",
+        "metronome",
+        "clickTimbre",
+        "outputMode",
+        "a4Hz"
+      ],
+      "additionalProperties": false,
+      "description": "What the player asked for; any field may be random (01 §5.5; R1, R13)."
+    },
+    "RankedReason": {
+      "type": "string",
+      "enum": [
+        "practice-mode",
+        "seen-before",
+        "scan-extended",
+        "tempo-below-90pct",
+        "visual-metronome",
+        "calibration",
+        "measurement",
+        "familiar",
+        "skip-limit"
+      ],
+      "description": "Why an attempt is unranked: 02's enum (R30). Per-check detail is in `AudioEnv.gateFailures`."
+    },
+    "RestartDiagnostic": {
+      "type": "object",
+      "properties": {
+        "bar": {
+          "type": "number",
+          "description": "Displayed bar where the player restarted (the first replayed note's bar)."
+        },
+        "notesReplayed": {
+          "type": "number"
+        },
+        "offsetBeats": {
+          "$ref": "#/definitions/Beats"
+        }
+      },
+      "required": [
+        "bar",
+        "notesReplayed",
+        "offsetBeats"
+      ],
+      "additionalProperties": false,
+      "description": "A restart or skip (one displaced segment) (02 §4.6)."
+    },
+    "ScoreSeconds": {
+      "type": "number",
+      "description": "Seconds from bar 1 beat 1; negative in the pickup and the count-in (01 §5.1)."
+    },
+    "StopDiagnostic": {
+      "type": "object",
+      "properties": {
+        "bar": {
+          "type": "number",
+          "description": "Displayed bar where the silence starts."
+        },
+        "startBeat": {
+          "$ref": "#/definitions/Beats",
+          "description": "Start, score beats."
+        },
+        "beats": {
+          "$ref": "#/definitions/Beats",
+          "description": "Length, beats."
+        }
+      },
+      "required": [
+        "bar",
+        "startBeat",
+        "beats"
+      ],
+      "additionalProperties": false,
+      "description": "A stop: uncovered silence ≥ max(1 beat, 600 ms) with at least one missed note (02 §4.6)."
+    },
+    "TimingVerdict": {
+      "type": "string",
+      "enum": [
+        "on-time",
+        "early",
+        "late"
+      ]
+    },
+    "VerdictCounts": {
+      "type": "object",
+      "properties": {
+        "correct": {
+          "type": "number"
+        },
+        "early": {
+          "type": "number"
+        },
+        "late": {
+          "type": "number"
+        },
+        "sharp": {
+          "type": "number"
+        },
+        "flat": {
+          "type": "number"
+        },
+        "wrong": {
+          "type": "number"
+        },
+        "octave": {
+          "type": "number"
+        },
+        "missed": {
+          "type": "number"
+        },
+        "extra": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "correct",
+        "early",
+        "late",
+        "sharp",
+        "flat",
+        "wrong",
+        "octave",
+        "missed",
+        "extra"
+      ],
+      "additionalProperties": false,
+      "description": "Verdict counts on results (01 §6.5)."
+    },
+    "VoidReason": {
+      "type": "string",
+      "enum": [
+        "interrupted",
+        "no-signal",
+        "device-change",
+        "backlog",
+        "capture-gap",
+        "stopped-before-first-note"
+      ],
+      "description": "Why a take was voided (01 §7.9, 05 W4, 02 §5.3). Clipping is a results banner, not a void (01 §7.9). `stopped-before-first-note`: a second Stop before the first note in a ranked take (02 §5.3)."
+    },
+    "XpBreakdown": {
+      "type": "object",
+      "properties": {
+        "total": {
+          "type": "number"
+        },
+        "base": {
+          "type": "number",
+          "description": "base(L) before factors."
+        },
+        "factors": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "value": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "id",
+              "value"
+            ],
+            "additionalProperties": false
+          },
+          "description": "Factor ids: q, m_tempo, m_random, m_mode, m_streak, m_daily, m_below, practice, repeat."
+        }
+      },
+      "required": [
+        "total",
+        "base",
+        "factors"
+      ],
+      "additionalProperties": false,
+      "description": "XP breakdown; the UI shows every factor that is not 1.00 (02 §5.4)."
+    }
+  }
+}

@@ -1,0 +1,721 @@
+{
+  "$id": "follower-event.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/FollowerEvent",
+  "definitions": {
+    "Alter": {
+      "type": "number",
+      "enum": [
+        -2,
+        -1,
+        0,
+        1,
+        2
+      ],
+      "description": "Chromatic alteration in semitones. Triple accidentals do not exist (03 §7.5)."
+    },
+    "Beats": {
+      "type": "number",
+      "description": "Float, in metronome beats (02 conventions: quarter in x/4, half in 2/2, dotted quarter in 6/8) (01 §5.1)."
+    },
+    "DisplacedSegment": {
+      "type": "object",
+      "properties": {
+        "fromIdx": {
+          "type": "number",
+          "description": "Expected-note index range the played notes matched, inclusive."
+        },
+        "toIdx": {
+          "type": "number"
+        },
+        "offsetBeats": {
+          "$ref": "#/definitions/Beats",
+          "description": "Offset of the player from the metronome, beats (negative = went back)."
+        },
+        "detectedIds": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        }
+      },
+      "required": [
+        "fromIdx",
+        "toIdx",
+        "offsetBeats",
+        "detectedIds"
+      ],
+      "additionalProperties": false,
+      "description": "A replayed or skipped-ahead run at a constant offset (01 §9.5, §9.6)."
+    },
+    "ExtraNote": {
+      "type": "object",
+      "properties": {
+        "detectedId": {
+          "type": "number"
+        },
+        "onsetSec": {
+          "$ref": "#/definitions/ScoreSeconds"
+        },
+        "concertMidi": {
+          "type": "number",
+          "description": "Fractional concert MIDI."
+        },
+        "cents": {
+          "type": "number",
+          "description": "Cents from the nearest semitone."
+        },
+        "durSec": {
+          "type": "number",
+          "description": "Seconds."
+        },
+        "duringRest": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "detectedId",
+        "onsetSec",
+        "concertMidi",
+        "cents",
+        "durSec",
+        "duringRest"
+      ],
+      "additionalProperties": false,
+      "description": "An unmatched played note (02 §4.1)."
+    },
+    "FinalAlignment": {
+      "type": "object",
+      "properties": {
+        "judgments": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/NoteJudgment"
+          }
+        },
+        "extras": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ExtraNote"
+          }
+        },
+        "displaced": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/DisplacedSegment"
+          }
+        }
+      },
+      "required": [
+        "judgments",
+        "extras",
+        "displaced"
+      ],
+      "additionalProperties": false
+    },
+    "FollowerEvent": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "clock"
+            },
+            "scoreBeat": {
+              "$ref": "#/definitions/Beats"
+            }
+          },
+          "required": [
+            "type",
+            "scoreBeat"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "level"
+            },
+            "levelDb": {
+              "type": "number"
+            },
+            "clipping": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "type",
+            "levelDb",
+            "clipping"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "note-start"
+            },
+            "detectedId": {
+              "type": "number"
+            },
+            "scoreBeat": {
+              "$ref": "#/definitions/Beats"
+            },
+            "provisionalConcertMidi": {
+              "type": "number"
+            },
+            "matchedExpected": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "displaced": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "type",
+            "detectedId",
+            "scoreBeat",
+            "provisionalConcertMidi",
+            "matchedExpected",
+            "displaced"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "note-end"
+            },
+            "detectedId": {
+              "type": "number"
+            },
+            "durationBeats": {
+              "$ref": "#/definitions/Beats"
+            }
+          },
+          "required": [
+            "type",
+            "detectedId",
+            "durationBeats"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "judgment"
+            },
+            "judgment": {
+              "$ref": "#/definitions/LiveJudgment"
+            }
+          },
+          "required": [
+            "type",
+            "judgment"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "ghost"
+            },
+            "ghost": {
+              "$ref": "#/definitions/GhostNote"
+            }
+          },
+          "required": [
+            "type",
+            "ghost"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "missed"
+            },
+            "expectedIdx": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "type",
+            "expectedIdx"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "status"
+            },
+            "kind": {
+              "type": "string",
+              "const": "come-in-at"
+            },
+            "bar": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "type",
+            "kind",
+            "bar"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "status"
+            },
+            "kind": {
+              "type": "string",
+              "enum": [
+                "lost-place",
+                "rejoined",
+                "no-signal"
+              ]
+            }
+          },
+          "required": [
+            "type",
+            "kind"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "end"
+            },
+            "reason": {
+              "type": "string",
+              "enum": [
+                "complete",
+                "stopped",
+                "void"
+              ]
+            },
+            "voidReason": {
+              "$ref": "#/definitions/VoidReason"
+            }
+          },
+          "required": [
+            "type",
+            "reason"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "final"
+            },
+            "alignment": {
+              "$ref": "#/definitions/FinalAlignment"
+            }
+          },
+          "required": [
+            "type",
+            "alignment"
+          ],
+          "additionalProperties": false
+        }
+      ],
+      "description": "Follower event stream (01 §9.9). Order per note and idempotence are guaranteed by 01."
+    },
+    "GhostNote": {
+      "type": "object",
+      "properties": {
+        "detectedId": {
+          "type": "number"
+        },
+        "scoreBeat": {
+          "$ref": "#/definitions/Beats",
+          "description": "Played onset in score beats (x position never moves, 01 §9.7)."
+        },
+        "writtenPitch": {
+          "$ref": "#/definitions/SpelledPitch",
+          "description": "Spelled with `theory.spellGhost` (02 §4.8)."
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "early",
+            "late",
+            "sharp",
+            "flat",
+            "wrong-pitch",
+            "octave",
+            "extra"
+          ]
+        },
+        "centsError": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "targetExpectedIdx": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "displaced": {
+          "type": "boolean",
+          "description": "Part of a displaced segment (drawn as a replay ghost)."
+        }
+      },
+      "required": [
+        "detectedId",
+        "scoreBeat",
+        "writtenPitch",
+        "kind",
+        "centsError",
+        "targetExpectedIdx",
+        "displaced"
+      ],
+      "additionalProperties": false,
+      "description": "Ghost note drawn on the overlay (01 §5.8)."
+    },
+    "LiveJudgment": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "provisional": {
+          "type": "boolean"
+        },
+        "expectedIdx": {
+          "type": "number"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "matched",
+            "missed"
+          ]
+        },
+        "detectedId": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "timing": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/TimingVerdict"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "timingErrorMs": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "Played minus expected onset, ms; + = late."
+        },
+        "pitch": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/PitchVerdict"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "playedConcertMidi": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "Fractional concert MIDI of the played note."
+        },
+        "centsError": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "Deviation from the target after tuning or voice reference offset, cents."
+        },
+        "octaveDisplaced": {
+          "type": "boolean",
+          "description": "Voice: true but credited as correct (R7)."
+        },
+        "duration": {
+          "type": "string",
+          "enum": [
+            "ok",
+            "short",
+            "not-graded"
+          ]
+        },
+        "heldRatio": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "Played duration / written duration."
+        },
+        "marginal": {
+          "type": "boolean",
+          "description": "Beyond good but within red on timing or intonation (02 §4.8 `correct-marginal`)."
+        }
+      },
+      "required": [
+        "centsError",
+        "detectedId",
+        "duration",
+        "expectedIdx",
+        "heldRatio",
+        "marginal",
+        "octaveDisplaced",
+        "pitch",
+        "playedConcertMidi",
+        "provisional",
+        "status",
+        "timing",
+        "timingErrorMs"
+      ]
+    },
+    "NoteJudgment": {
+      "type": "object",
+      "properties": {
+        "expectedIdx": {
+          "type": "number"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "matched",
+            "missed"
+          ]
+        },
+        "detectedId": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "timing": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/TimingVerdict"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "timingErrorMs": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "Played minus expected onset, ms; + = late."
+        },
+        "pitch": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/PitchVerdict"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "playedConcertMidi": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "Fractional concert MIDI of the played note."
+        },
+        "centsError": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "Deviation from the target after tuning or voice reference offset, cents."
+        },
+        "octaveDisplaced": {
+          "type": "boolean",
+          "description": "Voice: true but credited as correct (R7)."
+        },
+        "duration": {
+          "type": "string",
+          "enum": [
+            "ok",
+            "short",
+            "not-graded"
+          ]
+        },
+        "heldRatio": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "Played duration / written duration."
+        },
+        "credit": {
+          "type": "object",
+          "properties": {
+            "p": {
+              "type": "number"
+            },
+            "n": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "o": {
+              "type": "number"
+            },
+            "d": {
+              "type": [
+                "number",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "p",
+            "n",
+            "o",
+            "d"
+          ],
+          "additionalProperties": false,
+          "description": "Per-note credits 0..1 (02 §4.3); null n or d = not graded."
+        },
+        "marginal": {
+          "type": "boolean",
+          "description": "Beyond good but within red on timing or intonation (02 §4.8 `correct-marginal`)."
+        },
+        "rejudged": {
+          "type": "boolean",
+          "description": "Final state or ghost kind differs from live (01 §9.7)."
+        }
+      },
+      "required": [
+        "expectedIdx",
+        "status",
+        "detectedId",
+        "timing",
+        "timingErrorMs",
+        "pitch",
+        "playedConcertMidi",
+        "centsError",
+        "octaveDisplaced",
+        "duration",
+        "heldRatio",
+        "credit",
+        "marginal",
+        "rejudged"
+      ],
+      "additionalProperties": false,
+      "description": "Final judgment of one expected note (01 §6.5, 02 §4.3)."
+    },
+    "PitchVerdict": {
+      "type": "string",
+      "enum": [
+        "in-tune",
+        "sharp",
+        "flat",
+        "wrong-pitch",
+        "octave",
+        "not-graded"
+      ],
+      "description": "`octave` earns no pitch credit on non-voice instruments (R20)."
+    },
+    "ScoreSeconds": {
+      "type": "number",
+      "description": "Seconds from bar 1 beat 1; negative in the pickup and the count-in (01 §5.1)."
+    },
+    "SpelledPitch": {
+      "type": "object",
+      "properties": {
+        "step": {
+          "$ref": "#/definitions/Step"
+        },
+        "alter": {
+          "$ref": "#/definitions/Alter"
+        },
+        "octave": {
+          "type": "number",
+          "description": "Scientific octave number (C4 = middle C)."
+        }
+      },
+      "required": [
+        "step",
+        "alter",
+        "octave"
+      ],
+      "additionalProperties": false,
+      "description": "A spelled pitch. C4 = MIDI 60 (01 §5.3)."
+    },
+    "Step": {
+      "type": "string",
+      "enum": [
+        "C",
+        "D",
+        "E",
+        "F",
+        "G",
+        "A",
+        "B"
+      ]
+    },
+    "TimingVerdict": {
+      "type": "string",
+      "enum": [
+        "on-time",
+        "early",
+        "late"
+      ]
+    },
+    "VoidReason": {
+      "type": "string",
+      "enum": [
+        "interrupted",
+        "no-signal",
+        "device-change",
+        "backlog",
+        "capture-gap",
+        "stopped-before-first-note"
+      ],
+      "description": "Why a take was voided (01 §7.9, 05 W4, 02 §5.3). Clipping is a results banner, not a void (01 §7.9). `stopped-before-first-note`: a second Stop before the first note in a ranked take (02 §5.3)."
+    }
+  }
+}

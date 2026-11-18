@@ -1,0 +1,2205 @@
+{
+  "$schema": "../schemas/tips.schema.json",
+  "configVersion": "tips-1.0.0",
+  "patterns": [
+    {
+      "_source": "02 §6.2",
+      "id": "E1",
+      "name": "Rushed ahead of the click",
+      "dimension": "rhythm",
+      "enabled": true,
+      "components": [
+        "R"
+      ],
+      "thresholds": {
+        "slopeBeatsPerBar": 0.04,
+        "minTotalDriftBeats": 0.25,
+        "minRSquared": 0.5
+      },
+      "minEvidence": {
+        "notes": 12,
+        "bars": 6
+      }
+    },
+    {
+      "_source": "02 §6.2",
+      "id": "E2",
+      "name": "Fell behind the click",
+      "dimension": "rhythm",
+      "enabled": true,
+      "components": [
+        "R"
+      ],
+      "thresholds": {
+        "slopeBeatsPerBar": 0.04,
+        "minTotalDriftBeats": 0.25,
+        "minRSquared": 0.5
+      },
+      "minEvidence": {
+        "notes": 12,
+        "bars": 6
+      }
+    },
+    {
+      "_source": "02 §L-C (Later annex, disabled data)",
+      "id": "E3",
+      "name": "Rushed subdivisions",
+      "dimension": "rhythm",
+      "enabled": false,
+      "components": [
+        "R"
+      ],
+      "thresholds": {
+        "minRunNotes": 3,
+        "maxIoiRatio": 0.85
+      },
+      "minEvidence": {
+        "runs": 2
+      }
+    },
+    {
+      "_source": "02 §6.2",
+      "id": "E4",
+      "name": "Hesitated at barlines",
+      "dimension": "rhythm",
+      "enabled": true,
+      "components": [
+        "R"
+      ],
+      "thresholds": {
+        "minRelativeDeltaBeats": 0.12,
+        "minRelativeDeltaMs": 50
+      },
+      "minEvidence": {
+        "downbeats": 4
+      }
+    },
+    {
+      "_source": "02 §L-C (Later annex, disabled data)",
+      "id": "E5",
+      "name": "Hesitated before leaps",
+      "dimension": "rhythm",
+      "enabled": false,
+      "components": [
+        "R"
+      ],
+      "thresholds": {
+        "minLeapSemis": 7,
+        "minLateBeats": 0.12
+      },
+      "minEvidence": {
+        "leaps": 3
+      }
+    },
+    {
+      "_source": "02 §6.2",
+      "id": "E6",
+      "name": "Stopped or restarted",
+      "dimension": "flow",
+      "enabled": true,
+      "components": [
+        "P",
+        "R"
+      ],
+      "thresholds": {},
+      "minEvidence": {
+        "stopsOrRestarts": 1
+      }
+    },
+    {
+      "_source": "02 §6.2",
+      "id": "E7",
+      "name": "Dotted quarter-eighth evened out",
+      "dimension": "rhythm",
+      "enabled": true,
+      "components": [
+        "R"
+      ],
+      "thresholds": {
+        "maxRatio": 2,
+        "minShortIoiMs": 150
+      },
+      "minEvidence": {
+        "figures": 3
+      }
+    },
+    {
+      "_source": "02 §6.2",
+      "id": "E8",
+      "name": "Dotted eighth-sixteenth evened out",
+      "dimension": "rhythm",
+      "enabled": true,
+      "components": [
+        "R"
+      ],
+      "thresholds": {
+        "maxRatio": 2.2,
+        "minShortIoiMs": 120
+      },
+      "minEvidence": {
+        "figures": 3
+      }
+    },
+    {
+      "_source": "02 §6.2",
+      "id": "E9",
+      "name": "Early after rests",
+      "dimension": "rhythm",
+      "enabled": true,
+      "components": [
+        "R"
+      ],
+      "thresholds": {
+        "minRestBeats": 1
+      },
+      "minEvidence": {
+        "entries": 3
+      }
+    },
+    {
+      "_source": "02 §L-C (Later annex, disabled data)",
+      "id": "E10",
+      "name": "Syncopation flattened",
+      "dimension": "rhythm",
+      "enabled": false,
+      "components": [
+        "R"
+      ],
+      "thresholds": {
+        "minMovedBeats": 0.15
+      },
+      "minEvidence": {
+        "notes": 2
+      }
+    },
+    {
+      "_source": "02 §L-C (Later annex, disabled data)",
+      "id": "E11",
+      "name": "Triplets uneven",
+      "dimension": "rhythm",
+      "enabled": false,
+      "components": [
+        "R"
+      ],
+      "thresholds": {
+        "maxDeviationFraction": 0.25
+      },
+      "minEvidence": {
+        "groups": 2
+      }
+    },
+    {
+      "_source": "02 §6.2",
+      "id": "E12",
+      "name": "Missed key-signature notes",
+      "dimension": "notes",
+      "enabled": true,
+      "components": [
+        "P"
+      ],
+      "thresholds": {
+        "clearCents": 30,
+        "minShareOfKeySigNotes": 0.3
+      },
+      "minEvidence": {
+        "notes": 2,
+        "bars": 2
+      }
+    },
+    {
+      "_source": "02 §6.2",
+      "id": "E13",
+      "name": "Missed written accidentals",
+      "dimension": "notes",
+      "enabled": true,
+      "components": [
+        "P"
+      ],
+      "thresholds": {
+        "clearCents": 30
+      },
+      "minEvidence": {
+        "notes": 2
+      }
+    },
+    {
+      "_source": "02 §L-C (Later annex, disabled data)",
+      "id": "E14",
+      "name": "Accidental carry errors",
+      "dimension": "notes",
+      "enabled": false,
+      "components": [
+        "P"
+      ],
+      "thresholds": {},
+      "minEvidence": {
+        "notes": 1
+      }
+    },
+    {
+      "_source": "02 §L-C (Later annex, disabled data)",
+      "id": "E15",
+      "name": "Octave or register errors",
+      "dimension": "notes",
+      "enabled": false,
+      "components": [
+        "P"
+      ],
+      "thresholds": {
+        "clarinetOffsetSemis": 19
+      },
+      "minEvidence": {
+        "notes": 1
+      }
+    },
+    {
+      "_source": "02 §6.2",
+      "id": "E16",
+      "name": "Wrong partial (trumpet)",
+      "dimension": "notes",
+      "enabled": true,
+      "components": [
+        "P"
+      ],
+      "thresholds": {},
+      "minEvidence": {
+        "notes": 2
+      },
+      "instruments": [
+        "trumpet-bb"
+      ]
+    },
+    {
+      "_source": "02 §L-C (Later annex, disabled data)",
+      "id": "E17",
+      "name": "Leap inaccuracy",
+      "dimension": "notes",
+      "enabled": false,
+      "components": [
+        "P"
+      ],
+      "thresholds": {
+        "errorRateRatio": 2
+      },
+      "minEvidence": {
+        "notes": 2
+      }
+    },
+    {
+      "_source": "02 §6.2",
+      "id": "E18",
+      "name": "Misread ledger-line notes",
+      "dimension": "notes",
+      "enabled": true,
+      "components": [
+        "P"
+      ],
+      "thresholds": {
+        "minLedgerLines": 2,
+        "maxDiatonicSteps": 2,
+        "minShareOfLedgerNotes": 0.4
+      },
+      "minEvidence": {
+        "notes": 2
+      }
+    },
+    {
+      "_source": "02 §L-C (Later annex, disabled data)",
+      "id": "E19",
+      "name": "Clef confusion",
+      "dimension": "notes",
+      "enabled": false,
+      "components": [
+        "P"
+      ],
+      "thresholds": {},
+      "minEvidence": {
+        "notes": 2
+      }
+    },
+    {
+      "_source": "02 §L-C (Later annex, disabled data)",
+      "id": "E20",
+      "name": "Out of tune, high register",
+      "dimension": "in-tune",
+      "enabled": false,
+      "components": [
+        "I"
+      ],
+      "thresholds": {
+        "minAbsCents": 15,
+        "registerFraction": 0.25
+      },
+      "minEvidence": {
+        "notes": 3
+      }
+    },
+    {
+      "_source": "02 §L-C (Later annex, disabled data)",
+      "id": "E21",
+      "name": "Out of tune, low register",
+      "dimension": "in-tune",
+      "enabled": false,
+      "components": [
+        "I"
+      ],
+      "thresholds": {
+        "minAbsCents": 15,
+        "registerFraction": 0.25
+      },
+      "minEvidence": {
+        "notes": 3
+      }
+    },
+    {
+      "_source": "02 §6.2",
+      "id": "E22",
+      "name": "Out of tune overall",
+      "dimension": "in-tune",
+      "enabled": true,
+      "components": [
+        "I"
+      ],
+      "thresholds": {
+        "minSteadyMs": 150,
+        "medianAbsCents": 20
+      },
+      "minEvidence": {
+        "notes": 8
+      }
+    },
+    {
+      "_source": "02 §6.2",
+      "id": "E23",
+      "name": "Pitch drifted (voice)",
+      "dimension": "in-tune",
+      "enabled": true,
+      "components": [
+        "I"
+      ],
+      "thresholds": {
+        "finalOffsetCents": 40
+      },
+      "minEvidence": {
+        "notes": 8
+      },
+      "instruments": [
+        "voice-soprano",
+        "voice-alto",
+        "voice-tenor",
+        "voice-bass"
+      ]
+    },
+    {
+      "_source": "02 §L-C (Later annex, disabled data)",
+      "id": "E24",
+      "name": "Unstable sustain",
+      "dimension": "in-tune",
+      "enabled": false,
+      "components": [
+        "I"
+      ],
+      "thresholds": {
+        "maxSdCents": 25
+      },
+      "minEvidence": {
+        "notes": 2
+      }
+    },
+    {
+      "_source": "02 §L-C (Later annex, disabled data)",
+      "id": "E25",
+      "name": "Slow response, low register",
+      "dimension": "rhythm",
+      "enabled": false,
+      "components": [
+        "R"
+      ],
+      "thresholds": {
+        "minLateBeats": 0.1,
+        "registerFraction": 0.25
+      },
+      "minEvidence": {
+        "notes": 3
+      }
+    },
+    {
+      "_source": "02 §6.2",
+      "id": "E26",
+      "name": "Busy passages broke down",
+      "dimension": "notes",
+      "enabled": true,
+      "components": [
+        "P",
+        "R"
+      ],
+      "thresholds": {
+        "densestFraction": 0.25,
+        "minCreditGapPoints": 25
+      },
+      "minEvidence": {
+        "denseBeats": 4
+      }
+    },
+    {
+      "_source": "02 §L-C (Later annex, disabled data)",
+      "id": "E27",
+      "name": "Accuracy faded at the end",
+      "dimension": "notes",
+      "enabled": false,
+      "components": [
+        "P",
+        "I",
+        "R"
+      ],
+      "thresholds": {
+        "minCreditGapPoints": 20
+      },
+      "minEvidence": {
+        "bars": 8
+      }
+    },
+    {
+      "_source": "02 §6.2",
+      "id": "E28",
+      "name": "Late pickup",
+      "dimension": "rhythm",
+      "enabled": true,
+      "components": [
+        "R"
+      ],
+      "thresholds": {
+        "minLateBeats": 0.25,
+        "nextNotes": 8
+      },
+      "minEvidence": {
+        "notes": 1
+      }
+    },
+    {
+      "_source": "02 §6.2",
+      "id": "E29",
+      "name": "Late first entry",
+      "dimension": "rhythm",
+      "enabled": true,
+      "components": [
+        "R"
+      ],
+      "thresholds": {
+        "minLateBeats": 0.25,
+        "nextNotes": 8
+      },
+      "minEvidence": {
+        "notes": 1
+      }
+    },
+    {
+      "_source": "02 §6.2",
+      "id": "E30",
+      "name": "Clean read",
+      "dimension": "none",
+      "enabled": true,
+      "components": [],
+      "thresholds": {
+        "minScore": 90
+      },
+      "minEvidence": {}
+    },
+    {
+      "_source": "02 §6.2",
+      "id": "E31",
+      "name": "Clarinet break crossings",
+      "dimension": "notes",
+      "enabled": true,
+      "components": [
+        "P",
+        "R"
+      ],
+      "thresholds": {
+        "breakLowMidi": 70,
+        "breakHighMidi": 71,
+        "errorRateRatio": 2
+      },
+      "minEvidence": {
+        "crossingsWithErrors": 3
+      },
+      "instruments": [
+        "clarinet-bb"
+      ]
+    },
+    {
+      "_source": "02 §L-C (Later annex, disabled data)",
+      "id": "E32",
+      "name": "Long notes cut short",
+      "dimension": "rhythm",
+      "enabled": false,
+      "components": [
+        "R"
+      ],
+      "thresholds": {
+        "maxDurationCredit": 0.5
+      },
+      "minEvidence": {
+        "notes": 2
+      }
+    },
+    {
+      "_source": "02 §L-C (Later annex, disabled data)",
+      "id": "E33",
+      "name": "Trombone long positions",
+      "dimension": "in-tune",
+      "enabled": false,
+      "components": [
+        "I"
+      ],
+      "thresholds": {},
+      "minEvidence": {}
+    },
+    {
+      "_source": "02 §L-C (Later annex, disabled data)",
+      "id": "E34",
+      "name": "Valve combinations out of tune",
+      "dimension": "in-tune",
+      "enabled": false,
+      "components": [
+        "I"
+      ],
+      "thresholds": {},
+      "minEvidence": {}
+    },
+    {
+      "_source": "02 §L-C (Later annex, disabled data)",
+      "id": "E35",
+      "name": "Shift intonation (strings)",
+      "dimension": "in-tune",
+      "enabled": false,
+      "components": [
+        "I"
+      ],
+      "thresholds": {},
+      "minEvidence": {}
+    }
+  ],
+  "tips": [
+    {
+      "_source": "02 §6.3",
+      "id": "U01",
+      "scope": "universal",
+      "patterns": [
+        "E1"
+      ],
+      "assertsCause": false,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": true,
+      "text": "You finished ahead of the click. Rushing usually comes from excitement and short notes. Let every long note take its full value, and feel the click land on every beat, not only beat 1."
+    },
+    {
+      "_source": "02 §6.3",
+      "id": "U02",
+      "scope": "universal",
+      "patterns": [
+        "E2"
+      ],
+      "assertsCause": false,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": true,
+      "text": "You fell behind the click. Dragging means your eyes are too close to your sound. Keep your eyes at least one beat ahead, and keep moving when a note goes wrong: a wrong note on time beats a right note late."
+    },
+    {
+      "_source": "02 §6.3",
+      "id": "U04",
+      "scope": "universal",
+      "patterns": [
+        "E4"
+      ],
+      "assertsCause": false,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": true,
+      "text": "You paused at barlines. Read across them: before you reach the end of a bar, your eyes should already be on the first note of the next bar."
+    },
+    {
+      "_source": "02 §6.3",
+      "id": "U06",
+      "scope": "universal",
+      "patterns": [
+        "E6"
+      ],
+      "assertsCause": false,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": true,
+      "text": "You stopped or went back. In sight reading the beat is the boss. If you get lost, drop notes, find the next downbeat, and come back in. Count \"1\" on every downbeat so you always know where to re-enter."
+    },
+    {
+      "_source": "02 §6.3",
+      "id": "U07",
+      "scope": "universal",
+      "patterns": [
+        "E7"
+      ],
+      "assertsCause": false,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": true,
+      "text": "Dotted quarter and eighth came out even. It is long-short, 3 to 1. Count \"1-and-2-and\" and put the eighth on the \"and\" of 2."
+    },
+    {
+      "_source": "02 §6.3",
+      "id": "U08",
+      "scope": "universal",
+      "patterns": [
+        "E8"
+      ],
+      "assertsCause": false,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": true,
+      "text": "Dotted eighth and sixteenth is not a triplet. The sixteenth sits right against the next beat: count \"1-e-and-a\" and put it on \"a\"."
+    },
+    {
+      "_source": "02 §6.3",
+      "id": "U09",
+      "scope": "universal",
+      "patterns": [
+        "E9"
+      ],
+      "assertsCause": false,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": true,
+      "text": "You came in early after rests. Rests are counted silence. Keep counting through them and use the rest to prepare (breath, bow, hand) so the entry lands on time."
+    },
+    {
+      "_source": "02 §6.3",
+      "id": "U12",
+      "scope": "universal",
+      "patterns": [
+        "E12"
+      ],
+      "assertsCause": false,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": true,
+      "text": "Notes from the key signature were missed (for example F instead of F♯). Before you start, name the key and its altered notes out loud (\"D major: F♯ and C♯\")."
+    },
+    {
+      "_source": "02 §6.3",
+      "id": "U13",
+      "scope": "universal",
+      "patterns": [
+        "E13"
+      ],
+      "assertsCause": false,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": true,
+      "text": "Written accidentals were missed. During your scan, find every accidental before you play a note."
+    },
+    {
+      "_source": "02 §6.3",
+      "id": "U16",
+      "scope": "universal",
+      "patterns": [
+        "E18"
+      ],
+      "assertsCause": false,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": true,
+      "text": "Ledger-line notes tripped you up. Learn landmark notes (middle C, the C two ledger lines above the treble staff) and read ledger notes as steps from the landmark."
+    },
+    {
+      "_source": "02 §6.3",
+      "id": "U17",
+      "scope": "universal",
+      "patterns": [
+        "E26"
+      ],
+      "assertsCause": false,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": true,
+      "text": "Busy passages lost accuracy. Look for shapes: scales, arpeggios, repeated figures. Read a shape as one unit instead of note by note."
+    },
+    {
+      "_source": "02 §6.3",
+      "id": "U18",
+      "scope": "universal",
+      "patterns": [
+        "E30"
+      ],
+      "assertsCause": false,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": true,
+      "text": "Clean read. Try the next one 8 bpm faster, or take a stretch excerpt at the next level."
+    },
+    {
+      "_source": "02 §6.3",
+      "id": "U20",
+      "scope": "universal",
+      "patterns": [
+        "E28",
+        "E29"
+      ],
+      "assertsCause": false,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": true,
+      "text": "The first note was late. Prepare on the last count-in beat (breathe, set the bow, place the hand) so sound starts exactly on beat 1. Look at the pickup during the scan."
+    },
+    {
+      "_source": "02 §6.3",
+      "id": "U22",
+      "scope": "universal",
+      "patterns": [
+        "E22"
+      ],
+      "assertsCause": false,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": true,
+      "text": "You were about {offset} cents {direction} throughout. Use the tuning note before the next exercise."
+    },
+    {
+      "_source": "02 §L-D (Later annex, disabled data)",
+      "id": "U03",
+      "scope": "universal",
+      "patterns": [
+        "E3"
+      ],
+      "assertsCause": false,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": false,
+      "text": "Runs of short notes got faster. Subdivide in your head (\"1-e-and-a\") and place each group against the click rather than letting the fingers lead."
+    },
+    {
+      "_source": "02 §L-D (Later annex, disabled data)",
+      "id": "U05",
+      "scope": "universal",
+      "patterns": [
+        "E5"
+      ],
+      "assertsCause": false,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": false,
+      "text": "You hesitated before leaps. Spot leaps during the scan and decide the landing note before you start, so the leap is already solved when you reach it."
+    },
+    {
+      "_source": "02 §L-D (Later annex, disabled data)",
+      "id": "U10",
+      "scope": "universal",
+      "patterns": [
+        "E10"
+      ],
+      "assertsCause": false,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": false,
+      "text": "Syncopated notes slid onto the beat. Feel the beat under the note: tap your foot on the beats and let the syncopation sit between taps."
+    },
+    {
+      "_source": "02 §L-D (Later annex, disabled data)",
+      "id": "U11",
+      "scope": "universal",
+      "patterns": [
+        "E11"
+      ],
+      "assertsCause": false,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": false,
+      "text": "Triplets were uneven. Say \"tri-pl-et\" evenly across one beat, and land the next beat exactly on the click."
+    },
+    {
+      "_source": "02 §L-D (Later annex, disabled data)",
+      "id": "U14",
+      "scope": "universal",
+      "patterns": [
+        "E14"
+      ],
+      "assertsCause": false,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": false,
+      "text": "An accidental lasts until the barline, for every note on that line or space, and the barline cancels it. Watch for both: keeping it through the bar and dropping it after."
+    },
+    {
+      "_source": "02 §L-D (Later annex, disabled data)",
+      "id": "U15",
+      "scope": "universal",
+      "patterns": [
+        "E17"
+      ],
+      "assertsCause": false,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": false,
+      "text": "Wrong notes clustered after leaps. Read leaps as intervals, not letter names: line to line is a 3rd, line to the next-but-one line a 5th. Hear or feel the interval before you play it."
+    },
+    {
+      "_source": "02 §L-D (Later annex, disabled data)",
+      "id": "U19",
+      "scope": "universal",
+      "patterns": [
+        "E27"
+      ],
+      "assertsCause": false,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": false,
+      "text": "Accuracy dropped near the end. Glance at the last line during your scan so the ending is not a surprise, and keep the same focus to the double bar."
+    },
+    {
+      "_source": "02 §L-D (Later annex, disabled data)",
+      "id": "U21",
+      "scope": "universal",
+      "patterns": [
+        "E32"
+      ],
+      "assertsCause": false,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": false,
+      "text": "Long notes were cut short. Count through every long note and release on the next beat, not before."
+    },
+    {
+      "_source": "02 §L-D (Later annex, disabled data)",
+      "id": "U23",
+      "scope": "universal",
+      "patterns": [
+        "E19"
+      ],
+      "assertsCause": false,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": false,
+      "text": "Clef reading: find the clef's anchor note first (alto clef: middle line is middle C; tenor clef: 4th line is middle C) and read by step from it."
+    },
+    {
+      "_source": "02 §6.4",
+      "id": "VO02",
+      "scope": "family",
+      "family": "voice",
+      "instruments": [
+        "voice-soprano",
+        "voice-alto",
+        "voice-tenor",
+        "voice-bass"
+      ],
+      "patterns": [
+        "E23"
+      ],
+      "assertsCause": false,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": true,
+      "text": "Your pitch sank slowly across the exercise. Keep \"do\" in your ear: re-hear the tonic silently at each rest, and keep vowels bright."
+    },
+    {
+      "_source": "02 §6.4",
+      "id": "VO04",
+      "scope": "family",
+      "family": "voice",
+      "instruments": [
+        "voice-soprano",
+        "voice-alto",
+        "voice-tenor",
+        "voice-bass"
+      ],
+      "patterns": [
+        "E12",
+        "E13"
+      ],
+      "assertsCause": false,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": true,
+      "text": "Chromatic notes: use solfège. Sharps raise (fi, di, si), flats lower (te, le, me). A raised note usually wants to resolve up; hear the pull."
+    },
+    {
+      "_source": "02 §6.4",
+      "id": "VO07",
+      "scope": "family",
+      "family": "voice",
+      "instruments": [
+        "voice-soprano",
+        "voice-alto",
+        "voice-tenor",
+        "voice-bass"
+      ],
+      "patterns": [
+        "E6"
+      ],
+      "assertsCause": false,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": true,
+      "text": "If you stopped to breathe, plan breaths at rests and phrase ends during the scan, and take a quick low breath at each one."
+    },
+    {
+      "_source": "02 §6.4",
+      "id": "VO08",
+      "scope": "family",
+      "family": "voice",
+      "instruments": [
+        "voice-soprano",
+        "voice-alto",
+        "voice-tenor",
+        "voice-bass"
+      ],
+      "patterns": [
+        "E29"
+      ],
+      "assertsCause": false,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": true,
+      "text": "Your first note came in late. On the last count-in beat, hear the starting pitch in your head and start the tone right on it."
+    },
+    {
+      "_source": "02 §6.4",
+      "id": "FL05",
+      "scope": "family",
+      "family": "flute",
+      "instruments": [
+        "flute"
+      ],
+      "patterns": [
+        "E12",
+        "E13"
+      ],
+      "assertsCause": true,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": true,
+      "text": "Accidentals and key notes on flute often hide in B♭ and F♯. Choose thumb B♭ in flat keys and when no B naturals are near; decide in the scan."
+    },
+    {
+      "_source": "02 §6.4",
+      "id": "FL06",
+      "scope": "family",
+      "family": "flute",
+      "instruments": [
+        "flute"
+      ],
+      "patterns": [
+        "E6"
+      ],
+      "assertsCause": false,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": true,
+      "text": "If you stopped to breathe, mark breaths in the scan, after long notes or before pickups, and take quick breaths through the corners of the mouth."
+    },
+    {
+      "_source": "02 §6.4",
+      "id": "FL07",
+      "scope": "family",
+      "family": "flute",
+      "instruments": [
+        "flute"
+      ],
+      "patterns": [
+        "E26"
+      ],
+      "assertsCause": true,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": true,
+      "text": "Fast passages fell apart. Keep fingers close to the keys and let the air lead the line."
+    },
+    {
+      "_source": "02 §6.4",
+      "id": "CL01",
+      "scope": "family",
+      "family": "clarinet",
+      "instruments": [
+        "clarinet-bb"
+      ],
+      "patterns": [
+        "E31"
+      ],
+      "assertsCause": true,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": true,
+      "text": "Notes crossing the break failed. Keep right-hand fingers down when crossing up, and keep the air steady; do not pinch on the way up."
+    },
+    {
+      "_source": "02 §6.4",
+      "id": "CL05",
+      "scope": "family",
+      "family": "clarinet",
+      "instruments": [
+        "clarinet-bb"
+      ],
+      "patterns": [
+        "E26"
+      ],
+      "assertsCause": true,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": true,
+      "text": "Fast passages tangled the little fingers. In the scan, find runs that need alternating left and right little-finger keys and decide which side each note takes."
+    },
+    {
+      "_source": "02 §6.4",
+      "id": "SX04",
+      "scope": "family",
+      "family": "sax",
+      "instruments": [
+        "sax-alto"
+      ],
+      "patterns": [
+        "E12",
+        "E13"
+      ],
+      "condition": "bflat-involved",
+      "assertsCause": true,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": true,
+      "text": "B♭ fingerings: use bis B♭ in flat keys, side B♭ in chromatic lines, and 1-and-1 next to B naturals. Choose in the scan."
+    },
+    {
+      "_source": "02 §6.4",
+      "id": "SX06",
+      "scope": "family",
+      "family": "sax",
+      "instruments": [
+        "sax-alto"
+      ],
+      "patterns": [
+        "E18"
+      ],
+      "assertsCause": false,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": true,
+      "text": "Palm-key notes (written D6 to F6) were misread. Learn them as steps above the high C at two ledger lines."
+    },
+    {
+      "_source": "02 §6.4",
+      "id": "HB01",
+      "scope": "family",
+      "family": "high-brass",
+      "instruments": [
+        "trumpet-bb"
+      ],
+      "patterns": [
+        "E16"
+      ],
+      "assertsCause": false,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": true,
+      "text": "You landed on a neighbouring partial (same fingering, different note). Brass needs you to hear the pitch first. In the scan, hum or buzz the tricky intervals."
+    },
+    {
+      "_source": "02 §6.4",
+      "id": "US02",
+      "scope": "family",
+      "family": "upper-strings",
+      "instruments": [
+        "violin"
+      ],
+      "patterns": [
+        "E12"
+      ],
+      "assertsCause": true,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": true,
+      "text": "Key-signature notes were missed. Before you start, set the finger pattern for the key: high 2nd finger in sharp keys (F♯, C♯), low 2nd in flat keys."
+    },
+    {
+      "_source": "02 §6.4",
+      "id": "US03",
+      "scope": "family",
+      "family": "upper-strings",
+      "instruments": [
+        "violin"
+      ],
+      "patterns": [
+        "E13"
+      ],
+      "assertsCause": true,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": true,
+      "text": "Accidentals change finger spacing. A half step means fingers touching; a whole step means a gap."
+    },
+    {
+      "_source": "02 §6.4",
+      "id": "US05",
+      "scope": "family",
+      "family": "upper-strings",
+      "instruments": [
+        "violin"
+      ],
+      "patterns": [
+        "E26"
+      ],
+      "assertsCause": true,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": true,
+      "text": "Fast string crossings fell behind. Keep the bow near the next string level and move the elbow ahead of the change."
+    },
+    {
+      "_source": "02 §6.4",
+      "id": "US07",
+      "scope": "family",
+      "family": "upper-strings",
+      "instruments": [
+        "violin"
+      ],
+      "patterns": [
+        "E22"
+      ],
+      "assertsCause": false,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": true,
+      "text": "Your notes were out of tune throughout. Tune with the app's tuning note before the next exercise, and check 3rd and 4th fingers against open strings."
+    },
+    {
+      "_source": "02 §6.4",
+      "id": "LS02",
+      "scope": "family",
+      "family": "low-strings",
+      "instruments": [
+        "cello"
+      ],
+      "patterns": [
+        "E12"
+      ],
+      "assertsCause": true,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": true,
+      "text": "Sharp keys on cello need forward extensions. Find the F♯ and C♯ positions in the scan and decide where to extend."
+    },
+    {
+      "_source": "02 §6.4",
+      "id": "LS07",
+      "scope": "family",
+      "family": "low-strings",
+      "instruments": [
+        "cello"
+      ],
+      "patterns": [
+        "E2"
+      ],
+      "assertsCause": false,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": true,
+      "text": "The bass line sets the time for everyone. Keep each note's start on the click and avoid waiting for the sound to bloom."
+    },
+    {
+      "_source": "02 §6.4",
+      "id": "KB02",
+      "scope": "family",
+      "family": "keyboard",
+      "instruments": [
+        "piano-rh"
+      ],
+      "patterns": [
+        "E4",
+        "E6"
+      ],
+      "assertsCause": true,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": true,
+      "text": "Hesitations often come from looking at your hands. Keep your eyes on the music and use the groups of two and three black keys as landmarks."
+    },
+    {
+      "_source": "02 §6.4",
+      "id": "KB03",
+      "scope": "family",
+      "family": "keyboard",
+      "instruments": [
+        "piano-rh"
+      ],
+      "patterns": [
+        "E26"
+      ],
+      "assertsCause": true,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": true,
+      "text": "Runs broke down. Decide fingering at position changes during the scan, including where the thumb passes under."
+    },
+    {
+      "_source": "02 §6.4",
+      "id": "KB04",
+      "scope": "family",
+      "family": "keyboard",
+      "instruments": [
+        "piano-rh"
+      ],
+      "patterns": [
+        "E12"
+      ],
+      "assertsCause": false,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": true,
+      "text": "Key-signature notes were missed. Before you start, rest fingers over the black keys of the key (D major: F♯ and C♯)."
+    },
+    {
+      "_source": "02 §6.4",
+      "id": "KB05",
+      "scope": "family",
+      "family": "keyboard",
+      "instruments": [
+        "piano-rh"
+      ],
+      "patterns": [
+        "E18"
+      ],
+      "assertsCause": false,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": true,
+      "text": "Ledger-line notes were misread. Middle C is one ledger line below treble; read outward from it."
+    },
+    {
+      "_source": "02 §6.4",
+      "id": "KB07",
+      "scope": "family",
+      "family": "keyboard",
+      "instruments": [
+        "piano-rh"
+      ],
+      "patterns": [
+        "E1"
+      ],
+      "assertsCause": true,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": true,
+      "text": "Running notes rushed. Keep fingers close to the keys so they do not race ahead, and feel each beat land with the click."
+    },
+    {
+      "_source": "02 §L-E (Later annex, disabled data; text from revision 1 §6.4, commit a2454fe)",
+      "id": "VO01",
+      "scope": "family",
+      "family": "voice",
+      "instruments": [
+        "voice-soprano",
+        "voice-alto",
+        "voice-tenor",
+        "voice-bass"
+      ],
+      "patterns": [
+        "E20"
+      ],
+      "condition": "flat",
+      "assertsCause": false,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": false,
+      "text": "High notes went flat. Keep breath flowing and the mouth space tall as you go up; think lighter, not harder, and keep the chin level."
+    },
+    {
+      "_source": "02 §L-E (Later annex, disabled data; text from revision 1 §6.4, commit a2454fe)",
+      "id": "VO03",
+      "scope": "family",
+      "family": "voice",
+      "instruments": [
+        "voice-soprano",
+        "voice-alto",
+        "voice-tenor",
+        "voice-bass"
+      ],
+      "patterns": [
+        "E17"
+      ],
+      "assertsCause": false,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": false,
+      "text": "Leaps missed. Connect each leap to a familiar sound: a 4th starts \"Here Comes the Bride\", a 5th starts \"Twinkle Twinkle\". Or sing through the chord silently (do-mi-sol) to find the top."
+    },
+    {
+      "_source": "02 §L-E (Later annex, disabled data; text from revision 1 §6.4, commit a2454fe)",
+      "id": "VO05",
+      "scope": "family",
+      "family": "voice",
+      "instruments": [
+        "voice-soprano",
+        "voice-alto",
+        "voice-tenor",
+        "voice-bass"
+      ],
+      "patterns": [
+        "E24"
+      ],
+      "assertsCause": false,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": false,
+      "text": "Long notes wavered. Support from the low ribs and narrow the vibrato while sight-singing until the pitch centre is secure."
+    },
+    {
+      "_source": "02 §L-E (Later annex, disabled data; text from revision 1 §6.4, commit a2454fe)",
+      "id": "FL01",
+      "scope": "family",
+      "family": "flute",
+      "instruments": [
+        "flute"
+      ],
+      "patterns": [
+        "E20"
+      ],
+      "condition": "sharp",
+      "assertsCause": false,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": false,
+      "text": "High notes ran sharp. Aim the air slightly lower by relaxing the lips and dropping the jaw; use faster, narrower air rather than more air."
+    },
+    {
+      "_source": "02 §L-E (Later annex, disabled data; text from revision 1 §6.4, commit a2454fe)",
+      "id": "FL02",
+      "scope": "family",
+      "family": "flute",
+      "instruments": [
+        "flute"
+      ],
+      "patterns": [
+        "E21"
+      ],
+      "condition": "flat",
+      "assertsCause": false,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": false,
+      "text": "Low notes sagged flat. Do not roll the flute in. Keep a relaxed, open aperture with slower, warm air."
+    },
+    {
+      "_source": "02 §L-E (Later annex, disabled data; text from revision 1 §6.4, commit a2454fe)",
+      "id": "FL03",
+      "scope": "family",
+      "family": "flute",
+      "instruments": [
+        "flute"
+      ],
+      "patterns": [
+        "E15"
+      ],
+      "assertsCause": false,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": false,
+      "text": "Notes cracked to the wrong octave. For low notes open the aperture and slow the air; for octave jumps change the lip direction, not the force."
+    },
+    {
+      "_source": "02 §L-E (Later annex, disabled data; text from revision 1 §6.4, commit a2454fe)",
+      "id": "FL04",
+      "scope": "family",
+      "family": "flute",
+      "instruments": [
+        "flute"
+      ],
+      "patterns": [
+        "E25"
+      ],
+      "assertsCause": false,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": false,
+      "text": "Low notes spoke late. Start the air a moment early and use a soft \"doo\" tongue instead of \"tu\"."
+    },
+    {
+      "_source": "02 §L-E (Later annex, disabled data; text from revision 1 §6.4, commit a2454fe)",
+      "id": "CL02",
+      "scope": "family",
+      "family": "clarinet",
+      "instruments": [
+        "clarinet-bb"
+      ],
+      "patterns": [
+        "E15"
+      ],
+      "assertsCause": false,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": false,
+      "text": "Squeaks or 12th jumps: cover the tone holes completely and check the thumb is not leaking at the register key."
+    },
+    {
+      "_source": "02 §L-E (Later annex, disabled data; text from revision 1 §6.4, commit a2454fe)",
+      "id": "CL03",
+      "scope": "family",
+      "family": "clarinet",
+      "instruments": [
+        "clarinet-bb"
+      ],
+      "patterns": [
+        "E20"
+      ],
+      "condition": "sharp",
+      "assertsCause": false,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": false,
+      "text": "Upper notes were sharp. Do not bite; firm the corners and keep the tongue in an \"ee\" position with fast air."
+    },
+    {
+      "_source": "02 §L-E (Later annex, disabled data; text from revision 1 §6.4, commit a2454fe)",
+      "id": "CL04",
+      "scope": "family",
+      "family": "clarinet",
+      "instruments": [
+        "clarinet-bb"
+      ],
+      "patterns": [
+        "E21"
+      ],
+      "condition": "sharp-throat-tones-g4-bb4",
+      "assertsCause": false,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": false,
+      "text": "Throat tones ran sharp and thin. Add right-hand resonance fingers on throat A and B♭."
+    },
+    {
+      "_source": "02 §L-E (Later annex, disabled data; text from revision 1 §6.4, commit a2454fe)",
+      "id": "CL06",
+      "scope": "family",
+      "family": "clarinet",
+      "instruments": [
+        "clarinet-bb"
+      ],
+      "patterns": [
+        "E25"
+      ],
+      "assertsCause": false,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": false,
+      "text": "Low chalumeau notes spoke late. Keep the throat open (\"oh\") and start the air before the tongue releases."
+    },
+    {
+      "_source": "02 §L-E (Later annex, disabled data; text from revision 1 §6.4, commit a2454fe)",
+      "id": "SX01",
+      "scope": "family",
+      "family": "sax",
+      "instruments": [
+        "sax-alto"
+      ],
+      "patterns": [
+        "E20"
+      ],
+      "condition": "sharp",
+      "assertsCause": false,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": false,
+      "text": "High notes went sharp. Loosen the bite, drop the jaw slightly, and keep the air fast; palm-key notes especially tend sharp."
+    },
+    {
+      "_source": "02 §L-E (Later annex, disabled data; text from revision 1 §6.4, commit a2454fe)",
+      "id": "SX02",
+      "scope": "family",
+      "family": "sax",
+      "instruments": [
+        "sax-alto"
+      ],
+      "patterns": [
+        "E25",
+        "E21"
+      ],
+      "assertsCause": false,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": false,
+      "text": "Low notes cracked or spoke late. Open the throat, keep the air steady and supported, and do not push harder. Take a touch less mouthpiece for low notes."
+    },
+    {
+      "_source": "02 §L-E (Later annex, disabled data; text from revision 1 §6.4, commit a2454fe)",
+      "id": "SX03",
+      "scope": "family",
+      "family": "sax",
+      "instruments": [
+        "sax-alto"
+      ],
+      "patterns": [
+        "E15"
+      ],
+      "assertsCause": false,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": false,
+      "text": "Octave errors: the thumb octave key must be down for D and above. Prepare the thumb during the note before an octave crossing."
+    },
+    {
+      "_source": "02 §L-E (Later annex, disabled data; text from revision 1 §6.4, commit a2454fe)",
+      "id": "HB02",
+      "scope": "family",
+      "family": "high-brass",
+      "instruments": [
+        "trumpet-bb"
+      ],
+      "patterns": [
+        "E20"
+      ],
+      "condition": "flat",
+      "assertsCause": false,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": false,
+      "text": "High notes went flat. Use faster air and firm corners, not more mouthpiece pressure."
+    },
+    {
+      "_source": "02 §L-E (Later annex, disabled data; text from revision 1 §6.4, commit a2454fe)",
+      "id": "HB03",
+      "scope": "family",
+      "family": "high-brass",
+      "instruments": [
+        "trumpet-bb"
+      ],
+      "patterns": [
+        "E34"
+      ],
+      "assertsCause": false,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": false,
+      "text": "Low D and C♯ (1-3 and 1-2-3) run sharp. Kick the third-valve slide out on those notes."
+    },
+    {
+      "_source": "02 §L-E (Later annex, disabled data; text from revision 1 §6.4, commit a2454fe)",
+      "id": "HB04",
+      "scope": "family",
+      "family": "high-brass",
+      "instruments": [
+        "trumpet-bb"
+      ],
+      "patterns": [
+        "E25"
+      ],
+      "assertsCause": false,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": false,
+      "text": "Low notes spoke late. Keep the aperture relaxed and start the air before the tongue."
+    },
+    {
+      "_source": "02 §L-E (Later annex, disabled data; text from revision 1 §6.4, commit a2454fe)",
+      "id": "HB05",
+      "scope": "family",
+      "family": "high-brass",
+      "instruments": [
+        "trumpet-bb"
+      ],
+      "patterns": [
+        "E17"
+      ],
+      "assertsCause": false,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": false,
+      "text": "Leaps missed. Daily lip slurs train these. Move the air, not the face, and hear the top note before you get there."
+    },
+    {
+      "_source": "02 §L-E (Later annex, disabled data; text from revision 1 §6.4, commit a2454fe)",
+      "id": "US01",
+      "scope": "family",
+      "family": "upper-strings",
+      "instruments": [
+        "violin"
+      ],
+      "patterns": [
+        "E35"
+      ],
+      "assertsCause": false,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": false,
+      "text": "Notes after shifts missed their pitch. Hear the target before you shift, and slide on the old finger to a guide note before placing the new one."
+    },
+    {
+      "_source": "02 §L-E (Later annex, disabled data; text from revision 1 §6.4, commit a2454fe)",
+      "id": "US06",
+      "scope": "family",
+      "family": "upper-strings",
+      "instruments": [
+        "violin"
+      ],
+      "patterns": [
+        "E32"
+      ],
+      "assertsCause": false,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": false,
+      "text": "Long notes ran out of bow. Plan bow use: save bow on short notes before a long note, and keep the bow speed even."
+    },
+    {
+      "_source": "02 §L-E (Later annex, disabled data; text from revision 1 §6.4, commit a2454fe)",
+      "id": "LS01",
+      "scope": "family",
+      "family": "low-strings",
+      "instruments": [
+        "cello"
+      ],
+      "patterns": [
+        "E35"
+      ],
+      "assertsCause": false,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": false,
+      "text": "Shifts landed off pitch. Shift on the old finger, release pressure while moving, and hear the target first."
+    },
+    {
+      "_source": "02 §L-E (Later annex, disabled data; text from revision 1 §6.4, commit a2454fe)",
+      "id": "LS04",
+      "scope": "family",
+      "family": "low-strings",
+      "instruments": [
+        "cello"
+      ],
+      "patterns": [
+        "E25"
+      ],
+      "assertsCause": false,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": false,
+      "text": "Low notes spoke late. Start the bow with weight and a small \"catch\" at the string, right on the beat."
+    },
+    {
+      "_source": "02 §L-E (Later annex, disabled data; text from revision 1 §6.4, commit a2454fe)",
+      "id": "LS05",
+      "scope": "family",
+      "family": "low-strings",
+      "instruments": [
+        "cello"
+      ],
+      "patterns": [
+        "E32"
+      ],
+      "assertsCause": false,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": false,
+      "text": "Long notes faded or stopped early. Plan bow distribution and keep the contact point steady for the full value."
+    },
+    {
+      "_source": "02 §L-E (Later annex, disabled data; text from revision 1 §6.4, commit a2454fe)",
+      "id": "KB01",
+      "scope": "family",
+      "family": "keyboard",
+      "instruments": [
+        "piano-rh"
+      ],
+      "patterns": [
+        "E17"
+      ],
+      "assertsCause": false,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": false,
+      "text": "Leaps missed. Feel intervals by hand shape (a 5th is thumb to pinky in a five-finger position) and find the landing by touch, not by looking down."
+    },
+    {
+      "_source": "02 §L-E (Later annex, disabled data; text from revision 1 §6.4, commit a2454fe)",
+      "id": "DR01",
+      "scope": "family",
+      "family": "double-reed",
+      "instruments": [
+        "oboe",
+        "bassoon"
+      ],
+      "patterns": [
+        "E20"
+      ],
+      "condition": "sharp",
+      "assertsCause": false,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": false,
+      "text": "High notes were sharp. Do not bite: cushion the reed with the lips and let air speed, not jaw pressure, raise the note."
+    },
+    {
+      "_source": "02 §L-E (Later annex, disabled data; text from revision 1 §6.4, commit a2454fe)",
+      "id": "DR02",
+      "scope": "family",
+      "family": "double-reed",
+      "instruments": [
+        "oboe",
+        "bassoon"
+      ],
+      "patterns": [
+        "E21"
+      ],
+      "assertsCause": false,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": false,
+      "text": "Low notes were out of tune. Keep embouchure corners firm and air support up on low notes; do not let the jaw drop or the reed slip out."
+    },
+    {
+      "_source": "02 §L-E (Later annex, disabled data; text from revision 1 §6.4, commit a2454fe)",
+      "id": "DR03",
+      "scope": "family",
+      "family": "double-reed",
+      "instruments": [
+        "oboe",
+        "bassoon"
+      ],
+      "patterns": [
+        "E25"
+      ],
+      "assertsCause": false,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": false,
+      "text": "Low notes spoke late. Use a lighter tongue with the air already moving, and check that the reed is wet before each exercise."
+    },
+    {
+      "_source": "02 §L-E (Later annex, disabled data; text from revision 1 §6.4, commit a2454fe)",
+      "id": "DR04",
+      "scope": "family",
+      "family": "double-reed",
+      "instruments": [
+        "oboe",
+        "bassoon"
+      ],
+      "patterns": [
+        "E15"
+      ],
+      "assertsCause": false,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": false,
+      "text": "Wrong octaves usually mean a late octave key or half-hole (oboe) or a missed flick key (bassoon). Find register crossings in the scan and prepare early."
+    },
+    {
+      "_source": "02 §L-E (Later annex, disabled data; text from revision 1 §6.4, commit a2454fe)",
+      "id": "DR06",
+      "scope": "family",
+      "family": "double-reed",
+      "instruments": [
+        "bassoon"
+      ],
+      "patterns": [
+        "E19"
+      ],
+      "assertsCause": false,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": false,
+      "text": "Tenor clef: the 4th line is middle C. Read up and down from that anchor."
+    },
+    {
+      "_source": "02 §L-E (Later annex, disabled data; text from revision 1 §6.4, commit a2454fe)",
+      "id": "DR07",
+      "scope": "family",
+      "family": "double-reed",
+      "instruments": [
+        "oboe"
+      ],
+      "patterns": [
+        "E26"
+      ],
+      "assertsCause": false,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": false,
+      "text": "Fast passages with F: pick left F or forked F during the scan so the fingering is decided before you play."
+    },
+    {
+      "_source": "02 §L-E (Later annex, disabled data; text from revision 1 §6.4, commit a2454fe)",
+      "id": "HB07",
+      "scope": "family",
+      "family": "high-brass",
+      "instruments": [
+        "horn-f"
+      ],
+      "patterns": [
+        "E16"
+      ],
+      "assertsCause": false,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": false,
+      "text": "Horn partials are close together in the middle register, so wrong partials are common. Sing the line in your head before playing; adjust with the right hand in the bell."
+    },
+    {
+      "_source": "02 §L-E (Later annex, disabled data; text from revision 1 §6.4, commit a2454fe)",
+      "id": "HB08",
+      "scope": "family",
+      "family": "high-brass",
+      "instruments": [
+        "horn-f"
+      ],
+      "patterns": [
+        "E19"
+      ],
+      "assertsCause": false,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": false,
+      "text": "Bass clef for horn (new notation) is transposed just like treble clef: read the bass-clef note and finger it as written. Anchor on written C4 (one ledger line above the bass staff), the same note as middle C in treble."
+    },
+    {
+      "_source": "02 §L-E (Later annex, disabled data; text from revision 1 §6.4, commit a2454fe)",
+      "id": "LB01",
+      "scope": "family",
+      "family": "low-brass",
+      "instruments": [
+        "trombone"
+      ],
+      "patterns": [
+        "E33"
+      ],
+      "assertsCause": false,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": false,
+      "text": "Notes in long positions were sharp: you are not reaching far enough. Extend fully for 5th, 6th, and 7th position."
+    },
+    {
+      "_source": "02 §L-E (Later annex, disabled data; text from revision 1 §6.4, commit a2454fe)",
+      "id": "LB02",
+      "scope": "family",
+      "family": "low-brass",
+      "instruments": [
+        "trombone"
+      ],
+      "patterns": [
+        "E25"
+      ],
+      "assertsCause": false,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": false,
+      "text": "Notes after slide moves spoke late or smeared. Move the slide quickly at the last moment and use a soft \"doo\" tongue on legato changes."
+    },
+    {
+      "_source": "02 §L-E (Later annex, disabled data; text from revision 1 §6.4, commit a2454fe)",
+      "id": "LB03",
+      "scope": "family",
+      "family": "low-brass",
+      "instruments": [
+        "trombone",
+        "euphonium-bc",
+        "euphonium-tc",
+        "tuba"
+      ],
+      "patterns": [
+        "E16"
+      ],
+      "assertsCause": false,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": false,
+      "text": "You hit a neighbouring partial. Hear the note before you play it, and in the scan check which partial each leap lands on."
+    },
+    {
+      "_source": "02 §L-E (Later annex, disabled data; text from revision 1 §6.4, commit a2454fe)",
+      "id": "LB04",
+      "scope": "family",
+      "family": "low-brass",
+      "instruments": [
+        "trombone",
+        "euphonium-bc",
+        "euphonium-tc",
+        "tuba"
+      ],
+      "patterns": [
+        "E25"
+      ],
+      "assertsCause": false,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": false,
+      "text": "Low notes spoke late. Big horns need the air started before the beat; use more air, not more tongue."
+    },
+    {
+      "_source": "02 §L-E (Later annex, disabled data; text from revision 1 §6.4, commit a2454fe)",
+      "id": "LB05",
+      "scope": "family",
+      "family": "low-brass",
+      "instruments": [
+        "trombone",
+        "euphonium-bc",
+        "euphonium-tc",
+        "tuba"
+      ],
+      "patterns": [
+        "E2"
+      ],
+      "assertsCause": false,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": false,
+      "text": "Low brass tends to drag because low notes take time to speak. Put the front of each note on the click, which feels slightly early."
+    },
+    {
+      "_source": "02 §L-E (Later annex, disabled data; text from revision 1 §6.4, commit a2454fe)",
+      "id": "LB06",
+      "scope": "family",
+      "family": "low-brass",
+      "instruments": [
+        "trombone",
+        "euphonium-bc",
+        "euphonium-tc",
+        "tuba"
+      ],
+      "patterns": [
+        "E19"
+      ],
+      "assertsCause": false,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": false,
+      "text": "Tenor clef: the 4th line is middle C. On trombone, tenor clef notes sit around the same positions as your upper bass-clef notes."
+    },
+    {
+      "_source": "02 §L-E (Later annex, disabled data; text from revision 1 §6.4, commit a2454fe)",
+      "id": "LB07",
+      "scope": "family",
+      "family": "low-brass",
+      "instruments": [
+        "trombone",
+        "euphonium-bc",
+        "euphonium-tc",
+        "tuba"
+      ],
+      "patterns": [
+        "E34"
+      ],
+      "assertsCause": false,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": false,
+      "text": "Valve combinations 1-3 and 1-2-3 run sharp. Use the 4th valve where you have one, or lip and slide the note down."
+    },
+    {
+      "_source": "02 §L-E (Later annex, disabled data; text from revision 1 §6.4, commit a2454fe)",
+      "id": "US04",
+      "scope": "family",
+      "family": "upper-strings",
+      "instruments": [
+        "viola"
+      ],
+      "patterns": [
+        "E19"
+      ],
+      "assertsCause": false,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": false,
+      "text": "Alto clef: the middle line is middle C. Treble clef appears for high passages; switch your anchor when the clef changes."
+    },
+    {
+      "_source": "02 §L-E (Later annex, disabled data; text from revision 1 §6.4, commit a2454fe)",
+      "id": "LS03",
+      "scope": "family",
+      "family": "low-strings",
+      "instruments": [
+        "cello"
+      ],
+      "patterns": [
+        "E19"
+      ],
+      "assertsCause": false,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": false,
+      "text": "Tenor clef: the 4th line is middle C, usually played in thumb or 4th position. Anchor there and read by step."
+    },
+    {
+      "_source": "02 §L-E (Later annex, disabled data; text from revision 1 §6.4, commit a2454fe)",
+      "id": "LS06",
+      "scope": "family",
+      "family": "low-strings",
+      "instruments": [
+        "double-bass"
+      ],
+      "patterns": [
+        "E21",
+        "E22"
+      ],
+      "assertsCause": false,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": false,
+      "text": "Bass intonation: check notes against open strings and natural harmonics. Small pitch errors are easier to hear an octave up, so listen for the upper partial."
+    },
+    {
+      "_source": "02 §L-E (Later annex, disabled data; text from revision 1 §6.4, commit a2454fe)",
+      "id": "GT01",
+      "scope": "family",
+      "family": "guitar",
+      "instruments": [
+        "guitar"
+      ],
+      "patterns": [
+        "E12"
+      ],
+      "assertsCause": false,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": false,
+      "text": "Key-signature notes were missed. Play the scale of the key in one position before you start, so the key's sharps or flats are part of the fingering pattern."
+    },
+    {
+      "_source": "02 §L-E (Later annex, disabled data; text from revision 1 §6.4, commit a2454fe)",
+      "id": "GT02",
+      "scope": "family",
+      "family": "guitar",
+      "instruments": [
+        "guitar"
+      ],
+      "patterns": [
+        "E18"
+      ],
+      "assertsCause": false,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": false,
+      "text": "Low ledger lines tripped you up. Learn the anchors: written C4 (one ledger line below the staff) is the 5th string, 3rd fret; written E3 is the open 6th string."
+    },
+    {
+      "_source": "02 §L-E (Later annex, disabled data; text from revision 1 §6.4, commit a2454fe)",
+      "id": "GT03",
+      "scope": "family",
+      "family": "guitar",
+      "instruments": [
+        "guitar"
+      ],
+      "patterns": [
+        "E26",
+        "E4"
+      ],
+      "assertsCause": false,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": false,
+      "text": "You hesitated on position changes. Choose one position that covers the excerpt's range during the scan and stay there if you can."
+    },
+    {
+      "_source": "02 §L-E (Later annex, disabled data; text from revision 1 §6.4, commit a2454fe)",
+      "id": "GT04",
+      "scope": "family",
+      "family": "guitar",
+      "instruments": [
+        "guitar"
+      ],
+      "patterns": [
+        "E15"
+      ],
+      "assertsCause": false,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": false,
+      "text": "You played an octave off. Guitar sounds an octave below written. Written middle C is the 5th string, 3rd fret, not the 2nd string, 1st fret."
+    },
+    {
+      "_source": "02 §L-E (Later annex, disabled data; text from revision 1 §6.4, commit a2454fe)",
+      "id": "GT05",
+      "scope": "family",
+      "family": "guitar",
+      "instruments": [
+        "guitar"
+      ],
+      "patterns": [
+        "E32"
+      ],
+      "assertsCause": false,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": false,
+      "text": "Long notes stopped early. Keep left-hand fingers down for the full value."
+    },
+    {
+      "_source": "02 §L-E (Later annex, disabled data; text from revision 1 §6.4, commit a2454fe)",
+      "id": "GT06",
+      "scope": "family",
+      "family": "guitar",
+      "instruments": [
+        "guitar"
+      ],
+      "patterns": [
+        "E9"
+      ],
+      "assertsCause": false,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": false,
+      "text": "Notes rang through rests. Mute the string with the right hand or release left-hand pressure exactly on the rest."
+    },
+    {
+      "_source": "02 §L-E (Later annex, disabled data; text from revision 1 §6.4, commit a2454fe)",
+      "id": "GT07",
+      "scope": "family",
+      "family": "guitar",
+      "instruments": [
+        "guitar"
+      ],
+      "patterns": [
+        "E5",
+        "E6"
+      ],
+      "assertsCause": false,
+      "minLevel": 1,
+      "maxLevel": 10,
+      "enabled": false,
+      "text": "Hesitations often come from looking at the fretboard. Keep eyes on the page and use the fret dots in peripheral vision."
+    }
+  ],
+  "selection": {
+    "_source": "02 §6.1 (flow and evidence rules)",
+    "primaryMinLostPoints": 3,
+    "secondaryMinLostPoints": 5,
+    "maxTips": 2,
+    "assertsCause": {
+      "minPrimary": 2,
+      "ofLast": 5
+    },
+    "skipRecent": 3,
+    "defaultEvidenceTemplate": "Seen in bars {bars}.",
+    "cleanReadPatternId": "E30",
+    "cleanReadTipId": "U18",
+    "signal": {
+      "minMedianClarity": 0.9,
+      "maxClippingFrac": 0.02
+    },
+    "minEvidenceBars": 2,
+    "evidenceBarsExempt": [
+      "E6",
+      "E28",
+      "E29"
+    ],
+    "incompleteAllowed": [
+      "E6"
+    ],
+    "betaDisabledPatterns": [
+      "E22",
+      "E23"
+    ],
+    "summary": {
+      "every": 10,
+      "topPatterns": 3,
+      "focus": {
+        "minPrimary": 3,
+        "ofLast": 5
+      }
+    }
+  }
+}

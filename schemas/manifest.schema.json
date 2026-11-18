@@ -1,0 +1,181 @@
+{
+  "$id": "manifest.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/ManifestFile",
+  "definitions": {
+    "ManifestCell": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        },
+        {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": {
+            "type": "number"
+          }
+        }
+      ],
+      "description": "A cell of the column-oriented manifest: strings are dictionary indices for dictionary columns."
+    },
+    "ManifestColumn": {
+      "type": "string",
+      "enum": [
+        "id",
+        "shard",
+        "level",
+        "meter",
+        "fifths",
+        "mode",
+        "modal",
+        "bars",
+        "pickup",
+        "rangeConcert",
+        "minBpm",
+        "maxBpm",
+        "minIoiTicks",
+        "minRepeatIoiTicks",
+        "composer",
+        "title",
+        "work",
+        "tags",
+        "originalFamily",
+        "cadenceEnd",
+        "familiarity",
+        "featureLevels",
+        "flags",
+        "dedupeGroup",
+        "corpus",
+        "license"
+      ],
+      "description": "Column name of the serialized manifest."
+    },
+    "ManifestFile": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "type": "number",
+          "const": 1
+        },
+        "corpusVersion": {
+          "type": "string"
+        },
+        "columns": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ManifestColumn"
+          }
+        },
+        "rows": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/definitions/ManifestCell"
+            }
+          }
+        },
+        "dict": {
+          "type": "object",
+          "properties": {
+            "composer": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "title": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "work": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "tags": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [
+            "composer",
+            "title",
+            "work",
+            "tags"
+          ],
+          "additionalProperties": false
+        },
+        "stats": {
+          "$ref": "#/definitions/ManifestStats"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "corpusVersion",
+        "columns",
+        "rows",
+        "dict",
+        "stats"
+      ],
+      "additionalProperties": false,
+      "description": "`manifest.<hash>.json` (03 §7.1). `rows[i][j]` is entry i's value for `columns[j]`. Columns in `dict` hold indices into `dict[column]` (`tags` holds an index array)."
+    },
+    "ManifestStats": {
+      "type": "object",
+      "properties": {
+        "servedLevels": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "description": "Levels with at least 30 excerpts (03 §5.1, R25)."
+        },
+        "fit": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "number"
+              }
+            }
+          },
+          "description": "instrumentId → level → meter → excerpts fitting the tier band in at least one allowed written key."
+        }
+      },
+      "required": [
+        "servedLevels",
+        "fit"
+      ],
+      "additionalProperties": false,
+      "description": "Manifest stats for 04's empty states and chips (03 §7.1)."
+    }
+  }
+}

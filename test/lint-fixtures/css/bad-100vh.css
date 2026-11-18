@@ -1,0 +1,3 @@
+/* @lint-as src/app/x.css */
+/* expect: declaration-property-value-disallowed-list */
+.a { height: 100vh; }

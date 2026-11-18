@@ -1,0 +1,73 @@
+{
+  "$id": "review-verdict.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/ReviewVerdict",
+  "definitions": {
+    "ReviewVerdict": {
+      "type": "object",
+      "properties": {
+        "contentHash": {
+          "type": "string"
+        },
+        "promptVersion": {
+          "type": "string",
+          "description": "For example \"rubric-v1\"."
+        },
+        "promptVariant": {
+          "type": "string",
+          "description": "For example \"rubric-v1-a\" or \"rubric-v1-b\"."
+        },
+        "pass": {
+          "type": "number"
+        },
+        "completePhrase": {
+          "type": "boolean"
+        },
+        "conclusiveEnd": {
+          "type": "boolean"
+        },
+        "accompanimentLike": {
+          "type": "boolean"
+        },
+        "idiomaticForWinds": {
+          "type": "boolean"
+        },
+        "levelPlausible": {
+          "type": "boolean"
+        },
+        "verdict": {
+          "type": "string",
+          "enum": [
+            "accept",
+            "reject"
+          ]
+        },
+        "reasons": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "model": {
+          "type": "string",
+          "description": "Model tier used, for the report."
+        }
+      },
+      "required": [
+        "contentHash",
+        "promptVersion",
+        "promptVariant",
+        "pass",
+        "completePhrase",
+        "conclusiveEnd",
+        "accompanimentLike",
+        "idiomaticForWinds",
+        "levelPlausible",
+        "verdict",
+        "reasons"
+      ],
+      "additionalProperties": false,
+      "description": "One agent review verdict line in the 03 pipeline's `review/verdicts.jsonl` (03 §6.12 R2)."
+    }
+  }
+}

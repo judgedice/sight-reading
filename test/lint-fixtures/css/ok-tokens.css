@@ -1,0 +1,3 @@
+/* @lint-as src/ui/tokens.css */
+/* expect: none */
+:root { --c: #fff; --space: 8px; --d: rgb(0 0 0); }

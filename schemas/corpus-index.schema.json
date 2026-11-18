@@ -1,0 +1,89 @@
+{
+  "$id": "corpus-index.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/CorpusIndex",
+  "definitions": {
+    "CorpusFileRef": {
+      "type": "object",
+      "properties": {
+        "file": {
+          "type": "string",
+          "description": "Path relative to `corpus/v1/`, for example \"shard-L05-03.ab12cd.json\"."
+        },
+        "hash": {
+          "type": "string",
+          "description": "Content hash, for example \"sha256:...\"."
+        },
+        "bytes": {
+          "type": "number",
+          "description": "Byte size of the file."
+        }
+      },
+      "required": [
+        "file",
+        "hash",
+        "bytes"
+      ],
+      "additionalProperties": false,
+      "description": "A hashed corpus file reference in `index.json`."
+    },
+    "CorpusIndex": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "type": "number",
+          "const": 1
+        },
+        "corpusVersion": {
+          "type": "string"
+        },
+        "manifest": {
+          "$ref": "#/definitions/CorpusFileRef"
+        },
+        "attributions": {
+          "$ref": "#/definitions/CorpusFileRef"
+        },
+        "chunks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "shard": {
+                "type": "string"
+              },
+              "file": {
+                "type": "string",
+                "description": "Path relative to `corpus/v1/`, for example \"shard-L05-03.ab12cd.json\"."
+              },
+              "hash": {
+                "type": "string",
+                "description": "Content hash, for example \"sha256:...\"."
+              },
+              "bytes": {
+                "type": "number",
+                "description": "Byte size of the file."
+              }
+            },
+            "required": [
+              "bytes",
+              "file",
+              "hash",
+              "shard"
+            ]
+          },
+          "description": "Every chunk, keyed in the manifest by `shard`."
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "corpusVersion",
+        "manifest",
+        "attributions",
+        "chunks"
+      ],
+      "additionalProperties": false,
+      "description": "`public/corpus/v1/index.json` (no-cache) (03 §6.13)."
+    }
+  }
+}

@@ -1,0 +1,137 @@
+{
+  "$id": "attributions.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/AttributionsFile",
+  "definitions": {
+    "AttributionsFile": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "type": "number",
+          "const": 1
+        },
+        "collections": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/CollectionCredit"
+          }
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/CcByAttribution"
+          }
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "collections",
+        "items"
+      ],
+      "additionalProperties": false,
+      "description": "`attributions.<hash>.json` (03 §6.13, §9.3)."
+    },
+    "CcByAttribution": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Excerpt id."
+        },
+        "title": {
+          "type": "string"
+        },
+        "creator": {
+          "type": "string"
+        },
+        "sourceUrl": {
+          "type": "string"
+        },
+        "license": {
+          "type": "string",
+          "const": "CC-BY-4.0"
+        },
+        "licenseUrl": {
+          "type": "string"
+        },
+        "changes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Modification"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "creator",
+        "sourceUrl",
+        "license",
+        "licenseUrl",
+        "changes"
+      ],
+      "additionalProperties": false,
+      "description": "TASL record for a CC BY item (03 §9.3)."
+    },
+    "CollectionCredit": {
+      "type": "object",
+      "properties": {
+        "corpus": {
+          "$ref": "#/definitions/CorpusId"
+        },
+        "name": {
+          "type": "string",
+          "description": "\"OpenScore Lieder\", \"OpenScore String Quartets\", \"Mutopia Project\"."
+        },
+        "url": {
+          "type": "string"
+        },
+        "licenses": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Licence"
+          }
+        }
+      },
+      "required": [
+        "corpus",
+        "name",
+        "url",
+        "licenses"
+      ],
+      "additionalProperties": false,
+      "description": "A collection credit on the credits page (03 §9.1 item 7)."
+    },
+    "CorpusId": {
+      "type": "string",
+      "enum": [
+        "openscore-lieder",
+        "openscore-quartets",
+        "mutopia"
+      ],
+      "description": "v1 corpus sources, all fetched from GitHub (R4, R27)."
+    },
+    "Licence": {
+      "type": "string",
+      "enum": [
+        "PD",
+        "CC0-1.0",
+        "CC-BY-4.0"
+      ],
+      "description": "Licence allowlist (03 §1, R8: no CC BY-SA)."
+    },
+    "Modification": {
+      "type": "string",
+      "enum": [
+        "excerpted",
+        "grace-removed",
+        "ornament-removed",
+        "fermata-removed",
+        "lyrics-removed",
+        "rhythm-augmented-x2",
+        "final-bar-completed"
+      ],
+      "description": "Build-time modifications; the runtime adds `transposed` and `octave-displaced` to the displayed list (01 §6.1)."
+    }
+  }
+}

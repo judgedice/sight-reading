@@ -1,0 +1,1211 @@
+{
+  "schemaVersion": 1,
+  "_source": "02 §2.1 (level = max over features), §2.2 (cells), §2.3 (level table), §2.4 (NPS and IOI floors, density per 03 §6.8); computed against config/levels.json and config/measurement-budget.json",
+  "cases": [
+    {
+      "id": "l1-quarters-and-steps",
+      "meter": "4/4",
+      "mode": "major",
+      "rhythmCells": [
+        "Q",
+        "H",
+        "Wr"
+      ],
+      "features": {
+        "noteCount": 32,
+        "notesPerBeat": 1,
+        "peakNotesPerBeat": 1,
+        "shortestDur": 480,
+        "maxLeapSemis": 2,
+        "tonicTriadLeapsOnly": false,
+        "leapsPer4BarsMax": 0,
+        "chromaticPer4BarsMax": 0,
+        "doubleAccidentals": 0,
+        "spanSemis": 7,
+        "minIoiTicks": 480,
+        "minRepeatIoiTicks": null,
+        "syncopationIndex": 0,
+        "restRatio": 0.05,
+        "accidentalsOutsideKey": 0,
+        "minorAlterations": 0
+      },
+      "expected": {
+        "featureLevels": {
+          "meter": 1,
+          "rhythm": 1,
+          "interval": 1,
+          "leaps": 1,
+          "span": 1,
+          "mode": 1,
+          "chromatic": 1,
+          "double": 1,
+          "density": 1
+        },
+        "level": 1
+      }
+    },
+    {
+      "id": "l1-tonic-triad-octave-leap",
+      "meter": "4/4",
+      "mode": "major",
+      "rhythmCells": [
+        "Q",
+        "H",
+        "W"
+      ],
+      "features": {
+        "noteCount": 32,
+        "notesPerBeat": 1,
+        "peakNotesPerBeat": 1,
+        "shortestDur": 480,
+        "maxLeapSemis": 12,
+        "tonicTriadLeapsOnly": true,
+        "leapsPer4BarsMax": 2,
+        "chromaticPer4BarsMax": 0,
+        "doubleAccidentals": 0,
+        "spanSemis": 12,
+        "minIoiTicks": 480,
+        "minRepeatIoiTicks": null,
+        "syncopationIndex": 0,
+        "restRatio": 0.05,
+        "accidentalsOutsideKey": 0,
+        "minorAlterations": 0
+      },
+      "expected": {
+        "featureLevels": {
+          "meter": 1,
+          "rhythm": 1,
+          "interval": 1,
+          "leaps": 1,
+          "span": 1,
+          "mode": 1,
+          "chromatic": 1,
+          "double": 1,
+          "density": 1
+        },
+        "level": 1
+      }
+    },
+    {
+      "id": "l2-eighths-natural-minor",
+      "meter": "3/4",
+      "mode": "minor",
+      "minorForm": "natural",
+      "rhythmCells": [
+        "Q",
+        "EE",
+        "H."
+      ],
+      "features": {
+        "noteCount": 32,
+        "notesPerBeat": 1,
+        "peakNotesPerBeat": 2,
+        "shortestDur": 240,
+        "maxLeapSemis": 7,
+        "tonicTriadLeapsOnly": false,
+        "leapsPer4BarsMax": 3,
+        "chromaticPer4BarsMax": 0,
+        "doubleAccidentals": 0,
+        "spanSemis": 9,
+        "minIoiTicks": 240,
+        "minRepeatIoiTicks": null,
+        "syncopationIndex": 0,
+        "restRatio": 0.05,
+        "accidentalsOutsideKey": 0,
+        "minorAlterations": 0
+      },
+      "expected": {
+        "featureLevels": {
+          "meter": 1,
+          "rhythm": 2,
+          "interval": 2,
+          "leaps": 2,
+          "span": 1,
+          "mode": 2,
+          "chromatic": 1,
+          "double": 1,
+          "density": 1
+        },
+        "level": 2
+      }
+    },
+    {
+      "id": "l2-harmonic-minor",
+      "meter": "4/4",
+      "mode": "minor",
+      "minorForm": "harmonic",
+      "rhythmCells": [
+        "Q",
+        "H"
+      ],
+      "features": {
+        "noteCount": 32,
+        "notesPerBeat": 1,
+        "peakNotesPerBeat": 1,
+        "shortestDur": 480,
+        "maxLeapSemis": 2,
+        "tonicTriadLeapsOnly": false,
+        "leapsPer4BarsMax": 0,
+        "chromaticPer4BarsMax": 0,
+        "doubleAccidentals": 0,
+        "spanSemis": 7,
+        "minIoiTicks": 480,
+        "minRepeatIoiTicks": null,
+        "syncopationIndex": 0,
+        "restRatio": 0.05,
+        "accidentalsOutsideKey": 0,
+        "minorAlterations": 2
+      },
+      "expected": {
+        "featureLevels": {
+          "meter": 1,
+          "rhythm": 1,
+          "interval": 1,
+          "leaps": 1,
+          "span": 1,
+          "mode": 2,
+          "chromatic": 1,
+          "double": 1,
+          "density": 1
+        },
+        "level": 2
+      }
+    },
+    {
+      "id": "l2-one-beat-pickup",
+      "meter": "2/4",
+      "mode": "major",
+      "rhythmCells": [
+        "pickup1",
+        "Q",
+        "H"
+      ],
+      "features": {
+        "noteCount": 32,
+        "notesPerBeat": 1,
+        "peakNotesPerBeat": 1,
+        "shortestDur": 480,
+        "maxLeapSemis": 2,
+        "tonicTriadLeapsOnly": false,
+        "leapsPer4BarsMax": 0,
+        "chromaticPer4BarsMax": 0,
+        "doubleAccidentals": 0,
+        "spanSemis": 7,
+        "minIoiTicks": 480,
+        "minRepeatIoiTicks": null,
+        "syncopationIndex": 0,
+        "restRatio": 0.05,
+        "accidentalsOutsideKey": 0,
+        "minorAlterations": 0
+      },
+      "expected": {
+        "featureLevels": {
+          "meter": 1,
+          "rhythm": 2,
+          "interval": 1,
+          "leaps": 1,
+          "span": 1,
+          "mode": 1,
+          "chromatic": 1,
+          "double": 1,
+          "density": 1
+        },
+        "level": 2
+      }
+    },
+    {
+      "id": "l3-dotted-quarter-eighth",
+      "meter": "4/4",
+      "mode": "major",
+      "rhythmCells": [
+        "Q.E",
+        "Q",
+        "H"
+      ],
+      "features": {
+        "noteCount": 32,
+        "notesPerBeat": 1,
+        "peakNotesPerBeat": 2,
+        "shortestDur": 240,
+        "maxLeapSemis": 7,
+        "tonicTriadLeapsOnly": false,
+        "leapsPer4BarsMax": 5,
+        "chromaticPer4BarsMax": 1,
+        "doubleAccidentals": 0,
+        "spanSemis": 14,
+        "minIoiTicks": 240,
+        "minRepeatIoiTicks": null,
+        "syncopationIndex": 0,
+        "restRatio": 0.05,
+        "accidentalsOutsideKey": 1,
+        "minorAlterations": 0
+      },
+      "expected": {
+        "featureLevels": {
+          "meter": 1,
+          "rhythm": 3,
+          "interval": 2,
+          "leaps": 3,
+          "span": 3,
+          "mode": 1,
+          "chromatic": 3,
+          "double": 1,
+          "density": 1
+        },
+        "level": 3
+      }
+    },
+    {
+      "id": "l3-tie-over-barline",
+      "meter": "3/4",
+      "mode": "major",
+      "rhythmCells": [
+        "tieBar",
+        "Q",
+        "H"
+      ],
+      "features": {
+        "noteCount": 32,
+        "notesPerBeat": 1,
+        "peakNotesPerBeat": 1,
+        "shortestDur": 480,
+        "maxLeapSemis": 2,
+        "tonicTriadLeapsOnly": false,
+        "leapsPer4BarsMax": 0,
+        "chromaticPer4BarsMax": 0,
+        "doubleAccidentals": 0,
+        "spanSemis": 7,
+        "minIoiTicks": 480,
+        "minRepeatIoiTicks": null,
+        "syncopationIndex": 0,
+        "restRatio": 0.05,
+        "accidentalsOutsideKey": 0,
+        "minorAlterations": 0
+      },
+      "expected": {
+        "featureLevels": {
+          "meter": 1,
+          "rhythm": 3,
+          "interval": 1,
+          "leaps": 1,
+          "span": 1,
+          "mode": 1,
+          "chromatic": 1,
+          "double": 1,
+          "density": 1
+        },
+        "level": 3
+      }
+    },
+    {
+      "id": "l3-span-binds",
+      "meter": "4/4",
+      "mode": "major",
+      "rhythmCells": [
+        "Q",
+        "H"
+      ],
+      "features": {
+        "noteCount": 32,
+        "notesPerBeat": 1,
+        "peakNotesPerBeat": 1,
+        "shortestDur": 480,
+        "maxLeapSemis": 2,
+        "tonicTriadLeapsOnly": false,
+        "leapsPer4BarsMax": 2,
+        "chromaticPer4BarsMax": 0,
+        "doubleAccidentals": 0,
+        "spanSemis": 15,
+        "minIoiTicks": 480,
+        "minRepeatIoiTicks": null,
+        "syncopationIndex": 0,
+        "restRatio": 0.05,
+        "accidentalsOutsideKey": 0,
+        "minorAlterations": 0
+      },
+      "expected": {
+        "featureLevels": {
+          "meter": 1,
+          "rhythm": 1,
+          "interval": 1,
+          "leaps": 1,
+          "span": 3,
+          "mode": 1,
+          "chromatic": 1,
+          "double": 1,
+          "density": 1
+        },
+        "level": 3
+      }
+    },
+    {
+      "id": "l4-six-eight-compound",
+      "meter": "6/8",
+      "mode": "major",
+      "rhythmCells": [
+        "C.Q",
+        "C.QE"
+      ],
+      "features": {
+        "noteCount": 32,
+        "notesPerBeat": 1,
+        "peakNotesPerBeat": 3,
+        "shortestDur": 240,
+        "maxLeapSemis": 5,
+        "tonicTriadLeapsOnly": false,
+        "leapsPer4BarsMax": 2,
+        "chromaticPer4BarsMax": 0,
+        "doubleAccidentals": 0,
+        "spanSemis": 9,
+        "minIoiTicks": 240,
+        "minRepeatIoiTicks": null,
+        "syncopationIndex": 0,
+        "restRatio": 0.05,
+        "accidentalsOutsideKey": 0,
+        "minorAlterations": 0
+      },
+      "expected": {
+        "featureLevels": {
+          "meter": 4,
+          "rhythm": 4,
+          "interval": 1,
+          "leaps": 1,
+          "span": 1,
+          "mode": 1,
+          "chromatic": 1,
+          "double": 1,
+          "density": 2
+        },
+        "level": 4
+      }
+    },
+    {
+      "id": "l4-two-two-half-beat",
+      "meter": "2/2",
+      "mode": "major",
+      "rhythmCells": [
+        "H",
+        "Q",
+        "EE"
+      ],
+      "features": {
+        "noteCount": 32,
+        "notesPerBeat": 1,
+        "peakNotesPerBeat": 2,
+        "shortestDur": 240,
+        "maxLeapSemis": 2,
+        "tonicTriadLeapsOnly": false,
+        "leapsPer4BarsMax": 0,
+        "chromaticPer4BarsMax": 0,
+        "doubleAccidentals": 0,
+        "spanSemis": 7,
+        "minIoiTicks": 240,
+        "minRepeatIoiTicks": null,
+        "syncopationIndex": 0,
+        "restRatio": 0.05,
+        "accidentalsOutsideKey": 0,
+        "minorAlterations": 0
+      },
+      "expected": {
+        "featureLevels": {
+          "meter": 4,
+          "rhythm": 2,
+          "interval": 1,
+          "leaps": 1,
+          "span": 1,
+          "mode": 1,
+          "chromatic": 1,
+          "double": 1,
+          "density": 1
+        },
+        "level": 4
+      }
+    },
+    {
+      "id": "l4-leaps-bind",
+      "meter": "4/4",
+      "mode": "major",
+      "rhythmCells": [
+        "Q",
+        "H"
+      ],
+      "features": {
+        "noteCount": 32,
+        "notesPerBeat": 1,
+        "peakNotesPerBeat": 1,
+        "shortestDur": 480,
+        "maxLeapSemis": 5,
+        "tonicTriadLeapsOnly": false,
+        "leapsPer4BarsMax": 7,
+        "chromaticPer4BarsMax": 0,
+        "doubleAccidentals": 0,
+        "spanSemis": 7,
+        "minIoiTicks": 480,
+        "minRepeatIoiTicks": null,
+        "syncopationIndex": 0,
+        "restRatio": 0.05,
+        "accidentalsOutsideKey": 0,
+        "minorAlterations": 0
+      },
+      "expected": {
+        "featureLevels": {
+          "meter": 1,
+          "rhythm": 1,
+          "interval": 1,
+          "leaps": 4,
+          "span": 1,
+          "mode": 1,
+          "chromatic": 1,
+          "double": 1,
+          "density": 1
+        },
+        "level": 4
+      }
+    },
+    {
+      "id": "l4-chromatic-binds",
+      "meter": "4/4",
+      "mode": "major",
+      "rhythmCells": [
+        "Q",
+        "EE"
+      ],
+      "features": {
+        "noteCount": 32,
+        "notesPerBeat": 1,
+        "peakNotesPerBeat": 2,
+        "shortestDur": 240,
+        "maxLeapSemis": 2,
+        "tonicTriadLeapsOnly": false,
+        "leapsPer4BarsMax": 0,
+        "chromaticPer4BarsMax": 2,
+        "doubleAccidentals": 0,
+        "spanSemis": 7,
+        "minIoiTicks": 240,
+        "minRepeatIoiTicks": null,
+        "syncopationIndex": 0,
+        "restRatio": 0.05,
+        "accidentalsOutsideKey": 2,
+        "minorAlterations": 0
+      },
+      "expected": {
+        "featureLevels": {
+          "meter": 1,
+          "rhythm": 2,
+          "interval": 1,
+          "leaps": 1,
+          "span": 1,
+          "mode": 1,
+          "chromatic": 4,
+          "double": 1,
+          "density": 1
+        },
+        "level": 4
+      }
+    },
+    {
+      "id": "l4-density-binds",
+      "meter": "4/4",
+      "mode": "major",
+      "rhythmCells": [
+        "Q",
+        "EE"
+      ],
+      "features": {
+        "noteCount": 32,
+        "notesPerBeat": 1,
+        "peakNotesPerBeat": 4,
+        "shortestDur": 120,
+        "maxLeapSemis": 2,
+        "tonicTriadLeapsOnly": false,
+        "leapsPer4BarsMax": 0,
+        "chromaticPer4BarsMax": 0,
+        "doubleAccidentals": 0,
+        "spanSemis": 7,
+        "minIoiTicks": 120,
+        "minRepeatIoiTicks": null,
+        "syncopationIndex": 0,
+        "restRatio": 0.05,
+        "accidentalsOutsideKey": 0,
+        "minorAlterations": 0
+      },
+      "expected": {
+        "featureLevels": {
+          "meter": 1,
+          "rhythm": 2,
+          "interval": 1,
+          "leaps": 1,
+          "span": 1,
+          "mode": 1,
+          "chromatic": 1,
+          "double": 1,
+          "density": 4
+        },
+        "level": 4
+      }
+    },
+    {
+      "id": "l4-leap-sixth-not-triad",
+      "meter": "4/4",
+      "mode": "major",
+      "rhythmCells": [
+        "Q",
+        "H"
+      ],
+      "features": {
+        "noteCount": 32,
+        "notesPerBeat": 1,
+        "peakNotesPerBeat": 1,
+        "shortestDur": 480,
+        "maxLeapSemis": 9,
+        "tonicTriadLeapsOnly": false,
+        "leapsPer4BarsMax": 2,
+        "chromaticPer4BarsMax": 0,
+        "doubleAccidentals": 0,
+        "spanSemis": 7,
+        "minIoiTicks": 480,
+        "minRepeatIoiTicks": null,
+        "syncopationIndex": 0,
+        "restRatio": 0.05,
+        "accidentalsOutsideKey": 0,
+        "minorAlterations": 0
+      },
+      "expected": {
+        "featureLevels": {
+          "meter": 1,
+          "rhythm": 1,
+          "interval": 4,
+          "leaps": 1,
+          "span": 1,
+          "mode": 1,
+          "chromatic": 1,
+          "double": 1,
+          "density": 1
+        },
+        "level": 4
+      }
+    },
+    {
+      "id": "l1-leap-sixth-tonic-triad",
+      "meter": "4/4",
+      "mode": "major",
+      "rhythmCells": [
+        "Q",
+        "H"
+      ],
+      "features": {
+        "noteCount": 32,
+        "notesPerBeat": 1,
+        "peakNotesPerBeat": 1,
+        "shortestDur": 480,
+        "maxLeapSemis": 9,
+        "tonicTriadLeapsOnly": true,
+        "leapsPer4BarsMax": 2,
+        "chromaticPer4BarsMax": 0,
+        "doubleAccidentals": 0,
+        "spanSemis": 7,
+        "minIoiTicks": 480,
+        "minRepeatIoiTicks": null,
+        "syncopationIndex": 0,
+        "restRatio": 0.05,
+        "accidentalsOutsideKey": 0,
+        "minorAlterations": 0
+      },
+      "expected": {
+        "featureLevels": {
+          "meter": 1,
+          "rhythm": 1,
+          "interval": 1,
+          "leaps": 1,
+          "span": 1,
+          "mode": 1,
+          "chromatic": 1,
+          "double": 1,
+          "density": 1
+        },
+        "level": 1
+      }
+    },
+    {
+      "id": "l5-syncopation-melodic-minor",
+      "meter": "2/4",
+      "mode": "minor",
+      "minorForm": "melodic",
+      "rhythmCells": [
+        "EQE",
+        "ESS",
+        "Q"
+      ],
+      "features": {
+        "noteCount": 32,
+        "notesPerBeat": 1,
+        "peakNotesPerBeat": 4,
+        "shortestDur": 120,
+        "maxLeapSemis": 10,
+        "tonicTriadLeapsOnly": false,
+        "leapsPer4BarsMax": 9,
+        "chromaticPer4BarsMax": 3,
+        "doubleAccidentals": 0,
+        "spanSemis": 20,
+        "minIoiTicks": 120,
+        "minRepeatIoiTicks": null,
+        "syncopationIndex": 0.2,
+        "restRatio": 0.05,
+        "accidentalsOutsideKey": 3,
+        "minorAlterations": 2
+      },
+      "expected": {
+        "featureLevels": {
+          "meter": 1,
+          "rhythm": 5,
+          "interval": 4,
+          "leaps": 5,
+          "span": 5,
+          "mode": 5,
+          "chromatic": 5,
+          "double": 1,
+          "density": 4
+        },
+        "level": 5
+      }
+    },
+    {
+      "id": "l5-dorian",
+      "meter": "4/4",
+      "mode": "dorian",
+      "rhythmCells": [
+        "Q",
+        "EE",
+        "H"
+      ],
+      "features": {
+        "noteCount": 32,
+        "notesPerBeat": 1,
+        "peakNotesPerBeat": 2,
+        "shortestDur": 240,
+        "maxLeapSemis": 2,
+        "tonicTriadLeapsOnly": false,
+        "leapsPer4BarsMax": 0,
+        "chromaticPer4BarsMax": 0,
+        "doubleAccidentals": 0,
+        "spanSemis": 10,
+        "minIoiTicks": 240,
+        "minRepeatIoiTicks": null,
+        "syncopationIndex": 0,
+        "restRatio": 0.05,
+        "accidentalsOutsideKey": 0,
+        "minorAlterations": 0
+      },
+      "expected": {
+        "featureLevels": {
+          "meter": 1,
+          "rhythm": 2,
+          "interval": 1,
+          "leaps": 1,
+          "span": 1,
+          "mode": 5,
+          "chromatic": 1,
+          "double": 1,
+          "density": 1
+        },
+        "level": 5
+      }
+    },
+    {
+      "id": "l5-mixolydian",
+      "meter": "4/4",
+      "mode": "mixolydian",
+      "rhythmCells": [
+        "Q",
+        "H"
+      ],
+      "features": {
+        "noteCount": 32,
+        "notesPerBeat": 1,
+        "peakNotesPerBeat": 1,
+        "shortestDur": 480,
+        "maxLeapSemis": 2,
+        "tonicTriadLeapsOnly": false,
+        "leapsPer4BarsMax": 0,
+        "chromaticPer4BarsMax": 0,
+        "doubleAccidentals": 0,
+        "spanSemis": 7,
+        "minIoiTicks": 480,
+        "minRepeatIoiTicks": null,
+        "syncopationIndex": 0,
+        "restRatio": 0.05,
+        "accidentalsOutsideKey": 0,
+        "minorAlterations": 0
+      },
+      "expected": {
+        "featureLevels": {
+          "meter": 1,
+          "rhythm": 1,
+          "interval": 1,
+          "leaps": 1,
+          "span": 1,
+          "mode": 5,
+          "chromatic": 1,
+          "double": 1,
+          "density": 1
+        },
+        "level": 5
+      }
+    },
+    {
+      "id": "l5-three-eight",
+      "meter": "3/8",
+      "mode": "major",
+      "rhythmCells": [
+        "EE",
+        "Q"
+      ],
+      "features": {
+        "noteCount": 32,
+        "notesPerBeat": 1,
+        "peakNotesPerBeat": 2,
+        "shortestDur": 120,
+        "maxLeapSemis": 2,
+        "tonicTriadLeapsOnly": false,
+        "leapsPer4BarsMax": 0,
+        "chromaticPer4BarsMax": 0,
+        "doubleAccidentals": 0,
+        "spanSemis": 7,
+        "minIoiTicks": 120,
+        "minRepeatIoiTicks": null,
+        "syncopationIndex": 0,
+        "restRatio": 0.05,
+        "accidentalsOutsideKey": 0,
+        "minorAlterations": 0
+      },
+      "expected": {
+        "featureLevels": {
+          "meter": 5,
+          "rhythm": 2,
+          "interval": 1,
+          "leaps": 1,
+          "span": 1,
+          "mode": 1,
+          "chromatic": 1,
+          "double": 1,
+          "density": 1
+        },
+        "level": 5
+      }
+    },
+    {
+      "id": "l6-lydian-triplets-nine-eight",
+      "meter": "9/8",
+      "mode": "lydian",
+      "rhythmCells": [
+        "T3E",
+        "C.QE"
+      ],
+      "features": {
+        "noteCount": 32,
+        "notesPerBeat": 1,
+        "peakNotesPerBeat": 3,
+        "shortestDur": 240,
+        "maxLeapSemis": 12,
+        "tonicTriadLeapsOnly": false,
+        "leapsPer4BarsMax": 12,
+        "chromaticPer4BarsMax": 5,
+        "doubleAccidentals": 0,
+        "spanSemis": 24,
+        "minIoiTicks": 240,
+        "minRepeatIoiTicks": null,
+        "syncopationIndex": 0,
+        "restRatio": 0.05,
+        "accidentalsOutsideKey": 5,
+        "minorAlterations": 0
+      },
+      "expected": {
+        "featureLevels": {
+          "meter": 6,
+          "rhythm": 6,
+          "interval": 4,
+          "leaps": 6,
+          "span": 5,
+          "mode": 6,
+          "chromatic": 6,
+          "double": 1,
+          "density": 2
+        },
+        "level": 6
+      }
+    },
+    {
+      "id": "l6-twelve-eight",
+      "meter": "12/8",
+      "mode": "major",
+      "rhythmCells": [
+        "C.EEE",
+        "C.Q"
+      ],
+      "features": {
+        "noteCount": 32,
+        "notesPerBeat": 1,
+        "peakNotesPerBeat": 3,
+        "shortestDur": 240,
+        "maxLeapSemis": 2,
+        "tonicTriadLeapsOnly": false,
+        "leapsPer4BarsMax": 0,
+        "chromaticPer4BarsMax": 0,
+        "doubleAccidentals": 0,
+        "spanSemis": 7,
+        "minIoiTicks": 240,
+        "minRepeatIoiTicks": null,
+        "syncopationIndex": 0,
+        "restRatio": 0.05,
+        "accidentalsOutsideKey": 0,
+        "minorAlterations": 0
+      },
+      "expected": {
+        "featureLevels": {
+          "meter": 6,
+          "rhythm": 4,
+          "interval": 1,
+          "leaps": 1,
+          "span": 1,
+          "mode": 1,
+          "chromatic": 1,
+          "double": 1,
+          "density": 2
+        },
+        "level": 6
+      }
+    },
+    {
+      "id": "l6-dotted-eighth-sixteenth",
+      "meter": "4/4",
+      "mode": "major",
+      "rhythmCells": [
+        "E.S",
+        "Q",
+        "H"
+      ],
+      "features": {
+        "noteCount": 32,
+        "notesPerBeat": 1,
+        "peakNotesPerBeat": 2,
+        "shortestDur": 120,
+        "maxLeapSemis": 2,
+        "tonicTriadLeapsOnly": false,
+        "leapsPer4BarsMax": 0,
+        "chromaticPer4BarsMax": 0,
+        "doubleAccidentals": 0,
+        "spanSemis": 7,
+        "minIoiTicks": 120,
+        "minRepeatIoiTicks": null,
+        "syncopationIndex": 0,
+        "restRatio": 0.05,
+        "accidentalsOutsideKey": 0,
+        "minorAlterations": 0
+      },
+      "expected": {
+        "featureLevels": {
+          "meter": 1,
+          "rhythm": 6,
+          "interval": 1,
+          "leaps": 1,
+          "span": 1,
+          "mode": 1,
+          "chromatic": 1,
+          "double": 1,
+          "density": 1
+        },
+        "level": 6
+      }
+    },
+    {
+      "id": "l6-phrygian",
+      "meter": "4/4",
+      "mode": "phrygian",
+      "rhythmCells": [
+        "Q",
+        "H"
+      ],
+      "features": {
+        "noteCount": 32,
+        "notesPerBeat": 1,
+        "peakNotesPerBeat": 1,
+        "shortestDur": 480,
+        "maxLeapSemis": 2,
+        "tonicTriadLeapsOnly": false,
+        "leapsPer4BarsMax": 0,
+        "chromaticPer4BarsMax": 0,
+        "doubleAccidentals": 0,
+        "spanSemis": 7,
+        "minIoiTicks": 480,
+        "minRepeatIoiTicks": null,
+        "syncopationIndex": 0,
+        "restRatio": 0.05,
+        "accidentalsOutsideKey": 0,
+        "minorAlterations": 0
+      },
+      "expected": {
+        "featureLevels": {
+          "meter": 1,
+          "rhythm": 1,
+          "interval": 1,
+          "leaps": 1,
+          "span": 1,
+          "mode": 6,
+          "chromatic": 1,
+          "double": 1,
+          "density": 1
+        },
+        "level": 6
+      }
+    },
+    {
+      "id": "l7-odd-meter-quarter-triplets",
+      "meter": "5/4",
+      "mode": "major",
+      "rhythmCells": [
+        "S-sync",
+        "T3Q",
+        "Q"
+      ],
+      "features": {
+        "noteCount": 32,
+        "notesPerBeat": 1,
+        "peakNotesPerBeat": 4,
+        "shortestDur": 120,
+        "maxLeapSemis": 14,
+        "tonicTriadLeapsOnly": false,
+        "leapsPer4BarsMax": 15,
+        "chromaticPer4BarsMax": 8,
+        "doubleAccidentals": 0,
+        "spanSemis": 30,
+        "minIoiTicks": 120,
+        "minRepeatIoiTicks": null,
+        "syncopationIndex": 0.3,
+        "restRatio": 0.05,
+        "accidentalsOutsideKey": 8,
+        "minorAlterations": 0
+      },
+      "expected": {
+        "featureLevels": {
+          "meter": 7,
+          "rhythm": 7,
+          "interval": 7,
+          "leaps": 7,
+          "span": 5,
+          "mode": 1,
+          "chromatic": 7,
+          "double": 1,
+          "density": 4
+        },
+        "level": 7
+      }
+    },
+    {
+      "id": "l8-double-accidentals-32nds",
+      "meter": "4/4",
+      "mode": "major",
+      "rhythmCells": [
+        "T",
+        "H..",
+        "Q"
+      ],
+      "features": {
+        "noteCount": 32,
+        "notesPerBeat": 1,
+        "peakNotesPerBeat": 3,
+        "shortestDur": 60,
+        "maxLeapSemis": 12,
+        "tonicTriadLeapsOnly": false,
+        "leapsPer4BarsMax": 15,
+        "chromaticPer4BarsMax": 12,
+        "doubleAccidentals": 2,
+        "spanSemis": 30,
+        "minIoiTicks": 60,
+        "minRepeatIoiTicks": null,
+        "syncopationIndex": 0,
+        "restRatio": 0.05,
+        "accidentalsOutsideKey": 12,
+        "minorAlterations": 0
+      },
+      "expected": {
+        "featureLevels": {
+          "meter": 1,
+          "rhythm": 8,
+          "interval": 4,
+          "leaps": 7,
+          "span": 5,
+          "mode": 1,
+          "chromatic": 8,
+          "double": 8,
+          "density": 2
+        },
+        "level": 8
+      }
+    },
+    {
+      "id": "l8-wide-interval",
+      "meter": "4/4",
+      "mode": "major",
+      "rhythmCells": [
+        "Q",
+        "H"
+      ],
+      "features": {
+        "noteCount": 32,
+        "notesPerBeat": 1,
+        "peakNotesPerBeat": 1,
+        "shortestDur": 480,
+        "maxLeapSemis": 16,
+        "tonicTriadLeapsOnly": false,
+        "leapsPer4BarsMax": 0,
+        "chromaticPer4BarsMax": 0,
+        "doubleAccidentals": 0,
+        "spanSemis": 7,
+        "minIoiTicks": 480,
+        "minRepeatIoiTicks": null,
+        "syncopationIndex": 0,
+        "restRatio": 0.05,
+        "accidentalsOutsideKey": 0,
+        "minorAlterations": 0
+      },
+      "expected": {
+        "featureLevels": {
+          "meter": 1,
+          "rhythm": 1,
+          "interval": 8,
+          "leaps": 1,
+          "span": 1,
+          "mode": 1,
+          "chromatic": 1,
+          "double": 1,
+          "density": 1
+        },
+        "level": 8
+      }
+    },
+    {
+      "id": "l9-quintuplets-seven-four",
+      "meter": "7/4",
+      "mode": "major",
+      "rhythmCells": [
+        "T5",
+        "hemiola",
+        "Q"
+      ],
+      "features": {
+        "noteCount": 32,
+        "notesPerBeat": 1,
+        "peakNotesPerBeat": 5,
+        "shortestDur": 96,
+        "maxLeapSemis": 20,
+        "tonicTriadLeapsOnly": false,
+        "leapsPer4BarsMax": 20,
+        "chromaticPer4BarsMax": 20,
+        "doubleAccidentals": 0,
+        "spanSemis": 36,
+        "minIoiTicks": 96,
+        "minRepeatIoiTicks": null,
+        "syncopationIndex": 0,
+        "restRatio": 0.05,
+        "accidentalsOutsideKey": 20,
+        "minorAlterations": 0
+      },
+      "expected": {
+        "featureLevels": {
+          "meter": 9,
+          "rhythm": 9,
+          "interval": 9,
+          "leaps": 7,
+          "span": 5,
+          "mode": 1,
+          "chromatic": 9,
+          "double": 1,
+          "density": 6
+        },
+        "level": 9
+      }
+    },
+    {
+      "id": "l9-eleven-eight",
+      "meter": "11/8",
+      "mode": "major",
+      "rhythmCells": [
+        "C.Q",
+        "C.QE"
+      ],
+      "features": {
+        "noteCount": 32,
+        "notesPerBeat": 1,
+        "peakNotesPerBeat": 3,
+        "shortestDur": 240,
+        "maxLeapSemis": 2,
+        "tonicTriadLeapsOnly": false,
+        "leapsPer4BarsMax": 0,
+        "chromaticPer4BarsMax": 0,
+        "doubleAccidentals": 0,
+        "spanSemis": 7,
+        "minIoiTicks": 240,
+        "minRepeatIoiTicks": null,
+        "syncopationIndex": 0,
+        "restRatio": 0.05,
+        "accidentalsOutsideKey": 0,
+        "minorAlterations": 0
+      },
+      "expected": {
+        "featureLevels": {
+          "meter": 9,
+          "rhythm": 4,
+          "interval": 1,
+          "leaps": 1,
+          "span": 1,
+          "mode": 1,
+          "chromatic": 1,
+          "double": 1,
+          "density": 2
+        },
+        "level": 9
+      }
+    },
+    {
+      "id": "l10-other-rhythm",
+      "meter": "4/4",
+      "mode": "major",
+      "rhythmCells": [
+        "other",
+        "Q"
+      ],
+      "features": {
+        "noteCount": 32,
+        "notesPerBeat": 1,
+        "peakNotesPerBeat": 1,
+        "shortestDur": 480,
+        "maxLeapSemis": 2,
+        "tonicTriadLeapsOnly": false,
+        "leapsPer4BarsMax": 0,
+        "chromaticPer4BarsMax": 0,
+        "doubleAccidentals": 0,
+        "spanSemis": 7,
+        "minIoiTicks": 480,
+        "minRepeatIoiTicks": null,
+        "syncopationIndex": 0,
+        "restRatio": 0.05,
+        "accidentalsOutsideKey": 0,
+        "minorAlterations": 0
+      },
+      "expected": {
+        "featureLevels": {
+          "meter": 1,
+          "rhythm": 10,
+          "interval": 1,
+          "leaps": 1,
+          "span": 1,
+          "mode": 1,
+          "chromatic": 1,
+          "double": 1,
+          "density": 1
+        },
+        "level": 10
+      }
+    }
+  ]
+}

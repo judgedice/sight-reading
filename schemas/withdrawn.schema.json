@@ -1,0 +1,28 @@
+{
+  "$id": "withdrawn.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/WithdrawnFile",
+  "definitions": {
+    "WithdrawnFile": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "type": "number",
+          "const": 1
+        },
+        "ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "ids"
+      ],
+      "additionalProperties": false,
+      "description": "`withdrawn.json` (no-cache): ids skipped at runtime even from a cached chunk (03 §6.13, §11 item 7)."
+    }
+  }
+}

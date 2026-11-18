@@ -1,0 +1,329 @@
+{
+  "$id": "progression.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/ProgressionConfig",
+  "definitions": {
+    "ProgressionConfig": {
+      "type": "object",
+      "properties": {
+        "$schema": {
+          "type": "string"
+        },
+        "configVersion": {
+          "type": "string"
+        },
+        "xp": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "basePerLevel": {
+              "type": "number",
+              "description": "base(L) = basePerLevel × L + baseOffset (6, 4)."
+            },
+            "baseOffset": {
+              "type": "number"
+            },
+            "qMinScore": {
+              "type": "number",
+              "description": "q(S) = 0 below this score (30), else S / 100."
+            },
+            "tempoClamp": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              },
+              "minItems": 2,
+              "maxItems": 2,
+              "description": "m_tempo = clamp(tempo / level mid tempo, min, max) (0.75, 1.30)."
+            },
+            "randomPerSetting": {
+              "type": "number",
+              "description": "m_random = 1 + perRandom per random key, meter, tempo; cap (0.08, 1.25)."
+            },
+            "randomCap": {
+              "type": "number"
+            },
+            "countInOnlyMult": {
+              "type": "number",
+              "description": "m_mode for count-in only, from `countInOnlyFromLevel` (1.10 from L4)."
+            },
+            "countInOnlyFromLevel": {
+              "type": "number"
+            },
+            "streakPerDay": {
+              "type": "number",
+              "description": "m_streak = 1 + perDay × min(days, maxDays) (0.02, 10)."
+            },
+            "streakMaxDays": {
+              "type": "number"
+            },
+            "streakMinRankedPerDay": {
+              "type": "number",
+              "description": "A streak day needs this many ranked attempts in a local day (3)."
+            },
+            "dailyFullCount": {
+              "type": "number",
+              "description": "m_daily = 1 for the first `dailyFullCount` (60) attempts per local day, then `dailyAfterMult` (0.25)."
+            },
+            "dailyAfterMult": {
+              "type": "number"
+            },
+            "belowGap": {
+              "type": "number",
+              "description": "m_below = `belowMult` (0.25) when served level ≤ player level − `belowGap` (2)."
+            },
+            "belowMult": {
+              "type": "number"
+            },
+            "practiceMult": {
+              "type": "number",
+              "description": "Practice attempts earn this share (0.25)."
+            },
+            "repeatFirstMult": {
+              "type": "number",
+              "description": "Practice repeat of an excerpt: first repeat in a day, later repeats (0.25, 0)."
+            },
+            "repeatLaterMult": {
+              "type": "number"
+            },
+            "_source": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "_source",
+            "baseOffset",
+            "basePerLevel",
+            "belowGap",
+            "belowMult",
+            "countInOnlyFromLevel",
+            "countInOnlyMult",
+            "dailyAfterMult",
+            "dailyFullCount",
+            "practiceMult",
+            "qMinScore",
+            "randomCap",
+            "randomPerSetting",
+            "repeatFirstMult",
+            "repeatLaterMult",
+            "streakMaxDays",
+            "streakMinRankedPerDay",
+            "streakPerDay",
+            "tempoClamp"
+          ],
+          "description": "XP formula (02 §5.4). XP = round(base × q × m_tempo × m_random × m_mode × m_streak × m_daily × m_below)."
+        },
+        "ranks": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "table": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "rank": {
+                    "type": "number"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "xp": {
+                    "type": "number"
+                  },
+                  "minLevel": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "rank",
+                  "name",
+                  "xp",
+                  "minLevel"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "_source": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "_source",
+            "table"
+          ],
+          "description": "Rank table (02 §5.5). Rank never goes down."
+        },
+        "levelWindow": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "size": {
+              "type": "number",
+              "description": "Last N ranked attempts at the current level (5)."
+            },
+            "offer": {
+              "type": "object",
+              "properties": {
+                "minCount": {
+                  "type": "number",
+                  "description": "At least `minCount` of the window scored ≥ `score` (4 of 5, 85)."
+                },
+                "score": {
+                  "type": "number"
+                },
+                "meanMin": {
+                  "type": "number",
+                  "description": "Window mean ≥ this (85)."
+                },
+                "minAtMidTempo": {
+                  "type": "number",
+                  "description": "At least this many at or above the level's mid tempo (2)."
+                },
+                "declineSuppressFor": {
+                  "type": "number",
+                  "description": "Declining suppresses the offer for this many ranked attempts (5)."
+                }
+              },
+              "required": [
+                "minCount",
+                "score",
+                "meanMin",
+                "minAtMidTempo",
+                "declineSuppressFor"
+              ],
+              "additionalProperties": false
+            },
+            "auto": {
+              "type": "object",
+              "properties": {
+                "consecutive": {
+                  "type": "number",
+                  "description": "Consecutive ranked attempts ≥ `score` (8, 90)."
+                },
+                "score": {
+                  "type": "number"
+                },
+                "minAtMidTempo": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "consecutive",
+                "score",
+                "minAtMidTempo"
+              ],
+              "additionalProperties": false
+            },
+            "down": {
+              "type": "object",
+              "properties": {
+                "meanBelow": {
+                  "type": "number",
+                  "description": "Suggest a level down when mean < `meanBelow` (60) or ≥ `countBelow` (3) attempts below `countScore` (55)."
+                },
+                "countBelow": {
+                  "type": "number"
+                },
+                "countScore": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "meanBelow",
+                "countBelow",
+                "countScore"
+              ],
+              "additionalProperties": false
+            },
+            "_source": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "_source",
+            "auto",
+            "down",
+            "offer",
+            "size"
+          ],
+          "description": "Level window rules per instrument (02 §5.6)."
+        },
+        "placement": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "excerpts": {
+              "type": "number"
+            },
+            "startLevel": {
+              "type": "number"
+            },
+            "upIfAtLeast": {
+              "type": "number",
+              "description": "Next excerpt L + upBy if score ≥ upIfAtLeast (2, 85); L − downBy if < downIfBelow (1, 60)."
+            },
+            "upBy": {
+              "type": "number"
+            },
+            "downIfBelow": {
+              "type": "number"
+            },
+            "downBy": {
+              "type": "number"
+            },
+            "finalMinScore": {
+              "type": "number",
+              "description": "Final level = highest level with score ≥ this (75), minimum `minLevel` (1)."
+            },
+            "minLevel": {
+              "type": "number"
+            },
+            "_source": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "_source",
+            "downBy",
+            "downIfBelow",
+            "excerpts",
+            "finalMinScore",
+            "minLevel",
+            "startLevel",
+            "upBy",
+            "upIfAtLeast"
+          ],
+          "description": "Placement (02 §5.1)."
+        },
+        "skip": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "postRevealPerRanked": {
+              "type": "number"
+            },
+            "_source": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "_source",
+            "postRevealPerRanked"
+          ],
+          "description": "Post-reveal skip limit: one per this many ranked attempts (5) (02 §5.3; R33)."
+        }
+      },
+      "required": [
+        "configVersion",
+        "xp",
+        "ranks",
+        "levelWindow",
+        "placement",
+        "skip"
+      ],
+      "additionalProperties": false,
+      "description": "`config/progression.json` (02 §5, §10)."
+    }
+  }
+}

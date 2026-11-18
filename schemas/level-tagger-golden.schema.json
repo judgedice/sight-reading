@@ -1,0 +1,245 @@
+{
+  "$id": "level-tagger-golden.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/LevelTaggerGolden",
+  "definitions": {
+    "DifficultyFeatures": {
+      "type": "object",
+      "properties": {
+        "noteCount": {
+          "type": "number",
+          "description": "Notes (tie chains count once)."
+        },
+        "notesPerBeat": {
+          "type": "number",
+          "description": "Mean notes per beat."
+        },
+        "peakNotesPerBeat": {
+          "type": "number",
+          "description": "Peak notes per beat in any one-beat window (NPS = this × bpm / 60)."
+        },
+        "shortestDur": {
+          "$ref": "#/definitions/Ticks",
+          "description": "Shortest note or rest, ticks."
+        },
+        "maxLeapSemis": {
+          "type": "number",
+          "description": "Largest interval between consecutive notes, semitones (rests under 1 beat do not break adjacency)."
+        },
+        "tonicTriadLeapsOnly": {
+          "type": "boolean",
+          "description": "All leaps above the level's free interval are tonic-triad leaps (02 §2.3)."
+        },
+        "leapsPer4BarsMax": {
+          "type": "number",
+          "description": "Maximum leaps (a 4th or larger) in any 4-bar window."
+        },
+        "chromaticPer4BarsMax": {
+          "type": "number",
+          "description": "Maximum chromatic notes in any 4-bar window."
+        },
+        "doubleAccidentals": {
+          "type": "number",
+          "description": "Count of double sharps and flats."
+        },
+        "spanSemis": {
+          "type": "number",
+          "description": "Highest minus lowest note, semitones."
+        },
+        "minIoiTicks": {
+          "$ref": "#/definitions/Ticks",
+          "description": "Shortest pitch-change IOI, ticks."
+        },
+        "minRepeatIoiTicks": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Ticks"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Shortest same-pitch repeat IOI, ticks; null when there are no repeats."
+        },
+        "syncopationIndex": {
+          "type": "number",
+          "description": "Syncopated onsets / note count (03 §6.8)."
+        },
+        "restRatio": {
+          "type": "number",
+          "description": "Rest ticks / window ticks, pickup excluded (03 §6.8)."
+        },
+        "accidentalsOutsideKey": {
+          "type": "number",
+          "description": "Pitch classes outside the key scale (03 §6.8)."
+        },
+        "minorAlterations": {
+          "type": "number",
+          "description": "Raised 6th and 7th in minor (03 §6.8)."
+        }
+      },
+      "required": [
+        "noteCount",
+        "notesPerBeat",
+        "peakNotesPerBeat",
+        "shortestDur",
+        "maxLeapSemis",
+        "tonicTriadLeapsOnly",
+        "leapsPer4BarsMax",
+        "chromaticPer4BarsMax",
+        "doubleAccidentals",
+        "spanSemis",
+        "minIoiTicks",
+        "minRepeatIoiTicks",
+        "syncopationIndex",
+        "restRatio",
+        "accidentalsOutsideKey",
+        "minorAlterations"
+      ],
+      "additionalProperties": false,
+      "description": "Intrinsic, instrument-independent features of an excerpt (02 §2.5, 03 §6.8)."
+    },
+    "FeatureLevels": {
+      "type": "object",
+      "properties": {
+        "meter": {
+          "type": "number"
+        },
+        "rhythm": {
+          "type": "number"
+        },
+        "interval": {
+          "type": "number"
+        },
+        "leaps": {
+          "type": "number"
+        },
+        "span": {
+          "type": "number"
+        },
+        "mode": {
+          "type": "number"
+        },
+        "chromatic": {
+          "type": "number"
+        },
+        "double": {
+          "type": "number"
+        },
+        "density": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "meter",
+        "rhythm",
+        "interval",
+        "leaps",
+        "span",
+        "mode",
+        "chromatic",
+        "double",
+        "density"
+      ],
+      "additionalProperties": false,
+      "description": "Feature → level, 1..10. Level = max over features (02 §2.1)."
+    },
+    "LevelTaggerGolden": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "type": "number",
+          "const": 1
+        },
+        "_source": {
+          "type": "string"
+        },
+        "cases": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "meter": {
+                "type": "string",
+                "description": "\"beats/beatType\"."
+              },
+              "mode": {
+                "$ref": "#/definitions/Mode"
+              },
+              "minorForm": {
+                "type": "string",
+                "enum": [
+                  "natural",
+                  "harmonic",
+                  "melodic"
+                ]
+              },
+              "rhythmCells": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "features": {
+                "$ref": "#/definitions/DifficultyFeatures"
+              },
+              "expected": {
+                "type": "object",
+                "properties": {
+                  "featureLevels": {
+                    "$ref": "#/definitions/FeatureLevels"
+                  },
+                  "level": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "featureLevels",
+                  "level"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "id",
+              "meter",
+              "mode",
+              "rhythmCells",
+              "features",
+              "expected"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "_source",
+        "cases"
+      ],
+      "additionalProperties": false,
+      "description": "`fixtures/levels/feature-vectors.json`: golden feature-to-level cases shared by the TypeScript and Python level taggers (02 §10, G2)."
+    },
+    "Mode": {
+      "type": "string",
+      "enum": [
+        "major",
+        "minor",
+        "dorian",
+        "mixolydian",
+        "phrygian",
+        "lydian",
+        "aeolian",
+        "locrian"
+      ],
+      "description": "Mode of an excerpt. Church modes appear only when the key is random (R8, 02 §2.3)."
+    },
+    "Ticks": {
+      "type": "number",
+      "description": "Integer ticks from the excerpt start (bar 0 beat 1 if there is a pickup), at TPQ = 480 (01 §5.1)."
+    }
+  }
+}

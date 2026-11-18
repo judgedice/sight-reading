@@ -1,0 +1,252 @@
+{
+  "$id": "audio-env.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/AudioEnv",
+  "definitions": {
+    "AppliedProcessing": {
+      "type": "object",
+      "properties": {
+        "echoCancellation": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "noiseSuppression": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "autoGainControl": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "echoCancellation",
+        "noiseSuppression",
+        "autoGainControl"
+      ],
+      "additionalProperties": false,
+      "description": "Input processing flags as read back from `track.getSettings()`; null when not reported (05 W5)."
+    },
+    "AudioEnv": {
+      "type": "object",
+      "properties": {
+        "platform": {
+          "$ref": "#/definitions/PlatformKind",
+          "description": "'ios' = the later native target."
+        },
+        "osFamily": {
+          "$ref": "#/definitions/OsFamily"
+        },
+        "displayMode": {
+          "$ref": "#/definitions/DisplayMode"
+        },
+        "appBuild": {
+          "type": "string"
+        },
+        "coreVersion": {
+          "type": "string",
+          "description": "Version of the shared pure core."
+        },
+        "inputPath": {
+          "type": "string",
+          "const": "mic",
+          "description": "'midi' later."
+        },
+        "metronomeMode": {
+          "$ref": "#/definitions/MetronomeMode"
+        },
+        "clickTimbre": {
+          "$ref": "#/definitions/ClickTimbre"
+        },
+        "outputMode": {
+          "$ref": "#/definitions/OutputMode"
+        },
+        "route": {
+          "type": "object",
+          "properties": {
+            "inputKind": {
+              "type": "string",
+              "enum": [
+                "built-in",
+                "wired",
+                "bluetooth",
+                "usb-interface",
+                "unknown"
+              ]
+            },
+            "sampleRate": {
+              "type": "number",
+              "description": "Context sample rate, Hz."
+            },
+            "appliedProcessing": {
+              "$ref": "#/definitions/AppliedProcessing"
+            }
+          },
+          "required": [
+            "inputKind",
+            "sampleRate",
+            "appliedProcessing"
+          ],
+          "additionalProperties": false
+        },
+        "contextSampleRate": {
+          "type": "number",
+          "description": "Hz."
+        },
+        "contextRecreated": {
+          "type": "boolean"
+        },
+        "clockRateError": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "Fractional clock-rate error (0.088 = 8.8% fast), null when not measured."
+        },
+        "audioSessionType": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "`navigator.audioSession.type` as set, or null."
+        },
+        "latencyCompensationMs": {
+          "type": "number",
+          "description": "What follow/ subtracted, ms."
+        },
+        "calibrationMethod": {
+          "type": "string",
+          "enum": [
+            "loopback",
+            "play-along",
+            "reported",
+            "none"
+          ]
+        },
+        "captureRelay": {
+          "type": "boolean",
+          "description": "Main-thread relay used (01 §7.2)."
+        },
+        "droppedBlocks": {
+          "type": "number"
+        },
+        "maxQueueMs": {
+          "type": "number",
+          "description": "Largest DSP queue during the take, ms of audio."
+        },
+        "dspHopP95Ms": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "DSP worker per-hop time p95, ms (diagnostics only)."
+        },
+        "gateFailures": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/GateId"
+          }
+        }
+      },
+      "required": [
+        "platform",
+        "osFamily",
+        "displayMode",
+        "appBuild",
+        "coreVersion",
+        "inputPath",
+        "metronomeMode",
+        "clickTimbre",
+        "outputMode",
+        "route",
+        "contextSampleRate",
+        "contextRecreated",
+        "clockRateError",
+        "audioSessionType",
+        "latencyCompensationMs",
+        "calibrationMethod",
+        "captureRelay",
+        "droppedBlocks",
+        "maxQueueMs",
+        "dspHopP95Ms",
+        "gateFailures"
+      ],
+      "additionalProperties": false,
+      "description": "Audio environment of an attempt; platform-neutral, JSON only, never identifies the person or device (05 §5.2)."
+    },
+    "ClickTimbre": {
+      "type": "string",
+      "enum": [
+        "tick",
+        "wood"
+      ],
+      "description": "Metronome click sound: Tick 5.5–9 kHz noise burst (speaker default) or Wood 1.5–4 kHz (01 §7.6)."
+    },
+    "DisplayMode": {
+      "type": "string",
+      "enum": [
+        "browser",
+        "standalone"
+      ],
+      "description": "Whether the app runs in a browser tab or as an installed home-screen app (05 §5.1, W13)."
+    },
+    "GateId": {
+      "type": "string",
+      "enum": [
+        "sample-rate",
+        "calibration-unmeasured",
+        "calibration-quality",
+        "aec-suspected",
+        "processing-on",
+        "recheck",
+        "capture-gap",
+        "rtl-high"
+      ],
+      "description": "Per-take measurement gate checks (05 §4). Each failure makes the take unranked (`calibration` or `measurement`)."
+    },
+    "MetronomeMode": {
+      "type": "string",
+      "enum": [
+        "audible",
+        "countInOnly"
+      ],
+      "description": "Metronome mode. `'visual'` is later (01 §7.6, 02 §5.2)."
+    },
+    "OsFamily": {
+      "type": "string",
+      "enum": [
+        "ios",
+        "ipados",
+        "macos",
+        "android",
+        "windows",
+        "linux",
+        "other"
+      ],
+      "description": "OS family, for labels, copy and diagnostics only; never a grading branch (05 §5.1)."
+    },
+    "OutputMode": {
+      "type": "string",
+      "enum": [
+        "speakers",
+        "wired",
+        "bluetooth"
+      ],
+      "description": "Output route declared by the player; the web cannot detect it reliably (01 §1, §7.8)."
+    },
+    "PlatformKind": {
+      "type": "string",
+      "enum": [
+        "web",
+        "ios"
+      ],
+      "description": "Runtime platform: the web app, or the later native iOS target (01 §5.2, 05 §5.2)."
+    }
+  }
+}

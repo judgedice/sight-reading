@@ -1,0 +1,292 @@
+{
+  "$schema": "../schemas/measurement-budget.schema.json",
+  "budgetVersion": "budget-1.0.0",
+  "onsetError": {
+    "_source": "01 §8.1",
+    "components": [
+      {
+        "id": "hop-quantization",
+        "laptopMs": 2,
+        "phoneMs": 2
+      },
+      {
+        "id": "detector-articulated",
+        "laptopMs": 6,
+        "phoneMs": 8
+      },
+      {
+        "id": "detector-slurred",
+        "laptopMs": 10,
+        "phoneMs": 12
+      },
+      {
+        "id": "detector-voice",
+        "laptopMs": 18,
+        "phoneMs": 22,
+        "note": "Scoops and glides of 30 to 100 ms are real ambiguity, not noise."
+      },
+      {
+        "id": "calibration-loopback-recheck",
+        "laptopMs": 1.5,
+        "phoneMs": 2.5
+      },
+      {
+        "id": "calibration-loopback-stored",
+        "laptopMs": 2,
+        "phoneMs": 5
+      },
+      {
+        "id": "calibration-play-along",
+        "laptopMs": 11,
+        "phoneMs": 11,
+        "note": "25 ms tap spread / sqrt(8) x 1.25; players anticipate clicks by 10 to 40 ms."
+      },
+      {
+        "id": "calibration-bluetooth",
+        "laptopMs": 20,
+        "phoneMs": 20,
+        "note": "Added on top of play-along."
+      },
+      {
+        "id": "clock-mapping",
+        "laptopMs": 1,
+        "phoneMs": 2,
+        "note": "Shared context clock; separate-device drift under 3 ms per 60 s."
+      },
+      {
+        "id": "calibration-reported",
+        "laptopMs": null,
+        "phoneMs": null,
+        "note": "Unbounded (20 to 80 ms systematic on Safari): always unranked."
+      }
+    ],
+    "totals": [
+      {
+        "floorClass": "articulated",
+        "path": "laptop-loopback-recheck",
+        "sigmaMs": 6.6,
+        "p95Ms": 13
+      },
+      {
+        "floorClass": "articulated",
+        "path": "phone-loopback-recheck",
+        "sigmaMs": 8.9,
+        "p95Ms": 17
+      },
+      {
+        "floorClass": "articulated",
+        "path": "phone-play-along",
+        "sigmaMs": 13.9,
+        "p95Ms": 27
+      },
+      {
+        "floorClass": "slurred",
+        "path": "laptop-loopback-recheck",
+        "sigmaMs": 10.4,
+        "p95Ms": 20
+      },
+      {
+        "floorClass": "slurred",
+        "path": "phone-loopback-recheck",
+        "sigmaMs": 12.6,
+        "p95Ms": 25
+      },
+      {
+        "floorClass": "slurred",
+        "path": "phone-play-along",
+        "sigmaMs": 16.5,
+        "p95Ms": 32
+      },
+      {
+        "floorClass": "voice",
+        "path": "laptop-loopback-recheck",
+        "sigmaMs": 18.2,
+        "p95Ms": 36
+      },
+      {
+        "floorClass": "voice",
+        "path": "phone-loopback-recheck",
+        "sigmaMs": 22.3,
+        "p95Ms": 44
+      },
+      {
+        "floorClass": "voice",
+        "path": "phone-play-along",
+        "sigmaMs": 24.8,
+        "p95Ms": 49
+      }
+    ],
+    "repeatSdMs": {
+      "hard": [
+        5,
+        8
+      ],
+      "soft": [
+        12,
+        20
+      ]
+    }
+  },
+  "timingFloors": {
+    "_source": "01 §8.2",
+    "goodSigmas": 2,
+    "redSigmas": 3,
+    "worstRankedPath": "phone-play-along",
+    "floorsMs": {
+      "articulated": {
+        "goodMs": 30,
+        "redMs": 45
+      },
+      "slurred": {
+        "goodMs": 35,
+        "redMs": 50
+      },
+      "voice": {
+        "goodMs": 50,
+        "redMs": 75
+      }
+    }
+  },
+  "ioiFloors": {
+    "_source": "01 §8.3",
+    "pitchChangeMs": {
+      "512": 70,
+      "1024": 90,
+      "2048": 150
+    },
+    "repeatMs": {
+      "tonguedOrStruck": 100,
+      "voiceOrBowed": 130
+    }
+  },
+  "cents": {
+    "_source": "01 §8.4 (R18)",
+    "table": [
+      {
+        "vibratoClass": "none",
+        "minSteadyMs": 360,
+        "maxSteadyMs": null,
+        "goodCents": 12,
+        "redCents": 25
+      },
+      {
+        "vibratoClass": "none",
+        "minSteadyMs": 250,
+        "maxSteadyMs": 360,
+        "goodCents": 12,
+        "redCents": 25
+      },
+      {
+        "vibratoClass": "none",
+        "minSteadyMs": 180,
+        "maxSteadyMs": 250,
+        "goodCents": 20,
+        "redCents": 35
+      },
+      {
+        "vibratoClass": "none",
+        "minSteadyMs": 150,
+        "maxSteadyMs": 180,
+        "goodCents": 20,
+        "redCents": 35
+      },
+      {
+        "vibratoClass": "none",
+        "minSteadyMs": 0,
+        "maxSteadyMs": 150,
+        "goodCents": null,
+        "redCents": null
+      },
+      {
+        "vibratoClass": "vibrato",
+        "minSteadyMs": 360,
+        "maxSteadyMs": null,
+        "goodCents": 15,
+        "redCents": 30
+      },
+      {
+        "vibratoClass": "vibrato",
+        "minSteadyMs": 250,
+        "maxSteadyMs": 360,
+        "goodCents": 20,
+        "redCents": 35
+      },
+      {
+        "vibratoClass": "vibrato",
+        "minSteadyMs": 180,
+        "maxSteadyMs": 250,
+        "goodCents": 20,
+        "redCents": 35
+      },
+      {
+        "vibratoClass": "vibrato",
+        "minSteadyMs": 150,
+        "maxSteadyMs": 180,
+        "goodCents": null,
+        "redCents": null
+      },
+      {
+        "vibratoClass": "vibrato",
+        "minSteadyMs": 0,
+        "maxSteadyMs": 150,
+        "goodCents": null,
+        "redCents": null
+      }
+    ],
+    "minSteadyMs": {
+      "none": 150,
+      "vibrato": 180
+    },
+    "c90Cents": 10,
+    "voiceRelativeExtraCents": 5
+  },
+  "live": {
+    "_source": "01 §8.4",
+    "minProvisionalMs": 80,
+    "shortBelowMs": 150,
+    "shortHysteresisCents": 10,
+    "longHysteresisCents": 5
+  },
+  "fundamentals": {
+    "_source": "01 §7.3 (R18)",
+    "minHzByWindow": {
+      "512": 94,
+      "1024": 47,
+      "2048": 23
+    },
+    "pianoLhMinMidi": 36
+  },
+  "capture": {
+    "_source": "01 §7.2, §7.9 (R32)",
+    "backlogVoidMs": 120,
+    "poolSize": 32,
+    "relayFallbackMs": 500
+  },
+  "calibration": {
+    "_source": "01 §7.7, §7.8",
+    "loopback": {
+      "clicks": 10,
+      "minFound": 7,
+      "maxMadMs": 3,
+      "minRtlMs": 15,
+      "maxRtlMs": 400,
+      "templateClicks": 6
+    },
+    "playAlong": {
+      "clicks": 8,
+      "bpm": 80,
+      "maxMadMs": 15,
+      "minRtlMs": 0,
+      "maxRtlMs": 400
+    },
+    "recheck": {
+      "minClicks": 4,
+      "maxMadMs": 3,
+      "useFreshAboveMs": 5,
+      "staleAboveMs": 10
+    },
+    "reportedExtraMs": 10,
+    "sanityToneCents": 8,
+    "clockRateMaxError": 0.02
+  }
+}

@@ -1,0 +1,601 @@
+{
+  "$id": "measurement-budget.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/MeasurementBudget",
+  "definitions": {
+    "CentsFloorRow": {
+      "type": "object",
+      "properties": {
+        "vibratoClass": {
+          "$ref": "#/definitions/VibratoClass"
+        },
+        "minSteadyMs": {
+          "type": "number",
+          "description": "Steady duration band, ms, inclusive lower bound."
+        },
+        "maxSteadyMs": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "Exclusive upper bound, ms; null = no upper bound."
+        },
+        "goodCents": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "redCents": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "vibratoClass",
+        "minSteadyMs",
+        "maxSteadyMs",
+        "goodCents",
+        "redCents"
+      ],
+      "additionalProperties": false,
+      "description": "One row of the cents floor table (01 §8.4). Null cents = intonation not graded in that steady band."
+    },
+    "MeasurementBudget": {
+      "type": "object",
+      "properties": {
+        "$schema": {
+          "type": "string"
+        },
+        "budgetVersion": {
+          "type": "string"
+        },
+        "onsetError": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "components": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "laptopMs": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "phoneMs": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "note": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "laptopMs",
+                  "phoneMs"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "totals": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "floorClass": {
+                    "$ref": "#/definitions/TimingFloorClass"
+                  },
+                  "path": {
+                    "$ref": "#/definitions/MeasurementPath"
+                  },
+                  "sigmaMs": {
+                    "type": "number"
+                  },
+                  "p95Ms": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "floorClass",
+                  "path",
+                  "sigmaMs",
+                  "p95Ms"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "repeatSdMs": {
+              "type": "object",
+              "properties": {
+                "hard": {
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  },
+                  "minItems": 2,
+                  "maxItems": 2
+                },
+                "soft": {
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  },
+                  "minItems": 2,
+                  "maxItems": 2
+                }
+              },
+              "required": [
+                "hard",
+                "soft"
+              ],
+              "additionalProperties": false,
+              "description": "Repeated-note onset SD, ms (01 §8.1): tongued/brass/struck, and soft re-articulation."
+            },
+            "_source": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "_source",
+            "components",
+            "repeatSdMs",
+            "totals"
+          ],
+          "description": "Onset error components and totals, 1σ ms, root-sum-square (01 §8.1)."
+        },
+        "timingFloors": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "goodSigmas": {
+              "type": "number"
+            },
+            "redSigmas": {
+              "type": "number"
+            },
+            "worstRankedPath": {
+              "$ref": "#/definitions/MeasurementPath"
+            },
+            "floorsMs": {
+              "type": "object",
+              "properties": {
+                "articulated": {
+                  "type": "object",
+                  "properties": {
+                    "goodMs": {
+                      "type": "number"
+                    },
+                    "redMs": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "goodMs",
+                    "redMs"
+                  ],
+                  "additionalProperties": false
+                },
+                "slurred": {
+                  "type": "object",
+                  "properties": {
+                    "goodMs": {
+                      "type": "number"
+                    },
+                    "redMs": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "goodMs",
+                    "redMs"
+                  ],
+                  "additionalProperties": false
+                },
+                "voice": {
+                  "type": "object",
+                  "properties": {
+                    "goodMs": {
+                      "type": "number"
+                    },
+                    "redMs": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "goodMs",
+                    "redMs"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "articulated",
+                "slurred",
+                "voice"
+              ],
+              "additionalProperties": false,
+              "description": "Minimum tolerances, ms: articulated 30/45, slurred 35/50, voice 50/75."
+            },
+            "_source": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "_source",
+            "floorsMs",
+            "goodSigmas",
+            "redSigmas",
+            "worstRankedPath"
+          ],
+          "description": "Timing floors (01 §8.2): tGood ≥ goodSigmas × σ and tRed ≥ redSigmas × σ on the worst ranked path."
+        },
+        "ioiFloors": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "pitchChangeMs": {
+              "type": "object",
+              "properties": {
+                "512": {
+                  "type": "number"
+                },
+                "1024": {
+                  "type": "number"
+                },
+                "2048": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "512",
+                "1024",
+                "2048"
+              ],
+              "additionalProperties": false,
+              "description": "Pitch-change IOI floor per window class, ms (70 / 90 / 150)."
+            },
+            "repeatMs": {
+              "type": "object",
+              "properties": {
+                "tonguedOrStruck": {
+                  "type": "number"
+                },
+                "voiceOrBowed": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "tonguedOrStruck",
+                "voiceOrBowed"
+              ],
+              "additionalProperties": false,
+              "description": "Same-pitch repeat IOI floors, ms: tongued or struck 100, voice or bowed 130."
+            },
+            "_source": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "_source",
+            "pitchChangeMs",
+            "repeatMs"
+          ],
+          "description": "Minimum IOIs and durations (01 §8.3)."
+        },
+        "cents": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "table": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/CentsFloorRow"
+              }
+            },
+            "minSteadyMs": {
+              "type": "object",
+              "properties": {
+                "none": {
+                  "type": "number"
+                },
+                "vibrato": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "none",
+                "vibrato"
+              ],
+              "additionalProperties": false,
+              "description": "`intonationMinSteadyMs` floors, ms: none 150, vibrato 180."
+            },
+            "c90Cents": {
+              "type": "number",
+              "description": "Real-audio cents budget c90 (10): good ≥ 2 × c90, red ≥ 3 × c90 + 5 (02 §4.2)."
+            },
+            "voiceRelativeExtraCents": {
+              "type": "number",
+              "description": "Voice relative pitch adds this uncertainty, cents (5)."
+            },
+            "_source": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "_source",
+            "c90Cents",
+            "minSteadyMs",
+            "table",
+            "voiceRelativeExtraCents"
+          ],
+          "description": "Cents floors (01 §8.4; R18)."
+        },
+        "live": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "minProvisionalMs": {
+              "type": "number",
+              "description": "`liveProvisionalMs` ≥ this (80)."
+            },
+            "shortBelowMs": {
+              "type": "number",
+              "description": "Hysteresis ≥ `shortHysteresisCents` (10) if the window is under `shortBelowMs` (150), else ≥ `longHysteresisCents` (5)."
+            },
+            "shortHysteresisCents": {
+              "type": "number"
+            },
+            "longHysteresisCents": {
+              "type": "number"
+            },
+            "_source": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "_source",
+            "longHysteresisCents",
+            "minProvisionalMs",
+            "shortBelowMs",
+            "shortHysteresisCents"
+          ],
+          "description": "Live provisional rule floors (01 §8.4)."
+        },
+        "fundamentals": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "minHzByWindow": {
+              "type": "object",
+              "properties": {
+                "512": {
+                  "type": "number"
+                },
+                "1024": {
+                  "type": "number"
+                },
+                "2048": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "512",
+                "1024",
+                "2048"
+              ],
+              "additionalProperties": false,
+              "description": "Lowest servable fundamental per window class, Hz (3 periods: 94 / 47 / 23)."
+            },
+            "pianoLhMinMidi": {
+              "type": "number",
+              "description": "Piano LH never below this MIDI, even in beta (C2 = 36) (R18)."
+            },
+            "_source": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "_source",
+            "minHzByWindow",
+            "pianoLhMinMidi"
+          ],
+          "description": "Fundamental floors (01 §7.3)."
+        },
+        "capture": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "backlogVoidMs": {
+              "type": "number",
+              "description": "Queued audio above this voids the take (`backlog`), ms (120; R32)."
+            },
+            "poolSize": {
+              "type": "number",
+              "description": "Buffer pool size, pairs (32)."
+            },
+            "relayFallbackMs": {
+              "type": "number",
+              "description": "Switch to the main-thread relay if no block arrives within this, ms (500)."
+            },
+            "_source": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "_source",
+            "backlogVoidMs",
+            "poolSize",
+            "relayFallbackMs"
+          ],
+          "description": "Capture pipeline limits (01 §7.2, §7.9; R32)."
+        },
+        "calibration": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "loopback": {
+              "type": "object",
+              "properties": {
+                "clicks": {
+                  "type": "number"
+                },
+                "minFound": {
+                  "type": "number"
+                },
+                "maxMadMs": {
+                  "type": "number"
+                },
+                "minRtlMs": {
+                  "type": "number"
+                },
+                "maxRtlMs": {
+                  "type": "number"
+                },
+                "templateClicks": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "clicks",
+                "minFound",
+                "maxMadMs",
+                "minRtlMs",
+                "maxRtlMs",
+                "templateClicks"
+              ],
+              "additionalProperties": false
+            },
+            "playAlong": {
+              "type": "object",
+              "properties": {
+                "clicks": {
+                  "type": "number"
+                },
+                "bpm": {
+                  "type": "number"
+                },
+                "maxMadMs": {
+                  "type": "number"
+                },
+                "minRtlMs": {
+                  "type": "number"
+                },
+                "maxRtlMs": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "clicks",
+                "bpm",
+                "maxMadMs",
+                "minRtlMs",
+                "maxRtlMs"
+              ],
+              "additionalProperties": false
+            },
+            "recheck": {
+              "type": "object",
+              "properties": {
+                "minClicks": {
+                  "type": "number"
+                },
+                "maxMadMs": {
+                  "type": "number"
+                },
+                "useFreshAboveMs": {
+                  "type": "number"
+                },
+                "staleAboveMs": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "minClicks",
+                "maxMadMs",
+                "useFreshAboveMs",
+                "staleAboveMs"
+              ],
+              "additionalProperties": false,
+              "description": "Per-take recheck: ≥ minClicks with MAD ≤ maxMadMs; use the fresh value above useFreshAboveMs; mark stale above staleAboveMs."
+            },
+            "reportedExtraMs": {
+              "type": "number",
+              "description": "Reported method adds this to baseLatency + outputLatency, ms (10)."
+            },
+            "sanityToneCents": {
+              "type": "number",
+              "description": "Sanity tone must read within ±this many cents (8)."
+            },
+            "clockRateMaxError": {
+              "type": "number",
+              "description": "Clock-rate error above this fraction recreates the context (0.02)."
+            },
+            "_source": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "_source",
+            "clockRateMaxError",
+            "loopback",
+            "playAlong",
+            "recheck",
+            "reportedExtraMs",
+            "sanityToneCents"
+          ],
+          "description": "Calibration acceptance (01 §7.7, §7.8)."
+        }
+      },
+      "required": [
+        "budgetVersion",
+        "onsetError",
+        "timingFloors",
+        "ioiFloors",
+        "cents",
+        "live",
+        "fundamentals",
+        "capture",
+        "calibration"
+      ],
+      "additionalProperties": false,
+      "description": "`config/measurement-budget.json`: 01's error budgets and detectability floors (01 §8; R18, R32)."
+    },
+    "MeasurementPath": {
+      "type": "string",
+      "enum": [
+        "laptop-loopback-recheck",
+        "phone-loopback-recheck",
+        "phone-play-along"
+      ],
+      "description": "Measurement path for budget totals (01 §8.1)."
+    },
+    "TimingFloorClass": {
+      "type": "string",
+      "enum": [
+        "articulated",
+        "slurred",
+        "voice"
+      ],
+      "description": "Timing-floor class used by the floor check: per note through `onsetKind` and family (01 §8.2)."
+    },
+    "VibratoClass": {
+      "type": "string",
+      "enum": [
+        "none",
+        "vibrato"
+      ],
+      "description": "Vibrato class; sets cents floors and `intonationMinSteadyMs` (01 §8.4)."
+    }
+  }
+}

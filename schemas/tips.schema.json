@@ -1,0 +1,356 @@
+{
+  "$id": "tips.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/TipsConfig",
+  "definitions": {
+    "ComponentId": {
+      "type": "string",
+      "enum": [
+        "P",
+        "I",
+        "R"
+      ],
+      "description": "Component letters used by patterns for `lostPoints` (02 §6.1 item 2)."
+    },
+    "Family": {
+      "type": "string",
+      "enum": [
+        "voice",
+        "flute",
+        "double-reed",
+        "clarinet",
+        "sax",
+        "high-brass",
+        "low-brass",
+        "upper-strings",
+        "low-strings",
+        "keyboard",
+        "guitar"
+      ],
+      "description": "Instrument family; sets tips and family rules (02 §1.1)."
+    },
+    "PatternDef": {
+      "type": "object",
+      "properties": {
+        "_source": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string",
+          "description": "E1 .. E35."
+        },
+        "name": {
+          "type": "string",
+          "description": "≤ 40 characters."
+        },
+        "dimension": {
+          "$ref": "#/definitions/PatternDimension"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "components": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ComponentId"
+          },
+          "description": "Components the pattern concerns, for `lostPoints`."
+        },
+        "evidenceTemplate": {
+          "type": "string",
+          "description": "Overrides the default evidence template; placeholders in braces, for example \"{bars}\"."
+        },
+        "thresholds": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "number"
+          },
+          "description": "Named numeric thresholds of the detection rule (for example `slopeBeatsPerBar: 0.04`)."
+        },
+        "minEvidence": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "number"
+          },
+          "description": "Named minimum-evidence counts (for example `notes: 2`, `bars: 2`)."
+        },
+        "instruments": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Restricts the pattern to these instrument ids (E16 trumpet, E31 clarinet, E23 voice); absent = all."
+        }
+      },
+      "required": [
+        "_source",
+        "components",
+        "dimension",
+        "enabled",
+        "id",
+        "minEvidence",
+        "name",
+        "thresholds"
+      ],
+      "additionalProperties": false,
+      "description": "A pattern record in `config/tips.json` (02 §6.1, §6.2, annex L-C)."
+    },
+    "PatternDimension": {
+      "type": "string",
+      "enum": [
+        "notes",
+        "in-tune",
+        "rhythm",
+        "flow",
+        "none"
+      ],
+      "description": "Dimension of a tip pattern (02 §6.1). `none` is E30 (clean read)."
+    },
+    "TipDef": {
+      "type": "object",
+      "properties": {
+        "_source": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string",
+          "description": "U01, HB01, ..."
+        },
+        "scope": {
+          "type": "string",
+          "enum": [
+            "universal",
+            "family"
+          ]
+        },
+        "family": {
+          "$ref": "#/definitions/Family",
+          "description": "Present when scope is family."
+        },
+        "instruments": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Restricts a family tip to these instruments."
+        },
+        "patterns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Pattern ids that trigger the tip (U20: E28 and E29)."
+        },
+        "condition": {
+          "type": "string",
+          "description": "Extra trigger condition id, for example \"bflat-involved\" (SX04); absent = none."
+        },
+        "assertsCause": {
+          "type": "boolean",
+          "description": "Names a physical cause: needs the pattern primary in 2 of the last 5 attempts (02 §6.1 item 5)."
+        },
+        "minLevel": {
+          "type": "number"
+        },
+        "maxLevel": {
+          "type": "number"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "text": {
+          "type": "string",
+          "description": "≤ 280 characters; placeholders in braces, for example \"{offset}\" and \"{direction}\" (U22)."
+        }
+      },
+      "required": [
+        "_source",
+        "assertsCause",
+        "enabled",
+        "id",
+        "maxLevel",
+        "minLevel",
+        "patterns",
+        "scope",
+        "text"
+      ],
+      "additionalProperties": false,
+      "description": "A tip record in `config/tips.json` (02 §6.1, §6.3, §6.4)."
+    },
+    "TipsConfig": {
+      "type": "object",
+      "properties": {
+        "$schema": {
+          "type": "string"
+        },
+        "configVersion": {
+          "type": "string"
+        },
+        "patterns": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/PatternDef"
+          }
+        },
+        "tips": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/TipDef"
+          }
+        },
+        "selection": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "primaryMinLostPoints": {
+              "type": "number",
+              "description": "Primary tip needs lostPoints ≥ this (3); secondary ≥ (5); at most `maxTips` (2)."
+            },
+            "secondaryMinLostPoints": {
+              "type": "number"
+            },
+            "maxTips": {
+              "type": "number"
+            },
+            "assertsCause": {
+              "type": "object",
+              "properties": {
+                "minPrimary": {
+                  "type": "number"
+                },
+                "ofLast": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "minPrimary",
+                "ofLast"
+              ],
+              "additionalProperties": false,
+              "description": "`assertsCause` tips need the pattern primary in `minPrimary` of the last `ofLast` attempts (2 of 5)."
+            },
+            "skipRecent": {
+              "type": "number",
+              "description": "Skip tips shown in the last N tips for this player (3)."
+            },
+            "defaultEvidenceTemplate": {
+              "type": "string",
+              "description": "\"Seen in bars {bars}.\""
+            },
+            "cleanReadPatternId": {
+              "type": "string",
+              "description": "E30 and U18."
+            },
+            "cleanReadTipId": {
+              "type": "string"
+            },
+            "signal": {
+              "type": "object",
+              "properties": {
+                "minMedianClarity": {
+                  "type": "number"
+                },
+                "maxClippingFrac": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "minMedianClarity",
+                "maxClippingFrac"
+              ],
+              "additionalProperties": false,
+              "description": "Signal quality: median clarity ≥ (0.9) and clipping ≤ (0.02 of frames), else only E30 or nothing."
+            },
+            "minEvidenceBars": {
+              "type": "number",
+              "description": "Evidence must span at least this many bars (2), except the listed patterns (E6, E28, E29)."
+            },
+            "evidenceBarsExempt": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "incompleteAllowed": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Incomplete attempts may fire only these (E6)."
+            },
+            "betaDisabledPatterns": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Patterns disabled on beta instruments (E22, E23); beta instruments get universal tips only."
+            },
+            "summary": {
+              "type": "object",
+              "properties": {
+                "every": {
+                  "type": "number"
+                },
+                "topPatterns": {
+                  "type": "number"
+                },
+                "focus": {
+                  "type": "object",
+                  "properties": {
+                    "minPrimary": {
+                      "type": "number"
+                    },
+                    "ofLast": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "minPrimary",
+                    "ofLast"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "every",
+                "topPatterns",
+                "focus"
+              ],
+              "additionalProperties": false,
+              "description": "Session summary every N attempts (10), top patterns (3), focus card when primary in 3 of 5."
+            },
+            "_source": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "_source",
+            "assertsCause",
+            "betaDisabledPatterns",
+            "cleanReadPatternId",
+            "cleanReadTipId",
+            "defaultEvidenceTemplate",
+            "evidenceBarsExempt",
+            "incompleteAllowed",
+            "maxTips",
+            "minEvidenceBars",
+            "primaryMinLostPoints",
+            "secondaryMinLostPoints",
+            "signal",
+            "skipRecent",
+            "summary"
+          ],
+          "description": "Flow and evidence rules (02 §6.1)."
+        }
+      },
+      "required": [
+        "configVersion",
+        "patterns",
+        "tips",
+        "selection"
+      ],
+      "additionalProperties": false,
+      "description": "`config/tips.json` (02 §6, §10). Also the `TipCatalog` passed to `selectTips`."
+    }
+  }
+}

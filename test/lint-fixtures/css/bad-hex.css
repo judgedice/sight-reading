@@ -1,0 +1,3 @@
+/* @lint-as src/app/x.css */
+/* expect: color-no-hex */
+.a { color: #fff; }

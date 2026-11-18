@@ -1,0 +1,284 @@
+{
+  "$id": "expected-golden.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/ExpectedGolden",
+  "definitions": {
+    "Alter": {
+      "type": "number",
+      "enum": [
+        -2,
+        -1,
+        0,
+        1,
+        2
+      ],
+      "description": "Chromatic alteration in semitones. Triple accidentals do not exist (03 §7.5)."
+    },
+    "Beats": {
+      "type": "number",
+      "description": "Float, in metronome beats (02 conventions: quarter in x/4, half in 2/2, dotted quarter in 6/8) (01 §5.1)."
+    },
+    "Clef": {
+      "type": "string",
+      "enum": [
+        "treble",
+        "bass",
+        "alto",
+        "tenor",
+        "treble-8vb"
+      ]
+    },
+    "ExpectedGolden": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "type": "number",
+          "const": 1
+        },
+        "excerptId": {
+          "type": "string"
+        },
+        "instrumentId": {
+          "type": "string"
+        },
+        "level": {
+          "type": "number"
+        },
+        "writtenKey": {
+          "$ref": "#/definitions/KeySig"
+        },
+        "bpm": {
+          "type": "number"
+        },
+        "transposition": {
+          "$ref": "#/definitions/Interval"
+        },
+        "clef": {
+          "$ref": "#/definitions/Clef"
+        },
+        "notes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ExpectedNote"
+          }
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "excerptId",
+        "instrumentId",
+        "level",
+        "writtenKey",
+        "bpm",
+        "transposition",
+        "clef",
+        "notes"
+      ],
+      "additionalProperties": false,
+      "description": "`fixtures/expected/*.json`: golden expected notes for an excerpt × instrument × key (01 §14 item 8)."
+    },
+    "ExpectedNote": {
+      "type": "object",
+      "properties": {
+        "idx": {
+          "type": "number",
+          "description": "0-based index in the take."
+        },
+        "eventIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Event ids in the tie chain."
+        },
+        "bar": {
+          "type": "number",
+          "description": "Displayed bar number (pickup = 0)."
+        },
+        "beatInBar": {
+          "$ref": "#/definitions/Beats",
+          "description": "1-based beat position in the bar, metronome beats (1 = downbeat; may be fractional)."
+        },
+        "onsetBeat": {
+          "$ref": "#/definitions/Beats",
+          "description": "Onset from bar 1 beat 1, beats (negative in the pickup)."
+        },
+        "durBeats": {
+          "$ref": "#/definitions/Beats"
+        },
+        "onsetSec": {
+          "$ref": "#/definitions/ScoreSeconds",
+          "description": "Onset, score seconds at the take's bpm."
+        },
+        "durSec": {
+          "type": "number",
+          "description": "Written duration, seconds."
+        },
+        "concertMidi": {
+          "type": "number",
+          "description": "Concert MIDI (integer)."
+        },
+        "writtenPitch": {
+          "$ref": "#/definitions/SpelledPitch"
+        },
+        "ioiPrevSec": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "IOI to the previous / next score note, seconds; null at the ends."
+        },
+        "ioiNextSec": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "precededByRest": {
+          "type": "boolean"
+        },
+        "followedByRest": {
+          "type": "boolean"
+        },
+        "onsetKind": {
+          "$ref": "#/definitions/OnsetKind",
+          "description": "From slur, tie and repeat flags; drives floors and segmenter hints."
+        },
+        "artic": {
+          "type": "string",
+          "enum": [
+            "normal",
+            "staccato",
+            "tenuto",
+            "accent"
+          ]
+        },
+        "durationGraded": {
+          "type": "boolean",
+          "description": "02 §4.3 duration rule, computed once."
+        },
+        "keySigAltered": {
+          "type": "boolean",
+          "description": "Pattern inputs (02 §6.2)."
+        },
+        "explicitAccidental": {
+          "type": "boolean"
+        },
+        "ledgerLines": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "idx",
+        "eventIds",
+        "bar",
+        "beatInBar",
+        "onsetBeat",
+        "durBeats",
+        "onsetSec",
+        "durSec",
+        "concertMidi",
+        "writtenPitch",
+        "ioiPrevSec",
+        "ioiNextSec",
+        "precededByRest",
+        "followedByRest",
+        "onsetKind",
+        "artic",
+        "durationGraded",
+        "keySigAltered",
+        "explicitAccidental",
+        "ledgerLines"
+      ],
+      "additionalProperties": false,
+      "description": "One graded score note; a tie chain is one note (01 §6.4)."
+    },
+    "Interval": {
+      "type": "object",
+      "properties": {
+        "diatonic": {
+          "type": "number",
+          "description": "Letter steps, signed (a rising third is +2; an octave is +7)."
+        },
+        "chromatic": {
+          "type": "number",
+          "description": "Semitones, signed."
+        }
+      },
+      "required": [
+        "diatonic",
+        "chromatic"
+      ],
+      "additionalProperties": false,
+      "description": "A spelled interval (01 §5.3, 03 §7.4)."
+    },
+    "KeySig": {
+      "type": "object",
+      "properties": {
+        "fifths": {
+          "type": "number",
+          "description": "Sharps positive, flats negative, −7..7."
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "major",
+            "minor"
+          ]
+        }
+      },
+      "required": [
+        "fifths",
+        "mode"
+      ],
+      "additionalProperties": false,
+      "description": "A key signature (01 §5.3)."
+    },
+    "OnsetKind": {
+      "type": "string",
+      "enum": [
+        "articulated",
+        "slurred",
+        "repeat"
+      ]
+    },
+    "ScoreSeconds": {
+      "type": "number",
+      "description": "Seconds from bar 1 beat 1; negative in the pickup and the count-in (01 §5.1)."
+    },
+    "SpelledPitch": {
+      "type": "object",
+      "properties": {
+        "step": {
+          "$ref": "#/definitions/Step"
+        },
+        "alter": {
+          "$ref": "#/definitions/Alter"
+        },
+        "octave": {
+          "type": "number",
+          "description": "Scientific octave number (C4 = middle C)."
+        }
+      },
+      "required": [
+        "step",
+        "alter",
+        "octave"
+      ],
+      "additionalProperties": false,
+      "description": "A spelled pitch. C4 = MIDI 60 (01 §5.3)."
+    },
+    "Step": {
+      "type": "string",
+      "enum": [
+        "C",
+        "D",
+        "E",
+        "F",
+        "G",
+        "A",
+        "B"
+      ]
+    }
+  }
+}

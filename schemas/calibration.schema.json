@@ -1,0 +1,154 @@
+{
+  "$id": "calibration.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/Calibration",
+  "definitions": {
+    "Calibration": {
+      "type": "object",
+      "properties": {
+        "routeKey": {
+          "type": "string"
+        },
+        "platform": {
+          "$ref": "#/definitions/PlatformKind"
+        },
+        "outputMode": {
+          "$ref": "#/definitions/OutputMode"
+        },
+        "method": {
+          "type": "string",
+          "enum": [
+            "loopback",
+            "play-along",
+            "reported"
+          ]
+        },
+        "roundTripMs": {
+          "type": "number",
+          "description": "Round-trip latency, ms."
+        },
+        "outputLatencyMs": {
+          "type": "number"
+        },
+        "spreadMs": {
+          "type": "number",
+          "description": "MAD of the arrivals, ms."
+        },
+        "clicksDetected": {
+          "type": "number"
+        },
+        "clickLeakDb": {
+          "type": "number",
+          "description": "Click level in the low band, dBFS."
+        },
+        "noiseFloorDb": {
+          "type": "number"
+        },
+        "templates": {
+          "type": "object",
+          "properties": {
+            "tick": {
+              "type": "object",
+              "properties": {
+                "rate": {
+                  "type": "number"
+                },
+                "samples": {
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  }
+                }
+              },
+              "required": [
+                "rate",
+                "samples"
+              ],
+              "additionalProperties": false
+            },
+            "wood": {
+              "type": "object",
+              "properties": {
+                "rate": {
+                  "type": "number"
+                },
+                "samples": {
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  }
+                }
+              },
+              "required": [
+                "rate",
+                "samples"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false,
+          "description": "Low-band click templates per timbre: rate in Hz and samples."
+        },
+        "sanityToneCents": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "Sanity tone reading, cents; null when not run (headphones)."
+        },
+        "aecSuspected": {
+          "type": "boolean"
+        },
+        "clockRateError": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "measuredAt": {
+          "type": "string",
+          "description": "ISO 8601 UTC."
+        },
+        "stale": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "routeKey",
+        "platform",
+        "outputMode",
+        "method",
+        "roundTripMs",
+        "spreadMs",
+        "clicksDetected",
+        "clickLeakDb",
+        "noiseFloorDb",
+        "templates",
+        "sanityToneCents",
+        "aecSuspected",
+        "clockRateError",
+        "measuredAt",
+        "stale"
+      ],
+      "additionalProperties": false,
+      "description": "Calibration per route (01 §6.6, §7.8)."
+    },
+    "OutputMode": {
+      "type": "string",
+      "enum": [
+        "speakers",
+        "wired",
+        "bluetooth"
+      ],
+      "description": "Output route declared by the player; the web cannot detect it reliably (01 §1, §7.8)."
+    },
+    "PlatformKind": {
+      "type": "string",
+      "enum": [
+        "web",
+        "ios"
+      ],
+      "description": "Runtime platform: the web app, or the later native iOS target (01 §5.2, 05 §5.2)."
+    }
+  }
+}

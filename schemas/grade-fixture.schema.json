@@ -1,0 +1,929 @@
+{
+  "$id": "grade-fixture.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/GradeFixture",
+  "definitions": {
+    "Alter": {
+      "type": "number",
+      "enum": [
+        -2,
+        -1,
+        0,
+        1,
+        2
+      ],
+      "description": "Chromatic alteration in semitones. Triple accidentals do not exist (03 §7.5)."
+    },
+    "Beats": {
+      "type": "number",
+      "description": "Float, in metronome beats (02 conventions: quarter in x/4, half in 2/2, dotted quarter in 6/8) (01 §5.1)."
+    },
+    "ClockSeconds": {
+      "type": "number",
+      "description": "Seconds on the audio backend's clock (the AudioContext clock on web). Opaque and branded so that score time and clock time cannot be mixed by accident. Serialised as a plain number (01 §5.2, §7.1)."
+    },
+    "DetectedNote": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "number",
+          "description": "Unique per take, increasing."
+        },
+        "onset": {
+          "$ref": "#/definitions/ClockSeconds",
+          "description": "Per core/onset-definition.ts."
+        },
+        "offset": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ClockSeconds"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "provisionalMidi": {
+          "type": "number",
+          "description": "Median of the confirming frames, fractional concert MIDI."
+        },
+        "midi": {
+          "type": "number",
+          "description": "Fractional concert MIDI, median of the steady part so far."
+        },
+        "stableMedianCents": {
+          "type": "number",
+          "description": "Steady median as cents relative to the nearest semitone of `midi`, cents."
+        },
+        "steadyMs": {
+          "type": "number",
+          "description": "Steady duration (01 §7.5), ms."
+        },
+        "pitchSdCents": {
+          "type": "number",
+          "description": "Pitch SD over the steady part, cents."
+        },
+        "clarity": {
+          "type": "number",
+          "description": "Median clarity, 0..1."
+        },
+        "altOctaveClarity": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "NSDF value at the expected octave's lag, for score-informed octave correction (01 §7.3)."
+        },
+        "onsetCause": {
+          "type": "string",
+          "enum": [
+            "pitch-change",
+            "repeat",
+            "flux",
+            "from-silence"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "onset",
+        "offset",
+        "provisionalMidi",
+        "midi",
+        "stableMedianCents",
+        "steadyMs",
+        "pitchSdCents",
+        "clarity",
+        "altOctaveClarity",
+        "onsetCause"
+      ],
+      "additionalProperties": false,
+      "description": "A detected note (01 §5.6)."
+    },
+    "DisplacedSegment": {
+      "type": "object",
+      "properties": {
+        "fromIdx": {
+          "type": "number",
+          "description": "Expected-note index range the played notes matched, inclusive."
+        },
+        "toIdx": {
+          "type": "number"
+        },
+        "offsetBeats": {
+          "$ref": "#/definitions/Beats",
+          "description": "Offset of the player from the metronome, beats (negative = went back)."
+        },
+        "detectedIds": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        }
+      },
+      "required": [
+        "fromIdx",
+        "toIdx",
+        "offsetBeats",
+        "detectedIds"
+      ],
+      "additionalProperties": false,
+      "description": "A replayed or skipped-ahead run at a constant offset (01 §9.5, §9.6)."
+    },
+    "ExpectedNote": {
+      "type": "object",
+      "properties": {
+        "idx": {
+          "type": "number",
+          "description": "0-based index in the take."
+        },
+        "eventIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Event ids in the tie chain."
+        },
+        "bar": {
+          "type": "number",
+          "description": "Displayed bar number (pickup = 0)."
+        },
+        "beatInBar": {
+          "$ref": "#/definitions/Beats",
+          "description": "1-based beat position in the bar, metronome beats (1 = downbeat; may be fractional)."
+        },
+        "onsetBeat": {
+          "$ref": "#/definitions/Beats",
+          "description": "Onset from bar 1 beat 1, beats (negative in the pickup)."
+        },
+        "durBeats": {
+          "$ref": "#/definitions/Beats"
+        },
+        "onsetSec": {
+          "$ref": "#/definitions/ScoreSeconds",
+          "description": "Onset, score seconds at the take's bpm."
+        },
+        "durSec": {
+          "type": "number",
+          "description": "Written duration, seconds."
+        },
+        "concertMidi": {
+          "type": "number",
+          "description": "Concert MIDI (integer)."
+        },
+        "writtenPitch": {
+          "$ref": "#/definitions/SpelledPitch"
+        },
+        "ioiPrevSec": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "IOI to the previous / next score note, seconds; null at the ends."
+        },
+        "ioiNextSec": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "precededByRest": {
+          "type": "boolean"
+        },
+        "followedByRest": {
+          "type": "boolean"
+        },
+        "onsetKind": {
+          "$ref": "#/definitions/OnsetKind",
+          "description": "From slur, tie and repeat flags; drives floors and segmenter hints."
+        },
+        "artic": {
+          "type": "string",
+          "enum": [
+            "normal",
+            "staccato",
+            "tenuto",
+            "accent"
+          ]
+        },
+        "durationGraded": {
+          "type": "boolean",
+          "description": "02 §4.3 duration rule, computed once."
+        },
+        "keySigAltered": {
+          "type": "boolean",
+          "description": "Pattern inputs (02 §6.2)."
+        },
+        "explicitAccidental": {
+          "type": "boolean"
+        },
+        "ledgerLines": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "idx",
+        "eventIds",
+        "bar",
+        "beatInBar",
+        "onsetBeat",
+        "durBeats",
+        "onsetSec",
+        "durSec",
+        "concertMidi",
+        "writtenPitch",
+        "ioiPrevSec",
+        "ioiNextSec",
+        "precededByRest",
+        "followedByRest",
+        "onsetKind",
+        "artic",
+        "durationGraded",
+        "keySigAltered",
+        "explicitAccidental",
+        "ledgerLines"
+      ],
+      "additionalProperties": false,
+      "description": "One graded score note; a tie chain is one note (01 §6.4)."
+    },
+    "ExtraNote": {
+      "type": "object",
+      "properties": {
+        "detectedId": {
+          "type": "number"
+        },
+        "onsetSec": {
+          "$ref": "#/definitions/ScoreSeconds"
+        },
+        "concertMidi": {
+          "type": "number",
+          "description": "Fractional concert MIDI."
+        },
+        "cents": {
+          "type": "number",
+          "description": "Cents from the nearest semitone."
+        },
+        "durSec": {
+          "type": "number",
+          "description": "Seconds."
+        },
+        "duringRest": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "detectedId",
+        "onsetSec",
+        "concertMidi",
+        "cents",
+        "durSec",
+        "duringRest"
+      ],
+      "additionalProperties": false,
+      "description": "An unmatched played note (02 §4.1)."
+    },
+    "Familiarity": {
+      "type": "number",
+      "enum": [
+        0,
+        1,
+        2
+      ],
+      "description": "0 = default, 2 = widely recognisable (practice only). 1 is kept for later; v1 emits 0 and 2 (03 §8.2, 02 §2.5)."
+    },
+    "FinalAlignment": {
+      "type": "object",
+      "properties": {
+        "judgments": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/NoteJudgment"
+          }
+        },
+        "extras": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ExtraNote"
+          }
+        },
+        "displaced": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/DisplacedSegment"
+          }
+        }
+      },
+      "required": [
+        "judgments",
+        "extras",
+        "displaced"
+      ],
+      "additionalProperties": false
+    },
+    "GateId": {
+      "type": "string",
+      "enum": [
+        "sample-rate",
+        "calibration-unmeasured",
+        "calibration-quality",
+        "aec-suspected",
+        "processing-on",
+        "recheck",
+        "capture-gap",
+        "rtl-high"
+      ],
+      "description": "Per-take measurement gate checks (05 §4). Each failure makes the take unranked (`calibration` or `measurement`)."
+    },
+    "GradeFixture": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "type": "number",
+          "const": 1
+        },
+        "id": {
+          "type": "string"
+        },
+        "case": {
+          "type": "number",
+          "description": "02 §4.9 case number."
+        },
+        "description": {
+          "type": "string"
+        },
+        "excerptId": {
+          "type": "string"
+        },
+        "instrumentId": {
+          "type": "string"
+        },
+        "input": {
+          "type": "object",
+          "properties": {
+            "expected": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/ExpectedNote"
+              }
+            },
+            "alignment": {
+              "$ref": "#/definitions/FinalAlignment"
+            },
+            "detected": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/DetectedNote"
+              }
+            },
+            "level": {
+              "type": "number"
+            },
+            "bpm": {
+              "type": "number"
+            },
+            "meter": {
+              "$ref": "#/definitions/Meter"
+            },
+            "tuning": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "used": {
+                      "type": "boolean"
+                    },
+                    "offsetCents": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "used",
+                    "offsetCents"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Winds, brass, strings; null for voice and fixed pitch."
+            },
+            "voiceReference": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "finalOffsetCents": {
+                      "type": "number"
+                    },
+                    "offsetAtThirdCents": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "finalOffsetCents",
+                    "offsetAtThirdCents"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Voice drift reference: final offset and offset at one third of the excerpt, cents (E23)."
+            },
+            "signal": {
+              "type": "object",
+              "properties": {
+                "medianClarity": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "clippingFrac": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "medianClarity",
+                "clippingFrac"
+              ],
+              "additionalProperties": false
+            },
+            "calibrationMeasured": {
+              "type": "boolean",
+              "description": "Timing patterns are off without a measured calibration (02 §6.1)."
+            },
+            "ranking": {
+              "$ref": "#/definitions/RankingInput"
+            },
+            "xp": {
+              "$ref": "#/definitions/XpInput"
+            }
+          },
+          "required": [
+            "expected",
+            "alignment",
+            "detected",
+            "level",
+            "bpm",
+            "meter",
+            "tuning",
+            "voiceReference",
+            "signal",
+            "calibrationMeasured",
+            "ranking",
+            "xp"
+          ],
+          "additionalProperties": false,
+          "description": "`GradeInput` without the runtime objects; tolerances are resolved by the test from configs."
+        },
+        "expect": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Predicate"
+          },
+          "description": "Predicates over `{ score: AttemptScore; patterns: PatternResult[]; tolerances: ResolvedTolerance[] }`."
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "id",
+        "case",
+        "description",
+        "excerptId",
+        "instrumentId",
+        "input",
+        "expect"
+      ],
+      "additionalProperties": false,
+      "description": "`fixtures/grade/*.json` (01 §14 item 10; 02 §4.9 acceptance cases)."
+    },
+    "JsonValue": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/JsonValue"
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/JsonValue"
+          }
+        }
+      ],
+      "description": "JSON value (for kv documents and predicates)."
+    },
+    "Meter": {
+      "type": "object",
+      "properties": {
+        "beats": {
+          "type": "number"
+        },
+        "beatType": {
+          "type": "number",
+          "enum": [
+            2,
+            4,
+            8,
+            16
+          ]
+        },
+        "countUnitTicks": {
+          "$ref": "#/definitions/Ticks",
+          "description": "Ticks per metronome beat."
+        },
+        "countsPerBar": {
+          "type": "number",
+          "description": "Metronome beats per bar."
+        }
+      },
+      "required": [
+        "beats",
+        "beatType",
+        "countUnitTicks",
+        "countsPerBar"
+      ],
+      "additionalProperties": false,
+      "description": "One meter per excerpt (R8). `countUnitTicks` is the metronome beat (02 conventions): 4/4 → 480 × 4 per bar, count unit 480; 6/8 → count unit 720, 2 counts per bar (01 §6.1)."
+    },
+    "MetronomeMode": {
+      "type": "string",
+      "enum": [
+        "audible",
+        "countInOnly"
+      ],
+      "description": "Metronome mode. `'visual'` is later (01 §7.6, 02 §5.2)."
+    },
+    "NoteJudgment": {
+      "type": "object",
+      "properties": {
+        "expectedIdx": {
+          "type": "number"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "matched",
+            "missed"
+          ]
+        },
+        "detectedId": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "timing": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/TimingVerdict"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "timingErrorMs": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "Played minus expected onset, ms; + = late."
+        },
+        "pitch": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/PitchVerdict"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "playedConcertMidi": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "Fractional concert MIDI of the played note."
+        },
+        "centsError": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "Deviation from the target after tuning or voice reference offset, cents."
+        },
+        "octaveDisplaced": {
+          "type": "boolean",
+          "description": "Voice: true but credited as correct (R7)."
+        },
+        "duration": {
+          "type": "string",
+          "enum": [
+            "ok",
+            "short",
+            "not-graded"
+          ]
+        },
+        "heldRatio": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "Played duration / written duration."
+        },
+        "credit": {
+          "type": "object",
+          "properties": {
+            "p": {
+              "type": "number"
+            },
+            "n": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "o": {
+              "type": "number"
+            },
+            "d": {
+              "type": [
+                "number",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "p",
+            "n",
+            "o",
+            "d"
+          ],
+          "additionalProperties": false,
+          "description": "Per-note credits 0..1 (02 §4.3); null n or d = not graded."
+        },
+        "marginal": {
+          "type": "boolean",
+          "description": "Beyond good but within red on timing or intonation (02 §4.8 `correct-marginal`)."
+        },
+        "rejudged": {
+          "type": "boolean",
+          "description": "Final state or ghost kind differs from live (01 §9.7)."
+        }
+      },
+      "required": [
+        "expectedIdx",
+        "status",
+        "detectedId",
+        "timing",
+        "timingErrorMs",
+        "pitch",
+        "playedConcertMidi",
+        "centsError",
+        "octaveDisplaced",
+        "duration",
+        "heldRatio",
+        "credit",
+        "marginal",
+        "rejudged"
+      ],
+      "additionalProperties": false,
+      "description": "Final judgment of one expected note (01 §6.5, 02 §4.3)."
+    },
+    "OnsetKind": {
+      "type": "string",
+      "enum": [
+        "articulated",
+        "slurred",
+        "repeat"
+      ]
+    },
+    "PitchVerdict": {
+      "type": "string",
+      "enum": [
+        "in-tune",
+        "sharp",
+        "flat",
+        "wrong-pitch",
+        "octave",
+        "not-graded"
+      ],
+      "description": "`octave` earns no pitch credit on non-voice instruments (R20)."
+    },
+    "Predicate": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Dotted path into the subject, with `[n]` indices, `[*]` (every element must satisfy) and `[?]` (at least one element satisfies), for example \"judgments[*].timing\" or \"score.components.R\". For `fires` / `not-fires` the path is a pattern id."
+        },
+        "op": {
+          "type": "string",
+          "enum": [
+            "eq",
+            "ne",
+            "lt",
+            "le",
+            "gt",
+            "ge",
+            "approx",
+            "in",
+            "includes",
+            "excludes",
+            "length",
+            "exists",
+            "absent",
+            "fires",
+            "not-fires",
+            "only-fires"
+          ]
+        },
+        "value": {
+          "$ref": "#/definitions/JsonValue",
+          "description": "Comparison value. `approx`: number, with `tolerance`. `in`: array of allowed values. `includes` / `excludes`: an element the array at `path` must or must not contain. `length`: the array length. `exists` / `absent`: no value. `fires` / `not-fires`: no value. `only-fires`: array of pattern ids."
+        },
+        "tolerance": {
+          "type": "number"
+        },
+        "note": {
+          "type": "string",
+          "description": "Why the predicate holds (cites the spec)."
+        }
+      },
+      "required": [
+        "path",
+        "op"
+      ],
+      "additionalProperties": false,
+      "description": "Assertion predicate used by follow and grade fixtures instead of hand-computed totals (01 §14 items 9, 10)."
+    },
+    "RankingInput": {
+      "type": "object",
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": [
+            "ranked",
+            "practice"
+          ]
+        },
+        "seenBefore": {
+          "type": "boolean"
+        },
+        "scanStrict": {
+          "type": "boolean",
+          "description": "Scan used exactly the strict level default (R6)."
+        },
+        "familiarity": {
+          "$ref": "#/definitions/Familiarity"
+        },
+        "skipLimitHit": {
+          "type": "boolean",
+          "description": "A replacement served after the post-reveal skip limit."
+        },
+        "metronome": {
+          "$ref": "#/definitions/MetronomeMode"
+        },
+        "gateFailures": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/GateId"
+          },
+          "description": "From the measurement gate (05 §4): calibration-unmeasured → `calibration`, others → `measurement`."
+        }
+      },
+      "required": [
+        "mode",
+        "seenBefore",
+        "scanStrict",
+        "familiarity",
+        "skipLimitHit",
+        "metronome",
+        "gateFailures"
+      ],
+      "additionalProperties": false,
+      "description": "Ranked eligibility inputs (02 §5.2). The grader maps them to `RankedReason`s."
+    },
+    "ScoreSeconds": {
+      "type": "number",
+      "description": "Seconds from bar 1 beat 1; negative in the pickup and the count-in (01 §5.1)."
+    },
+    "SpelledPitch": {
+      "type": "object",
+      "properties": {
+        "step": {
+          "$ref": "#/definitions/Step"
+        },
+        "alter": {
+          "$ref": "#/definitions/Alter"
+        },
+        "octave": {
+          "type": "number",
+          "description": "Scientific octave number (C4 = middle C)."
+        }
+      },
+      "required": [
+        "step",
+        "alter",
+        "octave"
+      ],
+      "additionalProperties": false,
+      "description": "A spelled pitch. C4 = MIDI 60 (01 §5.3)."
+    },
+    "Step": {
+      "type": "string",
+      "enum": [
+        "C",
+        "D",
+        "E",
+        "F",
+        "G",
+        "A",
+        "B"
+      ]
+    },
+    "Ticks": {
+      "type": "number",
+      "description": "Integer ticks from the excerpt start (bar 0 beat 1 if there is a pickup), at TPQ = 480 (01 §5.1)."
+    },
+    "TimingVerdict": {
+      "type": "string",
+      "enum": [
+        "on-time",
+        "early",
+        "late"
+      ]
+    },
+    "XpInput": {
+      "type": "object",
+      "properties": {
+        "playerLevel": {
+          "type": "number",
+          "description": "The player's current level on this instrument (for m_below)."
+        },
+        "randomized": {
+          "type": "object",
+          "properties": {
+            "key": {
+              "type": "boolean"
+            },
+            "meter": {
+              "type": "boolean"
+            },
+            "tempo": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "key",
+            "meter",
+            "tempo"
+          ],
+          "additionalProperties": false
+        },
+        "streakDays": {
+          "type": "number"
+        },
+        "dailyCountBefore": {
+          "type": "number",
+          "description": "Attempts already counted today before this one (m_daily)."
+        },
+        "repeatIndexToday": {
+          "type": "number",
+          "description": "0 = first play of this excerpt today; 1 = first repeat; 2+ = later repeats (practice XP)."
+        },
+        "placement": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "playerLevel",
+        "randomized",
+        "streakDays",
+        "dailyCountBefore",
+        "repeatIndexToday",
+        "placement"
+      ],
+      "additionalProperties": false,
+      "description": "XP inputs (02 §5.4)."
+    }
+  }
+}

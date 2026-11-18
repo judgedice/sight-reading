@@ -1,0 +1,3 @@
+/* @lint-as src/app/x.css */
+/* expect: unit-disallowed-list */
+.a { margin: 12px; }

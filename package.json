@@ -1,0 +1,69 @@
+{
+  "name": "sight-reading",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Web sight-reading trainer: live feedback from the microphone on real public-domain repertoire.",
+  "engines": {
+    "node": ">=22"
+  },
+  "packageManager": "pnpm@10.28.0",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -p tsconfig.json --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.core.json --noEmit && tsc -p tsconfig.dsp.json --noEmit && tsc -p tsconfig.node.json --noEmit",
+    "lint": "eslint . && stylelint \"src/**/*.css\" --allow-empty-input && depcruise src --config .dependency-cruiser.cjs",
+    "lint:eslint": "eslint .",
+    "lint:css": "stylelint \"src/**/*.css\" --allow-empty-input",
+    "lint:cycles": "depcruise src --config .dependency-cruiser.cjs",
+    "lint:fixtures": "vitest run test/lint-fixtures",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:e2e": "playwright test --project=chromium --project=chromium-audio",
+    "test:e2e:webkit": "playwright test --project=webkit --project=webkit-iphone --project=webkit-ipad",
+    "schemas": "tsx tools/generate-schemas.ts"
+  },
+  "dependencies": {
+    "idb": "8.0.4",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "vexflow": "5.2.0",
+    "zustand": "5.1.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.39.5",
+    "@playwright/test": "1.65.1",
+    "@types/node": "22.20.5",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "5.2.0",
+    "@vitest/coverage-v8": "4.1.12",
+    "ajv": "8.20.0",
+    "ajv-formats": "3.0.1",
+    "dependency-cruiser": "18.8.0",
+    "esbuild": "0.28.2",
+    "eslint": "9.39.5",
+    "eslint-plugin-boundaries": "7.4.4",
+    "eslint-plugin-react": "7.37.5",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "fake-indexeddb": "6.2.8",
+    "globals": "16.5.0",
+    "jsdom": "27.4.0",
+    "stylelint": "16.26.1",
+    "ts-json-schema-generator": "2.9.0",
+    "tsx": "4.23.15",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.73.0",
+    "vite": "7.3.8",
+    "vite-plugin-pwa": "1.3.0",
+    "vitest": "4.1.12",
+    "workbox-build": "7.4.1",
+    "workbox-window": "7.4.1"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  }
+}

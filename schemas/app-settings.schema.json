@@ -1,0 +1,301 @@
+{
+  "$id": "app-settings.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/AppSettings",
+  "definitions": {
+    "AppSettings": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "type": "number",
+          "const": 1
+        },
+        "practice": {
+          "$ref": "#/definitions/PracticeSettings"
+        },
+        "audio": {
+          "type": "object",
+          "properties": {
+            "inputDeviceId": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "metronomeVolume": {
+              "type": "number",
+              "description": "0..100."
+            }
+          },
+          "required": [
+            "inputDeviceId",
+            "metronomeVolume"
+          ],
+          "additionalProperties": false
+        },
+        "display": {
+          "type": "object",
+          "properties": {
+            "theme": {
+              "type": "string",
+              "enum": [
+                "system",
+                "light",
+                "dark"
+              ]
+            },
+            "liveFeedback": {
+              "type": "string",
+              "enum": [
+                "full",
+                "after-take"
+              ],
+              "description": "\"After the take\" hides the overlay during the take (R11)."
+            },
+            "showCentsMs": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "theme",
+            "liveFeedback",
+            "showCentsMs"
+          ],
+          "additionalProperties": false
+        },
+        "practicePrefs": {
+          "type": "object",
+          "properties": {
+            "showStars": {
+              "type": "boolean"
+            },
+            "showTips": {
+              "type": "boolean"
+            },
+            "showBeta": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "showStars",
+            "showTips",
+            "showBeta"
+          ],
+          "additionalProperties": false
+        },
+        "accessibility": {
+          "type": "object",
+          "properties": {
+            "reduceMotion": {
+              "type": "string",
+              "enum": [
+                "system",
+                "on",
+                "off"
+              ]
+            },
+            "highContrast": {
+              "type": "boolean"
+            },
+            "keyboardShortcuts": {
+              "type": "boolean"
+            },
+            "announceResults": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "reduceMotion",
+            "highContrast",
+            "keyboardShortcuts",
+            "announceResults"
+          ],
+          "additionalProperties": false
+        },
+        "onboardingDone": {
+          "type": "boolean"
+        },
+        "shown": {
+          "type": "object",
+          "properties": {
+            "installCoach": {
+              "type": "boolean"
+            },
+            "autoLockHint": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "installCoach",
+            "autoLockHint"
+          ],
+          "additionalProperties": false,
+          "description": "One-time hints and sheets already shown (05 W11, W13)."
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "practice",
+        "audio",
+        "display",
+        "practicePrefs",
+        "accessibility",
+        "onboardingDone",
+        "shown"
+      ],
+      "additionalProperties": false,
+      "description": "App settings (04 §5.11; last practice settings kept, 04 §5.2)."
+    },
+    "ClickTimbre": {
+      "type": "string",
+      "enum": [
+        "tick",
+        "wood"
+      ],
+      "description": "Metronome click sound: Tick 5.5–9 kHz noise burst (speaker default) or Wood 1.5–4 kHz (01 §7.6)."
+    },
+    "KeySig": {
+      "type": "object",
+      "properties": {
+        "fifths": {
+          "type": "number",
+          "description": "Sharps positive, flats negative, −7..7."
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "major",
+            "minor"
+          ]
+        }
+      },
+      "required": [
+        "fifths",
+        "mode"
+      ],
+      "additionalProperties": false,
+      "description": "A key signature (01 §5.3)."
+    },
+    "MetronomeMode": {
+      "type": "string",
+      "enum": [
+        "audible",
+        "countInOnly"
+      ],
+      "description": "Metronome mode. `'visual'` is later (01 §7.6, 02 §5.2)."
+    },
+    "OutputMode": {
+      "type": "string",
+      "enum": [
+        "speakers",
+        "wired",
+        "bluetooth"
+      ],
+      "description": "Output route declared by the player; the web cannot detect it reliably (01 §1, §7.8)."
+    },
+    "PracticeSettings": {
+      "type": "object",
+      "properties": {
+        "instrumentId": {
+          "type": "string"
+        },
+        "level": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string",
+              "const": "random"
+            }
+          ]
+        },
+        "writtenKey": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/KeySig"
+            },
+            {
+              "type": "string",
+              "const": "random"
+            }
+          ],
+          "description": "R1: the key the player reads."
+        },
+        "meter": {
+          "type": "string",
+          "description": "\"beats/beatType\", for example \"6/8\"."
+        },
+        "bpm": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string",
+              "const": "random"
+            }
+          ],
+          "description": "Metronome beats per minute."
+        },
+        "bars": {
+          "type": [
+            "number",
+            "string"
+          ],
+          "enum": [
+            8,
+            10,
+            12,
+            "random"
+          ],
+          "description": "A preference, not a filter (04 §5.2)."
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "ranked",
+            "practice"
+          ]
+        },
+        "listening": {
+          "type": "boolean",
+          "description": "false = practise without listening (R13)."
+        },
+        "metronome": {
+          "$ref": "#/definitions/MetronomeMode"
+        },
+        "clickTimbre": {
+          "$ref": "#/definitions/ClickTimbre"
+        },
+        "outputMode": {
+          "$ref": "#/definitions/OutputMode"
+        },
+        "a4Hz": {
+          "type": "number",
+          "description": "Concert A4 reference, Hz, 415..446."
+        },
+        "seed": {
+          "type": "number",
+          "description": "Selection seed; drawn from the injected RNG when absent."
+        }
+      },
+      "required": [
+        "instrumentId",
+        "level",
+        "writtenKey",
+        "meter",
+        "bpm",
+        "bars",
+        "mode",
+        "listening",
+        "metronome",
+        "clickTimbre",
+        "outputMode",
+        "a4Hz"
+      ],
+      "additionalProperties": false,
+      "description": "What the player asked for; any field may be random (01 §5.5; R1, R13)."
+    }
+  }
+}

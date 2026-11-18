@@ -1,0 +1,3 @@
+/* @lint-as src/app/x.css */
+/* expect: declaration-property-value-allowed-list */
+.a { transition: opacity 200ms ease; }

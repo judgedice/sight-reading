@@ -1,0 +1,26 @@
+{
+  "rules": {
+    "color-no-hex": [true, { "message": "Use a colour token (var(--...)); hex is only allowed in src/ui/tokens.css (04 section 13.1)." }],
+    "function-disallowed-list": ["rgb", "rgba", "hsl", "hsla", "hwb", "lab", "lch", "oklab", "oklch"],
+    "unit-disallowed-list": [["px"], { "message": "No raw px outside src/ui/tokens.css; use a token or rem/em (04 section 13.1)." }],
+    "declaration-property-value-disallowed-list": {
+      "/.*/": ["/(^|[^0-9.])100vh/"]
+    },
+    "declaration-property-value-allowed-list": {
+      "/^(transition|transition-duration|transition-timing-function|animation|animation-duration|animation-timing-function)$/": ["/^none$/", "/var\\(--motion-/"]
+    },
+    "block-no-empty": true,
+    "declaration-block-no-duplicate-properties": true
+  },
+  "overrides": [
+    {
+      "files": ["src/ui/tokens.css"],
+      "rules": {
+        "color-no-hex": null,
+        "function-disallowed-list": null,
+        "unit-disallowed-list": null,
+        "declaration-property-value-allowed-list": null
+      }
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "_source": "01 section 14 item 12; sha256 of the 16-bit PCM WAV bytes; Node 22",
+  "sha256": {
+    "single-a4": "4d0527103660867e47f7e815850d877942e558de4b83fa909e2c2d64de8068e6",
+    "scale-detached": "a19c4f38c5bbce34c24ac84ec2494cf479f35553ffe2206d866c617a72714f25",
+    "legato-run": "bb83d82ffe0d20d832c3349f9802703b6fc52e501679aa25f60c36bc665954c1",
+    "tongued-repeats": "bc28b15907a3c749aef84cd72c3d12e757dd29eef2498dacd7f4ed03cda0c6e9",
+    "bleed-tick": "cbf8037dffa0458b2ca52e059071a5d82b3b618221e54c2407bd547b8bcd2d98",
+    "bleed-wood-noise": "2487ff63af07c56b6ec8f2e29f6e0e730a36a8414c0679276da642517519bfe8"
+  }
+}

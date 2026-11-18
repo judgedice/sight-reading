@@ -1,0 +1,22 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2022"],
+    "types": [],
+    "jsx": "preserve"
+  },
+  "include": [
+    "src/core",
+    "src/theory",
+    "src/instruments",
+    "src/rules",
+    "src/corpus",
+    "src/follow",
+    "src/grade",
+    "src/tips",
+    "src/calibration",
+    "src/store",
+    "src/session"
+  ],
+  "exclude": ["**/*.test.ts", "**/*.test.tsx", "node_modules", "dist"]
+}

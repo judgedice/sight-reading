@@ -1,0 +1,867 @@
+{
+  "$id": "excerpt.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/ExcerptDoc",
+  "definitions": {
+    "Alter": {
+      "type": "number",
+      "enum": [
+        -2,
+        -1,
+        0,
+        1,
+        2
+      ],
+      "description": "Chromatic alteration in semitones. Triple accidentals do not exist (03 §7.5)."
+    },
+    "Articulation": {
+      "type": "string",
+      "enum": [
+        "staccato",
+        "tenuto",
+        "accent",
+        "marcato"
+      ]
+    },
+    "CorpusId": {
+      "type": "string",
+      "enum": [
+        "openscore-lieder",
+        "openscore-quartets",
+        "mutopia"
+      ],
+      "description": "v1 corpus sources, all fetched from GitHub (R4, R27)."
+    },
+    "DifficultyFeatures": {
+      "type": "object",
+      "properties": {
+        "noteCount": {
+          "type": "number",
+          "description": "Notes (tie chains count once)."
+        },
+        "notesPerBeat": {
+          "type": "number",
+          "description": "Mean notes per beat."
+        },
+        "peakNotesPerBeat": {
+          "type": "number",
+          "description": "Peak notes per beat in any one-beat window (NPS = this × bpm / 60)."
+        },
+        "shortestDur": {
+          "$ref": "#/definitions/Ticks",
+          "description": "Shortest note or rest, ticks."
+        },
+        "maxLeapSemis": {
+          "type": "number",
+          "description": "Largest interval between consecutive notes, semitones (rests under 1 beat do not break adjacency)."
+        },
+        "tonicTriadLeapsOnly": {
+          "type": "boolean",
+          "description": "All leaps above the level's free interval are tonic-triad leaps (02 §2.3)."
+        },
+        "leapsPer4BarsMax": {
+          "type": "number",
+          "description": "Maximum leaps (a 4th or larger) in any 4-bar window."
+        },
+        "chromaticPer4BarsMax": {
+          "type": "number",
+          "description": "Maximum chromatic notes in any 4-bar window."
+        },
+        "doubleAccidentals": {
+          "type": "number",
+          "description": "Count of double sharps and flats."
+        },
+        "spanSemis": {
+          "type": "number",
+          "description": "Highest minus lowest note, semitones."
+        },
+        "minIoiTicks": {
+          "$ref": "#/definitions/Ticks",
+          "description": "Shortest pitch-change IOI, ticks."
+        },
+        "minRepeatIoiTicks": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Ticks"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Shortest same-pitch repeat IOI, ticks; null when there are no repeats."
+        },
+        "syncopationIndex": {
+          "type": "number",
+          "description": "Syncopated onsets / note count (03 §6.8)."
+        },
+        "restRatio": {
+          "type": "number",
+          "description": "Rest ticks / window ticks, pickup excluded (03 §6.8)."
+        },
+        "accidentalsOutsideKey": {
+          "type": "number",
+          "description": "Pitch classes outside the key scale (03 §6.8)."
+        },
+        "minorAlterations": {
+          "type": "number",
+          "description": "Raised 6th and 7th in minor (03 §6.8)."
+        }
+      },
+      "required": [
+        "noteCount",
+        "notesPerBeat",
+        "peakNotesPerBeat",
+        "shortestDur",
+        "maxLeapSemis",
+        "tonicTriadLeapsOnly",
+        "leapsPer4BarsMax",
+        "chromaticPer4BarsMax",
+        "doubleAccidentals",
+        "spanSemis",
+        "minIoiTicks",
+        "minRepeatIoiTicks",
+        "syncopationIndex",
+        "restRatio",
+        "accidentalsOutsideKey",
+        "minorAlterations"
+      ],
+      "additionalProperties": false,
+      "description": "Intrinsic, instrument-independent features of an excerpt (02 §2.5, 03 §6.8)."
+    },
+    "Dynamic": {
+      "type": "string",
+      "enum": [
+        "pp",
+        "p",
+        "mp",
+        "mf",
+        "f",
+        "ff",
+        "fp",
+        "sfz"
+      ],
+      "description": "Dynamics; fp and sfz appear from L5 (02 §2.3)."
+    },
+    "ExcerptDoc": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "type": "number",
+          "const": 1
+        },
+        "id": {
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/definitions/ExcerptSource"
+        },
+        "meter": {
+          "$ref": "#/definitions/Meter"
+        },
+        "keyConcert": {
+          "$ref": "#/definitions/KeySig",
+          "description": "Concert key signature; one key per excerpt (R8)."
+        },
+        "modal": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Mode"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Non-null only for modal excerpts; served only with a random key (R8)."
+        },
+        "tempo": {
+          "type": "object",
+          "properties": {
+            "markedBpm": {
+              "type": "number"
+            },
+            "minBpm": {
+              "type": "number"
+            },
+            "maxBpm": {
+              "type": "number"
+            },
+            "marking": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "minBpm",
+            "maxBpm"
+          ],
+          "additionalProperties": false,
+          "description": "Source tempo range, bpm of the metronome beat."
+        },
+        "pickupTicks": {
+          "$ref": "#/definitions/Ticks",
+          "description": "Length of the pickup, ticks (0 = none)."
+        },
+        "measures": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Measure"
+          }
+        },
+        "rangeConcert": {
+          "type": "object",
+          "properties": {
+            "min": {
+              "type": "number"
+            },
+            "max": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "min",
+            "max"
+          ],
+          "additionalProperties": false,
+          "description": "Concert MIDI range, inclusive."
+        },
+        "features": {
+          "$ref": "#/definitions/DifficultyFeatures"
+        },
+        "rhythmCells": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Rhythm cell ids present (02 §2.2)."
+        },
+        "featureLevels": {
+          "$ref": "#/definitions/FeatureLevels"
+        },
+        "barRhythmLevel": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "description": "Rhythm feature level per measure, for STARS \"Rhythms\" (03 §6.8)."
+        },
+        "extremes": {
+          "type": "object",
+          "properties": {
+            "highId": {
+              "type": "string"
+            },
+            "lowId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "highId",
+            "lowId"
+          ],
+          "additionalProperties": false,
+          "description": "Event ids of the first highest and first lowest notes, for STARS \"Signs\" (03 §6.8)."
+        },
+        "level": {
+          "type": "number",
+          "description": "max(featureLevels), 1..10."
+        },
+        "levelConfidence": {
+          "type": "number",
+          "description": "Number of features at the maximum (1 = stretch candidate)."
+        },
+        "cadenceEnd": {
+          "type": "string",
+          "enum": [
+            "PAC",
+            "IAC",
+            "HC"
+          ]
+        },
+        "phraseQuality": {
+          "type": "string",
+          "enum": [
+            "complete-phrase",
+            "period",
+            "phrase-pair"
+          ]
+        },
+        "breathMaxGapBars": {
+          "type": "number",
+          "description": "Longest stretch without a rest or phrase end, bars."
+        },
+        "familiarity": {
+          "$ref": "#/definitions/Familiarity"
+        },
+        "flags": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ExcerptFlag"
+          }
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "dedupeGroup": {
+          "type": "string",
+          "description": "Same melody (strophes, augmented variants) shares a group; seen per player by group (02 §5.3)."
+        },
+        "work": {
+          "type": "string",
+          "description": "Composer + work key, for variety weighting, for example \"schubert|d257\"."
+        },
+        "modifications": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Modification"
+          }
+        },
+        "quality": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "number"
+          },
+          "description": "Pipeline quality scores (soft score, interest)."
+        },
+        "review": {
+          "type": "object",
+          "properties": {
+            "rules": {
+              "type": "string",
+              "description": "Rules version, for example \"rules-1.0.0\"."
+            },
+            "llm": {
+              "type": "string",
+              "enum": [
+                "accepted",
+                "not-required"
+              ],
+              "description": "Whether the item went through the agent veto (03 §8.2)."
+            },
+            "llmVerdicts": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/LlmVerdictSummary"
+              }
+            },
+            "promptVersion": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "rules",
+            "llm",
+            "llmVerdicts",
+            "promptVersion"
+          ],
+          "additionalProperties": false,
+          "description": "Automated review (03 §6.12). Rejected or unreviewed items are never emitted."
+        },
+        "contentHash": {
+          "type": "string",
+          "description": "\"sha256:...\" over the normalized content; keys review verdicts."
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "id",
+        "source",
+        "meter",
+        "keyConcert",
+        "modal",
+        "tempo",
+        "pickupTicks",
+        "measures",
+        "rangeConcert",
+        "features",
+        "rhythmCells",
+        "featureLevels",
+        "barRhythmLevel",
+        "extremes",
+        "level",
+        "levelConfidence",
+        "cadenceEnd",
+        "phraseQuality",
+        "breathMaxGapBars",
+        "familiarity",
+        "flags",
+        "tags",
+        "dedupeGroup",
+        "work",
+        "modifications",
+        "review",
+        "contentHash"
+      ],
+      "additionalProperties": false,
+      "description": "The excerpt document (01 §6.1 with 03 §8.2; schema `schemas/excerpt.schema.json`)."
+    },
+    "ExcerptFlag": {
+      "type": "string",
+      "enum": [
+        "noBreath",
+        "leapy",
+        "bass-line"
+      ]
+    },
+    "ExcerptSource": {
+      "type": "object",
+      "properties": {
+        "composer": {
+          "type": "string"
+        },
+        "composerDates": {
+          "type": "string",
+          "description": "For example \"1797–1828\"."
+        },
+        "composerDeath": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "Year of death; null for traditional or anonymous (then `sourceEditionYear` is the PD evidence)."
+        },
+        "work": {
+          "type": "string"
+        },
+        "catalog": {
+          "type": "string"
+        },
+        "movement": {
+          "type": "string"
+        },
+        "partName": {
+          "type": "string"
+        },
+        "sourceMeasures": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 2,
+          "maxItems": 2,
+          "description": "First and last source bar numbers, inclusive (as printed in the source)."
+        },
+        "edition": {
+          "type": "string"
+        },
+        "encoder": {
+          "type": "string"
+        },
+        "sourceEditionYear": {
+          "type": "number",
+          "description": "Year of the source edition; PD evidence for traditional and anonymous pieces (03 §6.2, §8.2)."
+        },
+        "corpus": {
+          "$ref": "#/definitions/CorpusId"
+        },
+        "upstreamRef": {
+          "type": "string",
+          "description": "`repo@sha:path`."
+        },
+        "sourceUrl": {
+          "type": "string"
+        },
+        "license": {
+          "$ref": "#/definitions/Licence"
+        },
+        "licenseUrl": {
+          "type": "string"
+        },
+        "originalInstrument": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "composer",
+        "composerDeath",
+        "work",
+        "sourceMeasures",
+        "corpus",
+        "upstreamRef",
+        "sourceUrl",
+        "license",
+        "licenseUrl"
+      ],
+      "additionalProperties": false,
+      "description": "Structured source and licence fields; the UI formats the credit (03 §6.11, §8.2: no `attribution` string)."
+    },
+    "Familiarity": {
+      "type": "number",
+      "enum": [
+        0,
+        1,
+        2
+      ],
+      "description": "0 = default, 2 = widely recognisable (practice only). 1 is kept for later; v1 emits 0 and 2 (03 §8.2, 02 §2.5)."
+    },
+    "FeatureLevels": {
+      "type": "object",
+      "properties": {
+        "meter": {
+          "type": "number"
+        },
+        "rhythm": {
+          "type": "number"
+        },
+        "interval": {
+          "type": "number"
+        },
+        "leaps": {
+          "type": "number"
+        },
+        "span": {
+          "type": "number"
+        },
+        "mode": {
+          "type": "number"
+        },
+        "chromatic": {
+          "type": "number"
+        },
+        "double": {
+          "type": "number"
+        },
+        "density": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "meter",
+        "rhythm",
+        "interval",
+        "leaps",
+        "span",
+        "mode",
+        "chromatic",
+        "double",
+        "density"
+      ],
+      "additionalProperties": false,
+      "description": "Feature → level, 1..10. Level = max over features (02 §2.1)."
+    },
+    "KeySig": {
+      "type": "object",
+      "properties": {
+        "fifths": {
+          "type": "number",
+          "description": "Sharps positive, flats negative, −7..7."
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "major",
+            "minor"
+          ]
+        }
+      },
+      "required": [
+        "fifths",
+        "mode"
+      ],
+      "additionalProperties": false,
+      "description": "A key signature (01 §5.3)."
+    },
+    "Licence": {
+      "type": "string",
+      "enum": [
+        "PD",
+        "CC0-1.0",
+        "CC-BY-4.0"
+      ],
+      "description": "Licence allowlist (03 §1, R8: no CC BY-SA)."
+    },
+    "LlmVerdictSummary": {
+      "type": "object",
+      "properties": {
+        "pass": {
+          "type": "number"
+        },
+        "verdict": {
+          "type": "string",
+          "enum": [
+            "accept",
+            "reject"
+          ]
+        },
+        "reasons": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "pass",
+        "verdict",
+        "reasons"
+      ],
+      "additionalProperties": false,
+      "description": "One agent review pass (03 §6.12)."
+    },
+    "Measure": {
+      "type": "object",
+      "properties": {
+        "index": {
+          "type": "number",
+          "description": "0-based index; with a pickup, index 0 is the pickup bar."
+        },
+        "isPickup": {
+          "type": "boolean"
+        },
+        "startTick": {
+          "$ref": "#/definitions/Ticks",
+          "description": "Ticks from excerpt start."
+        },
+        "events": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ScoreEvent"
+          }
+        }
+      },
+      "required": [
+        "index",
+        "isPickup",
+        "startTick",
+        "events"
+      ],
+      "additionalProperties": false,
+      "description": "A measure (01 §6.1)."
+    },
+    "Meter": {
+      "type": "object",
+      "properties": {
+        "beats": {
+          "type": "number"
+        },
+        "beatType": {
+          "type": "number",
+          "enum": [
+            2,
+            4,
+            8,
+            16
+          ]
+        },
+        "countUnitTicks": {
+          "$ref": "#/definitions/Ticks",
+          "description": "Ticks per metronome beat."
+        },
+        "countsPerBar": {
+          "type": "number",
+          "description": "Metronome beats per bar."
+        }
+      },
+      "required": [
+        "beats",
+        "beatType",
+        "countUnitTicks",
+        "countsPerBar"
+      ],
+      "additionalProperties": false,
+      "description": "One meter per excerpt (R8). `countUnitTicks` is the metronome beat (02 conventions): 4/4 → 480 × 4 per bar, count unit 480; 6/8 → count unit 720, 2 counts per bar (01 §6.1)."
+    },
+    "Mode": {
+      "type": "string",
+      "enum": [
+        "major",
+        "minor",
+        "dorian",
+        "mixolydian",
+        "phrygian",
+        "lydian",
+        "aeolian",
+        "locrian"
+      ],
+      "description": "Mode of an excerpt. Church modes appear only when the key is random (R8, 02 §2.3)."
+    },
+    "Modification": {
+      "type": "string",
+      "enum": [
+        "excerpted",
+        "grace-removed",
+        "ornament-removed",
+        "fermata-removed",
+        "lyrics-removed",
+        "rhythm-augmented-x2",
+        "final-bar-completed"
+      ],
+      "description": "Build-time modifications; the runtime adds `transposed` and `octave-displaced` to the displayed list (01 §6.1)."
+    },
+    "NoteEvt": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique within the excerpt, for example \"e12\"."
+        },
+        "tick": {
+          "$ref": "#/definitions/Ticks",
+          "description": "Onset, ticks from excerpt start."
+        },
+        "dur": {
+          "$ref": "#/definitions/Ticks",
+          "description": "Sounding duration, ticks (tuplets already scaled)."
+        },
+        "tuplet": {
+          "$ref": "#/definitions/TupletRef"
+        },
+        "kind": {
+          "type": "string",
+          "const": "note"
+        },
+        "pitch": {
+          "$ref": "#/definitions/SpelledPitch",
+          "description": "Concert pitch, original spelling."
+        },
+        "tieStart": {
+          "type": "boolean",
+          "const": true
+        },
+        "tieStop": {
+          "type": "boolean",
+          "const": true
+        },
+        "slur": {
+          "type": "string",
+          "enum": [
+            "start",
+            "stop",
+            "continue"
+          ]
+        },
+        "artic": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Articulation"
+          }
+        },
+        "dynamic": {
+          "$ref": "#/definitions/Dynamic"
+        },
+        "hairpin": {
+          "type": "string",
+          "enum": [
+            "cresc",
+            "dim",
+            "end"
+          ],
+          "description": "Hairpin starting or ending at this note (02 §2.3 L4 \"hairpins\"). P0b addition, optional."
+        },
+        "breath": {
+          "type": "boolean",
+          "const": true
+        }
+      },
+      "required": [
+        "dur",
+        "id",
+        "kind",
+        "pitch",
+        "tick"
+      ],
+      "additionalProperties": false
+    },
+    "RestEvt": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique within the excerpt, for example \"e12\"."
+        },
+        "tick": {
+          "$ref": "#/definitions/Ticks",
+          "description": "Onset, ticks from excerpt start."
+        },
+        "dur": {
+          "$ref": "#/definitions/Ticks",
+          "description": "Sounding duration, ticks (tuplets already scaled)."
+        },
+        "tuplet": {
+          "$ref": "#/definitions/TupletRef"
+        },
+        "kind": {
+          "type": "string",
+          "const": "rest"
+        }
+      },
+      "required": [
+        "dur",
+        "id",
+        "kind",
+        "tick"
+      ],
+      "additionalProperties": false
+    },
+    "ScoreEvent": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/NoteEvt"
+        },
+        {
+          "$ref": "#/definitions/RestEvt"
+        }
+      ]
+    },
+    "SpelledPitch": {
+      "type": "object",
+      "properties": {
+        "step": {
+          "$ref": "#/definitions/Step"
+        },
+        "alter": {
+          "$ref": "#/definitions/Alter"
+        },
+        "octave": {
+          "type": "number",
+          "description": "Scientific octave number (C4 = middle C)."
+        }
+      },
+      "required": [
+        "step",
+        "alter",
+        "octave"
+      ],
+      "additionalProperties": false,
+      "description": "A spelled pitch. C4 = MIDI 60 (01 §5.3)."
+    },
+    "Step": {
+      "type": "string",
+      "enum": [
+        "C",
+        "D",
+        "E",
+        "F",
+        "G",
+        "A",
+        "B"
+      ]
+    },
+    "Ticks": {
+      "type": "number",
+      "description": "Integer ticks from the excerpt start (bar 0 beat 1 if there is a pickup), at TPQ = 480 (01 §5.1)."
+    },
+    "TupletRef": {
+      "type": "object",
+      "properties": {
+        "actual": {
+          "type": "number",
+          "description": "Notes played in the time of `normal` (triplet: 3 in 2)."
+        },
+        "normal": {
+          "type": "number"
+        },
+        "groupId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "actual",
+        "normal",
+        "groupId"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

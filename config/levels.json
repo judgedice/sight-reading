@@ -1,0 +1,1043 @@
+{
+  "$schema": "../schemas/levels.schema.json",
+  "configVersion": "levels-1.0.0",
+  "levels": [
+    {
+      "_source": "02 §2.3 (level table), §2.2 (cells), §2.4 (NPS caps), §1.4 (tiers)",
+      "level": 1,
+      "meters": [
+        "4/4",
+        "3/4",
+        "2/4"
+      ],
+      "rhythmCells": [
+        "W",
+        "H",
+        "Q",
+        "Wr",
+        "Hr",
+        "Qr",
+        "H."
+      ],
+      "maxIntervalSemis": 5,
+      "largerLeaps": {
+        "triad": "tonic",
+        "maxSemis": 12
+      },
+      "maxLeapsPer4Bars": 2,
+      "maxSpanSemis": 12,
+      "modes": [
+        "major"
+      ],
+      "minorForms": [],
+      "modal": [],
+      "chromaticPer4Bars": 0,
+      "minorAlterationsDiatonic": false,
+      "doubleAccidentals": false,
+      "writtenKeys": {
+        "maxAccidentals": 1,
+        "modes": [
+          "major"
+        ]
+      },
+      "tier": "A",
+      "tempo": {
+        "minBpm": 60,
+        "maxBpm": 76
+      },
+      "npsCap": {
+        "512": 2,
+        "1024": 2,
+        "2048": 2
+      },
+      "articulations": [],
+      "bars": [
+        8
+      ],
+      "scanSec": 30,
+      "countInBars": 2,
+      "description": "Steps and small leaps in quarters and halves"
+    },
+    {
+      "_source": "02 §2.3 (level table), §2.2 (cells), §2.4 (NPS caps), §1.4 (tiers)",
+      "level": 2,
+      "meters": [
+        "4/4",
+        "3/4",
+        "2/4"
+      ],
+      "rhythmCells": [
+        "W",
+        "H",
+        "Q",
+        "Wr",
+        "Hr",
+        "Qr",
+        "H.",
+        "EE",
+        "pickup1"
+      ],
+      "maxIntervalSemis": 7,
+      "largerLeaps": {
+        "triad": "tonic",
+        "maxSemis": 12
+      },
+      "maxLeapsPer4Bars": 4,
+      "maxSpanSemis": 12,
+      "modes": [
+        "major",
+        "minor"
+      ],
+      "minorForms": [
+        "natural",
+        "harmonic"
+      ],
+      "modal": [],
+      "chromaticPer4Bars": 0,
+      "minorAlterationsDiatonic": false,
+      "doubleAccidentals": false,
+      "writtenKeys": {
+        "maxAccidentals": 1,
+        "modes": [
+          "major",
+          "minor"
+        ]
+      },
+      "tier": "A",
+      "tempo": {
+        "minBpm": 60,
+        "maxBpm": 84
+      },
+      "npsCap": {
+        "512": 3,
+        "1024": 3,
+        "2048": 3
+      },
+      "articulations": [
+        "slur",
+        "tie"
+      ],
+      "bars": [
+        8
+      ],
+      "scanSec": 30,
+      "countInBars": 2,
+      "description": "Adds eighths, minor keys and one-beat pickups"
+    },
+    {
+      "_source": "02 §2.3 (level table), §2.2 (cells), §2.4 (NPS caps), §1.4 (tiers)",
+      "level": 3,
+      "meters": [
+        "4/4",
+        "3/4",
+        "2/4"
+      ],
+      "rhythmCells": [
+        "W",
+        "H",
+        "Q",
+        "Wr",
+        "Hr",
+        "Qr",
+        "H.",
+        "EE",
+        "pickup1",
+        "Q.E",
+        "rE",
+        "Er",
+        "tieBar",
+        "pickup"
+      ],
+      "maxIntervalSemis": 7,
+      "largerLeaps": {
+        "triad": "tonic-or-dominant",
+        "maxSemis": 12
+      },
+      "maxLeapsPer4Bars": 6,
+      "maxSpanSemis": 16,
+      "modes": [
+        "major",
+        "minor"
+      ],
+      "minorForms": [
+        "natural",
+        "harmonic"
+      ],
+      "modal": [],
+      "chromaticPer4Bars": 1,
+      "minorAlterationsDiatonic": false,
+      "doubleAccidentals": false,
+      "writtenKeys": {
+        "maxAccidentals": 2,
+        "modes": [
+          "major",
+          "minor"
+        ]
+      },
+      "tier": "B",
+      "tempo": {
+        "minBpm": 66,
+        "maxBpm": 92
+      },
+      "npsCap": {
+        "512": 3.5,
+        "1024": 3.5,
+        "2048": 3.5
+      },
+      "articulations": [
+        "slur",
+        "tie",
+        "staccato",
+        "accent"
+      ],
+      "bars": [
+        8,
+        9,
+        10
+      ],
+      "scanSec": 30,
+      "countInBars": 2,
+      "description": "Dotted quarters, ties over the bar, 2 accidentals"
+    },
+    {
+      "_source": "02 §2.3 (level table), §2.2 (cells), §2.4 (NPS caps), §1.4 (tiers)",
+      "level": 4,
+      "meters": [
+        "4/4",
+        "3/4",
+        "2/4",
+        "6/8",
+        "2/2"
+      ],
+      "rhythmCells": [
+        "W",
+        "H",
+        "Q",
+        "Wr",
+        "Hr",
+        "Qr",
+        "H.",
+        "EE",
+        "pickup1",
+        "Q.E",
+        "rE",
+        "Er",
+        "tieBar",
+        "pickup",
+        "C.Q",
+        "C.QE",
+        "C.EQ",
+        "C.EEE",
+        "C.Qr.",
+        "SSSS"
+      ],
+      "maxIntervalSemis": 12,
+      "largerLeaps": null,
+      "maxLeapsPer4Bars": 8,
+      "maxSpanSemis": 16,
+      "modes": [
+        "major",
+        "minor"
+      ],
+      "minorForms": [
+        "natural",
+        "harmonic"
+      ],
+      "modal": [],
+      "chromaticPer4Bars": 2,
+      "minorAlterationsDiatonic": false,
+      "doubleAccidentals": false,
+      "writtenKeys": {
+        "maxAccidentals": 3,
+        "modes": [
+          "major",
+          "minor"
+        ]
+      },
+      "tier": "B",
+      "tempo": {
+        "minBpm": 66,
+        "maxBpm": 100
+      },
+      "npsCap": {
+        "512": 4.5,
+        "1024": 4.5,
+        "2048": 4.5
+      },
+      "articulations": [
+        "slur",
+        "tie",
+        "staccato",
+        "accent",
+        "tenuto",
+        "hairpin",
+        "p",
+        "mp",
+        "mf",
+        "f"
+      ],
+      "bars": [
+        8,
+        9,
+        10
+      ],
+      "scanSec": 30,
+      "countInBars": 1,
+      "description": "6/8 and 2/2, sixteenths, 3 sharps or flats"
+    },
+    {
+      "_source": "02 §2.3 (level table), §2.2 (cells), §2.4 (NPS caps), §1.4 (tiers)",
+      "level": 5,
+      "meters": [
+        "4/4",
+        "3/4",
+        "2/4",
+        "6/8",
+        "2/2",
+        "3/8",
+        "3/2"
+      ],
+      "rhythmCells": [
+        "W",
+        "H",
+        "Q",
+        "Wr",
+        "Hr",
+        "Qr",
+        "H.",
+        "EE",
+        "pickup1",
+        "Q.E",
+        "rE",
+        "Er",
+        "tieBar",
+        "pickup",
+        "C.Q",
+        "C.QE",
+        "C.EQ",
+        "C.EEE",
+        "C.Qr.",
+        "SSSS",
+        "EQE",
+        "ESS",
+        "SSE",
+        "tieBeat"
+      ],
+      "maxIntervalSemis": 12,
+      "largerLeaps": null,
+      "maxLeapsPer4Bars": 10,
+      "maxSpanSemis": null,
+      "modes": [
+        "major",
+        "minor"
+      ],
+      "minorForms": [
+        "natural",
+        "harmonic",
+        "melodic"
+      ],
+      "modal": [
+        "dorian",
+        "mixolydian"
+      ],
+      "chromaticPer4Bars": 3,
+      "minorAlterationsDiatonic": true,
+      "doubleAccidentals": false,
+      "writtenKeys": {
+        "maxAccidentals": 4,
+        "modes": [
+          "major",
+          "minor"
+        ]
+      },
+      "tier": "C",
+      "tempo": {
+        "minBpm": 72,
+        "maxBpm": 112
+      },
+      "npsCap": {
+        "512": 5,
+        "1024": 5,
+        "2048": 5
+      },
+      "articulations": [
+        "slur",
+        "tie",
+        "staccato",
+        "accent",
+        "tenuto",
+        "hairpin",
+        "p",
+        "mp",
+        "mf",
+        "f",
+        "pp",
+        "ff",
+        "fp",
+        "sfz"
+      ],
+      "bars": [
+        8,
+        9,
+        10
+      ],
+      "scanSec": 45,
+      "countInBars": 1,
+      "description": "Syncopation, mixed sixteenths, 4 accidentals"
+    },
+    {
+      "_source": "02 §2.3 (level table), §2.2 (cells), §2.4 (NPS caps), §1.4 (tiers)",
+      "level": 6,
+      "meters": [
+        "4/4",
+        "3/4",
+        "2/4",
+        "6/8",
+        "2/2",
+        "3/8",
+        "3/2",
+        "9/8",
+        "12/8"
+      ],
+      "rhythmCells": [
+        "W",
+        "H",
+        "Q",
+        "Wr",
+        "Hr",
+        "Qr",
+        "H.",
+        "EE",
+        "pickup1",
+        "Q.E",
+        "rE",
+        "Er",
+        "tieBar",
+        "pickup",
+        "C.Q",
+        "C.QE",
+        "C.EQ",
+        "C.EEE",
+        "C.Qr.",
+        "SSSS",
+        "EQE",
+        "ESS",
+        "SSE",
+        "tieBeat",
+        "E.S",
+        "T3E",
+        "SES",
+        "C.E.SE",
+        "C.SSSSSS"
+      ],
+      "maxIntervalSemis": 12,
+      "largerLeaps": null,
+      "maxLeapsPer4Bars": 12,
+      "maxSpanSemis": null,
+      "modes": [
+        "major",
+        "minor"
+      ],
+      "minorForms": [
+        "natural",
+        "harmonic",
+        "melodic"
+      ],
+      "modal": [
+        "dorian",
+        "mixolydian",
+        "phrygian",
+        "lydian",
+        "aeolian",
+        "locrian"
+      ],
+      "chromaticPer4Bars": 5,
+      "minorAlterationsDiatonic": true,
+      "doubleAccidentals": false,
+      "writtenKeys": {
+        "maxAccidentals": 5,
+        "modes": [
+          "major",
+          "minor"
+        ]
+      },
+      "tier": "C",
+      "tempo": {
+        "minBpm": 72,
+        "maxBpm": 120
+      },
+      "npsCap": {
+        "512": 6,
+        "1024": 6,
+        "2048": 6
+      },
+      "articulations": [
+        "slur",
+        "tie",
+        "staccato",
+        "accent",
+        "tenuto",
+        "hairpin",
+        "p",
+        "mp",
+        "mf",
+        "f",
+        "pp",
+        "ff",
+        "fp",
+        "sfz"
+      ],
+      "bars": [
+        8,
+        9,
+        10,
+        11,
+        12
+      ],
+      "scanSec": 45,
+      "countInBars": 1,
+      "description": "Dotted eighths, triplets, 9/8 and 12/8"
+    },
+    {
+      "_source": "02 §2.3 (level table), §2.2 (cells), §2.4 (NPS caps), §1.4 (tiers)",
+      "level": 7,
+      "meters": [
+        "4/4",
+        "3/4",
+        "2/4",
+        "6/8",
+        "2/2",
+        "3/8",
+        "3/2",
+        "9/8",
+        "12/8",
+        "5/4",
+        "5/8",
+        "6/4"
+      ],
+      "rhythmCells": [
+        "W",
+        "H",
+        "Q",
+        "Wr",
+        "Hr",
+        "Qr",
+        "H.",
+        "EE",
+        "pickup1",
+        "Q.E",
+        "rE",
+        "Er",
+        "tieBar",
+        "pickup",
+        "C.Q",
+        "C.QE",
+        "C.EQ",
+        "C.EEE",
+        "C.Qr.",
+        "SSSS",
+        "EQE",
+        "ESS",
+        "SSE",
+        "tieBeat",
+        "E.S",
+        "T3E",
+        "SES",
+        "C.E.SE",
+        "C.SSSSSS",
+        "S-sync",
+        "T3Q"
+      ],
+      "maxIntervalSemis": 14,
+      "largerLeaps": null,
+      "maxLeapsPer4Bars": null,
+      "maxSpanSemis": null,
+      "modes": [
+        "major",
+        "minor"
+      ],
+      "minorForms": [
+        "natural",
+        "harmonic",
+        "melodic"
+      ],
+      "modal": [
+        "dorian",
+        "mixolydian",
+        "phrygian",
+        "lydian",
+        "aeolian",
+        "locrian"
+      ],
+      "chromaticPer4Bars": 8,
+      "minorAlterationsDiatonic": true,
+      "doubleAccidentals": false,
+      "writtenKeys": {
+        "maxAccidentals": 6,
+        "modes": [
+          "major",
+          "minor"
+        ]
+      },
+      "tier": "D",
+      "tempo": {
+        "minBpm": 80,
+        "maxBpm": 132
+      },
+      "npsCap": {
+        "512": 6.5,
+        "1024": 6.5,
+        "2048": 6.5
+      },
+      "articulations": [
+        "slur",
+        "tie",
+        "staccato",
+        "accent",
+        "tenuto",
+        "hairpin",
+        "p",
+        "mp",
+        "mf",
+        "f",
+        "pp",
+        "ff",
+        "fp",
+        "sfz"
+      ],
+      "bars": [
+        8,
+        9,
+        10,
+        11,
+        12
+      ],
+      "scanSec": 45,
+      "countInBars": 1,
+      "description": "Odd meters, quarter triplets, tenor clef"
+    },
+    {
+      "_source": "02 §2.3 (level table), §2.2 (cells), §2.4 (NPS caps), §1.4 (tiers)",
+      "level": 8,
+      "meters": [
+        "4/4",
+        "3/4",
+        "2/4",
+        "6/8",
+        "2/2",
+        "3/8",
+        "3/2",
+        "9/8",
+        "12/8",
+        "5/4",
+        "5/8",
+        "6/4",
+        "7/8"
+      ],
+      "rhythmCells": [
+        "W",
+        "H",
+        "Q",
+        "Wr",
+        "Hr",
+        "Qr",
+        "H.",
+        "EE",
+        "pickup1",
+        "Q.E",
+        "rE",
+        "Er",
+        "tieBar",
+        "pickup",
+        "C.Q",
+        "C.QE",
+        "C.EQ",
+        "C.EEE",
+        "C.Qr.",
+        "SSSS",
+        "EQE",
+        "ESS",
+        "SSE",
+        "tieBeat",
+        "E.S",
+        "T3E",
+        "SES",
+        "C.E.SE",
+        "C.SSSSSS",
+        "S-sync",
+        "T3Q",
+        "T",
+        "T6S",
+        "H..",
+        "Q.."
+      ],
+      "maxIntervalSemis": 19,
+      "largerLeaps": null,
+      "maxLeapsPer4Bars": null,
+      "maxSpanSemis": null,
+      "modes": [
+        "major",
+        "minor"
+      ],
+      "minorForms": [
+        "natural",
+        "harmonic",
+        "melodic"
+      ],
+      "modal": [
+        "dorian",
+        "mixolydian",
+        "phrygian",
+        "lydian",
+        "aeolian",
+        "locrian"
+      ],
+      "chromaticPer4Bars": 12,
+      "minorAlterationsDiatonic": true,
+      "doubleAccidentals": true,
+      "writtenKeys": {
+        "maxAccidentals": 7,
+        "modes": [
+          "major",
+          "minor"
+        ]
+      },
+      "tier": "D",
+      "tempo": {
+        "minBpm": 80,
+        "maxBpm": 144
+      },
+      "npsCap": {
+        "512": 7,
+        "1024": 7,
+        "2048": 6.5
+      },
+      "articulations": [
+        "slur",
+        "tie",
+        "staccato",
+        "accent",
+        "tenuto",
+        "hairpin",
+        "p",
+        "mp",
+        "mf",
+        "f",
+        "pp",
+        "ff",
+        "fp",
+        "sfz"
+      ],
+      "bars": [
+        8,
+        9,
+        10,
+        11,
+        12
+      ],
+      "scanSec": 60,
+      "countInBars": 1,
+      "description": "32nds, sextuplets, double dots, 7 accidentals"
+    },
+    {
+      "_source": "02 §2.3 (level table), §2.2 (cells), §2.4 (NPS caps), §1.4 (tiers)",
+      "level": 9,
+      "meters": [
+        "4/4",
+        "3/4",
+        "2/4",
+        "6/8",
+        "2/2",
+        "3/8",
+        "3/2",
+        "9/8",
+        "12/8",
+        "5/4",
+        "5/8",
+        "6/4",
+        "7/8",
+        "7/4",
+        "11/8"
+      ],
+      "rhythmCells": [
+        "W",
+        "H",
+        "Q",
+        "Wr",
+        "Hr",
+        "Qr",
+        "H.",
+        "EE",
+        "pickup1",
+        "Q.E",
+        "rE",
+        "Er",
+        "tieBar",
+        "pickup",
+        "C.Q",
+        "C.QE",
+        "C.EQ",
+        "C.EEE",
+        "C.Qr.",
+        "SSSS",
+        "EQE",
+        "ESS",
+        "SSE",
+        "tieBeat",
+        "E.S",
+        "T3E",
+        "SES",
+        "C.E.SE",
+        "C.SSSSSS",
+        "S-sync",
+        "T3Q",
+        "T",
+        "T6S",
+        "H..",
+        "Q..",
+        "T5",
+        "T7",
+        "hemiola",
+        "crossTie"
+      ],
+      "maxIntervalSemis": null,
+      "largerLeaps": null,
+      "maxLeapsPer4Bars": null,
+      "maxSpanSemis": null,
+      "modes": [
+        "major",
+        "minor"
+      ],
+      "minorForms": [
+        "natural",
+        "harmonic",
+        "melodic"
+      ],
+      "modal": [
+        "dorian",
+        "mixolydian",
+        "phrygian",
+        "lydian",
+        "aeolian",
+        "locrian"
+      ],
+      "chromaticPer4Bars": null,
+      "minorAlterationsDiatonic": true,
+      "doubleAccidentals": true,
+      "writtenKeys": {
+        "maxAccidentals": 7,
+        "modes": [
+          "major",
+          "minor"
+        ]
+      },
+      "tier": "E",
+      "tempo": {
+        "minBpm": 88,
+        "maxBpm": 160
+      },
+      "npsCap": {
+        "512": 8,
+        "1024": 8,
+        "2048": 6.5
+      },
+      "articulations": [
+        "slur",
+        "tie",
+        "staccato",
+        "accent",
+        "tenuto",
+        "hairpin",
+        "p",
+        "mp",
+        "mf",
+        "f",
+        "pp",
+        "ff",
+        "fp",
+        "sfz"
+      ],
+      "bars": [
+        8,
+        9,
+        10,
+        11,
+        12
+      ],
+      "scanSec": 60,
+      "countInBars": 1,
+      "description": "Quintuplets, hemiola, wide leaps, fast tempos"
+    },
+    {
+      "_source": "02 §2.3 (level table), §2.2 (cells), §2.4 (NPS caps), §1.4 (tiers)",
+      "level": 10,
+      "meters": [
+        "4/4",
+        "3/4",
+        "2/4",
+        "6/8",
+        "2/2",
+        "3/8",
+        "3/2",
+        "9/8",
+        "12/8",
+        "5/4",
+        "5/8",
+        "6/4",
+        "7/8",
+        "7/4",
+        "11/8",
+        "4/2",
+        "4/8",
+        "6/16",
+        "9/16",
+        "12/16"
+      ],
+      "rhythmCells": [
+        "W",
+        "H",
+        "Q",
+        "Wr",
+        "Hr",
+        "Qr",
+        "H.",
+        "EE",
+        "pickup1",
+        "Q.E",
+        "rE",
+        "Er",
+        "tieBar",
+        "pickup",
+        "C.Q",
+        "C.QE",
+        "C.EQ",
+        "C.EEE",
+        "C.Qr.",
+        "SSSS",
+        "EQE",
+        "ESS",
+        "SSE",
+        "tieBeat",
+        "E.S",
+        "T3E",
+        "SES",
+        "C.E.SE",
+        "C.SSSSSS",
+        "S-sync",
+        "T3Q",
+        "T",
+        "T6S",
+        "H..",
+        "Q..",
+        "T5",
+        "T7",
+        "hemiola",
+        "crossTie",
+        "other"
+      ],
+      "maxIntervalSemis": null,
+      "largerLeaps": null,
+      "maxLeapsPer4Bars": null,
+      "maxSpanSemis": null,
+      "modes": [
+        "major",
+        "minor"
+      ],
+      "minorForms": [
+        "natural",
+        "harmonic",
+        "melodic"
+      ],
+      "modal": [
+        "dorian",
+        "mixolydian",
+        "phrygian",
+        "lydian",
+        "aeolian",
+        "locrian"
+      ],
+      "chromaticPer4Bars": null,
+      "minorAlterationsDiatonic": true,
+      "doubleAccidentals": true,
+      "writtenKeys": {
+        "maxAccidentals": 7,
+        "modes": [
+          "major",
+          "minor"
+        ]
+      },
+      "tier": "E",
+      "tempo": {
+        "minBpm": 92,
+        "maxBpm": 176
+      },
+      "npsCap": {
+        "512": 8,
+        "1024": 8,
+        "2048": 6.5
+      },
+      "articulations": [
+        "slur",
+        "tie",
+        "staccato",
+        "accent",
+        "tenuto",
+        "hairpin",
+        "p",
+        "mp",
+        "mf",
+        "f",
+        "pp",
+        "ff",
+        "fp",
+        "sfz"
+      ],
+      "bars": [
+        8,
+        9,
+        10,
+        11,
+        12
+      ],
+      "scanSec": 60,
+      "countInBars": 1,
+      "description": "Anything in range, free chromatic writing"
+    }
+  ],
+  "countIn": {
+    "_source": "02 §2.3 (count-in note)",
+    "slowBelowBpm": 66,
+    "slowBars": 2
+  },
+  "compound": {
+    "_source": "02 §2.4",
+    "dottedBeatLevels": [
+      4,
+      5
+    ],
+    "dottedBpm": {
+      "minBpm": 40,
+      "maxBpm": 66
+    },
+    "subdivisionClicks": true
+  },
+  "breath": {
+    "_source": "02 §2.4 (breath rule)",
+    "maxGapBarsUpToLevel4": 4,
+    "maxGapSecFromLevel5": 12
+  },
+  "selection": {
+    "_source": "02 §2.6 (R22)",
+    "maxFracFromLevelBelow": 0.2,
+    "stretchRate": 0.2,
+    "stretchRateLowPool": 0.5,
+    "lowPoolUnseen": 10,
+    "randomKey": {
+      "stringsSharpWeight": 1.5,
+      "transposingLowAccWeight": 1.5,
+      "lowAccMax": 2,
+      "lowAccMaxLevel": 4,
+      "maxSameKeyInRow": 2
+    }
+  }
+}

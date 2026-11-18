@@ -1,0 +1,328 @@
+{
+  "$id": "player-profile.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/PlayerProfile",
+  "definitions": {
+    "InstrumentProgress": {
+      "type": "object",
+      "properties": {
+        "level": {
+          "type": "number"
+        },
+        "window": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/LevelWindowEntry"
+          },
+          "description": "Last ranked attempts at the current level, oldest first, at most the window size."
+        },
+        "attemptsRanked": {
+          "type": "number"
+        },
+        "bestByLevel": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "number"
+          },
+          "description": "Level → best score."
+        },
+        "patternCounts": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "number"
+          },
+          "description": "Pattern id → times fired."
+        },
+        "recentPrimaryPatterns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Primary pattern per recent attempt on this instrument, most recent first (02 §6.1 item 5)."
+        },
+        "tuningOffsetCents": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "Tuning-note offset, cents."
+        },
+        "offerSuppressedUntil": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "Level-up offer suppressed until `attemptsRanked` reaches this; null = not suppressed (02 §5.6)."
+        },
+        "pendingOffer": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "to": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "to"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "A level-up offer waiting for the player's answer (02 §5.6), or null."
+        },
+        "autoLevelUpUndo": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "from": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "from"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Level before the last auto level-up, for Undo on results (02 §5.6), or null."
+        },
+        "autoRun": {
+          "type": "object",
+          "properties": {
+            "count": {
+              "type": "number"
+            },
+            "atMidTempo": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "count",
+            "atMidTempo"
+          ],
+          "additionalProperties": false,
+          "description": "Consecutive ranked attempts ≥ the auto level-up score, and how many were at mid tempo (02 §5.6)."
+        },
+        "placement": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "step": {
+                  "type": "number"
+                },
+                "results": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "level": {
+                        "type": "number"
+                      },
+                      "score": {
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "level",
+                      "score"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "step",
+                "results"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Placement in progress (02 §5.1), or null."
+        }
+      },
+      "required": [
+        "level",
+        "window",
+        "attemptsRanked",
+        "bestByLevel",
+        "patternCounts",
+        "recentPrimaryPatterns",
+        "tuningOffsetCents",
+        "offerSuppressedUntil",
+        "pendingOffer",
+        "autoLevelUpUndo",
+        "autoRun",
+        "placement"
+      ],
+      "additionalProperties": false,
+      "description": "Per-instrument progress; level is per instrument (R5, 02 §5.6, §5.7)."
+    },
+    "LevelWindowEntry": {
+      "type": "object",
+      "properties": {
+        "attemptId": {
+          "type": "string"
+        },
+        "score": {
+          "type": "number",
+          "description": "Score as entered (incomplete at its capped score)."
+        },
+        "atMidTempo": {
+          "type": "boolean",
+          "description": "Played at or above the level's mid tempo."
+        }
+      },
+      "required": [
+        "attemptId",
+        "score",
+        "atMidTempo"
+      ],
+      "additionalProperties": false,
+      "description": "One entry of an instrument's level window (02 §5.6, §5.7)."
+    },
+    "PlayerProfile": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "type": "number",
+          "const": 1
+        },
+        "id": {
+          "type": "string",
+          "description": "UUID."
+        },
+        "displayName": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "ISO 8601 UTC."
+        },
+        "xp": {
+          "type": "number",
+          "description": "Per player; never decreases."
+        },
+        "rank": {
+          "type": "number",
+          "description": "Per player, 1..10; never goes down."
+        },
+        "streak": {
+          "type": "object",
+          "properties": {
+            "days": {
+              "type": "number"
+            },
+            "lastDay": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "days",
+            "lastDay"
+          ],
+          "additionalProperties": false,
+          "description": "Local calendar days (YYYY-MM-DD) with ≥ 3 ranked attempts. No freezes in v1 (02 §5.4)."
+        },
+        "daily": {
+          "type": "object",
+          "properties": {
+            "day": {
+              "type": "string"
+            },
+            "rankedCount": {
+              "type": "number"
+            },
+            "attemptCount": {
+              "type": "number"
+            },
+            "repeats": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "number"
+              }
+            }
+          },
+          "required": [
+            "day",
+            "rankedCount",
+            "attemptCount",
+            "repeats"
+          ],
+          "additionalProperties": false,
+          "description": "Per local day (YYYY-MM-DD): ranked and all attempts (practice counts toward the cap), per-excerpt repeats."
+        },
+        "instruments": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/InstrumentProgress"
+          },
+          "description": "Level is per instrument."
+        },
+        "seenGroups": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "dedupeGroup → first reveal time (ISO 8601 UTC), all instruments (02 §5.3)."
+        },
+        "recentTips": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Most recent first."
+        },
+        "rankedIndex": {
+          "type": "number",
+          "description": "Ranked attempts so far, and the ranked index of the last post-reveal skip (02 §5.3; R33)."
+        },
+        "lastSkipRankedIndex": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "activeInstrumentId": {
+          "type": "string"
+        },
+        "configVersion": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "id",
+        "displayName",
+        "createdAt",
+        "xp",
+        "rank",
+        "streak",
+        "daily",
+        "instruments",
+        "seenGroups",
+        "recentTips",
+        "rankedIndex",
+        "lastSkipRankedIndex",
+        "activeInstrumentId",
+        "configVersion"
+      ],
+      "additionalProperties": false,
+      "description": "One local player (R5; 02 §5.7)."
+    }
+  }
+}

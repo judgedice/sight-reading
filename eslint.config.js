@@ -1,0 +1,244 @@
+// @ts-check
+import js from '@eslint/js';
+import boundaries from 'eslint-plugin-boundaries';
+import react from 'eslint-plugin-react';
+import reactHooks from 'eslint-plugin-react-hooks';
+import globals from 'globals';
+import tseslint from 'typescript-eslint';
+
+// All path globs start with `**/src/` (not `src/`) so the negative fixtures in
+// test/lint-fixtures/src/** are classified exactly like real source files.
+
+const SRC_TS = ['**/src/**/*.{ts,tsx}'];
+
+// ---- 01 section 4.3: restricted globals ------------------------------------------------
+const restrictedGlobalNames = [
+  'AudioContext',
+  'webkitAudioContext',
+  'OfflineAudioContext',
+  'indexedDB',
+  'localStorage',
+  'sessionStorage',
+  'fetch',
+  'crypto',
+  'performance',
+];
+const restrictedNavigatorProps = [
+  'mediaDevices',
+  'wakeLock',
+  'storage',
+  'audioSession',
+  'serviceWorker',
+  'userAgent', // 05 section on the seam: only detectCapabilities and the backend may read it
+];
+const restrictedGlobalMessage = (name) =>
+  `${name} is banned outside src/platform/web, src/app/main.tsx and testkit (01 section 4.3). Inject it through PlatformServices.`;
+
+/** @param {string[]} names */
+const globalEntries = (names) => names.map((name) => ({ name, message: restrictedGlobalMessage(name) }));
+
+const globalHolders = ['window', 'globalThis', 'self'];
+
+const restrictedPropertyEntries = [
+  { object: 'Date', property: 'now', message: 'Date.now is banned here; inject a clock (01 section 4.3).' },
+  { object: 'Math', property: 'random', message: 'Math.random is banned here; use core/rng (01 section 4.3).' },
+  ...globalHolders.flatMap((object) =>
+    [...restrictedGlobalNames].map((property) => ({
+      object,
+      property,
+      message: restrictedGlobalMessage(`${object}.${property}`),
+    })),
+  ),
+];
+
+const navigatorSelectors = restrictedNavigatorProps.map((prop) => ({
+  selector: `MemberExpression[object.name='navigator'][property.name='${prop}']`,
+  message: `navigator.${prop} is banned outside src/platform/web, src/app/main.tsx and testkit (01 section 4.3).`,
+}));
+const globalHolderNavigatorSelectors = globalHolders.flatMap((holder) =>
+  restrictedNavigatorProps.map((prop) => ({
+    selector: `MemberExpression[object.type='MemberExpression'][object.object.name='${holder}'][object.property.name='navigator'][property.name='${prop}']`,
+    message: `navigator.${prop} is banned outside src/platform/web, src/app/main.tsx and testkit (01 section 4.3).`,
+  })),
+);
+
+// ---- 05 W10: no pitched click -----------------------------------------------------------
+const noOscillatorSelectors = [
+  {
+    selector: "MemberExpression[property.name='createOscillator']",
+    message: 'The metronome must not use oscillators (05 W10). Schedule AudioBufferSourceNode clicks.',
+  },
+];
+
+// ---- 01 section 4.2: allowed imports ----------------------------------------------------
+const elementTypes = [
+  'core',
+  'theory',
+  'instruments',
+  'rules',
+  'corpus',
+  'dsp',
+  'follow',
+  'grade',
+  'tips',
+  'calibration',
+  'store',
+  'session',
+  'platform-web',
+  'notation',
+  'ui',
+  'app',
+  'testkit',
+];
+/** @type {Record<string, string[]>} */
+const allowedImports = {
+  core: [],
+  theory: ['core'],
+  instruments: ['core', 'theory'],
+  rules: ['core', 'theory', 'instruments'],
+  corpus: ['core', 'theory', 'instruments', 'rules'],
+  dsp: ['core'],
+  calibration: ['core', 'dsp'],
+  follow: ['core', 'theory', 'rules'],
+  grade: ['core', 'theory', 'rules'],
+  tips: ['core'],
+  store: ['core'],
+  session: ['core', 'theory', 'instruments', 'rules', 'corpus', 'dsp', 'calibration', 'follow', 'grade', 'tips', 'store'],
+  'platform-web': ['core', 'dsp', 'calibration', 'store'],
+  notation: ['core', 'theory', 'instruments'],
+  ui: ['core'],
+  app: ['session', 'notation', 'ui', 'store', 'core', 'instruments'],
+  testkit: elementTypes.filter((t) => !['app', 'ui', 'notation', 'testkit'].includes(t)),
+};
+
+const boundaryPolicies = Object.entries(allowedImports).map(([from, to]) => ({
+  from: { element: { type: from } },
+  allow: { to: { element: { types: [from, ...to] } } },
+}));
+
+export default tseslint.config(
+  {
+    ignores: [
+      'dist/**',
+      'coverage/**',
+      'node_modules/**',
+      'playwright-report/**',
+      'test-results/**',
+      'public/**',
+      'schemas/**',
+      'test/lint-fixtures/**', // negative fixtures: linted only by test/lint-fixtures/lint-fixtures.test.ts
+    ],
+  },
+  js.configs.recommended,
+  ...tseslint.configs.recommended,
+  {
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: 'module',
+      globals: { ...globals.browser, ...globals.node },
+    },
+    rules: {
+      '@typescript-eslint/consistent-type-imports': 'error',
+      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+      eqeqeq: ['error', 'always'],
+      'no-console': ['error', { allow: ['warn', 'error'] }],
+    },
+  },
+  {
+    files: ['**/*.{ts,tsx}'],
+    plugins: { react, 'react-hooks': reactHooks },
+    settings: { react: { version: '19' } },
+    rules: {
+      'react-hooks/rules-of-hooks': 'error',
+      'react-hooks/exhaustive-deps': 'error',
+    },
+  },
+  // 04 section 8: hard-coded strings banned in screens and components.
+  {
+    files: ['**/src/app/**/*.tsx', '**/src/ui/**/*.tsx'],
+    ignores: ['**/*.test.tsx'],
+    plugins: { react },
+    rules: { 'react/jsx-no-literals': 'error' },
+  },
+  // Module boundaries (01 section 4.2) and restricted globals (4.3).
+  {
+    files: SRC_TS,
+    ignores: ['**/*.test.{ts,tsx}'],
+    plugins: { boundaries },
+    settings: {
+      'boundaries/elements': [
+        { type: 'core', pattern: '**/src/core' },
+        { type: 'theory', pattern: '**/src/theory' },
+        { type: 'instruments', pattern: '**/src/instruments' },
+        { type: 'rules', pattern: '**/src/rules' },
+        { type: 'corpus', pattern: '**/src/corpus' },
+        { type: 'dsp', pattern: '**/src/dsp' },
+        { type: 'follow', pattern: '**/src/follow' },
+        { type: 'grade', pattern: '**/src/grade' },
+        { type: 'tips', pattern: '**/src/tips' },
+        { type: 'calibration', pattern: '**/src/calibration' },
+        { type: 'store', pattern: '**/src/store' },
+        { type: 'session', pattern: '**/src/session' },
+        { type: 'platform-web', pattern: '**/src/platform/web' },
+        { type: 'notation', pattern: '**/src/notation' },
+        { type: 'ui', pattern: '**/src/ui' },
+        { type: 'app', pattern: '**/src/app' },
+        { type: 'testkit', pattern: '**/src/testkit' },
+      ],
+      'boundaries/files': [
+        { pattern: ['**/src/app/main.tsx', '**/src/main.tsx'], category: 'composition-root' },
+      ],
+    },
+    rules: {
+      'boundaries/dependencies': [
+        'error',
+        {
+          default: 'disallow',
+          policies: [
+            ...boundaryPolicies,
+            // The composition root alone may reach platform/web and wires up the rest (01 section 4.2).
+            {
+              from: { file: { categories: 'composition-root' } },
+              allow: { to: { element: { types: elementTypes } } },
+            },
+          ],
+        },
+      ],
+      'no-restricted-globals': ['error', ...globalEntries(restrictedGlobalNames)],
+      'no-restricted-properties': ['error', ...restrictedPropertyEntries],
+      'no-restricted-syntax': ['error', ...navigatorSelectors, ...globalHolderNavigatorSelectors],
+    },
+  },
+  // Where the platform globals are allowed.
+  {
+    files: ['**/src/platform/web/**', '**/src/app/main.tsx', '**/src/main.tsx', '**/src/testkit/**'],
+    rules: {
+      'no-restricted-globals': 'off',
+      'no-restricted-properties': 'off',
+      'no-restricted-syntax': 'off',
+    },
+  },
+  // notation/ may read performance.now for rAF timing (01 section 4.3).
+  {
+    files: ['**/src/notation/**'],
+    rules: {
+      'no-restricted-globals': ['error', ...globalEntries(restrictedGlobalNames.filter((n) => n !== 'performance'))],
+      'no-restricted-properties': [
+        'error',
+        ...restrictedPropertyEntries.filter((e) => !(e.property === 'performance')),
+      ],
+    },
+  },
+  // 05 W10: no oscillator in the metronome module (applies even inside platform/web).
+  {
+    files: ['**/metronome.{ts,tsx}', '**/metronome-*.{ts,tsx}', '**/metronome/**/*.{ts,tsx}'],
+    ignores: ['**/*.test.{ts,tsx}'],
+    rules: {
+      'no-restricted-globals': [
+        'error',
+        { name: 'OscillatorNode', message: 'The metronome must not use oscillators (05 W10).' },
+      ],
+      'no-restricted-syntax': ['error', ...noOscillatorSelectors],
+    },
+  },
+);

@@ -1,0 +1,793 @@
+{
+  "$id": "grading-config.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/GradingConfig",
+  "definitions": {
+    "ComponentWeightRow": {
+      "type": "object",
+      "properties": {
+        "group": {
+          "type": "string",
+          "enum": [
+            "continuous",
+            "fixed"
+          ]
+        },
+        "levels": {
+          "$ref": "#/definitions/LevelRange"
+        },
+        "P": {
+          "type": "number"
+        },
+        "I": {
+          "type": "number"
+        },
+        "R": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "group",
+        "levels",
+        "P",
+        "I",
+        "R"
+      ],
+      "additionalProperties": false,
+      "description": "Component weights for a family group and level range; P + I + R = 1 (02 §4.4)."
+    },
+    "GoodRedBadFrac": {
+      "type": "object",
+      "properties": {
+        "good": {
+          "type": "number"
+        },
+        "red": {
+          "type": "number"
+        },
+        "bad": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "good",
+        "red",
+        "bad"
+      ],
+      "additionalProperties": false,
+      "description": "Good / red / bad triple as fractions (IOI caps, 02 §4.2)."
+    },
+    "GoodRedBadMs": {
+      "type": "object",
+      "properties": {
+        "goodMs": {
+          "type": "number"
+        },
+        "redMs": {
+          "type": "number"
+        },
+        "badMs": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "goodMs",
+        "redMs",
+        "badMs"
+      ],
+      "additionalProperties": false,
+      "description": "Good / red / bad triple in milliseconds."
+    },
+    "GradeRow": {
+      "type": "object",
+      "properties": {
+        "grade": {
+          "$ref": "#/definitions/LetterGrade"
+        },
+        "minScore": {
+          "type": "number",
+          "description": "Lowest score (0..100) that earns this grade."
+        },
+        "stars": {
+          "type": "number",
+          "enum": [
+            0,
+            1,
+            2,
+            3
+          ]
+        },
+        "shine": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "grade",
+        "minScore",
+        "stars",
+        "shine"
+      ],
+      "additionalProperties": false,
+      "description": "One row of the grade table (02 §4.7)."
+    },
+    "GradingConfig": {
+      "type": "object",
+      "properties": {
+        "$schema": {
+          "type": "string",
+          "description": "Optional pointer to the schema for editors."
+        },
+        "configVersion": {
+          "type": "string",
+          "description": "Stored on every graded attempt, for example \"grading-2.0.0\" (02 conventions)."
+        },
+        "timing": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "levelBands": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/TimingLevelBand"
+              }
+            },
+            "ioiCap": {
+              "$ref": "#/definitions/GoodRedBadFrac",
+              "description": "IOI caps as fractions of the note's smaller neighbouring IOI: good 0.3, red 0.4, bad 0.5."
+            },
+            "onsetClassFloors": {
+              "type": "object",
+              "properties": {
+                "hard": {
+                  "$ref": "#/definitions/GoodRedBadMs"
+                },
+                "soft": {
+                  "$ref": "#/definitions/GoodRedBadMs"
+                }
+              },
+              "required": [
+                "hard",
+                "soft"
+              ],
+              "additionalProperties": false,
+              "description": "Family floors by onset class: hard 40/60/90 ms, soft 55/85/120 ms (R23). The floor always wins."
+            },
+            "_source": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "_source",
+            "ioiCap",
+            "levelBands",
+            "onsetClassFloors"
+          ],
+          "description": "Timing tolerances (02 §4.2; floors R23)."
+        },
+        "matchWindow": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "minMs": {
+              "type": "number",
+              "description": "Milliseconds (250)."
+            },
+            "minBeats": {
+              "type": "number",
+              "description": "Beats (0.5)."
+            },
+            "ioiFrac": {
+              "type": "number",
+              "description": "Fraction of the smaller neighbouring IOI (0.5)."
+            },
+            "_source": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "_source",
+            "ioiFrac",
+            "minBeats",
+            "minMs"
+          ],
+          "description": "`W_i = max(tBad_i, min(max(minMs, minBeats × beat), ioiFrac × min(IOI_prev, IOI_next)))` (02 §4.1)."
+        },
+        "intonation": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "bands": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/IntonationBand"
+              }
+            },
+            "minSteadyMs": {
+              "type": "object",
+              "properties": {
+                "none": {
+                  "type": "number"
+                },
+                "vibrato": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "none",
+                "vibrato"
+              ],
+              "additionalProperties": false,
+              "description": "Minimum steady pitch for an intonation grade, ms: none 150, vibrato 180 (R18, 01 §8.4)."
+            },
+            "vibratoWiden": {
+              "type": "object",
+              "properties": {
+                "belowSteadyMs": {
+                  "type": "number"
+                },
+                "minGoodCents": {
+                  "type": "number"
+                },
+                "minRedCents": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "belowSteadyMs",
+                "minGoodCents",
+                "minRedCents"
+              ],
+              "additionalProperties": false,
+              "description": "Vibrato families with steady pitch below `belowSteadyMs` (360 ms) widen to at least these bands (02 §4.2)."
+            },
+            "wrongPitchAboveCents": {
+              "type": "number",
+              "description": "|dev| above this many cents (50) means a different semitone: wrong pitch (02 §4.2)."
+            },
+            "attackExcludeMsByFamily": {
+              "type": "object",
+              "properties": {
+                "voice": {
+                  "type": "number"
+                },
+                "flute": {
+                  "type": "number"
+                },
+                "double-reed": {
+                  "type": "number"
+                },
+                "clarinet": {
+                  "type": "number"
+                },
+                "sax": {
+                  "type": "number"
+                },
+                "high-brass": {
+                  "type": "number"
+                },
+                "low-brass": {
+                  "type": "number"
+                },
+                "upper-strings": {
+                  "type": "number"
+                },
+                "low-strings": {
+                  "type": "number"
+                },
+                "keyboard": {
+                  "type": "number"
+                },
+                "guitar": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "voice",
+                "flute",
+                "double-reed",
+                "clarinet",
+                "sax",
+                "high-brass",
+                "low-brass",
+                "upper-strings",
+                "low-strings",
+                "keyboard",
+                "guitar"
+              ],
+              "additionalProperties": false,
+              "description": "Attack portion excluded from the steady median, ms, per family (01 §7.5, §8.3)."
+            },
+            "_source": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "_source",
+            "attackExcludeMsByFamily",
+            "bands",
+            "minSteadyMs",
+            "vibratoWiden",
+            "wrongPitchAboveCents"
+          ],
+          "description": "Intonation (02 §4.2; R18)."
+        },
+        "live": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "provisionalMs": {
+              "type": "number",
+              "description": "Steady pitch after the attack before a live sharp/flat, ms (80; raise to 150 if the synthetic gate fails, R19)."
+            },
+            "hysteresisCents": {
+              "type": "number",
+              "description": "Added to `redCents` for a live sharp/flat, cents (10)."
+            },
+            "wrongAtConfirmMinCents": {
+              "type": "number",
+              "description": "Wrong pitch at confirmation needs the confirming frames at least this far from the target, cents (80) (01 §9.3)."
+            },
+            "_source": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "_source",
+            "hysteresisCents",
+            "provisionalMs",
+            "wrongAtConfirmMinCents"
+          ],
+          "description": "Live provisional verdicts (02 §4.8; R19)."
+        },
+        "credit": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "duration": {
+              "type": "object",
+              "properties": {
+                "minBeats": {
+                  "type": "number",
+                  "description": "Only notes of at least this many beats are duration-graded (1)."
+                },
+                "fullHeldRatio": {
+                  "type": "number",
+                  "description": "h ≥ this earns d = 1 (0.70)."
+                },
+                "zeroHeldRatio": {
+                  "type": "number",
+                  "description": "h ≤ this earns d = 0, linear between (0.35)."
+                },
+                "beforeRestFullRatio": {
+                  "type": "number",
+                  "description": "Notes before a rest count as fully held from this ratio (0.55)."
+                }
+              },
+              "required": [
+                "minBeats",
+                "fullHeldRatio",
+                "zeroHeldRatio",
+                "beforeRestFullRatio"
+              ],
+              "additionalProperties": false
+            },
+            "extrasWeight": {
+              "type": "number",
+              "description": "Extras enter P's denominator with this weight (0.5): P = 100 × Σp / (N + w × extras)."
+            },
+            "extraMinDurMs": {
+              "type": "number",
+              "description": "Unmatched played events shorter than this are ignored, ms (100) (02 §4.1)."
+            },
+            "restIntrusionMs": {
+              "type": "number",
+              "description": "A detected note sounding more than this far inside a written rest is an extra, ms (100) (01 §9.3)."
+            },
+            "_source": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "_source",
+            "duration",
+            "extraMinDurMs",
+            "extrasWeight",
+            "restIntrusionMs"
+          ],
+          "description": "Per-note credits (02 §4.3)."
+        },
+        "components": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "weights": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/ComponentWeightRow"
+              }
+            },
+            "intonationMinNotes": {
+              "type": "number",
+              "description": "Fewer intonation-graded notes than this: I is not judged and its weight moves to P (3)."
+            },
+            "rhythm": {
+              "type": "object",
+              "properties": {
+                "onsetWeight": {
+                  "type": "number"
+                },
+                "durationWeight": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "onsetWeight",
+                "durationWeight"
+              ],
+              "additionalProperties": false,
+              "description": "R = 100 × (onsetWeight × mean o + durationWeight × mean d) (0.8 / 0.2)."
+            },
+            "lowFundamentalHz": {
+              "type": "number",
+              "description": "Beta instruments with a lowest served fundamental under this, Hz (80), use I = 0."
+            },
+            "_source": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "_source",
+            "intonationMinNotes",
+            "lowFundamentalHz",
+            "rhythm",
+            "weights"
+          ],
+          "description": "Components and weights (02 §4.4)."
+        },
+        "grades": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "scale": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/GradeRow"
+              }
+            },
+            "passGrade": {
+              "$ref": "#/definitions/LetterGrade"
+            },
+            "_source": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "_source",
+            "passGrade",
+            "scale"
+          ],
+          "description": "Grade table (02 §4.7)."
+        },
+        "gates": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "incompleteBelowMatchedFrac": {
+              "type": "number",
+              "description": "Matched (excluding displaced) / N below this is incomplete (0.5)."
+            },
+            "incompleteScoreCap": {
+              "type": "number",
+              "description": "Incomplete score cap (50)."
+            },
+            "voidNoSignalSec": {
+              "type": "number",
+              "description": "No voiced frames for this many seconds after bar 1 voids the take (5) (01 §7.9)."
+            },
+            "clippingBannerFrac": {
+              "type": "number",
+              "description": "Clipping above this fraction of frames shows a results banner, never a void (0.2) (01 §7.9)."
+            },
+            "_source": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "_source",
+            "clippingBannerFrac",
+            "incompleteBelowMatchedFrac",
+            "incompleteScoreCap",
+            "voidNoSignalSec"
+          ],
+          "description": "Gates (02 §4.7)."
+        },
+        "stops": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "minBeats": {
+              "type": "number",
+              "description": "A stop is a silence of at least max(minBeats beats, minMs) not covered by rests (1 beat, 600 ms)."
+            },
+            "minMs": {
+              "type": "number"
+            },
+            "comeInAfterBars": {
+              "type": "number",
+              "description": "Show \"come in at bar N\" after this many bars of uncovered silence (1)."
+            },
+            "comeInMinLeadBeats": {
+              "type": "number",
+              "description": "The suggested downbeat is at least this many beats ahead (1)."
+            },
+            "_source": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "_source",
+            "comeInAfterBars",
+            "comeInMinLeadBeats",
+            "minBeats",
+            "minMs"
+          ],
+          "description": "Stops and the come-in hint (02 §4.6, 01 §9.3)."
+        },
+        "displacement": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "excludeFromExtras": {
+              "type": "boolean",
+              "description": "Displaced notes are excluded from P's extras term (true)."
+            },
+            "countsAsRestart": {
+              "type": "boolean",
+              "description": "Each displaced segment counts once in `diagnostics.restarts` and fires E6 (true)."
+            },
+            "_source": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "_source",
+            "countsAsRestart",
+            "excludeFromExtras"
+          ],
+          "description": "Credit for displaced (replayed or skipped-ahead) segments (01 §9.6, 02 §4.6)."
+        },
+        "ranked": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "minTempoFracOfLevelMin": {
+              "type": "number",
+              "description": "Tempo must be at least this fraction of the level's minimum tempo (0.9)."
+            },
+            "maxRtlMs": {
+              "type": "number",
+              "description": "Ranked RTL ceiling, ms (120; R17)."
+            },
+            "loopbackMaxMadMs": {
+              "type": "number",
+              "description": "Stored loopback spread (MAD) ceiling, ms (3)."
+            },
+            "playAlongMaxMadMs": {
+              "type": "number",
+              "description": "Stored play-along spread (MAD) ceiling, ms (15)."
+            },
+            "recheckAgreeMs": {
+              "type": "number",
+              "description": "Count-in recheck agreement, ms (10). A measured shift keeps the take ranked and uses the fresh value (R31)."
+            },
+            "familiarityBelow": {
+              "type": "number",
+              "description": "Familiarity below this value is rankable (2)."
+            },
+            "_source": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "_source",
+            "familiarityBelow",
+            "loopbackMaxMadMs",
+            "maxRtlMs",
+            "minTempoFracOfLevelMin",
+            "playAlongMaxMadMs",
+            "recheckAgreeMs"
+          ],
+          "description": "Ranked rules (02 §5.2, 05 §4; R16, R17, R31)."
+        },
+        "voice": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "driftWindowNotes": {
+              "type": "number",
+              "description": "Offset = median dev of the last N correctly pitched notes (4)."
+            },
+            "maxOffsetCents": {
+              "type": "number",
+              "description": "Offset limited to ±this many cents from 0 (50)."
+            },
+            "maxStepCents": {
+              "type": "number",
+              "description": "Offset changes by at most this many cents per note (15)."
+            },
+            "_source": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "_source",
+            "driftWindowNotes",
+            "maxOffsetCents",
+            "maxStepCents"
+          ],
+          "description": "Voice drift reference (02 §4.5)."
+        },
+        "tuning": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "captureSec": {
+              "type": "number",
+              "description": "Capture length, seconds (3)."
+            },
+            "maxOffsetCents": {
+              "type": "number",
+              "description": "Offset cap, cents (25)."
+            },
+            "_source": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "_source",
+            "captureSec",
+            "maxOffsetCents"
+          ],
+          "description": "Optional tuning note for winds, brass, strings (02 §4.5)."
+        },
+        "endOfTake": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "afterLastNoteEndBeats": {
+              "type": "number",
+              "description": "Beats after the last note's written end (1)."
+            },
+            "_source": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "_source",
+            "afterLastNoteEndBeats"
+          ],
+          "description": "End of take (R14): one beat after the last expected note's written end."
+        }
+      },
+      "required": [
+        "configVersion",
+        "timing",
+        "matchWindow",
+        "intonation",
+        "live",
+        "credit",
+        "components",
+        "grades",
+        "gates",
+        "stops",
+        "displacement",
+        "ranked",
+        "voice",
+        "tuning",
+        "endOfTake"
+      ],
+      "additionalProperties": false,
+      "description": "`config/grading-config.json` (02 §4, §10; R14 to R23 applied)."
+    },
+    "IntonationBand": {
+      "type": "object",
+      "properties": {
+        "group": {
+          "type": "string",
+          "enum": [
+            "voice",
+            "continuous",
+            "fixed"
+          ],
+          "description": "`voice` (relative pitch), `continuous` (winds, brass, strings), `fixed` (keyboard, guitar)."
+        },
+        "levels": {
+          "$ref": "#/definitions/LevelRange"
+        },
+        "goodCents": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "redCents": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "group",
+        "levels",
+        "goodCents",
+        "redCents"
+      ],
+      "additionalProperties": false,
+      "description": "Intonation band; null cents = intonation not graded (keyboard, guitar) (02 §4.2)."
+    },
+    "LetterGrade": {
+      "type": "string",
+      "enum": [
+        "S",
+        "A",
+        "B",
+        "C",
+        "D",
+        "F"
+      ]
+    },
+    "LevelRange": {
+      "type": "array",
+      "items": {
+        "type": "number"
+      },
+      "minItems": 2,
+      "maxItems": 2,
+      "description": "Inclusive level range, for example [1, 3] for L1–L3."
+    },
+    "TimingLevelBand": {
+      "type": "object",
+      "properties": {
+        "levels": {
+          "$ref": "#/definitions/LevelRange"
+        },
+        "good": {
+          "$ref": "#/definitions/TimingTerm"
+        },
+        "red": {
+          "$ref": "#/definitions/TimingTerm"
+        },
+        "bad": {
+          "$ref": "#/definitions/TimingTerm"
+        }
+      },
+      "required": [
+        "levels",
+        "good",
+        "red",
+        "bad"
+      ],
+      "additionalProperties": false
+    },
+    "TimingTerm": {
+      "type": "object",
+      "properties": {
+        "absMs": {
+          "type": "number",
+          "description": "Milliseconds."
+        },
+        "fracBeat": {
+          "type": "number",
+          "description": "Fraction of a metronome beat."
+        }
+      },
+      "required": [
+        "absMs",
+        "fracBeat"
+      ],
+      "additionalProperties": false,
+      "description": "One timing threshold: `max(absMs, fracBeat × beatMs)` before the IOI cap and the floor (02 §4.2)."
+    }
+  }
+}
