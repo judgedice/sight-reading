@@ -518,11 +518,11 @@
   transition: transform var(--dur-fast) var(--ease-out);
 }
 
-.ui-toggle-input:checked + .ui-toggle-track {
+.ui-toggle > .ui-form-hidden:checked + .ui-toggle-track {
   background: var(--accent);
 }
 
-.ui-toggle-input:checked + .ui-toggle-track > .ui-toggle-thumb {
+.ui-toggle > .ui-form-hidden:checked + .ui-toggle-track > .ui-toggle-thumb {
   transform: translateX(calc(var(--toggle-track-width) - var(--toggle-track-height)));
 }
 

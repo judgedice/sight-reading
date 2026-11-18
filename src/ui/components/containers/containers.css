@@ -1,0 +1,99 @@
+/*
+ * Container components (04 section 7.5). Tokens only: no raw colours and no px (stylelint).
+ * Media queries use the lg breakpoint minimum from design/tokens.json (1024 px, written as 64rem).
+ */
+
+/* ---- Card ---------------------------------------------------------------------------- */
+
+.ui-card {
+  box-sizing: border-box;
+  padding: var(--card-x-padding);
+  border: 0.0625rem solid var(--border);
+  border-radius: var(--radius-l);
+  background: var(--surface);
+  color: var(--text);
+}
+
+@media (min-width: 64rem) {
+  .ui-card {
+    padding: var(--card-x-padding-lg);
+  }
+}
+
+/* ---- Banner -------------------------------------------------------------------------- */
+
+.ui-banner {
+  --banner-accent: var(--accent);
+  --banner-tone-icon: var(--accent);
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--banner-min-height);
+  padding: var(--banner-y-padding) var(--banner-x-padding);
+  border: 0.0625rem solid var(--border);
+  border-inline-start-width: 0.25rem;
+  border-inline-start-color: var(--banner-accent);
+  border-radius: var(--radius-m);
+  background: var(--surface);
+  color: var(--text);
+  font-size: var(--type-small-size);
+  line-height: var(--type-small-line);
+}
+
+.ui-banner-info {
+  --banner-accent: var(--accent);
+  --banner-tone-icon: var(--accent);
+}
+
+.ui-banner-caution {
+  --banner-accent: var(--caution);
+  --banner-tone-icon: var(--caution);
+}
+
+.ui-banner-danger {
+  --banner-accent: var(--danger);
+  --banner-tone-icon: var(--danger);
+}
+
+.ui-banner-icon {
+  flex: none;
+  width: var(--banner-icon-size);
+  height: var(--banner-icon-size);
+  color: var(--banner-tone-icon);
+}
+
+.ui-banner-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+}
+
+.ui-banner-dismiss {
+  box-sizing: border-box;
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  min-width: var(--target-min);
+  min-height: var(--target-min);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-m);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.ui-banner-dismiss:hover {
+  background: var(--surface-2-hover);
+}
+
+.ui-banner-dismiss:active {
+  background: var(--surface-2-pressed);
+}
+
+.ui-banner-dismiss:focus-visible {
+  outline: 0.125rem solid var(--focus-ring);
+  outline-offset: 0.125rem;
+}
