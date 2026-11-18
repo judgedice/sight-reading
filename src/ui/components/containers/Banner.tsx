@@ -50,7 +50,7 @@ export function Banner({ tone = 'info', text, action, dismissible = false, onDis
         <button
           type="button"
           className="ui-banner-dismiss"
-          aria-label={copy('shortcuts.escSheet')}
+          aria-label={copy('banner.dismiss')}
           onClick={() => {
             setDismissed(true);
             onDismiss?.();

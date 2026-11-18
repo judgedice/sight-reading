@@ -732,7 +732,7 @@ UI tokens:
 | `--surface` | `#FFFFFF` | `#1A1D22` | Cards, panels |
 | `--surface-2` | `#EFEDE6` | `#22262C` | Inputs, segmented controls |
 | `--surface-2-hover` | `#DEDCD6` | `#32363B` | surface-2 mixed 8% toward `--text` |
-| `--surface-2-pressed` | `#D1D0CA` | `#3E4247` | mixed 14% |
+| `--surface-2-pressed` | `#D6D5CF` | `#3A3E43` | adjusted under PLAN ruling 38 so text and text-muted pass 4.5:1 |
 | `--border` | `#D6D3CA` | `#323840` | Decorative hairlines |
 | `--border-strong` | `#8E8A80` | `#6B727C` | Control boundaries, ≥ 3:1 |
 | `--text` | `#1B1D21` | `#E9EBEE` | Body, ≥ 4.5:1 (16.9 / 14.2) |

@@ -40,7 +40,7 @@ export function Modal({ open, title, onClose, closeButton, className, children }
             {title}
           </h2>
           {showClose ? (
-            <button type="button" className="ui-icon-button" aria-label={copy('shortcuts.escSheet')} onClick={onClose}>
+            <button type="button" className="ui-icon-button" aria-label={copy('common.close')} onClick={onClose}>
               <Glyph id="x" />
             </button>
           ) : null}

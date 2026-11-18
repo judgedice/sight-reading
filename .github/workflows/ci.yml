@@ -59,6 +59,20 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm test:bare
 
+  # 03 section 6.1: corpus pipeline unit tests. Tests that need the pinned source clones skip when the
+  # cache is absent; the full fetch (`python -m corpus_build`) needs github.com and runs in its own job later.
+  corpus-pytest:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tools/corpus-build
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.13' }
+      - run: pip install -r requirements.txt
+      - run: python -m pytest -q
+
   # The scenario (synthetic suite) job is added by P18 once its suite exists.
 
   build:

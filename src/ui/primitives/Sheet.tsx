@@ -70,13 +70,13 @@ export function Sheet({
             <button
               type="button"
               className="ui-icon-button"
-              aria-label={copy('shortcuts.escSheet')}
+              aria-label={copy('common.close')}
               onClick={() => onExpandedChange(false)}
             >
               <Glyph id="chevron-down" />
             </button>
           ) : onClose ? (
-            <button type="button" className="ui-icon-button" aria-label={copy('shortcuts.escSheet')} onClick={onClose}>
+            <button type="button" className="ui-icon-button" aria-label={copy('common.close')} onClick={onClose}>
               <Glyph id="x" />
             </button>
           ) : null}

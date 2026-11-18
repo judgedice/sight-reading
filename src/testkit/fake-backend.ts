@@ -7,7 +7,8 @@
  * `i` is heard at clock time `sourceStartClock + i / sampleRate` (default: the clock time of `startCapture`).
  * Capture blocks follow the real worklet shape (01 section 7.2): every 2 render quanta (256 input frames),
  * 3 kHz 8th-order low-pass, decimation by `round(rate / 16000)` with phase carried across blocks, and `hiEnergy`
- * as energy per 1 ms sub-block of a 5 kHz 4th-order high-pass. Blocks are contiguous: `startT[n+1] = startT[n] +
+ * as energy per 1 ms sub-block of a 5 kHz 4th-order high-pass, using the production primitives in src/dsp/
+ * (PhaseDecimator, HiBandEnergy). Blocks are contiguous: `startT[n+1] = startT[n] +
  * lowband[n].length / analysisRate` exactly, and `seq` counts up by one (except for scripted drops).
  */
 import type {
@@ -22,6 +23,8 @@ import type {
   TakeSchedule,
   WorkerMessage,
 } from '../core/platform.ts';
+import { PhaseDecimator } from '../dsp/decimator.ts';
+import { HiBandEnergy } from '../dsp/hiband.ts';
 import { clickBurst } from './synth-min.ts';
 import { decodeWav, toMono, type WavData } from './wav.ts';
 
@@ -56,27 +59,6 @@ export interface FakeBackendOptions {
 
 const QUANTUM = 128;
 const FRAMES_PER_BLOCK = 2 * QUANTUM;
-
-interface Biquad { b0: number; b1: number; b2: number; a1: number; a2: number; z1: number; z2: number }
-
-function rbj(kind: 'lp' | 'hp', fc: number, q: number, fs: number): Biquad {
-  const w0 = (2 * Math.PI * fc) / fs;
-  const cos = Math.cos(w0);
-  const alpha = Math.sin(w0) / (2 * q);
-  const a0 = 1 + alpha;
-  const b = kind === 'lp' ? [(1 - cos) / 2, 1 - cos, (1 - cos) / 2] : [(1 + cos) / 2, -(1 + cos), (1 + cos) / 2];
-  return { b0: (b[0] as number) / a0, b1: (b[1] as number) / a0, b2: (b[2] as number) / a0, a1: (-2 * cos) / a0, a2: (1 - alpha) / a0, z1: 0, z2: 0 };
-}
-
-function run(f: Biquad, x: number): number {
-  const y = f.b0 * x + f.z1;
-  f.z1 = f.b1 * x - f.a1 * y + f.z2;
-  f.z2 = f.b2 * x - f.a2 * y;
-  return y;
-}
-
-const LP_Q = [0.5098, 0.6013, 0.9, 2.5629]; // 8th-order Butterworth
-const HP_Q = [0.5412, 1.3066]; // 4th-order Butterworth
 
 const clock = (s: number): ClockSeconds => s as ClockSeconds;
 
@@ -119,11 +101,12 @@ export class FakeAudioBackend implements AudioBackend {
   private sourceOrigin = 0;
   private inFrame = 0; // next input frame index (from capture start)
   private seq = 0;
-  private lp: Biquad[] = [];
-  private hp: Biquad[] = [];
-  private subAcc = 0;
-  private nextSubEdge = 0; // input frame index where the current 1 ms sub-block ends
-  private subIndex = 0; // 1 ms sub-blocks emitted since capture start
+  // The real worklet primitives (01 section 7.2, P4a): same filters, phase carry and sub-block edges as production.
+  private readonly decimator: PhaseDecimator;
+  private readonly hiBand: HiBandEnergy;
+  private readonly inBuf = new Float32Array(FRAMES_PER_BLOCK);
+  private readonly lowBuf: Float32Array;
+  private readonly hiBuf: Float32Array;
 
   constructor(opts: FakeBackendOptions = {}) {
     this.opts = opts;
@@ -142,8 +125,12 @@ export class FakeAudioBackend implements AudioBackend {
       throw new RangeError(`FakeAudioBackend: source is ${rate} Hz but sampleRate option is ${opts.sampleRate}`);
     }
     this.sampleRate = rate;
-    this.decim = Math.max(1, Math.round(rate / 16000));
-    this.analysisRate = rate / this.decim;
+    this.decimator = new PhaseDecimator(rate);
+    this.hiBand = new HiBandEnergy(rate);
+    this.decim = this.decimator.factor;
+    this.analysisRate = this.decimator.analysisRate;
+    this.lowBuf = new Float32Array(Math.ceil(FRAMES_PER_BLOCK / this.decim) + 1);
+    this.hiBuf = new Float32Array(this.hiBand.maxSubBlocks(FRAMES_PER_BLOCK));
     this.clockSec = opts.startClockSec ?? 10;
     this.captureRelay = opts.captureRelay ?? false;
     this.dropSeqs = new Set(opts.dropSeqs ?? []);
@@ -265,11 +252,8 @@ export class FakeAudioBackend implements AudioBackend {
     this.sourceOrigin = this.opts.sourceStartClock ?? this.clockSec;
     this.inFrame = 0;
     this.seq = 0;
-    this.lp = LP_Q.map((q) => rbj('lp', 3000, q, this.sampleRate));
-    this.hp = HP_Q.map((q) => rbj('hp', 5000, q, this.sampleRate));
-    this.subAcc = 0;
-    this.subIndex = 0;
-    this.nextSubEdge = Math.ceil(this.sampleRate / 1000);
+    this.decimator.reset();
+    this.hiBand.reset();
     this.clickBuffers = [];
     this.mixClicks();
   }
@@ -354,28 +338,13 @@ export class FakeAudioBackend implements AudioBackend {
   }
 
   private emitBlock(): void {
-    const D = this.decim;
-    const low: number[] = [];
-    const hi: number[] = [];
-    // The first decimated sample of this block is the first input frame with (frame % D === 0) in absolute terms.
-    const startOut = Math.ceil(this.inFrame / D);
-    const startT = this.captureOrigin + (startOut * D) / this.sampleRate;
-    for (let k = 0; k < FRAMES_PER_BLOCK; k++) {
-      const frame = this.inFrame + k;
-      const x = this.inputSample(frame);
-      let l = x;
-      for (const f of this.lp) l = run(f, l);
-      let h = x;
-      for (const f of this.hp) h = run(f, h);
-      if (frame % D === 0) low.push(l);
-      this.subAcc += h * h;
-      if (frame + 1 >= this.nextSubEdge) {
-        hi.push(this.subAcc);
-        this.subAcc = 0;
-        this.subIndex++;
-        this.nextSubEdge = Math.ceil(((this.subIndex + 1) * this.sampleRate) / 1000);
-      }
-    }
+    for (let k = 0; k < FRAMES_PER_BLOCK; k++) this.inBuf[k] = this.inputSample(this.inFrame + k);
+    // startT is the input position of the block's first decimated sample (an exact integer frame index).
+    const startT = this.captureOrigin + this.decimator.nextOutputInputPos / this.sampleRate;
+    const nLow = this.decimator.process(this.inBuf, this.lowBuf, 0);
+    const nHi = this.hiBand.process(this.inBuf, this.hiBuf, 0);
+    const low = this.lowBuf.subarray(0, nLow);
+    const hi = this.hiBuf.subarray(0, nHi);
     this.inFrame += FRAMES_PER_BLOCK;
     const block: CaptureBlock = {
       v: 1, startT: clock(startT), lowband: Float32Array.from(low), hiEnergy: Float32Array.from(hi),

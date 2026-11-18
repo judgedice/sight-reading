@@ -1,3 +1,4 @@
+import { copy } from '../../copy/copy.ts';
 import './form.css';
 
 export interface StepperProps {
@@ -9,9 +10,9 @@ export interface StepperProps {
   onChange: (value: number) => void;
   /** Accessible name of the group (the setup row's label). */
   ariaLabel: string;
-  /** Accessible names of the two buttons. Pass copy strings; the component carries none. */
-  decrementLabel: string;
-  incrementLabel: string;
+  /** Accessible names of the two buttons. Default: copy 'stepper.decrease' / 'stepper.increase' with `ariaLabel`. */
+  decrementLabel?: string;
+  incrementLabel?: string;
   /** Text shown for the value. Defaults to the number itself. */
   formatValue?: (value: number) => string;
   disabled?: boolean;
@@ -25,8 +26,8 @@ export function Stepper({
   disabledValues = [],
   onChange,
   ariaLabel,
-  decrementLabel,
-  incrementLabel,
+  decrementLabel = copy('stepper.decrease', { label: ariaLabel }),
+  incrementLabel = copy('stepper.increase', { label: ariaLabel }),
   formatValue = (n: number) => String(n),
   disabled = false,
 }: StepperProps) {

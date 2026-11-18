@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { AudioRouteInfo, CaptureBlock, WorkerMessage } from '../core/platform.ts';
+import { PhaseDecimator } from '../dsp/decimator.ts';
+import { HiBandEnergy } from '../dsp/hiband.ts';
 import { FakeAudioBackend } from './fake-backend.ts';
 import { renderMin } from './synth-min.ts';
 import { encodeWav } from './wav.ts';
@@ -44,6 +46,26 @@ describe('FakeAudioBackend capture', () => {
       const mid = Float32Array.from(blocks.slice(20).flatMap((b) => Array.from(b.lowband)));
       expect(rmsOf(mid)).toBeGreaterThan(0.5 * 0.707 * 0.95);
       expect(rmsOf(mid)).toBeLessThan(0.5 * 0.707 * 1.05);
+    });
+  }
+
+  for (const sr of [48000, 44100, 24000, 16000]) {
+    it(`blocks equal the src/dsp capture primitives run directly (${sr} Hz)`, async () => {
+      const src = tone(2637, sr, 0.5, 0.3).map((v, i) => v + 0.2 * Math.sin((2 * Math.PI * 7000 * i) / sr));
+      const be = new FakeAudioBackend({ source: src, sampleRate: sr });
+      const { blocks, sink } = collect();
+      await be.startCapture(sink);
+      await be.run({ tailSec: 0 });
+      const dec = new PhaseDecimator(sr);
+      const hb = new HiBandEnergy(sr);
+      const lowRef = new Float32Array(src.length);
+      const hiRef = new Float32Array(hb.maxSubBlocks(src.length));
+      const nIn = blocks.length * 256;
+      const nLow = dec.process(src.subarray(0, nIn), lowRef, 0);
+      const nHi = hb.process(src.subarray(0, nIn), hiRef, 0);
+      expect(Array.from(blocks.flatMap((b) => Array.from(b.lowband)))).toEqual(Array.from(lowRef.subarray(0, nLow)));
+      expect(Array.from(blocks.flatMap((b) => Array.from(b.hiEnergy)))).toEqual(Array.from(hiRef.subarray(0, nHi)));
+      expect(be.analysisRate).toBe(dec.analysisRate);
     });
   }
 

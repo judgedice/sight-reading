@@ -48,7 +48,7 @@ describe('Banner', () => {
     const onDismiss = vi.fn();
     current = mount(<Banner text="Closable" dismissible onDismiss={onDismiss} />);
     const close = q('.ui-banner-dismiss');
-    expect(close.getAttribute('aria-label')).toBe(copy('shortcuts.escSheet'));
+    expect(close.getAttribute('aria-label')).toBe(copy('banner.dismiss'));
     click(close);
     expect(onDismiss).toHaveBeenCalledTimes(1);
     expect(document.querySelector('.ui-banner')).toBeNull();

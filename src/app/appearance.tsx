@@ -21,8 +21,8 @@ export type ResolvedTheme = 'light' | 'dark';
  * - data-theme: only for an explicit light or dark; absent means "follow the system".
  * - data-paper: the resolved theme (dark theme always uses dark paper in v1).
  * - data-contrast="high" when high contrast is on.
- * - data-motion="reduced" for Reduce motion On (zeroes every --dur-* token); "full" for Off, which a
- *   future tokens rule may use to override the system preference; absent for System.
+ * - data-motion="reduced" for Reduce motion On (zeroes every --dur-* token); "full" for Off, which
+ *   tokens.css uses to restore the durations under a system reduced-motion preference; absent for System.
  */
 export function applyAppearance(root: HTMLElement, settings: AppearanceSettings, systemDark: boolean): ResolvedTheme {
   const resolved: ResolvedTheme = settings.theme === 'system' ? (systemDark ? 'dark' : 'light') : settings.theme;

@@ -114,6 +114,15 @@ describe('transcribed values (04 section 7)', () => {
     expect(motion.ease['in-out']).toBe('cubic-bezier(0.4, 0, 0.2, 1)');
   });
 
+  it('Reduce motion Off (data-motion="full") restores durations under a system reduced-motion preference', () => {
+    const at = css.indexOf('@media (prefers-reduced-motion: reduce)');
+    expect(at).toBeGreaterThanOrEqual(0);
+    const block = css.slice(at, css.indexOf('\n}\n', at));
+    expect(block).toContain(':root[data-motion="full"]');
+    expect(block).toContain('--dur-base: 200ms;');
+    expect(css).toMatch(/:root\[data-motion="reduced"\] \{[^}]*--dur-base: 0ms;/);
+  });
+
   it('component sizes from 7.5 are emitted with their pointer variants', () => {
     expect(css).toContain('  --button-hero-height: 56px;');
     expect(css).toContain('  --random-chip-height: 32px;');

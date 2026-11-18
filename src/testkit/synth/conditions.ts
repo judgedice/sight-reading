@@ -20,7 +20,7 @@ import { createRng } from '../../core/rng.ts';
 import type { Rng, TestkitTimbre } from '../../core/types.ts';
 import { clickBurst, type SynthClickTimbre } from '../synth-min.ts';
 import { applyCascade, biquad, butterworth, convolve, dbToGain, decimate, gauss } from './dsp-util.ts';
-import type { SynthRender, SynthTruthNote } from './render.ts';
+import type { SynthRender, PerformanceTruthNote } from './render.ts';
 import { TIMBRES, type VibratoSpec } from './timbres.ts';
 
 export interface ClickBleedCondition {
@@ -70,7 +70,7 @@ export interface CaptureRender {
   samples: Float32Array;
   sampleRate: number;
   /** Dry ground truth (render seconds). */
-  truth: SynthTruthNote[];
+  truth: PerformanceTruthNote[];
   /** Rendered click arrivals (render seconds); empty without click bleed. */
   clickTimes: number[];
   conditions: CaptureConditions;

@@ -449,5 +449,10 @@
   "shortcuts.c": "My take / Clean score",
   "shortcuts.question": "Shortcut list",
   "dialog.skip.title": "Skip this one? It counts as seen.",
-  "dialog.skip.practiceNotice": "Your next excerpt will be practice: one skip per {n} ranked takes."
+  "dialog.skip.practiceNotice": "Your next excerpt will be practice: one skip per {n} ranked takes.",
+  "common.close": "Close",
+  "banner.dismiss": "Dismiss",
+  "stepper.decrease": "Decrease {label}",
+  "stepper.increase": "Increase {label}",
+  "stars.label": "{n, plural, one {# star} other {# stars}}"
 }

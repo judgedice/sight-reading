@@ -261,3 +261,247 @@ risksForWave1:
 - The fixture corpus is thin at the bottom (L1 has 1 excerpt, L2 has 2) and empty at L9 and L10. P9b selection tests at those levels will need synthetic manifests rather than the fixture corpus.
 - Any change to src/core/types.ts requires running pnpm schemas, or the drift test fails. Any change to design/tokens.json requires running pnpm tokens. Generated fixtures also fail their tests if they drift from the generators: re-run pnpm tsx fixtures/follow/gen/main.ts after a config change, and the python3 -I tools/fixtures pipeline after a corpus change.
 - The FakeAudioBackend's filters differ from the future dsp/filters.ts, so absolute phase and gain checks written against the fake may need retuning once P4a lands.
+
+## From wave 1
+
+### P1 theory
+
+- Import from src/theory/index.ts (the barrel re-exports theory.ts). Extra exports beyond TheoryApi: tryTransposePitch, tonicOf, keyFromTonic, isValidKey, enharmonicKey.
+- Concert to written uses instrument.writtenMinusSounding directly; written to concert negates both fields.
+- intervalBetweenKeys needs a chromaticShift congruent mod 12 to the tonic distance and does not check it. It picks the octave extension by the natural-letter distance, so C to Cb with +11 gives diatonic 7.
+- A pitch spelled with alter outside -2..2 is not representable; transposePitch throws RangeError on it and on any result that needs a triple accidental. tryTransposePitch returns null instead (03 §7.5 rejection check).
+
+Known gaps:
+
+- transposeKey returns fifths outside -7..7 unclamped. P2, P7 and P9b must treat that as "needs enharmonic respelling" (03 §7.5 rule 3): check isValidKey, then call enharmonicKey.
+- spellGhost follows 02 §4.8 literally. Within ±2 semitones it keeps the target letter and can return a double accidental (target F#, played G gives F##). Beyond 2 semitones it uses a pitch-class table (sharps when fifths >= 0, flats otherwise), not the key's scale letters, so in F# major a played F natural comes out F, not E#.
+- ear-to-staff noteName, vexKey and detectKey were not ported.
+
+### P2 rules
+
+- Import from src/rules/index.ts. Per take: resolveTolerances once. Per note: classifyPitch(target, playedMidi, offset, inst, cfg) gives p, octaveDisplaced, devCents (after offset) and rawDevCents; timingVerdict, onsetCredit, intonationVerdict and intonationCredit do the judgments; noteVerdict(facts | 'pending' | 'missed', tol) gives the 02 §4.8 state, combined flags, red and ghost kind. Live: liveIntonationStep(prev, dev, steadyMs, liveIntonationEligible(note, tol), tol) on each note-update, through liveIntonationAsVerdict into noteVerdict; wrongPitchAtConfirm at confirmation.
+- Voice: one VoiceDriftReference per take. For each finished note call classifyPitch with ref.offsetCents(), then ref.observe(c.rawDevCents, c.p === 1). The final pass replays the same sequence so live and final offsets agree.
+- Winds, brass and strings: tuningOffsetCents(measured | null, cfg) applies the ±25 c cap.
+- src/rules/no-tolerance-constants.test.ts scans every non-test .ts file in src/follow/ and src/grade/ and fails on any numeric literal equal to a grading-config tolerance value (40, 55, 85, 90, 120, 150, 180, 250, 0.3, 35, 45, 80 and so on). Unit numbers (0, 1, 2, 3, 4, 10, 12, 60, 100, 1000, 60000, 0.5) are allowed. A line that genuinely needs a listed number carries `// tolerance-literal-ok: <why>`. P10 and P12 should expect this guard.
+- Everything lives in src/rules/ (BUILD-NOTES P0b chose rules/resolveTolerances over 02's grade/resolve-tolerance.ts).
+
+Known gaps:
+
+- G1 and G9 are not defined in the current 02 text. P2 read them as the tolerance resolver (G1) and the voice drift reference (G9), following PLAN's merge note. Reviewer accepted that reading.
+- noteVerdict sets `marginal` only for the 02 §4.8 'correct-marginal' state (within tRed and red). The fixture reference judgeMatched sets it for any p=1 note beyond good, even late or sharp ones. Current fixtures only assert marginal on correct-marginal notes, so both pass; P10/P12 should use noteVerdict's reading.
+- A live sharp/flat clears at |dev| <= red; the +10 c hysteresis applies only on entry. Exactly ±50 c counts as the same semitone (the reference uses Math.round, so they can differ only at exactly +50 c).
+- index.ts exports helpers beyond the five RulesApi members. The reviewer ruled additive exports acceptable (theory/index.ts already does this).
+
+### P3 synth and scenarios
+
+- Synth API, from src/testkit/synth/index.ts (now also re-exported by src/testkit/index.ts): renderPerformance({timbre, notes:[{midi, cents, onsetSec, durSec, amp, slur, attackSec, dipDb, ref}], sampleRate, levelDb, vibrato, breathDb, attackNoise, seed}) returns {samples, sampleRate, truth[], envelope, floorDb, pitchAt}. Each truth entry (type PerformanceTruthNote, renamed by the reviewer from SynthTruthNote to avoid a clash with synth-min) has onsetSec (7.4 definition), targetOnsetSec, onsetRule ('silence' | 'dip' | 'pitch-change'), onsetCause, detectable, cents and freqHz. applyConditions(dry, {clickBleed, room, phoneMic, agc, captureRateHz, noiseDbfs, seed}) returns the capture render; truth is unchanged, in render seconds.
+- Scenario API, from src/testkit/scenarios/index.ts (Node-only because it reads fixture files; not re-exported from testkit/index.ts): createScenarioSet({seed?, count?=300}) gives .plan(i), .plans() and .render(i, overrides). A render returns {samples, sampleRate, t0Sec, clicks, bleedClickTimes, played, truth[] (playedIdx, truth: match/extra/displaced, onsetSec, scoreOnsetSec, midi, cents...)}. RenderOverrides lets P18 force conditions, e.g. {click:{timbre:'wood', bleedDb:-10}, capture:{phoneMic:{highPassHz:150}}}. Feed samples and sampleRate to FakeAudioBackend as source; audio time 0 is the source start, and score 0 is t0Sec.
+- planGoldenDisplacement(case, r) then renderScenario(plan) gives randomized renders of the four 13.2 displacement cases; plan.perturbation.displaced holds the expected segments.
+- Truth is defined on the dry signal: a detector measured under noise, room or AGC is judged against the ideal onset. Joined notes within 25 ms of the previous note become dips or glides; larger gaps become silence attacks. Piano notes are always strikes.
+- Render cost is about 0.44 s per scenario warm (about 2.2 min for all 300). Biquads flush subnormals; without that the IIR filters were 20x slower.
+
+Known gaps:
+
+- Glide (pitch-change) truth is checked only against the control pitch track; there is no audio-domain 1 ms check for glides. Silence and dip onsets are re-measured from the audio within 1 ms (mid register).
+- Low register (period > 4 ms) agrees with the audio only within half a period (measured up to 3.9 ms for tuba near C2, 3.25 ms for cello near B2). The truth itself (control signals) is within 1 ms there too.
+- The audio cents check runs without vibrato only (a short DTFT is biased up to ~12 c by vibrato sidebands).
+- Interpretations: truth envelope floored at levelDb - 60 dB; silence onsets evaluated with confirmT = attack start + 20 ms; capture band limits read as capture rates of 24000/16000 Hz; click bleed level is the click peak relative to a full-level sine peak.
+- Timbre parameters are plausible approximations, not measurements.
+- Scenarios provide truth labels and expected displaced segments but no judgment verdicts; P18 derives those from tolerances. Scenarios use the fixture generator (fixtures/follow/gen/) for expected notes; move them to P9c's buildExpectedNotes once it lands.
+
+### P4a capture primitives
+
+- Public API: decimatorCreate(rate) and PhaseDecimator (decimator.ts); HiBandEnergy(rate).process(input, out, off) returns the count of completed 1 ms sub-block energies (sum of squares; edge k ends at ceil((k+1)*rate/1000)); HiBandEnergy.maxSubBlocks(n) bounds the buffer (6 for 256 frames at 48 kHz). EnvelopeFollower(analysisRate).process(low, out, off, length?) returns dB values (RMS over non-overlapping 2 ms hops). filters.ts exports lowpassCoefficients/highpassCoefficients (cached per rate), BiquadCascade and magnitudeDb.
+- Decimated startT = nextOutputInputPos / inputRate, read before calling process. That position is an exact integer input index.
+- Envelope value i is centred at (i + 0.5) × hopSec after the first decimated sample. P4c should stamp EnvelopeSeries.startT shifted by half a hop, consistently with the onset-definition tests.
+- D = round(rate / 16000) is per 01 §7.2, so a 24 kHz capture runs at a 12 kHz analysis rate and 44.1 kHz at 14.7 kHz. That is intended (answer to P3's question).
+- Reviewer change: FakeAudioBackend now builds its blocks with PhaseDecimator and HiBandEnergy from src/dsp instead of its own rounded-Q biquads, so the fake and the production worklet share filters, phase carry and sub-block edges. A new test asserts the fake's blocks equal the primitives run directly, bit for bit, at 48, 44.1, 24 and 16 kHz. The wave 0 risk "the fake's filters differ from dsp/filters.ts" is closed.
+
+Known gaps:
+
+- Nothing assembles the primitives into the worklet or CaptureBlock posting yet (P11).
+- The zero-allocation test is heap-growth based (under 2 MB over 200k iterations), not a strict allocation counter.
+- The 6 kHz attenuation check has 0.5 dB slack (below -47.5 dB); the acceptance row only needs 35 dB at 5 kHz.
+
+### P4b pitch
+
+- PitchAnalyzer.push(samples, startT, n?) returns PitchEstimate[] with t, midi (null below the clarity threshold or silent), clarity, rmsDb (-120 for silence), rawMidi (before hysteresis) and startSample. Frames start once W samples are buffered, then every 128 samples; the first frame is stamped startT + W/2/rate.
+- clarity is the interpolated NSDF peak height (capped at 1). The peak is the first lobe maximum at or above 0.9 × the largest. The lobe search starts at lag 1 and accepts only peaks at or above minTau (the ported algorithm skipped a lobe starting below minTau and read octave-low near the top of each range).
+- Lags below 24 use three-point cosine interpolation; longer lags use parabolic.
+- PitchDetector treats DspConfig.minHz/maxHz as the final lag limits. The caller (P4d) must apply widenRange (3 semitones) to the instrument's sounding range; instruments.json detection blocks are not pre-widened.
+- P4d must construct PitchAnalyzer from DspConfig (analysisRate, windowSamples, widened minHz/maxHz, a4Hz, clarityThreshold), add flux and inClickWindow to make a PitchFrame, call analyzer.resetNote() on every note boundary, and call analyzer.altOctaveClarity(expectedMidi) once the follower's expected octave is known (value is for the most recent frame), or pass null.
+- The names PitchDetector, PitchAnalyzer, OctaveHysteresis, PitchEstimate, widenRange, freqToMidi and midiToFreq are P4b's design (no frozen interface).
+
+Known gaps:
+
+- Step-change crossing bias < 1 ms (P4b acceptance) holds only for 1-semitone steps on the 512 window (0.44 to 0.73 ms). The 1024 window gives 0.9 to 1.5 ms per direction at 1 semitone; the test asserts < 1.6 ms there and an up/down mean < 0.5 ms. Larger steps are worse (512: 2 semitones up to 1.1 ms, 3 semitones up to 1.6 ms; 1024: up to 2.8 and 3.6 ms). The sign flips with direction (first-peak selection reads a rising step early, a falling one late). This is an open acceptance gap; P4c's pitch-change onsets will carry it and P18's σ will include it.
+
+### P6 store
+
+- src/store/test-data.ts has makeProfile, makeAttempt, makeScore, makeCalibration, MemoryKv and memoryRepos; all attempts validate against schemas/export-file.schema.json. Session tests can reuse them.
+- parseExportFile throws StoreImportError with code 'not-a-backup' or 'newer-version'.
+- attempts.list orders by createdAt, newest first. Summary title is credit.work, with ': movement' appended when present; xp is score.xp.total, or 0 when unscored.
+- Settings live in kv under the reserved key 'settings'. Reserved keys settings, install and persistRequested are device-local: never exported, and preserved by import. Import keeps the device's install marker.
+- The composition root (wave 3) must call setExportAppVersion(), checkStorage() at start-up, requestPersistOnce(kv) after the first completed attempt, and pruneDebug(now) occasionally. After a storage-loss import or dismissal the UI calls acknowledgeStorageLoss().
+
+Known gaps:
+
+- The v0 export format is synthetic (nothing shipped before v1). No IndexedDB schema-upgrade test exists, because only DB version 1 exists.
+- Default AppSettings (src/store/defaults.ts) are P6's reading of 04 §5.2 and §5.11 (flute, level 1, ranked, metronome 70, theme system, live feedback full).
+- The storage-loss marker carries a hadProfile flag so a first run before onboarding is not reported as lost.
+- exportAll stamps appVersion '0.0.0' until the app calls setExportAppVersion().
+
+### P7 notation
+
+- Import from src/notation/index.ts: VexScoreView (ScoreView<HTMLElement>), tickablesPerBar(p) (pass to planLayout), systemHeightPx, ensureNotationFonts() (await before revealing; layout does not need it), renderHeadless (C10; needs a global document such as jsdom), vexflowRenderCount() (render counter for IOS6 and 04 §5.4), expectedChains, and the NotationOverlay / OverlayHost types.
+- DOM: container > div.sr-score > div.sr-slot[data-slot][data-system] > svg.sr-system[data-system], plus div.sr-offstage[hidden] for systems in no slot. Each SVG holds g.sr-underlay, g.sr-static (VexFlow ink scaled by sp/10), g.sr-overlay. Note groups are g.vf-stavenote.sr-note or .sr-rest with data-event-id, data-bar, data-system, data-expected-idx and data-piece. D3 calls setSlotSystems with planSwaps' assignments.
+- Layout uses a captured Bravura metrics table (src/notation/bravura-metrics.ts), not live canvas text, so Node, jsdom and every browser agree. After a VexFlow upgrade run BRAVURA_METRICS_WRITE=1 pnpm exec playwright test -c e2e/notation/playwright.notation.config.ts bravura-metrics.
+- The e2e/notation specs build their own page with esbuild and need no web server: `pnpm exec playwright test -c e2e/notation/playwright.notation.config.ts` (9 tests, passed in the wave 1 review).
+- The pickup measure counts as one bar in barsPerSystem; render() throws if barsPerSystem does not sum to p.measures.length.
+- P15: implement NotationOverlay from src/notation/overlay-seam.ts and pass it as new VexScoreView({ overlay }). OverlayHost gives per-system svg/underlay/overlay groups, noteGroups(expectedIdx), expectedEventIds, expectedBar and the ScoreLayout. Ink uses currentColor, so colouring a note is CSS color on its <g>. beatToPoint and noteBoxes x are the notehead's left glyph origin; staffY is the notehead centre.
+- expectedIdx maps to tie chains with expectedChains(p), following fixtures/follow/gen/expected.ts (checked against all 18 goldens). If P9c's buildExpectedNotes ever drops or reorders notes, the overlay addresses the wrong groups; keep them in step or add an explicit mapping.
+- src/notation/testing/prepared.ts (preparedFromDoc, preparedFromGolden) builds PreparedExcerpts from fixture docs for tests (selection null, test-only).
+
+Known gaps:
+
+- Overlay drawing is P15's. Without an overlay, showGhost, removeGhost, setPlayhead, setMode and clearOverlay only record state for snapshot(). setNoteState does write data-* attributes.
+- BUNDLE BUDGET (open, needs the architect): the notation module alone is about 411 KB gzip because 'vexflow/bravura' also embeds Academico and Academico Bold. The app today is 85 KB gzip without notation, so the total would be about 495 KB, over 01 §12's 450 KB. Options: an RFC raising the budget, a Vite alias mapping a Bravura-only entry (vexflow/core plus build/esm/src/fonts/bravura.js), or vendoring the Bravura woff2 (OFL notice already in LICENSES/). It will surface once S1 imports notation into the app.
+- Engraving simplifications (visually checked on a few screenshots only): greedy longest-first tie splits, beams per metronome beat, dynamics 3.2 sp below the staff (may collide with low ledger notes), hairpins and slurs split at system breaks, tuplet numbers without ratio, Gould accidental rules with no cautionaries.
+- No system numbers or captions (D3). The phone-class ≤ 300 ms render budget under 4x CPU throttle is not measured. WebKit not run.
+
+### P9a corpus loading
+
+- src/corpus/index.ts now exists (created by the reviewer) and re-exports loadManifest, loadExcerpt, prefetchNeighbours and CorpusLoadError from ./load/, and the G2 tagger. P9b adds selectExcerpt, prepareExcerpt and countEligible there, P9c buildExpectedNotes.
+- Test any selector against fixtures/corpus/manifest.3a2136cde3.json and manifest-entries.json; loadFixtureManifest() in src/corpus/load/load.test.ts shows the fake-assets pattern.
+- Caches are keyed on the manifest object (lookup tables) and on the assets object (chunks). A new assets object per call refetches chunks.
+- prefetchNeighbours takes an idle scheduler; src/platform/web must supply one (requestIdleCallback with a setTimeout fallback). assets.getJson must serve relative paths under corpus/v1/ with no-cache for index.json and withdrawn.json.
+
+Known gaps:
+
+- No content-hash or size verification of fetched files (crypto is banned in pure packages).
+- loadExcerpt refuses withdrawn ids; the P9b selector must also drop them from its pool using manifest.withdrawn.
+- The fixture covers levels 1 to 8 only; empty-pool tests need synthetic manifests.
+
+### G2 level tagger
+
+- tagLevels({meter, mode, minorForm?, rhythmCells, features}, levelsConfig, measurementBudget) returns {featureLevels, level, levelConfidence}. rhythmLevel, cellLevel, FEATURE_KEYS and meterBeatTicks are exported (C6 can use rhythmLevel per measure for barRhythmLevel). Import from src/corpus/index.ts or src/corpus/tagger/index.ts.
+- Reviewer check: run on the 24 fixture docs, tagLevels reproduces the Python fixture tagger's featureLevels and level on every doc, given the right minorForm. ExcerptDoc does not store minorForm, so C6 must carry it from feature extraction to the tagger.
+
+Known gaps:
+
+- The tagger takes pre-extracted features and rhythm cell ids; extraction and cell classification are C6's.
+- The L3 "tonic or dominant triad" leap rule is only tonicTriadLeapsOnly. minorAlterations is unused (raised 6/7 are expected in chromaticPer4BarsMax upstream). Modes absent from every level map to the modal list or 10.
+
+### IOS1 capabilities
+
+- IOS5 can use displayMode and osFamily directly (coach mark when osFamily is ios or ipados and displayMode is browser). The onboarding calibration step (W6, no Skip) keys off capabilities.outputLatencyReported, not osFamily.
+- The composition root calls readBrowserCapabilities(persistedGrant) once at start-up, after awaiting navigator.storage.persisted(), and stores the result on AudioBackend.capabilities and PlatformServices.
+
+Known gaps:
+
+- outputLatencyReported is true only for Blink. Gecko (Firefox) is false, the conservative side of W6, so Firefox takes show the calibration step without Skip. Open for an architect ruling; the reviewer kept false.
+- Unrecognised Chromium forks fall to 'other' with outputLatencyReported false.
+
+### D1 shell
+
+- Replace placeholders by passing createRouteTable({ home: HomeScreen, ... }) as App's table prop. Keep id="start-practice" (START_BUTTON_ID) on Home's Start button for the skip link. The shell focuses <main> after navigation only when focus is not already inside it.
+- Screens receive { route } with params. Use useNavigate() and <Link to> from src/app/router.tsx, and buildPath() for /history/:attemptId.
+- Use <Modal>, <Sheet>, <Popover> from src/ui/primitives; data-autofocus marks initial focus; omit onClose for a modal that must be answered. useToast().show() works anywhere under App and is suppressed on practice.play. <Glyph id> needs the sprite that Shell mounts via <GlyphSprite/>.
+- src/ui/primitives/test-render.ts (mount, click, key) is the jsdom test helper (@testing-library is not installed). Use a '// @vitest-environment jsdom' docblock.
+- CSS: rem/em, never px (media queries too); the thin/rem hairline pattern from primitives.css.
+- src/main.tsx still renders <App /> with no props. The composition root must pass appearance={appearanceFromSettings(settings)}, a table from createRouteTable, and showBetaBadge on iOS.
+- e2e/portability.spec.ts waits for data-testid=app-placeholder, which sits on the shell root; switch it to a real screen id once placeholders go.
+
+Known gaps:
+
+- No leave-guard API in the router for Back-button confirms (skip after reveal, stop confirm). Screen packages need one or handle Back themselves.
+- Rank-up "never stacked with another sheet" is not enforced; openOverlayCount() is exported for the caller.
+- No axe, Playwright, size or live-region E2E (D13). Popover hover-stay (WCAG 1.4.13) is left to the trigger.
+- The unused-copy-keys lint is still not written (D13).
+
+### D2a form and container components
+
+- Import from src/ui/components/form/index.ts and src/ui/components/containers/index.ts. Every control is a native element; no custom keyboard handling. Use ariaLabel on SegmentedControl, Select, Stepper and TempoSlider as the setup row's name.
+- TempoSlider fires onChange on every slider move, and on the numeric field only on commit (blur or Enter). Banner hides itself after dismissal; remount or change its key to show it again.
+- src/ui/components/form/test-helpers.ts holds setNativeValue, q and blur for jsdom tests.
+- Reviewer change: Stepper's decrementLabel/incrementLabel are now optional and default to the new copy keys stepper.decrease / stepper.increase ('Decrease {label}' / 'Increase {label}', with ariaLabel). Banner's dismiss button uses the new banner.dismiss key.
+
+Known gaps:
+
+- RandomChip on coarse pointers is 44 px visually (the frozen --random-chip-height token), not 32 visual with a 44 hit.
+- Keyboard behaviour jsdom does not simulate (Enter/Space on buttons, arrow keys in the radio group, Tab order), visual focus, grayscale and axe are left to D13.
+
+### D2b domain components
+
+- Import from src/ui/components/domain/index.ts. Helpers exported: beatPulses, groupBeats, meterZone, meterFraction, scanFraction, filledSegments, heatLevel, rankGlyphId.
+- LevelMeter is horizontal (64 × 8) per 5.4.5, so --level-meter-height is the inline size and --level-meter-width the block size. Pass decorative={false} and a label outside takes.
+- ComponentBar supports controlled and uncontrolled expansion. HeatStrip takes the per-bar tooltip string from the caller. ChecklistItem renders an <li> (inside a <ul>) and becomes a role=checkbox button only with onToggle.
+- StarRow is aria-hidden unless given `label`; callers can now pass copy('stars.label', { n }) (new key).
+
+Known gaps:
+
+- RankEmblem 'achieved' is not a filled shape (the sprite symbols hard-code fill="none"); it uses --text colour. A filled variant needs a glyphs.svg change.
+- BeatDots pulse uses var(--dur-fast) (100 ms) instead of 04's 90 ms (stylelint allows only --dur-* tokens).
+- No #/dev/components fixture page for D2a or D2b components yet (D1 owns the route).
+
+### C1+C2 corpus fetch and gates
+
+- Run from tools/corpus-build as `python -m corpus_build`. Stage functions are in corpus_build/cli.py STAGES; each stage gets a Ctx with cache, build and sources. Repo roots are <cache>/<source id> (default ~/.cache/sight-reading-corpus, or $SIGHT_READING_CORPUS_CACHE / --cache).
+- Later stages read build/gate/candidates.jsonl status=pass kind=file records (path, sha256, upstream repo@sha:path, composer, licence, pd, meta). Use corpus_build.candidate.write_jsonl and make_record so output validates and stays deterministic. The lock's lockedAt is the manifest's generatedAt.
+- Composer death years: tools/corpus-build/composers.yaml keyed by norm_key(name). ComposerIndex.lookup handles the two known OpenScore directory suffix forms.
+- Reviewer change: a corpus-pytest CI job now runs `pip install -r requirements.txt && python -m pytest -q` in tools/corpus-build. Tests that need the clones skip when the cache is absent. The full fetch needs github.com; cache it keyed on sources.lock.yaml.
+
+Known gaps:
+
+- Mutopia yields 23 of 168 files after the gate (spec expects 88): 42 have an unverified arranger (mostly Nagai/Obata), 23 hymns give no edition year, 14 are header-less include fragments. Mutopia is optional (R27). Cited composers-extra entries for Nagai and Obata would restore about 39 files if they qualify.
+- Lieder gate passes 1170 of 1462, Quartets 172 of 196 (the rest died in 1931 or later).
+- config/filters.yaml is a seeded copy of 03 §6.9 to 6.12 for C7 to refit; nothing reads it yet.
+- Traditional/Anonymous Mutopia composer fields are treated as descriptive; only their 'arr.' names are checked.
+
+### C3a+C4 read, normalize, extract
+
+- Default `python -m corpus_build` runs read, normalize and extract after gate; `python -m corpus_build read normalize extract --workers 4` reruns only these (needs build/gate/candidates.jsonl). Full run is about 2 m 44 s.
+- C5 loads parts through corpus_build.partdata.load_part(build, extract_record) and treats measure problems, tags, barrier, fermata and lyricLineEnd as documented in tools/corpus-build/README. Extract records with status pass carry role, roleLabel, stats and dataRef.
+- Do not call music21 Measure.barDuration on big parts (quadratic); normalize.py tracks the time signature itself.
+- build/ is git-ignored; blobs are gzip with mtime 0 and sorted keys, so reruns are byte-identical except timing.json.
+- Normalized events keep one voice per measure. Chords keep only the first pitch plus a chord count and a `chord` measure problem: C5 must reject those windows (no top-note simplification).
+- tools/fixtures/musicxml.py uses the same movement numbering rule, so fixtures and pipeline agree.
+
+Known gaps:
+
+- Counts: Lieder 1360 voice parts extracted (79,139 measures, 213,060 notes), 932 measures with a problem. Quartets 165 of 172 files read (7 parse failures), 660 parts, 421,816 measures, 38,399 with a problem (chord 30,644, tremolo 7,866, second voice 1,872).
+- Editorial brackets are not removed (no reliable signal). No ossia detection beyond cue removal.
+- Tremolo is flagged for every music21 Tremolo (measured and unmeasured), which over-rejects some quartet windows.
+- Mutopia (.ly) reading is C3b.
+
+### Wave 1 review
+
+repairs:
+
+- FakeAudioBackend now uses src/dsp PhaseDecimator and HiBandEnergy (identical behaviour to the production primitives was intended by both P0g and P4a). New bit-exact equivalence test at 48, 44.1, 24 and 16 kHz in src/testkit/fake-backend.test.ts.
+- src/testkit/index.ts re-exports src/testkit/synth (P3 need). P3's SynthTruthNote type clashed with synth-min's export of the same name and was renamed PerformanceTruthNote.
+- src/corpus/index.ts created with the loader and tagger re-exports (P9a need).
+- Copy keys added to src/ui/copy/en.json (D1, D2a, D2b needs): common.close, banner.dismiss, stepper.decrease, stepper.increase, stars.label. Sheet and Modal close buttons use common.close; Banner dismiss uses banner.dismiss; Stepper labels default to the stepper keys (new test).
+- Reduce motion Off now works: tools/generate-tokens.ts emits :root[data-motion="full"] inside the prefers-reduced-motion media query, restoring the durations; tokens.css regenerated; new test in tools/generate-tokens.test.ts.
+- docs/spec/04-design.md §7.1 now lists the ruling-38 --surface-2-pressed values (#D6D5CF / #3A3E43).
+- CI: corpus-pytest job added.
+
+Review verdicts (trust as a base for wave 2):
+
+- P2 rules: trusted. The case-12 table test asserts the 14 rounded 02 §4.2 rows directly plus the unrounded arithmetic, every fixture tolerance predicate, and equality with the fixture generator's refTolerances. Drift, octave policy and the live rule are checked against the reference on random sequences.
+- P3 synth: trusted for P4c/P18 work. The 1 ms truth is re-measured from the rendered audio with an independent envelope and the 7.4 definition (silence and dip rules, mid register), and pitch with an independent DTFT peak search; not just restated. Weak spots: glide truth only on control tracks, low register only within half a period.
+- P4b pitch: trusted with one open acceptance gap: step-change crossing bias exceeds 1 ms on the 1024 window and on steps over 1 semitone (numbers above). The ear-to-staff, 47-2637 Hz sweep (5 c) and 0.2 ms budget are asserted with real numbers.
+- P7 notation: trusted. jsdom checks are partly self-referential (anchors and boxes both come from getNoteHeadBeginX), but the Chromium e2e checks ink within 1 px of the layout and zero font requests across all 576 renders, and it passed in this review. Open risk: the bundle budget.
+
+## Notes for wave 2
+
+- P4c segmenter: build envelopes with EnvelopeFollower and stamp EnvelopeSeries.startT at the first decimated sample plus half a hop. Feed onset-definition functions exactly as P3's truth does (silence: confirmT; dip: noteStartT after the attack). The pitch track carries P4b's crossing bias (up to 1.5 ms on 1024, more for big steps). Use P3's renderPerformance and createScenarioSet for F1 at ±30 ms; P3's truth is on the dry signal.
+- P4d click handling: hiEnergy from HiBandEnergy is a sum of squares per 1 ms sub-block on the input-rate axis; sub-block k covers input samples [ceil(k·rate/1000), ceil((k+1)·rate/1000)). Apply widenRange to the instrument's detection range before constructing PitchAnalyzer, and call resetNote() at every note boundary.
+- P10a/P10b follower: use only src/rules for thresholds (the no-tolerance-constants guard scans src/follow). Use noteVerdict for states and its marginal reading. Ruling 34 applies: displacement from runs of wrong-pitch matches as well as extras. Append finalAlign scenarios to tools/bare-runtime/scenarios.ts.
+- P11 web audio backend: run PhaseDecimator, HiBandEnergy and (if posted) EnvelopeFollower in the worklet with pooled buffers, exactly as FakeAudioBackend.emitBlock now does; the fake's equivalence test then also covers the real path's arithmetic. Name the click scheduler metronome.ts (lint rule).
+- P9b selection: extend src/corpus/index.ts. Drop manifest.withdrawn ids from the pool. Treat transposeKey results outside -7..7 as needing enharmonicKey, and tryTransposePitch null as a rejection (03 §7.5). Levels 9-10 and empty-pool tests need synthetic manifests.
+- P9c expected notes: must equal fixtures/expected/ and keep the chain order that notation's expectedChains assumes. Then switch P3's scenarios off fixtures/follow/gen/expected.ts.
+- P12 grade and G6/G7 progression: the guard scans src/grade too. Use src/store/test-data.ts builders. Append grade-fixture scenarios to tools/bare-runtime/scenarios.ts (02 §4.9 case 15).
+- P12b patterns and P13 tips: pattern threshold keys are P0d's naming in config/tips.json; E22/E23 beta exclusion is in selection.betaDisabledPatterns.
+- P15 overlay: implement NotationOverlay (src/notation/overlay-seam.ts); colour via CSS color on note <g>; zero fades under reduced motion except the 100 ms ghost fade; ruling 36 (a new note state replaces all earlier marks, including a ghost).
+- C5 to C7: read extract records via partdata.load_part; reject windows with chord, tremolo, second-voice or gap problems; C6 must keep minorForm for the tagger and can call the TS tagger's rules through the Python port in tools/fixtures/excerpt_lib.py tag_levels (they agree on the fixture corpus); C7 refits config/filters.yaml.

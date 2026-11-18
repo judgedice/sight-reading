@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { click, mount, type Mounted } from '../../primitives/test-render.ts';
+import { copy } from '../../copy/copy.ts';
 import { Stepper } from './Stepper.tsx';
 import { q } from './test-helpers.ts';
 
@@ -24,6 +25,13 @@ describe('Stepper', () => {
     expect(down?.getAttribute('aria-label')).toBe('Fewer bars');
     expect(up?.getAttribute('aria-label')).toBe('More bars');
     expect(q('[role=group]').getAttribute('aria-label')).toBe('Bars');
+  });
+
+  it('defaults the button names to the stepper copy keys', () => {
+    current = mount(<Stepper value={8} min={4} max={12} onChange={vi.fn()} ariaLabel="Bars" />);
+    const [down, up] = buttons();
+    expect(down?.getAttribute('aria-label')).toBe(copy('stepper.decrease', { label: 'Bars' }));
+    expect(up?.getAttribute('aria-label')).toBe(copy('stepper.increase', { label: 'Bars' }));
   });
 
   it('steps up and down by one within range', () => {

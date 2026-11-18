@@ -142,6 +142,13 @@
     --dur-base: 0ms;
     --dur-slow: 0ms;
   }
+
+  :root[data-motion="full"] {
+    --dur-instant: 0ms;
+    --dur-fast: 100ms;
+    --dur-base: 200ms;
+    --dur-slow: 320ms;
+  }
 }
 
 :root[data-motion="reduced"] {

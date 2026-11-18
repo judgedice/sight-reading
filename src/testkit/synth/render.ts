@@ -72,7 +72,7 @@ export interface PerformanceSpec {
 
 export type OnsetRule = 'silence' | 'dip' | 'pitch-change';
 
-export interface SynthTruthNote {
+export interface PerformanceTruthNote {
   /** Index in onset order. */
   idx: number;
   ref: number | null;
@@ -101,7 +101,7 @@ export interface SynthTruthNote {
 export interface SynthRender {
   samples: Float32Array;
   sampleRate: number;
-  truth: SynthTruthNote[];
+  truth: PerformanceTruthNote[];
   /** Control envelope: low-band RMS in dB, floored at `floorDb`. */
   envelope: EnvelopeSeries;
   floorDb: number;
@@ -441,7 +441,7 @@ export function renderPerformance(spec: PerformanceSpec): SynthRender {
   }
   const envelope: EnvelopeSeries = { startT: 0, hopSec: CONTROL_HOP_SEC, values };
 
-  const truth: SynthTruthNote[] = sorted.map(({ note }, k) => {
+  const truth: PerformanceTruthNote[] = sorted.map(({ note }, k) => {
     const { v, j } = segOf[k] as { v: Voice; j: number };
     const s = v.segs[j] as Seg;
     const next = v.segs[j + 1];

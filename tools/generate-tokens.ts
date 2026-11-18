@@ -141,7 +141,10 @@ export function generateTokens(rawSource: unknown): { css: string; ts: string } 
   // animation to take its duration from a --dur-* token, so this is the reduced-motion gate
   // (04 section 13.1 item 1). The 100 ms ghost opacity fade is owned by the overlay (visual-states.ts).
   const reduced = Object.keys(asObj(motion.dur, 'motion.dur')).map((n) => decl(`dur-${n}`, '0ms'));
-  rules.push(media('(prefers-reduced-motion: reduce)', [block(':root', reduced)]));
+  // Reduce motion "Off" in settings (data-motion="full") restores the durations even when the system asks
+  // for reduced motion; the attribute selector outranks the bare :root inside the media query.
+  const full = Object.entries(asObj(motion.dur, 'motion.dur')).map(([n, v]) => decl(`dur-${n}`, `${Number(v)}ms`));
+  rules.push(media('(prefers-reduced-motion: reduce)', [block(':root', reduced), block(':root[data-motion="full"]', full)]));
   rules.push(block(':root[data-motion="reduced"]', reduced));
   rules.push(block(':root, :root[data-theme="light"]', light));
   rules.push(block(':root[data-theme="dark"]', dark));
