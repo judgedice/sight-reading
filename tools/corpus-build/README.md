@@ -1,8 +1,8 @@
 # corpus-build
 
 Python pipeline that turns the pinned public-domain sources into the shipped corpus (spec: `docs/spec/03-score-corpus.md`).
-This directory currently holds jobs C1 (fetch and lock), C2 (licence and public-domain gate), C3a (read and normalize), C4 (melody extraction and part roles) and C5 (boundaries,
-cadences, mode, window proposal, hard rules, augmentation). Later stages (C6 onward) register in `corpus_build/cli.py` and write to `build/<stage>/`.
+This directory currently holds jobs C1 (fetch and lock), C2 (licence and public-domain gate), C3a (read and normalize), C4 (melody extraction and part roles) C5 (boundaries,
+cadences, mode, window proposal, hard rules, augmentation) and C6 (difficulty features, level tagging, density, first histogram). Later stages (C7 onward) register in `corpus_build/cli.py` and write to `build/<stage>/`.
 
 ## Run
 
@@ -14,6 +14,7 @@ python -m corpus_build lock            # only after changing a pinned SHA in sou
 python -m corpus_build verify gate     # re-run without the network
 python -m corpus_build read normalize extract   # C3a and C4 only (about 3 minutes on 4 cores; --workers N, --corpus ID, --limit N)
 python -m corpus_build windows augment          # C5 only (about 50 s on 4 cores; needs build/extract)
+python -m corpus_build features                 # C6 only (about 8 s; needs build/augment)
 python -m pytest                       # tests (real-source tests skip if the cache is empty)
 ```
 
@@ -121,3 +122,15 @@ movement's last section, with no bass part and the final the most-sounded pitch 
 
 `summary.json` has window counts per source, by bars, meter, mode, cadence, phrase quality, start kind, minimum level and role, and the silver-standard check: on Lieder at least 85%
 of window starts and 80% of ends must sit on a lyric-line boundary within one note.
+
+## Features, level, density, histogram (job C6, 03 sections 6.8 and 5.3)
+
+`python -m corpus_build features` reads `build/augment/candidates.jsonl` and writes `build/features/` (`candidates.jsonl`, `summary.json`, `timing.json`) plus `build/histogram.json` and `build/histogram.html`.
+
+- `corpus_build/features.py`: `analyse` (01 `DifficultyFeatures`, rhythm cells, `barRhythmLevel`, `extremes`, `rangeConcert`, `breathMaxGapBars`, `minorForm`), `tag_levels` (the nine `featureLevels`, reads only `config/levels.json` and `config/measurement-budget.json`), `tag_window`. `tag_levels` reproduces every case of `fixtures/levels/feature-vectors.json`, `tools/fixtures/excerpt_lib.py` `tag_levels`, and `src/corpus/tagger` (TypeScript).
+- Rhythm cells are read per metronome beat (02 section 1): ticks are scaled to a 480 beat (simple meters) or kept at 720 (compound), so a half note is the `Q` cell in 2/2 and an eighth is `Q` in 3/8. A beat group that is not in 02 section 2.2 is `other` (level 10). Duplets and quadruplets, and 2:1 tuplets, are `other`.
+- `level` = max(`featureLevels`). `levelConfidence` = how many features sit at it. `density` is the derived ninth feature. `minorForm` (natural, harmonic or melodic, from the raised 6th and 7th) is kept on every minor window because the tagger needs it and the excerpt document has no field for it.
+- `effectiveLevel` = max(`level`, `minLevelCadence`): a half cadence is only allowed from L3 (02 H2). `level` itself is never changed.
+- Event ids in `extremes` are `e<n>` in window order from 1, as in the fixture builder. C9 must emit event ids with the same scheme or remap these two.
+- Resolution (reject reasons): `bars-exceed-level` (a 9 to 12 bar window whose level does not allow its length; its 8-bar `fallbackFor` window is kept in its place and carries `replaces`), `fallback-unused`, `aug-level-above-3` (an x2 variant must re-tag at L1 to L3), `no-notes` (fewer than two sounding notes).
+- `histogram.json` counts kept windows (before dedupe, quality filters and review): per level by source, meter, mode and minor form, the binding feature per level, rhythm cell counts, and the fit of each instrument at each level in each allowed written key (03 7.3 closed form, tier band of the level; modal windows are excluded because they are served only under a random key).

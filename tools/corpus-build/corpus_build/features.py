@@ -16,6 +16,7 @@ is `other` (level 10, 02 section 2.2).
 
 from __future__ import annotations
 
+import itertools
 import json
 from fractions import Fraction
 from functools import lru_cache
@@ -285,7 +286,7 @@ def analyse(w: dict[str, Any]) -> dict[str, Any]:
 
     # intervals and leaps (rests under one beat do not break adjacency)
     intervals: list[tuple[dict[str, Any], dict[str, Any], int]] = []
-    for a, b in zip(ch, ch[1:]):
+    for a, b in itertools.pairwise(ch):
         if b["tick"] - (a["tick"] + a["dur"]) < unit:
             intervals.append((a, b, abs(b["midi"] - a["midi"])))
     max_leap = max((iv for _, _, iv in intervals), default=0)
@@ -322,7 +323,7 @@ def analyse(w: dict[str, Any]) -> dict[str, Any]:
     mids = [c["midi"] for c in ch]
     ioi_change: list[int] = []
     ioi_rep: list[int] = []
-    for a, b in zip(ch, ch[1:]):
+    for a, b in itertools.pairwise(ch):
         (ioi_rep if a["midi"] == b["midi"] else ioi_change).append(b["tick"] - a["tick"])
     onsets = [c["tick"] for c in ch]
     peak = 0
