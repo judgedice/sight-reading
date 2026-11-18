@@ -13,6 +13,10 @@ LOCK_YAML = TOOL_DIR / "sources.lock.yaml"
 COMPOSERS_YAML = TOOL_DIR / "composers.yaml"
 COMPOSERS_EXTRA_YAML = TOOL_DIR / "composers-extra.yaml"
 DENYLIST_YAML = TOOL_DIR / "denylist.yaml"
+REPO_ROOT = TOOL_DIR.parent.parent
+PUBLIC_CORPUS = REPO_ROOT / "public" / "corpus" / "v1"
+LICENSES_DIR = REPO_ROOT / "LICENSES"
+SHIPPED_SCHEMA_DIR = REPO_ROOT / "schemas"
 
 CACHE_ENV = "SIGHT_READING_CORPUS_CACHE"
 BUILD_ENV = "SIGHT_READING_CORPUS_BUILD"

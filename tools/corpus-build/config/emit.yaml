@@ -1,0 +1,47 @@
+# Emitter settings (job C9, 03 section 6.13 and 5.2; PLAN rulings 24, 25, 26, 44). Read by corpus_build/emit.py.
+version: 1
+corpus_dir: v1                 # public/corpus/<corpus_dir>/
+chunk_max_excerpts: 64         # 03 6.13: at most 64 excerpts per chunk, ordered by id within the level
+hash_hex_chars: 10             # manifest.<hash>.json: the first N hex characters of the file's sha256
+served_min: 30                 # 03 5.1: a level is served at 30 excerpts or more (ruling 25)
+viable_total_min: 300          # ruling 24
+size_limit_bytes: 15000000     # committed corpus budget (task C9): trim by interest, evenly across levels, above this
+budget:                        # 01 section 12
+  manifest_gzip_max: 61440     # 60 KB
+  chunk_gzip_max: 131072       # 128 KB
+launch_gates:                  # block only the v1.0 tag (03 5.2)
+  total_min: 1000
+  level_min: 40                # L2 to L9
+  level_range: [2, 9]
+  g2_keys_min: 3               # keys with at least 10 fitting excerpts, per launch instrument x served level
+tempo:
+  marked_spread: 0.1           # a metronome mark gives [mark x 0.9, mark x 1.1]
+  default_quarter_bpm: [60, 120]   # no mark and no tempo word
+  words:                       # quarter-note bpm range per tempo word; the earliest word in the text wins, then the longest
+    grave: [40, 50]
+    largo: [44, 60]
+    larghetto: [56, 72]
+    lento: [50, 64]
+    adagio: [56, 76]
+    andantino: [72, 96]
+    andante: [66, 92]
+    moderato: [84, 112]
+    allegretto: [100, 126]
+    allegro: [116, 152]
+    vivace: [132, 168]
+    presto: [160, 200]
+    sehr langsam: [44, 60]
+    langsam: [50, 72]
+    mässig: [72, 100]
+    mäßig: [72, 100]
+    massig: [72, 100]
+    bewegt: [96, 126]
+    lebhaft: [112, 144]
+    schnell: [132, 168]
+    lent: [50, 70]
+    modéré: [80, 108]
+    animé: [108, 140]
+    tempo di minuetto: [100, 126]
+    minuetto: [100, 126]
+    menuetto: [100, 126]
+    scherzo: [132, 168]
