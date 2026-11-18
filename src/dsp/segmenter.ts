@@ -145,7 +145,10 @@ const AMBIGUOUS_CLARITY = 0.5;
  * own overlap of two notes explains) takes the flux peak in the gap.
  */
 const GAP_FLUX_MIN_HOPS = 2.5;
-const GAP_FLUX_FACTOR = 2;
+const GAP_FLUX_FACTOR = Number(process.env.GFF ?? 2);
+const GAP_LOOKBACK_SEC = Number(process.env.GLB ?? 0.2);
+const GAP_RUN2 = (process.env.GR2 ?? '1') === '1';
+const GAP_FALLBACK = Number(process.env.GFB ?? 0);
 /** An accepted dip is skipped by later AM look-backs from its pre-peak to this long after its half-rise. */
 const AM_EXCLUDE_AFTER_SEC = 0.02;
 /** Envelope smoothing for dips: whole periods, at least this long (and at most SMOOTH_MAX_SEC). */
@@ -153,6 +156,42 @@ const SMOOTH_MIN_SEC = 0.004;
 const SMOOTH_MAX_SEC = 0.02;
 /** Cumulative-energy ring: about 4 s at 16 kHz. */
 const CUM_RING = 1 << 16;
+/** Early-note dips (room beating): within this of the onset a dip needs flux support or this depth. */
+const EARLY_DIP_SEC = Number(process.env.EDS ?? 0.2);
+const EARLY_DIP_FLUX = Number(process.env.EDF ?? 1.0);
+const EARLY_DIP_DB = Number(process.env.EDD ?? 10);
+const CL_ON = (process.env.CLON ?? '0') === '1';
+const CL_FLUX = Number(process.env.CLF ?? 1.5);
+const CL_MAX_DB = Number(process.env.CLD ?? 12);
+const CL_MIN = Number(process.env.CLM ?? 0.96);
+const VIB_ON = (process.env.VON ?? '1') === '1';
+const VIB_PHASE_TOL = Number(process.env.VPT ?? 0.2);
+const VIB_STRONG = (process.env.VST ?? '1') === '1';
+const VIB_FLUX = Number(process.env.VF ?? 1.3);
+const VIB_MAX_DB = Number(process.env.VMD ?? 12);
+const VIB_K = Number(process.env.VK ?? 1.5);
+const VIB_LAG = Number(process.env.VLAG ?? 0.5);
+const VIB_MIN_COVER = Number(process.env.VCOV ?? 0.6);
+const VIB_LOOK_SEC = Number(process.env.VLOOK ?? 0.4);
+const VIB_MIN_PERIOD = 1 / 8.5;
+const VIB_MAX_PERIOD = 1 / 3.5;
+const VIB_MIN_CENTS = Number(process.env.VMC ?? 8);
+const LONG_FALL_ON = (process.env.LF ?? '1') === '1';
+const LONG_FALL_SEC = Number(process.env.LFS ?? 0.3);
+const LONG_FALL_TOL_DB = Number(process.env.LFT ?? 1.5);
+const LONG_FALL_MIN_EXTRA_SEC = Number(process.env.LFX ?? 0.02);
+const LONG_FALL_MIN_DB = Number(process.env.LFM ?? 0);
+const LONG_FALL_STEEP_DB = Number(process.env.LFD ?? 3);
+const EF_PC = (process.env.EFP ?? '1') === '1';
+const EF_REP = (process.env.EFR ?? '0') === '1';
+const EF_BEFORE_SEC = Number(process.env.EFB ?? 0.04);
+const EF_GAP_SEC = Number(process.env.EFG ?? 0.012);
+const EF_FACTOR = Number(process.env.EFF ?? 1.5);
+const SETTLE_SEC = Number(process.env.SS ?? 0.15);
+const SETTLE_MIX = (process.env.SMIX ?? '1') === '1';
+const SETTLE_MIX_ST = Number(process.env.SMS ?? 3);
+const SETTLE_GLIDE = (process.env.SGL ?? '1') === '1';
+const SETTLE_PLATEAU_FRAMES = Number(process.env.SPF ?? 5);
 /** Leak floor margin inside click windows (01 section 7.6 item 5). */
 export const CLICK_LEAK_MARGIN_DB = 6;
 /** An in-window re-articulation must gather its pitch evidence within this time of its onset (7.6 item 3). */
@@ -168,6 +207,8 @@ const mean = (xs: readonly Fr[]): number => {
   for (const f of xs) s += f.midi as number;
   return s / xs.length;
 };
+
+export const __segDebug: { on: boolean; dips: Record<string, number | string>[]; cross: Record<string, number>[]; vib: Record<string, number>[]; forceRoom?: boolean } = { on: false, dips: [], cross: [], vib: [] };
 
 export class Segmenter {
   readonly o: SegmenterOptions;
@@ -220,6 +261,8 @@ export class Segmenter {
   private dips: Dip[] = [];
   /** [from, to] pairs of accepted re-articulation dips, skipped by the AM look-back. */
   private amExclude: number[] = [];
+  /** Accepted re-articulation dips; `strong` with onset evidence (flux, or a dip to the floor). For the vibrato check. */
+  private splitDips: { from: number; to: number; minT: number; strong: boolean }[] = [];
   private dipCursor = 0;
 
   // frames and notes
@@ -474,7 +517,7 @@ export class Segmenter {
         const cand = this.pitchCand;
         this.pitchCand = [];
         const newMed = median(cand.map((x) => x.midi as number));
-        if ((cand[0] as Fr).t < cur.onset + this.o.minNoteSec) {
+        if ((cand[0] as Fr).t < cur.onset + this.o.minNoteSec || this.settling(cur, cand, med, newMed)) {
           // The pitch settled inside the note's first 60 ms (window overlap with the previous note after a dip
           // split, or a scoop): re-pitch this note instead of splitting off a note shorter than minNoteSec.
           cur.frames = cand;
@@ -500,6 +543,26 @@ export class Segmenter {
     cur.frames.push(f);
     cur.lastVoicedT = f.t;
     this.maybeUpdate(cur, out);
+  }
+
+  /**
+   * Room settling: after a pitch change in a reverberant room the old note's tail and the new note share the first
+   * windows, so the pitch reads a glide between them or a mixture pitch below both. A further pitch change soon after
+   * re-pitches the note instead of splitting when the note never held a pitch of its own (no plateau of frames away
+   * from the new pitch, while gliding on from the previous note) or read a pitch outside both notes.
+   */
+  private settling(cur: Note, cand: Fr[], med: number, next: number): boolean {
+    if (cur.cause !== 'pitch-change' || !Number.isFinite(cur.prevMidi)) return false;
+    if ((cand[0] as Fr).t >= cur.onset + SETTLE_SEC) return false;
+    const prev = cur.prevMidi;
+    const lo = Math.min(prev, next);
+    const hi = Math.max(prev, next);
+    if (SETTLE_MIX && (med < lo - SETTLE_MIX_ST || med > hi + SETTLE_MIX_ST)) return true;
+    if (!SETTLE_GLIDE) return false;
+    if (!((med - prev) * (next - prev) > 0 && Math.abs(next - prev) > Math.abs(med - prev))) return false;
+    let held = 0;
+    for (const f of cur.frames) if (Math.abs((f.midi as number) - next) >= this.tol) held++;
+    return held < SETTLE_PLATEAU_FRAMES;
   }
 
   /** Adds a voiced frame to a stability candidate: restarts on a jump, drops old frames while the spread is too wide. */
@@ -561,6 +624,8 @@ export class Segmenter {
       (this.cur as Note).amFrom = old.amFrom;
       this.amExclude.push(dip.prePeakT, dip.halfRiseT + AM_EXCLUDE_AFTER_SEC);
       if (this.amExclude.length > 64) this.amExclude.splice(0, this.amExclude.length - 32);
+      this.splitDips.push({ from: dip.prePeakT, to: dip.halfRiseT + AM_EXCLUDE_AFTER_SEC, minT: dip.minT, strong: dip.nearFloor || (dip.fluxPeak ?? 0) >= dip.fluxThr * VIB_FLUX });
+      if (this.splitDips.length > 32) this.splitDips.splice(0, 16);
     }
   }
 
@@ -684,14 +749,36 @@ export class Segmenter {
     const side = Math.sign(prev - mid);
     let a = -Infinity;
     let b = Infinity;
-    for (const f of frames) {
-      if (f.midi === null || f.clarity < this.o.clarityThreshold) continue;
-      if (f.t <= cross && Math.sign(f.midi - mid) === side) a = f.t;
-      if (f.t >= cross && Math.sign(f.midi - mid) !== side && f.t < b) b = f.t;
+    let prevClearOld = false;
+    const gapFrom = Math.max(cur.onset + 0.01, (cand[0] as Fr).t - GAP_LOOKBACK_SEC);
+    const gapFrames: OnsetPitchFrame[] = [];
+    for (const f of this.recent) {
+      if (f.t < gapFrom) continue;
+      const r = f.raw;
+      const ok = f.voiced && r !== null && r >= lo && r <= hi;
+      gapFrames.push({ t: f.t, midi: ok ? r : null, clarity: f.clarity });
+    }
+    for (const f of gapFrames) {
+      const clear = f.midi !== null && f.clarity >= this.o.clarityThreshold;
+      const old = clear && Math.sign((f.midi as number) - mid) === side;
+      // The old side ends at its last run of two clear frames: a lone clear frame inside the gap is the room's tail.
+      if (old && f.t <= cross && (prevClearOld || !GAP_RUN2)) a = f.t;
+      prevClearOld = old;
+      if (!clear) continue;
+      if (f.t >= cross && !old && f.t < b) b = f.t;
+    }
+    if (__segDebug.on) {
+      const fq = Number.isFinite(a) ? this.fluxPeakIn(a - 0.01, cross) : null;
+      __segDebug.cross.push({ cross, a, b, fqT: fq ? fq.t : NaN, fqR: fq ? fq.value / this.fluxThresholdNear(fq.t) : 0, onset: cur.onset });
     }
     if (Number.isFinite(a) && Number.isFinite(b) && b - a > this.o.windowSec + GAP_FLUX_MIN_HOPS * this.o.hopSec) {
       const fp = this.fluxPeakIn(a, b);
+
       if (fp && fp.value >= this.fluxThresholdNear(fp.t) * GAP_FLUX_FACTOR) return fp.t;
+      if (GAP_FALLBACK > 0) {
+        const fe = this.fluxPeakIn(a, a + this.o.windowSec / 2);
+        if (fe && fe.value >= this.fluxThresholdNear(fe.t) * GAP_FALLBACK) return fe.t;
+      }
     }
     return cross;
   }
@@ -740,6 +827,16 @@ export class Segmenter {
       const s = this.attackOnset(this.riseStart(this.envIndex(r.minT), len, clamp), clamp);
       if (s !== null && s > r.minT - 0.004) return s;
     }
+    return EF_PC ? this.earlyFlux(r) : r.t;
+  }
+
+  /**
+   * In a room the dip of a tongued change fills and the new note's level climbs out of the old note's tail late: the
+   * half-rise trails the attack. A clear flux peak well before the half-rise (and after the fall began) marks it.
+   */
+  private earlyFlux(r: { t: number; minT: number; halfRiseT: number }): number {
+    const fp = this.fluxPeakIn(r.minT - EF_BEFORE_SEC, r.halfRiseT - EF_GAP_SEC);
+    if (fp && fp.value >= this.fluxThresholdNear(fp.t) * EF_FACTOR && fp.t < r.t - EF_GAP_SEC) return fp.t;
     return r.t;
   }
 
@@ -773,7 +870,122 @@ export class Segmenter {
       if (d.tOn <= cur.onset + this.o.minNoteSec) continue;
       const v = this.detectable(d, cur);
       if (v) this.pending = { dip: d, flux: v === 'flux', support: 0, midi: NaN };
+      if (v && __segDebug.on) __segDebug.dips.push(this.dipFeatures(d, cur, v));
     }
+  }
+
+  dipFeatures(d: Dip, cur: Note, v: string): Record<string, number | string> {
+    const am = this.amDepth(d.prePeakT, cur.amFrom, d.len);
+    const pitchAround = (a: number, b: number) => median(this.recent.filter((f) => f.voiced && f.t >= a && f.t <= b).map((f) => f.raw as number));
+    const before = pitchAround(d.prePeakT - 0.05, d.prePeakT);
+    const after = pitchAround(d.halfRiseT + 0.02, d.halfRiseT + 0.07);
+    const atMin = this.recent.filter((f) => Math.abs(f.t - d.minT) <= 0.012);
+    const clMin = atMin.length ? Math.min(...atMin.map((f) => f.clarity)) : NaN;
+    const rawMin = atMin.length ? median(atMin.map((f) => (f.raw ?? NaN) as number)) : NaN;
+    const vf = this.recent.filter((f) => f.voiced && f.raw !== null && f.t >= d.minT - 0.25 && f.t <= d.minT + 0.1);
+    const medR = median(vf.filter((f) => f.t <= d.minT).map((f) => f.raw as number));
+    let nf = vf[0];
+    for (const f of vf) if (nf && Math.abs(f.t - d.minT) < Math.abs(nf.t - d.minT)) nf = f;
+    const devC = nf ? ((nf.raw as number) - medR) * 100 : NaN;
+    const gapT = nf ? nf.t - d.minT : NaN;
+    const lastT = this.recent.length ? (this.recent[this.recent.length - 1] as Fr).t - d.minT : NaN;
+    const vib = this.vibratoAt(d.prePeakT, this.noteMedian(cur));
+    return { devC, gapT, lastT, vibP: vib ? vib.period : 0, vibD: vib ? vib.depth : 0, tOn: d.tOn, v, dipDb: d.dipDb, am, near: d.nearFloor ? 1 : 0, fall: d.minT - d.prePeakT, rise: d.halfRiseT - d.minT, flux: d.fluxPeak === null ? 0 : d.fluxPeak / d.fluxThr, dPitch: after - before, devMin: rawMin - before, clMin, sinceOn: d.tOn - cur.onset, cause: cur.cause };
+  }
+
+  private reverberant(): boolean {
+    if (__segDebug.forceRoom !== undefined) return __segDebug.forceRoom;
+    return true;
+  }
+
+  /** Lowest clarity of the frames within 12 ms of `t` (1 when there are none yet). */
+  private clarityAt(t: number): number {
+    let c = Infinity;
+    for (const f of this.recent) if (Math.abs(f.t - t) <= 0.012) c = Math.min(c, f.clarity);
+    return Number.isFinite(c) ? c : 1;
+  }
+
+  /**
+   * Vibrato-aware dip rejection: with vibrato in the pitch track, a room or body resonance turns the frequency
+   * swing into level swings at the vibrato rate. A dip no deeper than VIB_K x the envelope's swing over the vibrato
+   * period one period earlier (measured without skipping earlier splits, so a trough wrongly split cannot hide the
+   * next) is a vibrato trough.
+   */
+  private vibratoTrough(d: Dip, cur: Note): boolean {
+    const v = this.vibratoAt(d.prePeakT, this.noteMedian(cur));
+    if (!v) return false;
+    const end = Math.min(d.prePeakT, d.minT - VIB_LAG * v.period);
+    const from = Math.max(cur.amFrom, end - v.period);
+    if (end - from < VIB_MIN_COVER * v.period) return false;
+    const saved = this.amExclude;
+    // Earlier splits stay out of the measure unless they lack onset evidence and fall on this dip's vibrato phase.
+    const ex: number[] = [];
+    for (const x of this.splitDips) {
+      const k = (d.minT - x.minT) / v.period;
+      const inPhase = Math.abs(k - Math.round(k)) <= VIB_PHASE_TOL;
+      if (x.strong || !inPhase || !VIB_STRONG) ex.push(x.from, x.to);
+    }
+    this.amExclude = ex;
+    const am = this.amDepth(end, from, d.len, false);
+    this.amExclude = saved;
+    if (__segDebug.on) __segDebug.vib.push({ t: d.tOn, period: v.period, depth: v.depth, am, dipDb: d.dipDb });
+    return d.dipDb < VIB_K * am;
+  }
+
+  /** Vibrato in the raw pitch over the VIB_LOOK_SEC before `t`: rate and depth (cents), or null. */
+  private vibratoAt(t: number, centre: number): { period: number; depth: number } | null {
+    const ts: number[] = [];
+    const ps: number[] = [];
+    for (const f of this.recent) {
+      if (f.t < t - VIB_LOOK_SEC || f.t > t) continue;
+      if (!f.voiced || f.raw === null || Math.abs(f.raw - centre) > 1) continue;
+      ts.push(f.t);
+      ps.push(f.raw);
+    }
+    const n = ps.length;
+    if (n < 20) return null;
+    // Linear detrend.
+    let mt = 0;
+    let mp = 0;
+    for (let k = 0; k < n; k++) {
+      mt += ts[k] as number;
+      mp += ps[k] as number;
+    }
+    mt /= n;
+    mp /= n;
+    let sxy = 0;
+    let sxx = 0;
+    for (let k = 0; k < n; k++) {
+      sxy += ((ts[k] as number) - mt) * ((ps[k] as number) - mp);
+      sxx += ((ts[k] as number) - mt) ** 2;
+    }
+    const slope = sxx > 0 ? sxy / sxx : 0;
+    const x = ps.map((p, k) => (p - mp - slope * ((ts[k] as number) - mt)) * 100);
+    // Zero crossings with hysteresis; extremes between them.
+    const hyst = 3;
+    const cross: number[] = [];
+    const ext: number[] = [];
+    let sign = 0;
+    let peak = 0;
+    for (let k = 0; k < n; k++) {
+      const v = x[k] as number;
+      const sg = v > hyst ? 1 : v < -hyst ? -1 : 0;
+      if (sg !== 0 && sg !== sign) {
+        if (sign !== 0) {
+          cross.push(ts[k] as number);
+          ext.push(Math.abs(peak));
+        }
+        sign = sg;
+        peak = v;
+      } else if (sg === sign && Math.abs(v) > Math.abs(peak)) peak = v;
+    }
+    if (process.env.DBG) console.log("vibAt", t.toFixed(3), n, cross.length, cross.length > 1 ? (2 * ((cross[cross.length - 1] as number) - (cross[0] as number)) / (cross.length - 1)).toFixed(3) : "-", median(ext).toFixed(1));
+    if (cross.length < 2) return null;
+    const half = ((cross[cross.length - 1] as number) - (cross[0] as number)) / (cross.length - 1);
+    const period = 2 * half;
+    const depth = median(ext);
+    if (period < VIB_MIN_PERIOD || period > VIB_MAX_PERIOD || depth < VIB_MIN_CENTS) return null;
+    return { period, depth };
   }
 
   private detectable(d: Dip, cur: Note): false | 'dip' | 'flux' {
@@ -781,6 +993,10 @@ export class Segmenter {
     const am = this.amDepth(d.prePeakT, cur.amFrom, d.len);
     const hint = this.hints.some((h) => Math.abs(d.tOn - h.t) <= h.halfWidthSec);
     const thr = hint ? Math.max(HINT_MIN_DIP_DB, HINT_AM_FACTOR * am) : Math.max(3, 1.5 * am);
+    const fluxRatio = d.fluxPeak === null ? 0 : d.fluxPeak / d.fluxThr;
+    if (!hint && d.tOn - cur.onset < EARLY_DIP_SEC && fluxRatio < EARLY_DIP_FLUX && d.dipDb < EARLY_DIP_DB) return false;
+    if (!hint && CL_ON && this.reverberant() && fluxRatio < CL_FLUX && d.dipDb < CL_MAX_DB && this.clarityAt(d.minT) > CL_MIN) return false;
+    if (!hint && VIB_ON && fluxRatio < VIB_FLUX && d.dipDb < VIB_MAX_DB && this.vibratoTrough(d, cur)) return false;
     if (d.dipDb >= thr) return 'dip';
     if (d.fluxPeak !== null && d.fluxPeak >= d.fluxThr * this.o.fluxRouteFactor) return 'flux';
     return false;
@@ -938,7 +1154,7 @@ export class Segmenter {
     this.trkRiseIdx = i - 1;
     const iMin = this.trkMin;
     this.trkClamp = this.clampDb(iMin);
-    const i0 = Math.max(0, this.trkBoundaryIdx, iMin - Math.round(DIP_SIDE_SEC / this.envHop));
+    const i0 = this.dipStart(iMin, this.trkLen);
     let pre = -Infinity;
     for (let k = i0; k < iMin; k++) pre = Math.max(pre, this.valAt(k));
     this.trkPreV = Math.max(this.trkClamp, pre);
@@ -949,11 +1165,41 @@ export class Segmenter {
     return this.smoothDb(i, this.trkLen);
   }
 
-  private evaluateDip(iMin: number, iEnd: number): void {
+  /**
+   * Start of the fall into the dip at `iMin`: DIP_SIDE_SEC before the minimum, or earlier for a release into a room
+   * tail. When a note stops and the next starts after a short rest, a room keeps the envelope up: it drops by the
+   * direct sound at once, then decays slowly until the next attack, longer than DIP_SIDE_SEC. Such a fall (a
+   * monotone decay of up to LONG_FALL_SEC that starts with a drop of LONG_FALL_STEEP_DB within 10 ms) counts whole.
+   */
+  private dipStart(iMin: number, len: number): number {
     const side = Math.round(DIP_SIDE_SEC / this.envHop);
     const i0 = Math.max(0, this.trkBoundaryIdx, iMin - side);
-    if (iMin - i0 < 1 || iEnd - iMin < 1) return;
+    if (!LONG_FALL_ON) return i0;
+    const lim = Math.max(0, this.trkBoundaryIdx, iMin - Math.round(LONG_FALL_SEC / this.envHop));
+    let k = i0;
+    // Going back in time the envelope may wiggle (period ripple) but not fall LONG_FALL_TOL_DB below its running max.
+    let runMax = this.smoothDb(k, len);
+    while (k > lim) {
+      const v = this.smoothDb(k - 1, len);
+      if (v < runMax - LONG_FALL_TOL_DB) break;
+      runMax = Math.max(runMax, v);
+      k--;
+    }
+    if (iMin - k < side + Math.round(LONG_FALL_MIN_EXTRA_SEC / this.envHop)) return i0;
+    // The decay must begin with a fast drop (the direct sound ending), within its first 30 ms.
+    const s10 = Math.max(1, Math.round(0.01 / this.envHop));
+    let steep = 0;
+    for (let j = k; j + s10 <= Math.min(iMin, k + Math.round(0.03 / this.envHop)); j++) steep = Math.max(steep, this.smoothDb(j, len) - this.smoothDb(j + s10, len));
+    let pk = -Infinity;
+    for (let j = k; j <= i0; j++) pk = Math.max(pk, this.smoothDb(j, len));
+    if (pk - this.smoothDb(iMin, len) < LONG_FALL_MIN_DB) return i0;
+    return steep >= LONG_FALL_STEEP_DB ? k : i0;
+  }
+
+  private evaluateDip(iMin: number, iEnd: number): void {
     const len = this.trkLen;
+    const i0 = this.dipStart(iMin, len);
+    if (iMin - i0 < 1 || iEnd - iMin < 1) return;
     const clamp = this.clampDb(iMin);
     let iPre = i0;
     let pre = -Infinity;
@@ -975,7 +1221,7 @@ export class Segmenter {
     const ser = this.series(i0, iEnd + 1, len, clamp);
     const r = repeatedOnset(ser, { searchStartT: this.envT(i0), searchEndT: this.envT(iEnd + 1), noteStartT: this.envT(i0) });
     if (!r || r.dipDb < MIN_EVAL_DIP_DB) return;
-    let tOn = r.t;
+    let tOn = EF_REP ? this.earlyFlux(r) : r.t;
     if (this.o.fluxTiming) {
       const fp = this.fluxPeakIn(r.halfRiseT - 0.01, r.halfRiseT + 0.01);
       if (fp) tOn = fp.t;

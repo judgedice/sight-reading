@@ -1,7 +1,8 @@
 """Command line: `python -m corpus_build [stage ...]`. Run from tools/corpus-build (or put it on PYTHONPATH).
 
 Stages: fetch, lock, verify, composers, gate, read, normalize, extract, windows, augment, features, filters, dedupe,
-plus the developer stages familiar and calibrate. With no stage, runs every stage except lock, familiar and calibrate.
+review, plus the developer stages familiar, calibrate, review-export and review-ingest. With no stage, runs every stage
+except lock, familiar, calibrate, review-export and review-ingest.
 `lock` rewrites sources.lock.yaml, `familiar` rewrites familiar.yaml and `calibrate` writes a fitted filters file to
 build/calibration/; none is part of the default run, because the default run must not change committed inputs. Later stages (C3a onward) register in STAGES.
 """
@@ -21,6 +22,7 @@ from .familiar import write_familiar
 from .filter_stage import run_filters
 from .calibration import run_calibration
 from .dedupe import run_dedupe
+from .review import IngestError, run_review, run_review_export, run_review_ingest
 from .gate import run_gate
 from .pipeline import run_extract, run_normalize, run_read
 from .paths import COMPOSERS_YAML, build_root, cache_root
@@ -221,6 +223,42 @@ def stage_dedupe(ctx: Ctx) -> int:
     return 0
 
 
+def stage_review(ctx: Ctx) -> int:
+    if not (ctx.build / "dedupe" / "candidates.jsonl").exists():
+        print("review: build/dedupe/candidates.jsonl is missing. Run `dedupe` first.", file=sys.stderr)
+        return 1
+    s = run_review(ctx.build)
+    print(f"review: {s['kept']} kept of {s['windows']}; by level {s['keptByLevel']}; by agent veto {s['keptByLlm']}")
+    print(f"review: rejected {s['rejectedByReason']}")
+    return 0
+
+
+def stage_review_export(ctx: Ctx) -> int:
+    if not (ctx.build / "dedupe" / "candidates.jsonl").exists():
+        print("review-export: build/dedupe/candidates.jsonl is missing. Run `dedupe` first.", file=sys.stderr)
+        return 1
+    r = run_review_export(ctx.build)
+    print(f"review-export: {r['queued']} of {r['eligible']} L1-L3 items queued ({r['alreadyDecided']} already decided) in {r['packets']} packets; items per packet {r.get('itemsPerPacket')}")
+    print(f"review-export: {r.get('positives', 0)} positive and {r.get('negatives', 0)} negative controls; negative shortfall {r.get('negativeShortfall', {})}")
+    for f in r["files"]:
+        print(f"review-export: wrote {f}")
+    return 0
+
+
+def stage_review_ingest(ctx: Ctx) -> int:
+    try:
+        r = run_review_ingest(ctx.build)
+    except IngestError as e:
+        print(f"review-ingest: {e}", file=sys.stderr)
+        return 1
+    for w in r["warnings"]:
+        print(f"review-ingest: warning: {w}", file=sys.stderr)
+    for pid, per in r["packets"].items():
+        print(f"review-ingest: {pid}: {per or 'no verdict files'}")
+    print(f"review-ingest: {r['verdictLines']} verdict lines in review/verdicts.jsonl, {r['batches']} batches in review/batches.jsonl")
+    return 0
+
+
 STAGES: dict[str, Callable[[Ctx], int]] = {
     "fetch": stage_fetch,
     "lock": stage_lock,
@@ -237,8 +275,11 @@ STAGES: dict[str, Callable[[Ctx], int]] = {
     "filters": stage_filters,
     "calibrate": stage_calibrate,
     "dedupe": stage_dedupe,
+    "review": stage_review,
+    "review-export": stage_review_export,
+    "review-ingest": stage_review_ingest,
 }
-DEFAULT_RUN = ["fetch", "verify", "composers", "gate", "read", "normalize", "extract", "windows", "augment", "features", "filters", "dedupe"]
+DEFAULT_RUN = ["fetch", "verify", "composers", "gate", "read", "normalize", "extract", "windows", "augment", "features", "filters", "dedupe", "review"]
 
 
 def main(argv: list[str] | None = None) -> int:

@@ -1,0 +1,30 @@
+# Automated review layer (job C8, 03 section 6.12; PLAN rulings 29 and 48). Read by corpus_build/review.py.
+# The R1 outlier thresholds (tail share, metrics, reject counts) live in config/filters.yaml `outliers` (C7 seeded them).
+version: 1
+rules_version: rules-1.0.0          # ExcerptDoc.review.rules
+prompt_version: rubric-v1           # bump when REVIEW.md's prompts change: every cached verdict then needs a re-run
+variants:                           # verdict file suffix -> promptVariant; pass number = position (A = 1, B = 2)
+  A: rubric-v1-a
+  B: rubric-v1-b
+queue_levels: [1, 2, 3]             # ruling 48: the agent review runs on L1-L3 only; other R2 items stay excluded in v1
+key_profile:
+  related_margin: null              # null: a closely related KS best key always agrees (see review_outliers.py)
+packet:
+  real_items: 36                    # queue items per packet, positive controls included (about 40 items with negatives)
+  positives: 4                      # positive controls per packet, drawn from the queue by rule
+  negatives: [cut-early, shift-beat, pitch-shuffle, accompaniment]   # one of each per packet
+controls:                           # 03 6.12 R3, per packet and variant
+  negative_rejection_min: 0.9       # with 4 negatives: all 4 must be rejected
+  positive_acceptance_min: 0.75     # with 4 positives: at least 3 must be accepted
+  max_attempts: 2                   # a failing packet may be re-run once (verdict file *.retry.json)
+positive_rule:                      # "PAC-ending opening themes" (no hymn phrases in v1: Mutopia is dropped)
+  cadence_end: [PAC]
+  phrase_quality: [complete-phrase, period]
+  soft_min: 0.8
+  interest_margin_min: 0.1
+  flags_allowed: [noBreath, leapy]  # instrument-fit flags only; bass-line windows are never positives
+  opening_start_kinds: [section-start, anacrusis]   # preferred first
+accompaniment:                      # negative controls of kind accompaniment: rejected quartet windows, by C7's control-set rule
+  roles: [inner, cello]
+  vn1_interest_gap_min: 0.2         # Vn I at least 0.2 more interesting in the same bars (03 6.9 negative controls), or
+  failed_rules_any: [broken-chord, pedal-alternation]

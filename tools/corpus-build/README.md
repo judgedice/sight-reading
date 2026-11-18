@@ -185,3 +185,17 @@ Priority: source `dedupe_priority`, then soft score, then id.
 no agent veto under ruling 29: not L1-L3, not a variant, not a quartet inner or cello part, interest at least 0.10 above its threshold) and
 `keysWith10` (G2-launch). `viabilityBeforeReview` and `viabilityWithoutReview` apply ruling 24 (at least 300 excerpts, a non-empty selection for every
 launch instrument at every served level of at least 30 excerpts).
+
+## Automated review (job C8, 03 section 6.12; rulings 29 and 48)
+
+| Stage | Module | Writes | What |
+| --- | --- | --- | --- |
+| `review` | `review.py`, `review_outliers.py` | `build/review/candidates.jsonl`, `summary.json` | Default run, after `dedupe`. R1 on every survivor, per served level: `outlier` (top or bottom 2% by robust z-score on 2 or more of notes per bar, peak notes per second, rest ratio, interest, span, syncopation), `level-confidence` (a single feature sets a level above L6), `key-profile` (the Krumhansl-Schmuckler best key is not closely related to the signature-plus-final key). Then R2 from the committed cache: L1-L3 items pass only with two accepting verdicts from control-passing packets (`review-rejected`, `review-controls-failed`, `review-missing` otherwise); other items that need the veto are `review-not-run` (ruling 48). |
+| `review-export` | `review.py`, `review_items.py` | `build/review/packet-NN.json`, `build/review-key/` | Developer stage: the L1-L3 queue as packets of about 40 items with blind controls. |
+| `review-ingest` | `review.py` | `review/verdicts.jsonl`, `review/batches.jsonl` | Developer stage: checks the answer files, scores the controls, merges the committed cache. |
+
+The procedure, the answer format and the two prompt variants are in `REVIEW.md`. Every `review` record carries
+`contentHash` (`review_items.content_hash`: sha256 over meter, key, mode, pickup, bar starts and every event's tick,
+length, pitch and spelling; verdicts are keyed by it), `outlierFlags`, `keyProfile`, `reviewRequired` (the R2 triggers),
+and on a pass the ExcerptDoc `review` block (`rules`, `llm` accepted or not-required, `llmVerdicts`, `promptVersion`).
+C9 emits only `status: pass` records of this stage and copies `review` and `contentHash`.

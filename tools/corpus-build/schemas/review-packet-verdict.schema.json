@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sight-reading.local/tools/corpus-build/schemas/review-packet-verdict.schema.json",
+  "title": "Review packet verdict file",
+  "description": "What a reviewer writes for one packet and one prompt variant: build/review/packet-NN.verdict-A.json (variant rubric-v1-a) or packet-NN.verdict-B.json (rubric-v1-b); a re-run after a failed control check is packet-NN.verdict-A.retry.json. One verdict per item of the packet, in any order. `python -m corpus_build review-ingest` checks it, maps item ids to content hashes, scores the packet's blind controls and writes review/verdicts.jsonl (one ReviewVerdict per real item, schemas/review-verdict.schema.json at the repo root) and review/batches.jsonl. See REVIEW.md.",
+  "type": "object",
+  "required": ["packetId", "packetHash", "promptVersion", "promptVariant", "model", "verdicts"],
+  "additionalProperties": false,
+  "properties": {
+    "packetId": {"type": "string", "pattern": "^packet-[0-9]{2}$", "description": "Copied from the packet."},
+    "packetHash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$", "description": "Copied from the packet."},
+    "promptVersion": {"type": "string", "description": "Copied from the packet, for example rubric-v1."},
+    "promptVariant": {"type": "string", "description": "rubric-v1-a for a verdict-A file, rubric-v1-b for a verdict-B file."},
+    "model": {"type": "string", "minLength": 1, "description": "Model that answered, for the report."},
+    "verdicts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["itemId", "completePhrase", "conclusiveEnd", "accompanimentLike", "idiomaticForWinds", "levelPlausible", "verdict", "reasons"],
+        "additionalProperties": false,
+        "properties": {
+          "itemId": {"type": "string", "pattern": "^item-[0-9]{2}$"},
+          "completePhrase": {"type": "boolean", "description": "Starts at a phrase beginning and contains whole phrases only."},
+          "conclusiveEnd": {"type": "boolean", "description": "Ends with a cadence that sounds finished (or a clear half close at L3)."},
+          "accompanimentLike": {"type": "boolean", "description": "Reads as accompaniment, bass line or filler rather than a melody."},
+          "idiomaticForWinds": {"type": "boolean", "description": "Playable as a single line on a wind instrument (breaths, range, figuration)."},
+          "levelPlausible": {"type": "boolean", "description": "The tagged level fits what the notes ask of the player."},
+          "verdict": {"enum": ["accept", "reject"]},
+          "reasons": {"type": "array", "items": {"type": "string"}, "description": "Short reasons; required (at least one) for a reject."}
+        },
+        "allOf": [{"if": {"properties": {"verdict": {"const": "reject"}}}, "then": {"properties": {"reasons": {"minItems": 1}}}}]
+      }
+    }
+  }
+}
