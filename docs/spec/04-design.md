@@ -1,421 +1,414 @@
 # 04 Product design: screens, feedback rendering, design system, accessibility
 
-Owner: senior product designer. Readers: the overseer merging the spec, and the front-end implementers who will build every screen without mockups.
+Owner: senior product designer. Readers: the overseer, and the AI implementers who build every screen and the overlay without mockups and without a human design review.
 
-This section owns how the product looks, reads, moves, and speaks. It plugs into the architect's interfaces (01: `ScoreView`, `NoteVisualState`, `GhostNote`, `FollowerEvent`, `PracticeSession`) and the lead musician's rules (02: tolerances, live verdicts, grades, XP, rank, tips, the STARS scan routine). Where 01 and 02 disagree on a number, this section follows 02 for grading, XP, and rank (the lead musician owns them) and lists the conflict in "Open questions".
+Status: revision 2 (after the overseer's rulings R1 to R13 and the cross-examination round). Part A is web v1 and is built now. Part B ("Later") at the end is brief and must not be built in this build. The review log at the end lists what changed.
 
-Conventions: px are CSS pixels. "sp" is the staff space (distance between two staff lines) after scaling. Tokens are written `--token-name`. Every hex value listed here is final for v1; implementers must not invent colours.
+This section owns how the product looks, reads, moves and speaks: screens, the visual treatment of every verdict, layout slots, tokens, glyphs, copy and accessibility. It owns no grading value. Where a number belongs to another role, this section names the file and the key:
+
+| Value | Owner and file |
+| --- | --- |
+| Tolerances, match window, live provisional window and hysteresis, credits, weights, gates, end-of-take rule, ranked rules and the `rankedReason` enum | 02, `config/grading-config.json` (02 §4, §5.2) |
+| Levels, allowed keys and meters, tempo ranges, bars, strict scan time, count-in, level descriptions | 02, `config/levels.json` (02 §2.3) |
+| XP formula and factors, rank table, level-up and level-down rules, placement, practice XP | 02, `config/progression.json` (02 §5) |
+| Pattern names, dimensions, evidence templates, tip text | 02, `config/tips.json` (02 §6) |
+| Detection latency budgets, `NoteVisualState`, `GhostNote`, `FollowerEvent`, `ScoreView`, `AttemptRecord` | 01 (§5.8, §6.5, §9.9, §10, §12) |
+| Attribution fields, licence allowlist, modification vocabulary | 03 (§8, §9) and 01 §6.1 |
+| Platform capabilities, per-take measurement gate, iOS rules | 05 and 01 §5.2, §7 |
+
+This section owns, and freezes in wave 0 (section 12): `design/tokens.json` (generated into `src/ui/tokens.css` and `src/ui/tokens.ts`), `src/ui/glyphs.svg` with `src/ui/glyph-ids.ts`, `src/ui/copy/en.json`, `src/notation/visual-states.ts`, `src/ui/layout-table.ts`.
+
+Conventions: px are CSS pixels. "sp" is the staff space after scaling. Tokens are written `--token-name`. Every hex value here is final for v1; implementers must not invent colours, sizes or strings. "Key" always means the written key the player reads; concert key is secondary text (R1).
 
 ---
 
-## 1. How Sight Reading Factory falls short, and what we do instead
+# Part A — Web v1
 
-Observations from using SRF as a student (verify against the current release before marketing copy uses any of this):
+## 0. v1 scope at a glance
 
-| SRF today | Consequence | This design |
+| Feature | Scope | Section |
 | --- | --- | --- |
-| Exercises are generated algorithmically from settings. | Lines are correct but aimless: no phrases, cadences, or sequences, so players learn to decode notes rather than read music. | Every exercise is a real 8 to 12 bar excerpt (03 corpus). Results show title, composer, and source after the take, so the player sees they just read Mozart or a Bach chorale tune. |
-| The student practice flow does not listen. The player plays along and decides for themselves how it went. | No objective feedback and no record of improvement. Wrong accidentals and rushing go unnoticed. | The app listens on the microphone and marks every note live on the staff, then grades the take. |
-| No view of how the performance lined up with the page. | Players cannot see whether they were early, late, sharp, or reading the wrong note. | Ghost notes show what was actually played, where it was played, at its real pitch. A review view lets the player step through every slip. |
-| Settings form first, music second. Dense, desktop-era controls. | High friction before the first note; random settings are easy to miss. | One setup screen with sensible defaults, a "Random" chip on every parameter, and "Start" reachable in one click from home. |
-| Little structure for the moments before and after playing. | Players skip the scan and never get specific advice. | A built-in scan step (STARS checklist and timer), and an instrument-specific tip between exercises, chosen from the errors just made. |
-| Little sense of progress for a self-directed learner. | Weak motivation to return daily. | Score, letter grade, XP, a 10-step rank ladder, per-instrument level, and streaks. |
-| Cramped on phones. | Practising with a phone on a music stand is awkward. | Phone landscape is a first-class performance layout; 8 to 12 bars fit without scrolling on laptop and tablet landscape, and phones get a page-turn layout that always shows the next system. |
+| Onboarding: welcome, instrument, mic pre-prompt, calibration, level (stepper or 3-excerpt placement) | v1 | 5.1 |
+| Home and setup with written key, level-gated options, Random chips, Ranked/Practice, Output, Today strip, banners | v1 | 5.2 |
+| Scan: covered, scanning, ready; strict ranked timer that auto-starts the count-in (R6); STARS with three highlights; Hear tempo; voice reference (R7); numeric tuning note | v1 | 5.3 |
+| Performance: count-in, beat dots, bar-highlight playhead with next-bar marker, input meter, status line, wake lock, frozen layout | v1 | 5.4 |
+| Live feedback "Full" as the default (R11), with the readability rules | v1 | 6 |
+| Optional "After the take" (blind) feedback mode | v1 | 6.4 |
+| Half-page-turn slot layout for phones and short viewports; review as a natural-order scroll | v1 | 4.3 |
+| Results: grade, stars, three components, diagnostics lines, counts, XP factors, rank bar, level cards (offer, auto level-up with Undo, level-down suggestion), badges, attribution header | v1 | 5.5 |
+| Review: heat strip, My take / Clean score, prev/next slip, note inspector, re-judged rings and filter | v1 | 6.5, 6.6 |
+| Tips interstitial (primary plus optional secondary, evidence line, Clean read) | v1 | 5.6 |
+| Progress (rank header, ladder, per-instrument level cards, streak numbers, common slips list) | v1 | 5.7 |
+| History list (instrument and ranked-only filters) and attempt detail | v1 | 5.8 |
+| Calibration (loopback, play-along, reported fallback), audibility check, audio self-test | v1 | 5.9 |
+| Sheets: stop and skip confirms, rank-up card, session summary with text-only focus card, iOS install coach mark, storage-loss card | v1 | 5.10 |
+| Settings (reduced set), Data, About, Credits page | v1 | 5.11, 5.12 |
+| Permission, empty and error states; Practise without listening (no grade, no XP) (R13) | v1 | 9 |
+| Design system frozen in wave 0, automated design checks | v1 | 7, 12, 13 |
+| Accessibility: WCAG 2.2 AA outside the take, muted live regions during takes, keyboard, reduced motion, high contrast, forced colours | v1 | 8 |
+| Playback of the score or the take, listen-back, MusicXML export, report-a-problem, drills, Show me, remedial bias, trend chart, streak calendar, review filter chips, history search and delete, multiple profiles, line playhead, playhead off, notation size, light paper in dark theme, live pitch dot, note names, Errors only and Calm modes, visual-only metronome, custom scan time, count-in and subdivision overrides, custom instrument icons, celebratory motion, self-assessment buttons, manual screen-reader passes, haptics | later | Part B |
 
----
+## 1. Why this product, in one table
+
+The comparison with Sight Reading Factory is design intent, not marketing copy. Any public claim about SRF needs a fresh check first (later).
+
+| Common weakness in sight-reading apps | This design |
+| --- | --- |
+| Generated exercises with no phrases or cadences | Every exercise is a real 8 to 12 bar excerpt (03). Title and composer appear after the take. |
+| The practice flow does not listen | The app listens and marks every note live, then grades the take. |
+| No picture of how the performance lined up with the page | Ghost notes show what was played, where and at what pitch (R11). Review steps through every slip. |
+| Settings form first, music second | One setup screen with defaults and Random chips; Start is one click from Home. |
+| Nothing structured before or after playing | A scan step (STARS and a strict timer) before, one or two specific tips after. |
+| Weak sense of progress | Score, grade, XP, a 10-step rank ladder, per-instrument level, streaks. |
+| Cramped on phones | Slot-based page turns that never move the music under the eye; landscape recommended (R13). |
 
 ## 2. Design principles
 
-1. **The music is the interface.** During a take, the score takes at least 75% of the viewport. Nothing else moves except the playhead and the beat pulse.
-2. **Feedback lands behind the eye, never in front of it.** Live marks appear only at or left of the playhead. Nothing is drawn on music the player has not reached yet.
-3. **Show, then explain.** Live view shows that something was wrong. The review view explains what (cents, milliseconds, the expected note, the played note).
-4. **Never colour alone.** Every verdict has a shape, a glyph, and text in review, as well as a colour.
-5. **Silence while playing.** The app makes no sound during a take other than the metronome, and screen readers are not asked to speak, because the microphone would hear it.
-6. **Musician's language.** "Late" and "a sixteenth behind", not "timing error 92 ms". Numbers are available, never forced.
+1. **The music is the interface.** During a take the score frame takes at least 75% of the viewport. Nothing moves except the bar highlight, the beat dots and page-turn slot swaps.
+2. **Feedback lands where the note was played.** Every mark is drawn at the played position. Marks appear at or left of the playhead, with one exception R11 forces: an early note may change the state of the single next unplayed note, and only within its match window `W_i` (6.4 rule 1).
+3. **Show, then explain.** Live view shows that something was wrong. Review explains what (cents, milliseconds, the written and played note).
+4. **Never colour alone.** Every verdict has a lane glyph and a notehead treatment as well as a colour; review adds text.
+5. **Silence while playing.** No sound but the metronome and the voice reference; no screen-reader speech during a take.
+6. **Musician's language.** "Late, about a sixteenth", not "timing error 92 ms". Numbers are available in review, never forced.
+7. **No number is ever taken back.** The live view never shows a number; grades and XP come only from final judgments.
 
 ---
 
 ## 3. Information architecture
 
-### 3.1 Route map
-
-Hash routes, so static hosting needs no rewrites. React screens map one-to-one to routes.
+### 3.1 Route map (hash routes)
 
 ```
-#/welcome            Onboarding (first run only; steps are sub-states, not routes)
-#/                   Home = Setup (default landing after onboarding)
-#/practice/scan      Pre-performance scan        } one "practice" flow;
-#/practice/play      Performance (count-in, take) } Back from any of these
-#/practice/results   Results and review           } returns to Home
-#/practice/tips      Tips interstitial            }
+#/welcome            Onboarding (first run only; steps are sub-states)
+#/                   Home = Setup
+#/practice/scan      Scan                 } one practice flow; Back from any of these
+#/practice/play      Performance          } returns to Home (with the confirms in 5.10)
+#/practice/results   Results and review   }
+#/practice/tips      Tips interstitial    }
 #/progress           Progress and rank
 #/history            History list
-#/history/:attemptId Attempt detail (results screen, read-only)
-#/settings           Settings (sections as anchors: #/settings/audio, /display, ...)
-#/calibrate          Latency calibration (also reachable from onboarding and banners)
+#/history/:attemptId Attempt detail (results, read-only)
+#/settings           Settings (anchors #/settings/audio, /display, /practice, /accessibility, /data, /about)
+#/calibrate          Calibration and audio self-test
+#/credits            Credits
+#/dev/components     Component fixtures (dev builds only)
+#/dev/replay         Event-log replay (dev builds only; 01 §13.6)
 ```
 
-### 3.2 Navigation model
+### 3.2 Navigation
 
-- Persistent app bar on every screen except `play`: brand at left; "Practice", "Progress", "History" tabs in the centre (desktop) or bottom tab bar (phone portrait); profile avatar and settings gear at right.
-- During `play` the app bar is replaced by the performance toolbar (section 5.2). There is no navigation chrome during a take.
-- Leaving `scan` or `play` with Back or a tab shows a confirm sheet only if a take is in progress ("Stop this take? It won't be graded."). Leaving `scan` before the take discards nothing worth confirming.
+- App bar on every screen except `play`: brand at left; Practice, Progress, History as centre tabs (`lg`/`xl`) or a bottom tab bar (`xs`, `sm` portrait); settings gear at right. No profile avatar (one player per device in v1).
+- During `play` the app bar is replaced by the performance toolbar (5.4.1). No navigation chrome during a take.
+- Leaving `scan` after reveal: the excerpt is already seen (02 §5.3), so Back shows the skip-after-reveal confirm (5.10). Leaving `play` shows the stop confirm (5.10).
 
-### 3.3 Practice loop state flow
+### 3.3 Practice loop
 
 ```
-Home/Setup --Start--> Scan --Start playing / Space--> Count-in --> Take --> (finishing ≤ 1.5 s)
-    ^                   |                                            |          |
-    |                   +--Skip this excerpt--> (new excerpt) Scan   |          v
-    |                                                     Esc/Stop --+     Results (review)
-    |                                                                          |  Next excerpt (primary)
-    |                                                                          v
-    +--------------------------- Done for now <---------------------------- Tips interstitial
-                                                         Next excerpt ---> Scan (new excerpt)
-                                                         Try again ------> Scan (same excerpt, practice)
+Home --Start--> Scan(covered) --Start scan--> Scan(scanning) --Start / auto at 0 (ranked)--> Count-in --> Take
+  ^                 | Skip (free)                    | Skip (burns, 5.10)                              |
+  |                 +--> new excerpt                 +--> new excerpt                    end event --+
+  |                                                                                          v
+  +-------- Done for now <-------- Tips interstitial <---- Next excerpt ---- Results (finishing ≤ 1.5 s first)
+                                        | Next excerpt --> Scan(covered), new excerpt
+                                        | Try again ----> Scan(scanning), same excerpt, practice
 ```
 
-- Tips come after results, before the next scan. Results already preview the primary tip in one line; the interstitial gives room for the full tip and its drill.
-- Every 10 attempts, or when the player chooses "Done for now", the session summary sheet appears over Home (section 4.10).
-- Session states from 01 (`loading`, `ready`, `count-in`, `performing`, `finishing`, `results`, `error`) drive which sub-view is visible. React reads them; it never drives the audio.
+- Tips come after results. Results preview the primary tip in one line.
+- After "Done for now", or every 10 attempts, the session summary sheet opens over Home (5.10).
+- `PracticeSession` states (01 §5.9: `idle`, `loading`, `covered`, `scanning`, `count-in`, `performing`, `finishing`, `results`, `error`) select the sub-view. React reads them; it never drives audio.
 
 ---
 
-## 4. Layout system and breakpoints
+## 4. Layout system
 
-| Breakpoint | Width | Typical device | Layout columns | Page margin | Gutter |
+### 4.1 Breakpoints
+
+| Breakpoint | Width | Typical device | Columns | Page margin | Gutter |
 | --- | --- | --- | --- | --- | --- |
 | `xs` | < 568 | phone portrait | 4 | 16 | 12 |
-| `sm` | 568–767 | phone landscape, small tablet | 8 | 16 (plus safe-area insets) | 12 |
+| `sm` | 568–767 | phone landscape, small tablet | 8 | 16 plus safe-area insets | 12 |
 | `md` | 768–1023 | tablet portrait | 8 | 24 | 16 |
 | `lg` | 1024–1439 | laptop, tablet landscape | 12 | 32 | 24 |
-| `xl` | ≥ 1440 | desktop | 12, content max 1360 wide | auto | 24 |
+| `xl` | ≥ 1440 | desktop | 12, content max 1360 | auto | 24 |
 
-Height matters as much as width for the performance screen. The "short" modifier applies when viewport height is below 500 px (phone landscape): app chrome shrinks to a 44 px toolbar and all non-score panels move into sheets.
+- **Short** modifier: viewport height < 500. Toolbar 44 px, no status line, non-score panels in sheets.
+- Heights use `100dvh` (layout) and `100svh` (minimums), never `100vh`.
+- Safe areas are read through variables so tests can inject them: `--sai-top: var(--test-sai-top, env(safe-area-inset-top))`, and the same for right, bottom, left. Page padding is `max(margin, var(--sai-*))`.
+- Pointer rule: on `(pointer: coarse)` every interactive target is at least 44 × 44 px. With a fine pointer, compact controls may be 36 px tall (WCAG 2.5.8 needs 24).
+- Non-performance screens use a centred column of max 1120 px on `lg`/`xl`.
 
-All screens other than performance use a centred content column of max 1120 px (`lg`/`xl`) with the 12-column grid.
+### 4.2 Score layout (`src/ui/layout-table.ts`)
+
+The notation module lays out an excerpt once per exercise (01 `RenderOptions`). `layout-table.ts` exports the rows below as data plus two pure functions, `barsPerSystem` and `slotCount`.
+
+| Row id | Applies when | Bars per system | Systems for 8 / 10 / 12 bars | sp (min) | Toolbar / status line |
+| --- | --- | --- | --- | --- | --- |
+| `xl` | width ≥ 1440 | `ceil(N / 2)`, max 6; use `ceil(N / 3)` per system if the average exceeds 9 tickables per bar | 2 / 2 / 2 | 11 | 56 / 28 |
+| `lg` | 1024–1439 | 4 | 2 / 3 / 3 | 10 | 56 / 28 |
+| `md-land` | 768–1023, width > height | 4 | 2 / 3 / 3 | 9 | 56 / 28 |
+| `md-port` | 768–1023, width ≤ height | 3 | 3 / 4 / 4 | 9 | 56 / 28 |
+| `sm-short` | 568–1023 and height < 500 | 4 | 2 / 3 / 3 | 7.5 (7) | 44 / 0 |
+| `xs` | width < 568 | 2; a bar with more than 8 tickables gets a system to itself | 4 / 5 / 6 | 7.5 (7) | 44 / 0 |
+
+- Uneven splits put the extra bars in the earlier systems.
+- System height = 12 sp (4 sp staff, 4 sp above and below for ledgers and ghosts) + 20 px verdict lane + 12 px gap. At 10 sp: 152 px. At 7.5 sp: 122 px.
+- Bar widths are proportional to tickables per bar, minimum 14 sp. Clef and key signature start every system; the time signature appears in system 1 only.
+- One `<svg>` per system, each with its own overlay `<g>` (01 §5.8). The frame places systems in slots.
+
+### 4.3 Slots and half-page turns (phones and short viewports)
+
+`slotCount(viewportH, insets, row) = floor((viewportH − toolbar − statusLine − sai-top − sai-bottom) / systemHeight)`, clamped to 1..6. If `v < 2` at the row's sp, sp steps down to its minimum and the count is recomputed.
+
+| Viewport (CSS px) and insets | Row | Available height | Slots `v` |
+| --- | --- | --- | --- |
+| 390 × 844 home-screen app, insets 47 / 34 | `xs` | 719 | 5 |
+| 390 × 660 Safari tab, insets 0 / 34 | `xs` | 582 | 4 |
+| 844 × 340 Safari tab landscape, insets 0 / 21 | `sm-short` | 275 | 2 |
+| 1180 × 760 iPad landscape | `lg` | 676 | 4 (12 bars need 3: no turns) |
+| 1024 × 1366 iPad portrait | `lg` | 1282 | 6 (no turns) |
+
+Algorithm (`N` systems, `v` slots, current system `s`):
+
+1. If `N ≤ v`, slot i shows system i and nothing ever turns.
+2. Otherwise slots 1..v start with systems 1..v. Keep-behind `k = 1` if `v ≥ 4`, else 0.
+3. When the playhead enters system `s`, wait `min(400 ms, 50% of system s's duration)`. Then every slot holding a system `x < s − k` receives, in slot order top to bottom, the lowest-numbered system not yet shown.
+4. The current system never moves. Only the replaced slot changes: a 160 ms crossfade, instant with reduced motion. Nothing scrolls.
+5. When the next system is not in the slot directly below the current one (the reading order wraps), that slot gets a 3 px `--playhead-next` bar on its left edge. Every system shows its number in the left margin (12 px caption) whenever page turns are active.
+6. The toolbar shows "Lines 2–6 of 6" (4 px dots on short viewports).
+
+Why 400 ms: pitch verdicts for the last notes of the previous system arrive up to 01's sharp/flat p95 (01 §12: ≤ 300 ms winds/brass/strings, ≤ 350 ms voice), so that system stays on screen until they land. Verdicts that arrive for a system already swapped out are applied to the model silently and shown in review.
+
+Worked cases, 12 bars: `v = 5`, 6 systems: one swap (entering system 3, slot 1 becomes system 6). `v = 4`: two swaps (entering 3, slot 1 → 5; entering 4, slot 2 → 6). `v = 2`, 3 systems: one swap, 400 ms after entering system 2. With `v ≥ 3` the next system is always visible; with `v = 2` it appears at most 400 ms after the current system starts. With `v = 1` (very small windows) the scan shows "Make the window taller to see the next line", and the swap happens at 75% of the current system.
+
+- Scan on phones shows all systems as a natural-order vertical scroll with the same system geometry. At count-in start the frame resets to slots 1..v.
+- Review on phones is a natural-order vertical scroll. Prev/next slip scrolls the target system into view.
+- "Rotate for a bigger page" appears on `xs` during scan only, never during the take. Landscape gives about 175 px per bar against 134 px in portrait and half the return sweeps (R13).
+
+### 4.4 Freeze and resize during a take
+
+- The layout is computed at reveal and frozen when the count-in starts.
+- A resize while performing (Safari bars, Stage Manager, rotation) scales the whole frame with one CSS transform, `scale(min(newW / oldW, newH / oldH))`, origin top left. Overlay groups live inside each system's `<svg>`, so they scale with it. VexFlow is never re-rendered during a take.
+- A rotation during the count-in cancels the take, re-lays out, and restarts the count-in. No penalty and no change to ranked status (needs 01 `PracticeSession` to support cancel and restart of an unstarted take).
+- During `count-in` and `performing`: `overscroll-behavior: none` on `html` and `body`, `touch-action: none` and `user-select: none` on the score frame, long-press callout disabled. Controls use `touch-action: manipulation`.
+- Results re-lay out freely.
 
 ---
 
-## 5. Screens
+## 5. Screens (v1)
 
-Each screen lists purpose, layout, components, states, and acceptance criteria. Wireframes use: `[ ]` button, `( )` chip, `<>` select, `[x]` checkbox, `###` the score.
+Each screen lists layout, states and acceptance. Wireframes: `[ ]` button, `( )` chip, `< >` select, `[x]` checkbox, `###` score. Every string comes from `en.json` (section 10).
 
 ### 5.1 Onboarding
 
-Five steps in one route, shown as a centred card (max 560 wide) with a step indicator ("Step 2 of 5") and Back. Each step is skippable except instrument choice.
+Five steps in one route, a centred card (max 560 wide), "Step 2 of 5", Back. Every step except instrument is skippable.
 
-**Step 1, welcome.** Headline, one sentence, a name field (optional, default "Player"), [Get started]. Copy in section 11.
-
-**Step 2, instrument.** Grid of instrument cards grouped by family (Voice, Woodwinds, Brass, Strings, Keyboard and guitar). Card: icon, name, transposition note ("B♭, sounds a major 2nd lower"), "beta" badge where 02 marks beta. Voice opens a second row: Soprano, Alto, Tenor, Baritone/Bass. Piano asks right hand or left hand; guitar shows "single line". Cards are radio buttons (one choice, arrow keys move). Desktop 4 per row, phone 2 per row.
-
-**Step 3, microphone pre-prompt.** Before the browser prompt, explain why and what happens:
+1. **Welcome.** Headline, one sentence, a name field (optional, default "Player"), [Get started].
+2. **Instrument.** Cards grouped by family (Voice, Woodwinds, Brass, Strings, Keyboard). Card: a 40 px circle with the instrument abbreviation from `en.json` (`Fl`, `Cl`, `A.Sx`, `Tpt`, `Vn`, `Vc`, `Pno`, `S` `A` `T` `B`), name, transposition line ("B♭: sounds a major 2nd lower"). Launch instruments only, from 02 §1.1; a "Show beta instruments" toggle under the grid reveals beta cards with a "beta" badge. Voice opens a row of Soprano, Alto, Tenor, Baritone/Bass. Cards are a radio group (arrow keys move). 4 per row on desktop, 2 on phones.
+3. **Microphone pre-prompt.** Explains why before the browser prompt:
 
 ```
 +------------------------------------------------------+
-|  Step 3 of 5                                          |
-|        (mic icon, 48px)                               |
+|  Step 3 of 5              (mic glyph, 48 px)          |
 |  Let the app hear you play                            |
 |  We listen while you play so we can mark each note.   |
-|  Sound is analysed on this device and never           |
+|  Sound is analysed on this device. Nothing is         |
 |  recorded or uploaded.                                |
-|                                                       |
-|  Tip: headphones keep the metronome out of the mic.   |
-|  Built-in speakers work too.                          |
-|                                                       |
 |  [ Allow microphone ]        Not now                  |
 +------------------------------------------------------+
 ```
 
-[Allow microphone] calls `getUserMedia`. Outcomes: granted, go to step 4; denied, show the permission-denied state (section 9.2) inline in the card with browser-specific steps; "Not now", go to step 5 with a persistent "Microphone off" banner on Home.
+   [Allow microphone] runs 01 §7.1's unlock and `getUserMedia` from the click. Granted: step 4. Denied: the denied card (9.2) inline. "Not now": step 5, with the "Microphone off" banner on Home.
+4. **Calibration.** The 5.9 component, embedded. Skippable everywhere. Where `capabilities.outputLatencyReported` is false (iOS Safari), it is the default path and the intro adds: "On iPhone and iPad, takes earn XP only after this check." Skipping it never blocks a take (5.9).
+5. **Level.** "Find my level (3 short excerpts, about 3 minutes)" (primary; placement per 02 §5.1, starts at L2) or "I'll choose" with a 1–10 stepper and the level description from `levels.json`. Placement goes to Scan with a "Placement 1 of 3" chip.
 
-**Step 4, latency calibration.** See 5.9 (same component, embedded). Default method is loopback.
-
-**Step 5, level.** Two large options: "Find my level (3 short excerpts, about 3 minutes)" (recommended, primary) and "I'll choose" with a 1 to 10 level stepper and a one-line description of each level ("Level 3: quarters, eighths, dotted quarters, up to 2 sharps or flats"; text from 02 level table). Choosing placement goes to Scan with a "Placement 1 of 3" badge in the scan toolbar.
-
-Acceptance: onboarding completes in ≤ 6 clicks with all defaults; the browser mic prompt never appears before the pre-prompt; the app is usable (Home, Settings, History) without microphone permission; a returning user never sees onboarding again unless they reset data.
+Acceptance: onboarding completes in ≤ 6 clicks with defaults; the browser mic prompt never appears before the pre-prompt; Home, Settings, History and Practise without listening work without mic permission; a returning player never sees onboarding unless data is deleted.
 
 ### 5.2 Home and setup
 
-Home is the setup screen. Returning players see their last settings already filled, so "Start" is one click.
+Home is setup. Last settings are kept, so Start is one click. Each row is a `<fieldset>` with a trailing Random chip; when Random is on, the control is disabled and reads "Random" in italic.
 
-Settings rows (each a labelled control with a trailing "Random" chip; when Random is on the control is disabled and shows "Random" in italic, and the chip is pressed):
-
-| Row | Control | Options | Default |
+| Row | Control | Options (all from config) | Default |
 | --- | --- | --- | --- |
-| Instrument | select with family groups | from 02 | last used |
-| Level | stepper 1–10 with description line | 1–10; Random picks L−1..L+1 (02 5.3) | suggested level |
-| Key | select of written keys allowed at this level | major and minor keys within the level's accidental limit; disallowed keys are hidden, with a footnote "More keys unlock at level N" | Random |
-| Time signature | segmented control of meters allowed at this level | from 02 level table | Random |
-| Tempo | slider plus numeric field, bpm, beat unit shown ("♩ = 72", "♩. = 54") | level tempo range | level mid tempo |
-| Length | segmented 8 / 10 / 12 | constrained by level (L1–L2: 8 only) | Random |
-| Mode | segmented "Ranked" / "Practice" | ranked rules from 02 5.2 | Ranked |
+| Instrument | `<select>` grouped by family | launch instruments, plus beta when the setting is on | last used |
+| Level | Stepper with the `levels.json` description below it | 1–10. A level with 0 eligible excerpts for this instrument is disabled and captioned "More music coming". A level with fewer than 10 eligible excerpts is captioned "Not much music here yet". | current level |
+| Key | `<select>` of written keys allowed at the level (L1: major keys with ≤ 1 accidental). Each option reads "E major (concert D major)" for transposing instruments. Disallowed keys are hidden, with the footnote "More keys from level {n}". | Random |
+| Time | SegmentedControl of meters allowed at the level. A meter with fewer than 5 eligible excerpts for this instrument and level is disabled, with the tooltip "Not enough music in {meter} at this level yet". | Random |
+| Tempo | TempoSlider plus numeric field, the level's range, beat unit shown ("♩ = 72", "♩. = 54") | level mid tempo |
+| Length | SegmentedControl Random / 8 / 10 / 12. 10 from L3, 12 from L6. A preference, not a filter: the selector may serve another length and the scan toolbar says so. | Random |
+| Output | `<select>` Speakers / Wired headphones / Bluetooth (01 §7.6) | last used |
+| Mode | SegmentedControl Ranked / Practice | Ranked |
 
-- For transposing instruments the key row shows the concert key as secondary text: "E major (concert D major)". Key means the written key the player reads (01 open question 1; this design assumes it).
-- XP hint under the settings: "Random key, meter, and tempo: +24% XP" (from 02 m_random), updated live.
-- Below the settings, a "Today" strip: streak flame and day count, attempts today, XP today, rank progress bar (compact).
-- Banners above settings when relevant: microphone off, calibration missing or stale, Bluetooth output detected, level-up offer pending.
-
-Desktop (`lg`):
+- Eligible counts come from a selector function over the manifest (dependency on 01 P9b: `countEligible(instrument, level, meter?)`). Thresholds 10 and 5 live in `tokens.json` under `ui`.
+- XP hint under the rows: "Random key, meter and tempo: +24% XP", built from 02's `m_random` (+8% per random key, meter, tempo, cap +25%). Random level and length add nothing and are not counted.
+- **Today strip**: "Streak 6 days · 9 takes · 214 XP today", plus a compact rank bar. When today has 1 or 2 ranked takes: "1 more ranked take today keeps your streak" (02: a streak day is ≥ 3 ranked takes).
+- **Banners** above the rows, one at a time in this priority: storage loss (9.3), microphone off, calibration missing or stale, Bluetooth, level-up offer pending.
+- A footer link "Credits" (5.12).
 
 ```
+lg
 +--------------------------------------------------------------------------------------+
-| Sightread   Practice  Progress  History                                  (P)  (gear) |
+| Sightread   Practice  Progress  History                                       (gear) |
 +--------------------------------------------------------------------------------------+
-|  [i] Calibration is 41 days old for this mic.  [Recalibrate]                    [x]  |
-|                                                                                      |
+| [i] Calibrate once so timing grades are fair. It takes 8 seconds. [Calibrate]   [x] |
 |  Practice                                                  +-----------------------+ |
-|                                                            | Today                 | |
-|  Instrument   <B♭ trumpet            v>                    | Streak 6 days         | |
-|  Level        [-]  5  [+]   Dotted rhythms, 4 sharps/flats | 9 takes · 214 XP      | |
-|               (Random)                                     | Section player        | |
-|  Key          <E major (concert D)   v>        (Random*)   | [=========-----] 63%  | |
-|  Time         (2/4)(3/4)(4/4)(6/8)(2/2)        (Random*)   | to Ensemble player    | |
-|  Tempo        ♩ = [ 92 ]  |-----o--------|      (Random)   +-----------------------+ |
-|  Length       ( 8 )( 10 )( 12 )                (Random*)   |
-|  Mode         ( Ranked* )( Practice )                      | Last take             | |
-|                                                            | B  84  · 2 min ago    | |
-|  Random key and meter: +16% XP                             | [Review]              | |
-|                                                            +-----------------------+ |
-|  [        Start        ]   (56px tall, 320 wide)                                     |
+|  Instrument   <B♭ trumpet            v>                    | Today                 | |
+|  Level        [-]  5  [+]                       (Random)   | Streak 6 days         | |
+|               Syncopation, mixed sixteenths, 4 accidentals | 9 takes · 214 XP      | |
+|  Key          <E major (concert D major) v>     (Random*)  | Student               | |
+|  Time         (2/4)(3/4)(4/4)(6/8)(2/2)         (Random*)  | [===========---] 79%  | |
+|  Tempo        ♩ = [ 92 ]  |-----o--------|      (Random)   | to Section player     | |
+|  Length       (Random*)( 8 )( 10 )                          +-----------------------+ |
+|  Output       <Speakers v>                                                           |
+|  Mode         ( Ranked* )( Practice )                                                |
+|  Random key and meter: +16% XP                                                       |
+|  [        Start        ]   (56 px tall, 320 wide)                          Credits   |
 +--------------------------------------------------------------------------------------+
 ```
 
-Phone portrait (`xs`):
+On `xs` the rows stack, the Today strip sits at the top as one line plus the rank bar, and Start is sticky above the tab bar, clear of `--sai-bottom` by 8 px.
 
-```
-+--------------------------------------+
-| Sightread                  (P) (gear)|
-+--------------------------------------+
-| Streak 6 · 214 XP today · Sect. plyr |
-| [=========---------] 63%             |
-|--------------------------------------|
-| Instrument                           |
-| <B♭ trumpet                       v> |
-| Level              [-] 5 [+] (Rand)  |
-| Dotted rhythms, 4 sharps or flats    |
-| Key                         (Rand*)  |
-| <Random                           v> |
-| Time                        (Rand*)  |
-| (2/4)(3/4)(4/4)(6/8)(2/2)            |
-| Tempo ♩=92 |----o-----|     (Rand)   |
-| Length (8)(10)(12)          (Rand*)  |
-| Mode   (Ranked*)(Practice)           |
-| Random key and meter: +16% XP        |
-|                                      |
-| [            Start             ]     |  sticky bottom, above tab bar
-|--------------------------------------|
-|  Practice    Progress    History     |
-+--------------------------------------+
-```
+Acceptance: Start is reachable in ≤ 2 Tab stops (a "Start practice" skip link is first); changing Level re-filters Key, Time and Length without dropping a still-valid choice; with every row on Random the screen still says what Random means ("Any key up to 4 sharps or flats"); a disabled meter chip has its tooltip and is not focusable as a choice.
 
-Acceptance: "Start" is reachable by keyboard within 2 Tab stops of page load (a "Start" skip-link is first in tab order); changing Level re-filters Key and Time options without losing a still-valid choice; with every row on Random the screen still shows what Random means ("Any key up to 4 sharps or flats").
+### 5.3 Scan
 
-### 5.3 Pre-performance scan
+States: `covered`, `scanning`, `ready`.
 
-Purpose: run the STARS routine (02 section 7) before the take, with the music visible.
+- **covered**: a paper cover over the score showing the key signature, time signature, tempo, bar count and clef drawn large, plus [Start scan] (Space). Title and composer are hidden until results. For a ranked take the cover also says: "You'll have {seconds} seconds to read, then the count-in starts by itself. Want more time? Switch to Practice." with a [Practice instead] button. [Skip] here is free (02 §5.3).
+- **scanning**: the full score in its frozen performance geometry. [Start scan] is the first gesture: it unlocks audio, requests the wake lock, and reveals (marks the excerpt seen).
+  - **Ranked**: the ScanTimer counts down the level's strict scan time from `levels.json` (R6). From 5 s left the toolbar label reads "Starting in 5", "4", ... At 0 the count-in starts automatically with the music still visible. [Start playing] (Space, Enter) is allowed at any time.
+  - **Practice**: the timer counts down the same time but never starts the take. At 0 it shows a check and "Scan time's up. Start when ready."
+  - The toolbar chip reads "Ranked · scan 0:30" or "Practice" (with the reason tooltip from 5.5.2).
+- **ready**: practice only, after the timer ends.
 
-States: `covered` (music hidden, metadata visible), `scanning` (music visible, timer running), `ready` (timer done or ended early; still scanning allowed until Start).
+STARS panel (hidden if "Show STARS checklist" is off): five ChecklistItems with one-line prompts from 02 §7. Rows auto-tick at even intervals across the scan (30 s: every 6 s) unless the player ticks first. Ticking has no score effect. Highlights, drawn in the overlay and removed at count-in, appear while a row is hovered, focused or active:
 
-- `covered`: the score frame shows a paper-coloured cover with the excerpt's key signature, time signature, tempo, bar count, and clef drawn large, plus [Start scan] (Space). Title and composer are not shown before the take (they could cue familiarity); they appear in results.
-- `scanning`: the full score renders exactly as it will during the take (same layout, so the eye learns the page). A scan timer ring sits in the toolbar showing remaining seconds; at 0 it turns to a filled check and the label reads "Scan time's up. Start when ready." The timer never auto-starts the take.
-- STARS checklist panel: five rows, each a checkbox with a one-line prompt; rows auto-tick at evenly spaced times across the scan (a 30 s scan ticks one row every 6 s) unless the player ticks them first. Ticking is optional and has no score effect. The active row has a left accent bar. Each row can highlight its target on the score when hovered or focused: Signatures pulses the key and time signatures; Accidentals outlines every accidental in `--ink-accent-soft`; Rhythms outlines the bar with the highest rhythm-difficulty score (from excerpt tags); Signs outlines the highest and lowest note. These highlights are drawn in the overlay layer and removed at Start.
-- Helpers in the panel: [Hear the tempo] (plays one bar of clicks), [Starting note] (voice only: tonic triad then first note, allowed in ranked takes per 02 4.5; for other instruments this button is shown only in practice mode, because hearing the first pitch removes part of the reading task), [Tuning note] (winds, brass, strings; opens a 3 s tuning capture with a needle meter; shows the measured offset "You're 8¢ flat; we'll allow for that").
-- [Start playing] primary (Space or Enter). [Skip this excerpt] tertiary (marks nothing, serves another).
-- Ranked badge: "Ranked" chip in toolbar. If the scan exceeds level default + 30 s, the chip changes to "Practice (scan time exceeded)" with a tooltip; this follows 02 5.2.
+- Signatures: the key and time signatures pulse once (opacity 0.4 → 1, 300 ms; static with reduced motion). The row detail is generated: "E major, 4 sharps: F♯ C♯ G♯ D♯. 6/8, felt in 2."
+- Accidentals: every written accidental outlined in `--ink-accent-soft`.
+- Signs: the highest and lowest notes outlined (needs 03's `extremes: { highId, lowId }`).
+- Tempo and Rhythms: no highlight in v1 (Rhythms needs per-bar rhythm difficulty; later).
 
-Desktop:
+Helpers below the checklist:
 
-```
-+--------------------------------------------------------------------------------------+
-| < Home   Level 5 · E major · 6/8 · ♩.=60 · 10 bars   (Ranked)   (o 0:24)   [Start ▶] |
-+--------------------------------------------------------------------------------------+
-| +-----------------------------------------------------------------+ +--------------+ |
-| |  ###########################################################   | | Scan (STARS) | |
-| |  ###########################################################   | |[x] Signatures| |
-| |                                                                 | |    E major,  | |
-| |  ###########################################################   | |    4 sharps; | |
-| |  ###########################################################   | |    6/8 in 2  | |
-| |                                                                 | |[x] Tempo     | |
-| |  ###########################################################   | |[ ]Accidentals| |
-| |                                                                 | |[ ] Rhythms   | |
-| +-----------------------------------------------------------------+ |[ ] Signs     | |
-|                                                                     |--------------| |
-|                                                                     |[Hear tempo]  | |
-|                                                                     |[Tuning note] | |
-|                                                                     |Skip excerpt  | |
-|                                                                     +--------------+ |
-+--------------------------------------------------------------------------------------+
-```
+- [Hear the tempo]: one bar of clicks.
+- Voice: [Hear the reference] (tonic triad, then the starting note, 02 §4.5). The reference also plays automatically before every voice count-in, in every mode (R7); the button only repeats it.
+- Winds, brass, strings: [Tuning note] opens a 3 s capture and shows a number only, no needle: "You're 8 cents flat. We'll allow for that." Capped per 02 §4.5.
 
-The STARS panel is 280 px wide on `lg`/`xl`, sits right of the score, and the score frame width shrinks to fit (the score layout is computed for the performance width, which is the full width, and scaled down by CSS transform during scan so the page geometry is identical). On `md` and below the panel is a bottom sheet with a peek height of 56 px showing "Scan · 3 of 5" and the timer.
+Toolbar: [< Home] · "Level 5 · E major · 6/8 · ♩. = 60 · 10 bars" · chip · ScanTimer · overflow menu · [Start playing ▶]. When the selector served something other than a preference, a quiet chip follows the summary: "10 bars instead of 12". The overflow menu holds "About this music (shows title and composer)" and "Skip this excerpt".
 
-Acceptance: the score geometry (systems, bar breaks, note positions) during scan is identical to the performance screen; the Signatures row text is generated from the excerpt ("E major, 4 sharps: F♯ C♯ G♯ D♯. 6/8, felt in 2."); no checklist highlight remains when the count-in starts.
+CC BY items (licence `CC-BY-4.0`) also show a non-identifying source line under the toolbar summary: "Typeset by {encoder} · {corpus} · CC BY 4.0". Tapping it opens a licence sheet with the encoder, corpus, licence name and licence link, and no title or composer.
+
+Layout: the STARS panel is 280 px wide on `lg`/`xl`, right of the score; the score keeps its performance geometry and is scaled down by CSS transform. On `md` and below the panel is a bottom sheet with a 56 px peek ("Scan · 3 of 5", timer).
+
+On iOS, if the wake lock request fails: a one-time hint under the toolbar, "Set Auto-Lock to Never while you practise (Settings > Display & Brightness)."
+
+Acceptance: scan geometry (systems, bar breaks, note x) equals the performance geometry; in a ranked take with no input the count-in starts at the strict time ± 50 ms; practice never auto-starts; no highlight remains at count-in; the cover never shows title or composer; "About this music" is the only way to see them before results.
 
 ### 5.4 Performance
 
-This is the core screen. Section 6 specifies feedback rendering; this subsection covers layout, playhead, count-in, and the metronome visual.
-
 #### 5.4.1 Regions
 
-1. **Performance toolbar** (top, 56 px; 44 px on short viewports): left [■ Stop] (Esc), centre the metronome strip, right the input level meter and the "Ranked/Practice" chip. Nothing else.
-2. **Score frame**: the paper surface with all systems. Fills the remaining height. No scrolling on `lg`, `xl`, and `md` landscape.
-3. **Status line** (bottom, 28 px, `md` and up only): one line of quiet text, for example "Bar 4 of 10" and the tempo. Hidden on short viewports.
+1. **Toolbar** (56 px, 44 short): [■ Stop] at left; centre the beat dots and "Bar 4 · ♩ = 92"; right the input meter, the line indicator (page turns only) and the Ranked/Practice chip. On short viewports the status messages below replace "Bar 4" in the centre.
+2. **Score frame**: paper surface with slots. No scrolling, no buttons, no tooltips, no text inside it during a take.
+3. **Status line** (28 px, not on short viewports): "Bar 4 of 10" at left, tempo at right. For CC BY items it also shows "Typeset by {encoder} · {corpus} · CC BY 4.0" at right in `--text-muted`.
 
-No sidebars, no buttons inside the score frame, no tooltips during the take.
+Status messages (status line or toolbar centre), one at a time, highest first:
 
-#### 5.4.2 Staff layout across breakpoints
+1. "We can't hear you. Move closer to the mic?" (no voiced frames for 3 s after bar 1; 02 voids at 5 s).
+2. "Lost your place? Rejoin at the next bar line." (01 `status: lost-place`).
+3. "Keep going: come in at bar {n}" (01 `status: come-in-at`).
+4. "Restarting the count-in" (01 §7.7, first click not heard).
+5. "Count-in", then "Bar {n} of {total}".
 
-The notation module lays out the excerpt once per exercise (01 `RenderOptions`). Rules for bars per system and scale:
+#### 5.4.2 Count-in
 
-| Viewport | Bars per system | Systems for 8 / 10 / 12 bars | Staff space (sp) | Notes |
-| --- | --- | --- | --- | --- |
-| `xl` ≥ 1440 | `ceil(N / 2)`, max 6 | 2 (4+4) / 2 (5+5) / 2 (6+6) | 11 px | If any system would exceed 9 noteheads per bar on average, use 3 systems (`ceil(N / 3)` bars each). |
-| `lg` 1024–1439 | 4 | 2 / 3 (4+3+3) / 3 | 10 px | Uneven splits put the extra bars in the first system. |
-| `md` 768–1023 landscape-ish | 4 | 2 / 3 / 3 | 9 px | |
-| `md` portrait | 3 | 3 (3+3+2) / 4 (3+3+2+2) / 4 | 9 px | Fits without scrolling on 1024 px tall tablets. |
-| `sm` landscape (short) | 4 | 2 / 3 / 3 | 7.5 px, min 7 | Page-turn mode if all systems do not fit (5.4.3). |
-| `xs` portrait | 2 | 4 / 5 / 6 | 7.5 px | Page-turn mode always; a "Rotate for a bigger page" hint shows in scan. |
+- Length from `levels.json`. Pickups count the full bar and start on the pickup beat.
+- Beat dots show large numbers (32 px, `--font-numeric`). A 4 px rail under bar 1 fills over the count-in and ends exactly on the first note, so the eye is already there.
+- The first note gets the `active` ring on the last count-in beat.
 
-- System height budget: 4 sp of staff plus 4 sp above and 4 sp below for ledger lines and ghost notes, plus the 20 px verdict lane (6.2) and 12 px gap. At 10 px sp: 152 px per system; 3 systems fit in 480 px.
-- Widths are proportional to the number of tickables per bar with a minimum bar width of 14 sp. First bar of each system carries clef and key signature; the time signature appears only in the first system (and at meter changes).
-- The score is drawn at the size chosen in Settings ("Notation size": Small 0.85, Normal 1.0, Large 1.2, applied to sp). If Large does not fit, the layout falls back to page-turn mode rather than shrinking.
-- Phone landscape safe areas: left and right padding = `max(16px, env(safe-area-inset-left/right))`.
+#### 5.4.3 Beat dots
 
-#### 5.4.3 Page-turn mode (when not all systems fit)
+- One dot per beat; compound meters one dot per dotted beat; 5/8 and 7/8 grouped by beaming with a 16 px gap. Downbeat 12 px, others 8 px, outline 1.5 px `--text-muted`; the current beat fills `--metro-active`.
+- The fill shows for 90 ms, then eases to 60% fill until the next beat. Above 180 bpm only every second beat pulses (no flash above 3 per second, WCAG 2.3.1).
+- Driven by 01's audible clock, so the dot changes when the click is heard.
 
-- Visible window: as many whole systems as fit; never a partial system.
-- Rule: the window always shows the current system and at least one system after it. When the playhead passes 50% of the last visible system's duration, the window turns: the top systems are replaced so the current system becomes the top one. Turn is a 160 ms crossfade (instant with reduced motion). No scroll animation; the eye must not chase moving music.
-- A thin page indicator ("Systems 2–3 of 5") sits at the right of the status line or, on short viewports, as 4 px dots at the right edge of the toolbar.
-- Ghosts and states on systems that have scrolled out are kept and shown again in review.
+#### 5.4.4 Playhead (bar highlight only in v1)
 
-#### 5.4.4 Count-in
+- The current bar gets `--playhead-bar` behind the ink, spanning the staff plus 2 sp above and below.
+- From 75% of the current bar, the next bar gets a 3 px top-edge marker in `--playhead-next`.
 
-- Default length from 02 section 7 (1 bar; 2 bars at L1–L3 and below 66 bpm). Pickup bars count in the full bar and start the take on the pickup beat.
-- Visual: the metronome strip shows large beat numbers (32 px, `--font-numeric`) counting "1 2 3 4" (for 6/8 in 2: "1 2"; with L4–L5 subdivision clicks, small dots between numbers). A 4 px progress rail under the first bar of the score fills from left to right over the count-in, ending exactly at bar 1 beat 1 (or the pickup), so the eye is already on the first note.
-- The score is fully visible during count-in. The first note gets the `active` treatment (6.1) at the last count-in beat.
-- Text in status line: "Count-in" then "Play".
+#### 5.4.5 Input meter
 
-#### 5.4.5 Metronome visual
+64 × 8 px, three zones: below gate, good, clipping (top 3 dB). The clipping zone shows "!" when hit. `aria-hidden` during takes.
 
-The metronome strip lives in the toolbar centre:
+#### 5.4.6 End of take
 
-```
-   ●  ○  ○  ○        Bar 4 · ♩ = 92        (speaker icon: audible | count-in only | visual)
-```
+- The take ends only on 01's `end` event (Stop, the `endOfTake` rule in `grading-config.json`, or a void). Silence never ends a take mid-excerpt. The UI does not compute the end itself.
+- `finishing` (≤ 1.5 s): the toolbar centre shows "Scoring…" with an indeterminate bar; the live overlay stays.
+- Then Results appear in place: the score does not move, the toolbar becomes the results header, the overlay switches to review rendering with the crossfades of 6.6. On `lg`/`xl` the results panel slides in from the right over 240 ms (instant with reduced motion) and the score reflows only after it arrives.
+- The wake lock, requested at Start scan, is held through scan, take and results, and released on leaving the practice flow or after 5 minutes idle on results; it is re-requested when the page becomes visible (05 W11).
 
-- One dot per beat of the bar (compound meters: one dot per dotted beat; 5/8 and 7/8 group by the excerpt's beaming, for example 3+2 as "● ○ ○ | ● ○" with a tiny gap). Downbeat dot 12 px, others 8 px; dots are `--ink-muted` outline, the current beat fills with `--metro-active`.
-- Beat pulse: the active dot fills for 90 ms then eases back to 60% fill until the next beat. Rate limit: no element may flash more than 3 times per second (WCAG 2.3.1). Above 180 beats per minute the pulse shows on every second beat; dots still advance.
-- Peripheral pulse: a 3 px bar along the top edge of the score frame brightens on each downbeat only (opacity 0.25 to 0.6). Off by default; on by default when metronome mode is "visual" or "count-in only", because then the eye needs the pulse.
-- Timing: visual beats are driven from the audio clock mapped to audible time (01 5.1), not from timers, so the dot changes when the click is heard.
-
-#### 5.4.6 Playhead
-
-Three styles (Settings, "Playhead"), default "Bar highlight":
-
-- **Bar highlight** (default): the current bar has a background tint `--playhead-bar` spanning the staff height plus 2 sp above and below. When the playhead passes 75% of the current bar, the next bar gets a 3 px top-edge marker in `--playhead-next` ("look here next"). This leads the eye, as 02 section 7 asks, without a moving line over the notes.
-- **Line**: a 2 px vertical line in `--playhead-line` at the current score beat, moving continuously (requestAnimationFrame, position from `beatToPoint`). Plus the same next-bar marker.
-- **Off**: no playhead; metronome strip only. Unlocks the "count-in only" XP mode from L4 (02 5.3) when combined with count-in-only metronome.
-
-The playhead never covers noteheads: the bar tint is behind the ink layer; the line is drawn under the overlay layer at 60% opacity.
-
-#### 5.4.7 Input level meter
-
-A 64 × 8 px horizontal bar right of the metronome strip, showing input level (from `live-pitch.levelDb`, 30 Hz). Three zones: too quiet (below gate), good, clipping (top 3 dB). Shape and text back up colour: the zone label appears as a tooltip and the clipping zone shows a "!" glyph when hit. If the level stays below the gate for 5 s after bar 1, the status line says "We can't hear you. Move closer to the mic?" (no modal mid-take).
-
-Optional live pitch dot (Settings, "Show live pitch", off by default): a 6 px dot in `--ghost` that tracks the currently sounding pitch at the playhead x on the staff. It disappears on silence. Off by default because it is the most distracting element; on for singers who want it.
-
-#### 5.4.8 Wireframes
-
-Desktop (`lg`, 10 bars, 3 systems, bar highlight):
+#### 5.4.7 Wireframes
 
 ```
+lg, 10 bars, 3 systems
 +--------------------------------------------------------------------------------------+
-| [■ Stop]        ○ ● ○ ○   Bar 6 · ♩ = 92   (spk)            [|||||||   ] (Ranked)   |
+| [■ Stop]        ○ ● ○ ○   Bar 6 · ♩ = 92                 [|||||||   ] (Ranked)       |
 +--------------------------------------------------------------------------------------+
-|                                                                                      |
-|  &  ####  4/4 | ♩ ♩ ♪♪ ♩ | ♩. ♪ ♩ ♩ | ♩ ♩ ♩ ♩ | 𝅗𝅥   ♩ ♩ |                                |
-|                 ✓ ✓ ✓✓ ✓   ✓  ◂ ✓ ✓   ✓ ▲ ✓ ✓   ✓    ✓ ✓      <- verdict lane          |
-|                                                                                      |
-|  &  ####      |[♩ ♪♪ ♩ ♩]| ♩ ♩ 𝅗𝅥   | ♩ ♩ ♩ ♩ |                                       |
-|                 ✓ ··                                    <- bar 6 tinted; bar 7 marker |
-|                                                                                      |
+|  &  ####  4/4 | ♩ ♩ ♪♪ ♩ | ♩. ♪ ♩ ♩ | ♩ ♩ ♩ ♩ | 𝅗𝅥   ♩ ♩ |   (marks at 60% / 40%)    |
+|                 · · ·· ·   ·  ▸ · ·   · ▲ · ·   ·    · ·    <- verdict lane          |
+|  &  ####      |[♩ ♪♪ ♩ ♩]| ♩ ♩ 𝅗𝅥   | ♩ ♩ ♩ ♩ |              bar 6 tinted          |
+|                 ·                                            bar 7 next marker      |
 |  &  ####      | ♩ ♩ ♩ ♩ | ♩. ♪ ♩ ♩ | 𝅝          ||                                    |
-|                                                                                      |
 +--------------------------------------------------------------------------------------+
 | Bar 6 of 10                                                                ♩ = 92    |
 +--------------------------------------------------------------------------------------+
-```
 
-Phone landscape (`sm` short, 10 bars, page-turn window of 2 systems):
-
-```
-+------------------------------------------------------------------+
-|[■]    ○ ● ○ ○  Bar 6 ♩=92          [||||   ]   · ●  · (systems)  |
-+------------------------------------------------------------------+
-| & #### |[♩ ♪♪ ♩ ♩]| ♩ ♩ 𝅗𝅥 | ♩ ♩ ♩ ♩ | ♩. ♪ ♩ ♩ |                 |
-|          ✓ ··                                                    |
-| & #### | ♩ ♩ ♩ ♩ | 𝅝   ||                                         |
-+------------------------------------------------------------------+
-```
-
-Phone portrait (`xs`, page-turn, 2 bars per system, 3 systems visible):
-
-```
+xs portrait, 12 bars, v = 4 (after the first swap: slot 1 holds line 5)
 +--------------------------------------+
-|[■]  ○ ● ○ ○  Bar 6   [|||  ]  2/5    |
+|[■]  ○ ● ○ ○  Bar 6   [|||  ]  ••••   |
 +--------------------------------------+
-| & #### | ♩ ♪♪ ♩ ♩ | ♩ ♩ 𝅗𝅥 |          |
-| & #### | ♩ ♩ ♩ ♩ | ♩. ♪ ♩ ♩ |         |
-| & #### | ♩ ♩ ♩ ♩ | 𝅝 ||               |
-|                                      |
-|   Rotate your phone for a bigger     |
-|   page. (shown in scan only)         |
+|5▌& #### | ♩ ♩ ♩ ♩ | ♩. ♪ ♩ ♩ |      |  <- next line, left bar marks the wrap
+|2 & #### | ♩ ♩ ♩ ♩ | 𝅗𝅥  ♩ ♩ |        |  (played, 40%)
+|3 & #### |[♩ ♪♪ ♩ ♩]| ♩ ♩ 𝅗𝅥 |         |  current
+|4 & #### | ♩ ♩ ♩ ♩ | ♩ ♩ ♩ ♩ |        |
 +--------------------------------------+
 ```
-
-#### 5.4.9 End of take
-
-- The take ends on the follower's `end` event (last note plus its duration plus 1 beat, or Stop, or 8 s of silence).
-- `finishing` (≤ 1.5 s, the final realignment): the toolbar centre shows "Scoring…" with a small indeterminate bar. The live overlay stays as is.
-- Then the screen transitions to Results in place: the score stays where it is (no navigation flash), the toolbar is replaced by the results header, and the overlay re-renders in review style (6.6). On `lg`/`xl` the results panel slides in from the right (240 ms; instant with reduced motion) and the score reflows narrower only after the panel arrives.
 
 Acceptance (performance):
-- No scrolling during a take on `md`, `lg`, `xl` for any 8 to 12 bar excerpt at Normal notation size.
-- In page-turn mode, the system after the current one is always visible from the moment the current system starts.
-- From a `judgment` event to the note's visual change: ≤ 1 animation frame plus 16 ms (≤ 33 ms) on a mid-range laptop.
-- Nothing is drawn to the right of the playhead except the next-bar marker, the static score, and (in the first 120 ms of an onset) the ghost of the note being played.
-- Screen stays awake during a take (Screen Wake Lock API where supported; ignore failure silently).
+
+- No scrolling during a take at any acceptance viewport (13.2).
+- Page turns follow 4.3 exactly (unit test on `planSwaps`, E2E on the 4 worked cases).
+- A mid-take `setViewportSize` causes zero VexFlow renders (render counter) and the overlay stays aligned within 1 px.
+- Ranked: the count-in auto-starts at the strict scan time.
+- Only Stop (and Esc) are live during a take; taps on the score do nothing.
 
 ### 5.5 Results
 
-Purpose: the grade, what drove it, the annotated score, and the way forward.
+#### 5.5.1 Layout and header
 
-#### 5.5.1 Layout
+`lg`/`xl`: score left (8 columns) in review rendering; results panel right (4 columns, min 340). Phones: results panel first, then the score as a natural-order scroll.
 
-Desktop (`lg`): score frame on the left (8 columns) in review rendering; results panel on the right (4 columns, min 340 px). Phone: results panel first (scrollable), annotated score below with a [Full screen score] button that opens the score in landscape review.
+Header credit line (all structured fields, formatted by `en.json`, written key first per R1):
+
+`{composer} ({dates}) · {work}, {catalog} · bars {a}–{b} · {licenceShort}`, for example "Schubert (1797–1828) · Heidenröslein, D 257 · bars 1–8 · CC0". For CC BY items the line also ends "· {corpus} · Adapted". Tapping the line opens the source sheet (5.12).
 
 ```
 +--------------------------------------------------------------------------------------+
-| < Home    Minuet in G, BWV Anh. 114 · J. S. Bach (attr. Petzold) · bars 1–8 · CC0   |
+| < Home    Schubert (1797–1828) · Heidenröslein, D 257 · bars 1–8 · CC0                |
 +--------------------------------------------------------------------------------------+
 | +--------------------------------------------------+ +-----------------------------+ |
-| | heat: ▁ ▁ ▃ ▁ | ▁ ▆ ▁ ▁ | ...  (per-bar strip)   | |   B        84 / 100         | |
+| | heat: ▁ ▁ ▃ ▁ | ▁ ▆ ▁ ▁ | ...                     | |   B        85 / 100         | |
 | |  ###### annotated score, review style ######     | |   ★ ★ ☆    Ranked           | |
-| |  ✓ ✓ ◂ ✓ ...                                     | |                             | |
-| |  ###########################################     | |  Notes      ████████░░  88  | |
-| |  ✓ ▲ ✓ ✓ ...                                     | |  In tune    ██████████  95  | |
-| |                                                  | |  Rhythm     ███████░░░  74  | |
-| |  (Filter) (All*)(Pitch)(Rhythm)   (Show: my take | |  Flow       █████████░  92  | |
-| |   ◉ / clean score)    [◀ prev slip] [next slip ▶]| |  Steady     ████████░░  81  | |
-| +--------------------------------------------------+ |                             | |
-|                                                      |  You tend to arrive late on | |
-|                                                      |  the note after a dotted    | |
-|                                                      |  quarter. (tip preview)     | |
-|                                                      |                             | |
-|                                                      |  +34 XP   (details v)       | |
-|                                                      |  Section player [=====--]   | |
-|                                                      |                             | |
+| |  ✓ ✓ ◂ ✓ ...                                     | |  Notes    ████████░░  86    | |
+| |                                                  | |  In tune  █████████░  91    | |
+| |  (Show: My take* / Clean score)                  | |  Rhythm   ████████░░  82    | |
+| |  [◀ prev slip]  [next slip ▶]                    | |  Stops: 1 (bar 5, 2 beats)  | |
+| +--------------------------------------------------+ |  Drifted 60 ms behind       | |
+|                                                      |  42 notes · 35 right · ...  | |
+|                                                      |  Tip: Missed key-signature  | |
+|                                                      |  notes (bars 1, 3, 4)       | |
+|                                                      |  +35 XP          (details)  | |
+|                                                      |  Student [=========--] 79%  | |
 |                                                      |  [    Next excerpt     ]    | |
 |                                                      |  [ Try again (practice) ]   | |
 |                                                      +-----------------------------+ |
@@ -424,495 +417,503 @@ Desktop (`lg`): score frame on the left (8 columns) in review rendering; results
 
 #### 5.5.2 Grade block
 
-- Letter grade (S, A, B, C, D, F from 02 4.6) at 72 px, numeric score at 32 px tabular, stars row (3 stars, S adds a shine ring around the stars). Grade letter has an accessible name "Grade B, 84 out of 100, 2 stars".
-- Grade colours are not semantic red/green. The letter uses `--text`; the stars use `--star`. A low grade must not look like an error state; it is information.
-- Badges: "Ranked" or "Practice" (with reason on hover: "Practice: you've played this excerpt before"); "Incomplete" when fewer than half the notes matched (02 gate; shows "Score capped at 50"); "Timing may be offset" when calibration method was "reported".
-- Void attempt (signal unusable): no grade; the block shows the error state from section 9 with [Check microphone] and [Try again].
-- First take ever, personal best at a level, or a new grade tier gets a one-line "New best at level 5" ribbon above the grade.
+- Letter (S to F) at 72 px, score at 32 px tabular, stars (3 + shine ring for S). Grade, stars and cutoffs are 02 §4.7's. Accessible name: "Grade B, 85 out of 100, 2 stars".
+- The letter uses `--text`, stars `--star`. A low grade is information, not an error state.
+- Badges:
+  - "Ranked", or "Practice" with the reason from `rankedReasons` (one copy key per 02 §5.2 enum value; 10.2 lists them). Several reasons show the first, with the rest in the tooltip.
+  - "Incomplete": "Fewer than half the notes came through, so this one's capped at 50."
+  - "Timing may be offset" when the calibration method was `reported`.
+  - "beta" when the instrument is beta.
+- Void (01 `endReason: 'void'`): no grade; the void card for its `voidReason` (9.3) with [Check microphone] and [Try again].
+- Practise without listening: "Not graded · no XP" and no grade block.
+- A one-line ribbon above the grade for a personal best at this level on this instrument: "New best at level 5".
 
-#### 5.5.3 Component breakdown
+#### 5.5.3 Components and diagnostics
 
-Five rows, in this order, with plain names (internal ids from 02 4.3 in parentheses for implementers):
+Three ComponentBars, in this order (02 §4.4):
 
-| Label | Component | One-line explainer (shown on expand) |
-| --- | --- | --- |
-| Notes | P, pitch accuracy | Right notes, including accidentals and key signature. |
-| In tune | I, intonation | How close your right notes were to the centre of the pitch. Hidden for piano and guitar. |
-| Rhythm | R, rhythm | Notes starting on time and held for their value. |
-| Flow | C, continuity | Keeping going without stopping or going back. |
-| Steady | T, tempo stability | Staying with the beat from start to finish. |
+| Label | Component | Explainer (on expand) | Rule |
+| --- | --- | --- | --- |
+| Notes | P | Right notes, and no extra ones. | always |
+| In tune | I | How close your right notes were to the centre of the pitch. | Hidden for keyboard and guitar. "Not enough notes to judge" (no bar, no number) when fewer than 3 notes qualify. |
+| Rhythm | R | Notes starting on time, and long notes held for their value. | Keyboard and guitar: "Notes starting on time." (no duration credit) |
 
-Each row: label, 10-segment bar (segments, not a smooth bar, so values read without colour), value in tabular numerals, and an expand chevron that reveals the explainer and the counts that drove it ("6 late, 2 early, average 40 ms behind"). Bars use `--text` fill on `--track`. The lowest component gets a small "focus" tag.
+- Each bar: label, 10 segments, value in tabular numerals, chevron that reveals the explainer and the counts behind it ("6 late, 2 early, typically 40 ms behind").
+- The "focus" tag goes to the component with the most lost points, `w × (100 − value)` using the attempt's weights, never simply the lowest value.
+- Diagnostics, as plain text lines under the bars and never as bars (02 §4.6): "Stops: 1 (bar 5, 2 beats)", "Drifted 60 ms behind by the end" (or "ahead"), "Restarted at bar 4 (6 notes replayed)". Omitted when empty.
+- Counts line: "42 notes · 35 right · 3 early or late · 2 out of tune · 1 wrong note · 1 missed · 1 extra", from `diagnostics.counts`. Each count is a button that sets the slip stepper (6.5) to that verdict and jumps to its first instance. When notes were re-judged, the line ends with the button "2 notes re-judged after the take" (6.6).
 
-Counts summary line under the bars: "42 notes · 35 right · 3 early or late · 2 out of tune · 1 wrong note · 1 missed · 1 extra". Each count is a button that filters the score to that verdict and jumps to the first instance.
+#### 5.5.4 XP, rank and level
 
-#### 5.5.4 XP and rank block
+- Headline "+35 XP", expandable to the factor list returned by `grade/`: one line per factor whose value is not 1.00, labelled from `en.json` ("Level 5 base 34", "Score ×0.85", "Random key ×1.08", "Streak 6 days ×1.12", "Below your level ×0.25", "Over 60 takes today ×0.25"). No example totals are hand-written anywhere in copy.
+- Practice attempt: "+8 XP (practice, 25%)". Repeat beyond the first of the day: "No XP: you've repeated this excerpt today." Incomplete: "No XP: fewer than half the notes came through." Void or not listening: no XP line.
+- Rank bar: "Student · Rank 3 of 10 · 2,180 / 2,500 XP to Section player · needs level 4". Fill = `(xp − currentThreshold) / (nextThreshold − currentThreshold)` (79% in this example). When XP is reached but the minimum level is not, the bar is full and reads "Needs level 4 on any instrument". Values come from `progression.json`.
+- Level cards (in the panel, never a modal), from `applyAttempt` progress events:
+  - Offer: "You're reading level 5 well. Move up to level 6?" [Move up] [Stay at 5]. Declining suppresses it for 5 ranked attempts; the copy never re-offers sooner.
+  - Auto level-up: "Moved up to level 6: 8 takes in a row at 90 or more." [Undo].
+  - Level-down suggestion: "Level 6 has been a stretch lately. A few takes at level 5 can build the reading back up." [Go to level 5] [Stay at 6]. Never automatic.
+- Rank-up: the rank-up card (5.10) after the panel settles.
 
-- "+34 XP" headline, expandable to the multiplier list from 02 5.3 ("Level 5 base 34 · score 0.84 · random key +8% · streak +12% · = 34").
-- Rank progress bar to next rank, with "Needs level 5 on any instrument" when the XP is reached but the min level is not.
-- Count-up animation from old to new XP over 600 ms (instant with reduced motion). Rank-up shows the rank-up moment (7.3) as an overlay after the count-up.
-- Level-up or level-down offer (02 5.5), when triggered, appears as a card in this panel, not a modal: "You're reading level 5 well. Move to level 6?" [Move up] [Stay at 5]. Level-down copy is encouraging and never says "failed".
+#### 5.5.5 Actions
 
-#### 5.5.5 Live-to-final correction
+- Primary [Next excerpt] (Enter, N): tips interstitial, then scan.
+- Secondary [Try again (practice)] (R): scan of the same excerpt, cover skipped. Tooltip: "Practice. Repeats earn a little XP the first time each day, then none."
 
-01 6.5 says final realignment can change up to about 3% of live judgments. When a note's final state differs from its live state, that note shows a 2 px dashed ring in `--text-muted` for 2 s after results appear, and the counts line ends with "2 notes re-judged after the take" (link: "Why?" tooltip: "Listening live has a few milliseconds to decide. After the take we look at the whole performance."). With reduced motion the ring is static and stays until the first interaction.
-
-#### 5.5.6 Actions
-
-- Primary: [Next excerpt] (Enter, N). Goes to the tips interstitial, then scan.
-- Secondary: [Try again] labelled "(practice)" when the next take would be practice (always, by 02 5.2). Goes to scan with the same excerpt, skipping the cover.
-- Tertiary links: "Play the score" (synth playback of the expected notes at the take tempo, with the playhead), "Play what I played" (synth playback of the detected notes; audio is never stored, the detected notes are), "Export MusicXML" (excerpt plus a second part with what was played, using the ear-to-staff exporter), "Report a problem with this excerpt".
-
-Acceptance: every component value, count, and verdict on the results screen comes from the final judgments in the `AttemptRecord`; reopening the attempt from History renders identically; the screen is fully operable by keyboard (section 8.3).
+Acceptance: every value, count and verdict on results comes from the final judgments in the `AttemptRecord`; reopening from History renders identically (pixel snapshot equal); the results screen is fully keyboard operable (8.3); the rank fill reproduces the formula for 5 fixture profiles.
 
 ### 5.6 Tips interstitial
 
-Between results and the next scan. Full-screen card on phone, centred 640 px card on desktop over a dimmed Home background.
+Full-screen card on phones, centred 640 px card on desktop over a dimmed Home.
 
 ```
 +--------------------------------------------------------------+
 |  Before the next one                                (1 of 2) |
-|                                                              |
-|  (trumpet icon)  Trumpet · Rhythm                            |
-|                                                              |
-|  Late after dotted quarters                                  |
-|  Count the "and" of the dotted note out loud in your head,   |
-|  then place the eighth right on it. Tongue the eighth a      |
-|  little lighter so it doesn't drag.                          |
-|                                                              |
-|  Why this tip: 4 of 5 eighths after a dotted quarter were    |
-|  late (bars 2, 3, 6, 9).    [Show me]                        |
-|                                                              |
-|  [ Drill bars 2–3 at ♩ = 69 ]   (practice, 75% tempo)       |
-|                                                              |
+|  Tpt  Trumpet · Notes                                        |
+|  Missed key-signature notes                                  |
+|  Key-signature notes were missed (for example F instead of   |
+|  F♯). Before you start, name the key and its altered notes   |
+|  out loud ("D major: F♯ and C♯").                            |
+|  Seen in bars 1, 3, 4.                                       |
 |  ----------------------------------------------------------  |
-|  Also: Breathe in rhythm at the rest in bar 4.     (expand)  |
-|                                                              |
+|  Also: Fell behind the click                      (expand)   |
 |  [   Next excerpt   ]          Done for now                  |
 |  [x] Show tips between exercises                             |
 +--------------------------------------------------------------+
 ```
 
-- Content: primary tip plus at most one secondary, from 02 6.1. Header shows instrument family and the dimension (Rhythm, Notes, In tune, Flow, Steady, Tone/Technique).
-- "Why this tip" names the evidence with bar numbers; [Show me] opens a mini annotated excerpt of those bars (review rendering, 3 sp smaller) in place.
-- Drill button runs a practice take of the cited bars at the drill tempo (02 tip `drill`), using the same scan-less flow (count-in starts immediately). After the drill, return to this card with a small result line ("Drill: 4 of 5 on time").
-- Positive outcome (no pattern fired): one card "Clean read" with a tip to raise difficulty or tempo, and a [Try level 6] suggestion if applicable.
-- Focus card (02 6.1 step 5): when the same pattern was primary in 3 of the last 5 attempts, a highlighted card "This week's focus: late after dotted rhythms" with a [Practice this] button that biases selection (02 `remedialBias`).
-- No auto-advance. Enter = Next excerpt. "Show tips between exercises" off moves tips into the results panel only.
+- Content is 02 §6.1's choice: a primary tip and at most one secondary (never more than 2). Header: instrument abbreviation, name, and the pattern's dimension from `tips.json` (Notes, In tune, Rhythm, Flow). Headline: the pattern name from `tips.json`. Body: the tip text.
+- Evidence line: the pattern's `evidenceTemplate` if present, else "Seen in bars {bars}." from the pattern's bars.
+- Only E30 fired: one "Clean read" card with tip U18.
+- Incomplete attempt: only E6 may fire, plus "That one got away. Keep the beat going next time, even through slips."
+- No auto-advance. Enter = Next excerpt. With "Show tips between exercises" off, the interstitial is skipped and the tip stays as the one-line preview on results.
 
-Acceptance: never more than 2 tips; tip text is plain text ≤ 280 characters (01 8); the evidence line always cites at least one bar number; the drill never counts as ranked.
+Acceptance: never more than 2 tips; the evidence line always has at least one bar number; text comes only from `tips.json`.
 
-### 5.7 Progress and rank
+### 5.7 Progress
 
-Route `#/progress`. Desktop two columns; phone single column in this order.
+Route `#/progress`. Two columns on `lg`/`xl`, one column on phones in this order.
 
-1. **Rank header**: current rank emblem (64 px), rank name, "Rank 4 of 10", XP total, progress bar to next rank with numbers ("2,180 / 2,500 XP to Ensemble player · needs level 5"). Rank never goes down, so there is no "at risk" UI.
-2. **Rank ladder**: horizontal (desktop) or vertical (phone) list of all 10 ranks. Achieved ranks: filled emblem with achieved date. Current: ring plus pointer. Future: outline emblem with XP and min level. Emblems are geometric (section 7.3), not illustrations.
-3. **Instruments**: one card per played instrument: name, level badge ("Level 5"), level-up window as 5 small squares holding the last 5 ranked scores (filled with the score number, squares ≥ 85 get a check glyph), best score per level, attempts count.
-4. **Streak**: current and best streak, rest-day freezes banked (snowflake glyph × n), a 12-week calendar grid (7 rows × 12 columns, 12 px cells, 3 px gap). Cell fill steps: 0 takes, 1–2, 3–5 (a streak day per 02), 6–11, 12+. Days meeting the 3-ranked-take rule get a dot glyph in the cell, so streak days do not rely on fill shade.
-5. **Score trend**: line chart of the last 30 ranked scores for the selected instrument, x = attempt number, y = 0–100, with grade bands as faint horizontal rules labelled S/A/B/C. Points are 4 px circles; level changes are vertical dashed rules labelled "L5 → L6". Includes a text alternative table (section 8).
-6. **Common slips**: horizontal bars of the top 5 patterns by count over the last 30 days (from `patternCounts`), labelled in musician language ("Late after dotted rhythms", "Missed key-signature sharps"), each with a [Tip] link to the tip card.
-
-```
-+--------------------------------------------------------------------------------------+
-| Progress                                                           <B♭ trumpet  v>   |
-| +-----------------------------------+  +-------------------------------------------+ |
-| | (◆) Section player   Rank 4 of 10 |  | Score trend (last 30 ranked)              | |
-| | 2,180 / 2,500 XP · needs level 5  |  |  100 -S---------------------------------  | |
-| | [=================------]         |  |   90 -A--------o----o--o----------o-----  | |
-| +-----------------------------------+  |   80 -B---o--o---o-------o--o--o------o-  | |
-| | Ladder  ◆ ◆ ◆ ◈ ◇ ◇ ◇ ◇ ◇ ◇      |  |   70 -C-o----------------¦--------------  | |
-| +-----------------------------------+  |                       L5→L6              | |
-| | B♭ trumpet  Level 5               |  +-------------------------------------------+ |
-| | Last 5: [88✓][91✓][79][86✓][90✓]  |  | Common slips                              | |
-| | Level up offered                  |  | Late after dotted rhythms   ██████ 14 [Tip]| |
-| +-----------------------------------+  | Wrong partial (same valve)  ████ 9    [Tip]| |
-| | Streak 6 days (best 21) ❄ x1      |  | Missed key-signature sharps ███ 6     [Tip]| |
-| | [12-week grid]                    |  +-------------------------------------------+ |
-| +-----------------------------------+                                                |
-+--------------------------------------------------------------------------------------+
-```
-
-Empty state (no attempts): section 9.1.
+1. **Rank header**: emblem 64 px, rank name, "Rank 3 of 10", XP total, the rank bar from 5.5.4.
+2. **Ladder**: 10 emblems, horizontal on desktop and vertical on phones. Achieved: filled, with date. Current: ringed in `--accent`. Future: outlined, with XP and minimum level from `progression.json`. Rank never goes down, so there is no "at risk" UI.
+3. **Instruments**: one card per played instrument: name, "Level 5", the level window as 5 squares with the last 5 ranked scores (a check glyph when ≥ 85, a small tempo tick when played at or above the level's mid tempo, per 02 §5.6), best score per level, ranked attempts.
+4. **Streak**: "Streak 6 days (best 21)" and "A streak day needs 3 ranked takes." No freezes in v1.
+5. **Common slips**: up to 5 rows from `patternCounts` over this instrument: pattern name from `tips.json` and "9 times". Fewer than 3 attempts: the empty state in 9.1.
 
 ### 5.8 History
 
-Route `#/history`. A list of attempts grouped by local day ("Today", "Yesterday", "Mon 16 Nov"), newest first, virtualised beyond 100 rows.
+- List grouped by local day ("Today", "Yesterday", "Mon 16 Nov"), newest first, virtualised beyond 100 rows. Row (56 px desktop, 72 px phone): grade letter in a 32 px square (or "–" for void and not graded), score, title and composer (ellipsis, full on hover/focus), instrument, level, written key and meter, tempo, Ranked/Practice chip, time.
+- Filters: instrument select and a "Ranked only" toggle, kept in the URL query. On phones they sit in a [Filter] sheet.
+- `#/history/:attemptId` is the results screen read-only, with the full header and source sheet, and one action: [Play this excerpt again (practice)].
 
-Row (56 px desktop, 72 px phone): grade letter in a 32 px square, score, excerpt title and composer (truncated with ellipsis, full on hover/focus), instrument, level, key and meter, tempo, Ranked/Practice chip, time. Click or Enter opens `#/history/:attemptId`, the results screen read-only (actions: [Play this excerpt again (practice)], "Export MusicXML", "Delete this take").
+### 5.9 Calibration and audio self-test
 
-Filters above the list: instrument select, "Ranked only" toggle, grade range chips (S–A, B–C, D–F), search by title or composer. Filters persist in the URL query.
+One card, max 560 wide, used in onboarding, Settings > Audio, banners, and results prompts.
 
-Phone: filters collapse into a [Filter] button opening a sheet.
+1. **Setup row**: input device select; Output (Speakers, Wired headphones, Bluetooth). Speakers use loopback; headphone modes use play-along (01 §7.8).
+2. **Loopback**: "Stay quiet for about 8 seconds while we time the clicks." [Start]. Ten dots fill as clicks are found; a missed click shows a hollow dot with a slash. Success: "Your setup adds 42 ms. We'll correct for it." with "± 2 ms" in small text.
+3. **Play-along**: "Play a short note on each click. 8 clicks." Dots plus a "Play now" pulse; each detected note fills a dot and shows a tick left or right of centre for its offset.
+4. **Audibility check** (after success on speakers): "Can you hear the click clearly while you play a note?" [Yes] [Not really]. "Not really" suggests "Try the Wood click, or wired headphones." and links to Click sound.
+5. **Failures**: loopback failed → "We couldn't hear the clicks. Turn up the volume, or play along instead." [Try again] [Play along instead]. Play-along failed twice → [Use an estimate] with "Timing can't be trusted with an estimate, so takes won't earn XP until you calibrate."
+6. **Warnings**: RTL above 120 ms → "This looks like Bluetooth audio, which adds a lot of delay. Takes won't earn XP. Wired headphones or built-in speakers work better." On iOS add: "AirPods microphones reduce accuracy. Use the iPhone mic." AEC suspected → "Your device seems to be filtering the microphone, which can hide quiet notes and blur timing."
+7. **Audio self-test** ([Check audio]): runs 01 §7.9's steps and shows a pass/fail list (Sanity tone, Clicks heard, Count-in recheck, Clock rate, Mic processing off, Screen refresh) and [Export diagnostics] (no audio).
+8. On iOS the card shows "iOS: beta" under the title.
 
-### 5.9 Latency calibration
+Rule: calibration never blocks a take on any platform. A take without a measured calibration is graded as practice with the reason badge "Calibrate to earn XP on this device" (02 `calibration`); 01's count-in recheck results that mark calibration stale show the results banner "Your audio delay changed. Recalibrate for fair timing." [Recalibrate].
 
-Used in onboarding, from Settings > Audio, and from the "Recalibrate" banner. One card, max 560 wide.
+Acceptance: results are stored per `routeKey`; a missing or stale calibration never disables Start; every failure string names a next step.
 
-Flow (01 5.7):
+### 5.10 Sheets and modals
 
-1. Device row: input device select and output description ("Built-in speakers" / "Headphones"). A toggle "I'm using headphones" switches the method to play-along (loopback cannot hear clicks through headphones).
-2. Loopback: "Stay quiet for about 8 seconds while we time the clicks." [Start]. During: 10 dots fill as clicks are detected (a detected click fills its dot; a missed one shows a hollow dot with a slash). Result: "Your setup adds 42 ms. We'll correct for it." with spread ("± 2 ms") in small text.
-3. Play-along (fallback or headphones): "Play a short note on each click. 8 clicks." Visual beat dots plus a large "Play now" pulse on each click; each detected note fills a dot and shows its offset as a short tick left or right of the dot centre.
-4. Failure: if loopback fails, show "We couldn't hear the clicks. Turn up the volume, or play along instead." [Try again] [Play along instead]. If play-along also fails: [Use an estimate] (method "reported") with the warning "Timing grades may be off by a few hundredths of a second."
-5. Warnings: RTL above 120 ms shows "This looks like Bluetooth audio, which adds a lot of delay. Wired headphones or built-in speakers work better." AGC detected shows "Your device is adjusting the mic level automatically, which can hide quiet notes."
-
-Acceptance: calibration result is stored per device key; a stale or missing calibration never blocks a take (it degrades to "reported" with the badge on results).
-
-### 5.10 Session summary, rank-up, and modals
-
-- **Session summary sheet** (after "Done for now" or every 10 attempts): takes, average score, XP earned, best take (with link), top 3 slips of the session with tip links, streak status ("Streak safe for today" / "1 more ranked take to keep your streak"). Actions [Keep going] [Finish].
-- **Rank-up overlay**: centred 400 px card, rank emblem at 96 px, "You're now an Ensemble player", the next rank's requirement, [Continue]. Focus moves to Continue; Esc closes. Shown once per rank.
-- **Stop confirm** (leaving during a take): sheet with "Stop this take? It won't be graded." [Keep playing] (default focus) [Stop].
-- Modals and sheets use the focus-trap and restore rules in section 8.3. No modal ever opens during a take except the stop confirm, which the player initiates.
+- **Stop confirm** (the Stop button; Esc stops at once without it):
+  - Ranked, before the first detected note: "Restart the count-in?" [Restart] (default) [Stop]. The first restart stays ranked; a second Stop before the first note voids the take (02 §5.3).
+  - Ranked, after the first note: "Stop now? This take will be scored as it stands." [Keep playing] (default focus) [Stop].
+  - Practice: "Stop this take? Stopped practice takes aren't scored." [Keep playing] [Stop].
+  - All variants end with "That was: {credit}" once the excerpt has been shown.
+- **Skip after reveal** (scan overflow or Back): "Skip this one? It counts as seen." plus, when the skip limit would be exceeded, "Your next excerpt will be practice: one skip per 5 ranked takes." [Skip] [Keep reading]. The skip toast ends with "That was: {credit}".
+- **Rank-up card**: centred 400 px card, emblem 96 px, "New rank: Section player!" (`rankup.headline`), the next rank's requirement from `progression.json`, [Continue]. Once per rank. Never stacked with another sheet: it waits until any other sheet closes.
+- **Session summary** (after "Done for now" or every 10 attempts): takes, average score, XP earned, best take (link), top 3 patterns with their tip headlines, streak status. If one pattern was primary in 3 of the last 5 attempts, a text-only focus card: "This week's focus: Missed key-signature notes." Actions [Keep going] [Finish].
+- **iOS install coach mark** (once, in iOS Safari tab mode only, after the first graded attempt, never in the same results visit as the rank-up card): "Add Sightread to your Home Screen: tap Share, then Add to Home Screen. It keeps your progress safe and the screen awake." [Got it].
+- Sheets and modals trap focus and restore it on close (8.3). No sheet opens during a take except the stop confirm, which the player opens.
 
 ### 5.11 Settings
 
-Route `#/settings`, left section list on `lg`/`xl` (sticky), single scrolling page with section headings on phone. Changes apply immediately (no Save button) and show a 2 s "Saved" toast only for data actions.
+Changes apply at once; a 2 s "Saved" toast only for data actions. Left section list (sticky) on `lg`/`xl`, one scrolling page on phones.
 
 | Section | Settings (default first) |
 | --- | --- |
-| Profile | Display name; profiles list (switch, add, remove) for shared devices; active instrument. |
-| Audio | Input device; [Calibrate latency] with last result and date; metronome sound volume (0–100, default 70); metronome mode (Audible, Count-in only, Visual only); accent downbeat (on); subdivision clicks (auto by level, on, off); count-in length (Auto, 1 bar, 2 bars); A4 reference (440, range 415–446); "I'm using headphones" (off). |
-| Display | Theme (System, Light, Dark); Score paper in dark theme (Dark paper, Light paper); notation size (Normal, Small, Large); playhead (Bar highlight, Line, Off); live feedback (Full, Errors only, After the take); show cents and milliseconds in review (on); show live pitch dot (off); show note names under notes (off; practice only, makes takes unranked). |
-| Practice | Scan time (Level default, or 10–120 s); show STARS checklist (on); show tips between exercises (on); placement test (run again). |
-| Accessibility | Reduce motion (System, On, Off); high-contrast feedback (off; thicker strokes and larger glyphs, 7.2); larger verdict glyphs (off); announce results automatically (on); keyboard shortcuts list. |
-| Data | Export all data (JSON); import; delete all data (typed confirmation "delete"); storage used. |
-| About | Version, corpus version, excerpt sources and licences page, privacy note ("Audio never leaves this device"). |
+| Profile | Your name |
+| Audio | Input device; Output (Speakers, Wired headphones, Bluetooth); [Calibrate] with method, result and date; [Check audio]; Click sound (Tick, Wood; Wood only in headphone modes if 01's CI flag says so); metronome volume 0–100 (70); metronome (Audible, Count-in only); A4 reference 440 (415–446) |
+| Display | Theme (System, Light, Dark); Live feedback (Full, After the take); Show cents and milliseconds in review (on) |
+| Practice | Show STARS checklist (on); Show tips between exercises (on); Show beta instruments (off); [Run placement again] |
+| Accessibility | Reduce motion (System, On, Off); High contrast (off); Keyboard shortcuts (on); Announce results automatically (on); [Keyboard shortcuts list] |
+| Data | Export all data (JSON); Import; Delete all data (typed confirmation "delete"); Storage used; [Download all music for offline] |
+| About | App, corpus and config versions; Credits; "Audio never leaves this device. Nothing is recorded."; on iOS "iOS: beta" |
 
-"Live feedback: After the take" hides the overlay during the take (a "blind" take, like an audition) and reveals everything in review. "Errors only" draws no `correct` confirmations live.
+- "Live feedback: After the take" hides the overlay during the take and reveals everything in review. Full is the default and cannot be weakened (R11).
+- "Count-in only" earns 02's `m_mode` from L4; the setup XP hint says so.
+- Theme changes are disabled during a take.
+
+### 5.12 Attribution and credits
+
+Placement (03 §9.1, adjusted so the title never cues familiarity before the take; CC0 and PD need no attribution, and CC BY 4.0 is met by a non-identifying source line while the work is shown plus full TASL after the take):
+
+| Where | What |
+| --- | --- |
+| Scan cover and scanning | No title or composer. CC BY items: the source line (5.3). Overflow "About this music (shows title and composer)" opens the source sheet; opening it changes nothing about ranked status. |
+| Performance | CC BY items: the source line in the status line (or the toolbar right edge on short viewports). Nothing else. |
+| Stop and skip | "That was: {credit}". |
+| Results header, attempt detail | The credit line (5.5.1); tap opens the source sheet. |
+| History rows | Title and composer. |
+| Credits page `#/credits` | From `attributions.json`: every collection with licence and link ("OpenScore Lieder", "OpenScore String Quartets", "Mutopia Project"); a TASL entry with modification notice for every CC BY item; licence texts linked; "Report a rights problem" mailto; no logos and no endorsement wording. Reachable from Settings > About and the Home footer. |
+
+Source sheet rows: Composer, Work, Bars, Edition, Encoder, Collection (corpus), Licence (name linked to `licenseUrl`), Source (link to `sourceUrl`), and the Adapted line built at runtime from `modifications` plus the transposition, written key first: "Adapted: excerpted, note values doubled, transposed. Written for E♭ alto saxophone in G major (concert B♭ major)."
+
+The UI builds all credit text from 03's structured `source` fields (01 §6.1) through `en.json` templates; it does not display the pipeline's prebuilt `attribution` string. There is no lyricist line (R8) and no share-alike notice (no BY-SA, R8). Any later export must embed the attribution.
 
 ---
 
 ## 6. Real-time feedback rendering
 
-The binding behaviour is 01 6.6 (event to renderer) and 02 4.7 (verdict rules). This section fixes the visual treatment. All live marks live in the overlay SVG above the static VexFlow SVG; the static score is never re-rendered during a take. Note state changes are CSS classes on the note's `<g>` (found by `ScoreEvent.id`).
+01 §9.9 defines the events and their order; 02 §4.8 defines the verdict rules and thresholds; this section defines the look, frozen as data in `src/notation/visual-states.ts`. All marks live in the per-system overlay groups; the static VexFlow SVG is never re-rendered during a take. `ScoreView.setNoteState` writes the state as `data-phase`, `data-timing`, `data-pitch`, `data-provisional`, `data-marginal`, `data-rejudged` on the note `<g>`; repeated calls for the same note are idempotent updates (01 sends up to 3 `judgment` events per note).
 
-### 6.1 States of the expected (written) note
+### 6.1 Note visual states (`visual-states.ts`)
 
-| State | When (02 4.7, 01 6.6) | Notehead, stem, accidental | Verdict lane glyph (live) | Verdict lane (review) |
-| --- | --- | --- | --- | --- |
-| `pending` | not reached | `--ink` | none | none |
-| `active` | onset matched, verdict not yet final | `--ink`, plus a 1.5 px ring in `--active` around the notehead | none | n/a |
-| `correct` | in tolerance (within tRed and redCents) | fill `--correct` | small filled dot (3 px) | check mark ✓ in `--correct` |
-| `correct-marginal` | correct, but timing beyond tGood or cents beyond good | fill `--correct` | same dot | check mark with a tiny tick on the side of the deviation (◂✓ early-ish, ✓▸ late-ish) in `--text-muted` |
-| `early` | matched, Δ < −tRed | fill and stroke `--error` | ◂ chevron | ◂ plus text "early" on focus/hover |
-| `late` | matched, Δ > tRed | `--error` | ▸ chevron | ▸ |
-| `sharp` | right note, dev > redCents | `--error` | ▲ | ▲ plus cents chip |
-| `flat` | right note, dev < −redCents | `--error` | ▼ | ▼ plus cents chip |
-| `wrong-pitch` | matched, wrong note | `--error` | ✕ small (5 px) | ✕ |
-| `octave` | right pitch class, wrong octave | `--error` | "8" glyph | "8" |
-| `missed` | no match by onset + W | `--error` outline-only notehead (fill removed, 1.5 px stroke), stem and accidental `--error` | ○ hollow ring | ○ plus "missed" |
-| combined | for example late + wrong | `--error` | up to 2 glyphs stacked vertically in the lane (timing on top) | same |
+```ts
+export type OverlayMode = 'live' | 'review' | 'blind';
+export interface NoteVisual {
+  noteClass: 'n-ink' | 'n-correct' | 'n-error' | 'n-error-hollow';
+  ring: 'none' | 'active' | 'rejudged';
+  laneGlyphs: GlyphId[];      // 0 to 2, top first
+  fadeMs: number;             // colour change duration
+}
+export interface GhostVisual {
+  style: 'ghost' | 'ghost-replay';
+  arrow: 'up' | 'down' | null; offsetRight: boolean; stem: boolean; dashedLedgers: true;
+  opacity: number; fadeMs: number; laneGlyph: GlyphId | null;
+}
+export function noteVisual(s: NoteVisualState, mode: OverlayMode, braked: boolean): NoteVisual;
+export function ghostVisual(g: GhostNote, mode: OverlayMode, braked: boolean): GhostVisual;
+```
 
-Why these choices:
-- The user story says the original note "turns red" for any timing or pitch error; it does, in every error state.
-- Colour is never alone: the lane glyph differs per verdict, and `missed` changes notehead shape (hollowed) so it reads differently from "played wrong".
-- Rests that receive extras get the `extra` glyph "+" in the lane under the rest; the rest itself stays `--ink`.
+"Error" means `phase: 'missed'`, or `phase: 'judged'` with `timing` in {early, late} or `pitch` in {sharp, flat, wrong-pitch, octave}.
 
-The **verdict lane** is a 20 px strip under each staff (below the lowest ledger allowance), aligned to note x. Glyphs are 9 px tall in live mode, 12 px in review. The lane keeps the notation itself clean: musicians can read the music with the eye and see verdicts with peripheral vision.
-
-Colour transitions: 100 ms linear fill change (instant with reduced motion). Pitch verdicts are provisional after 120 ms of steady pitch (02 4.7); a provisional pitch error renders immediately, and if the player corrects within the note, the note fades back to `correct` over 100 ms. Timing verdicts are final at onset and never revert during the take.
-
-### 6.2 Ghost notes (what was actually played)
-
-A ghost is a notehead drawn in the overlay at the played pitch and the played time.
-
-Geometry:
-- Notehead: same glyph and size as a black notehead, rendered as an outline only (1.5 px stroke in `--ghost`, fill `--ghost` at 15% opacity). High-contrast setting: 2.25 px stroke, 30% fill.
-- No stem and no flag in live mode (stems add clutter and imply a rhythmic value we have not decided yet). In review, ghosts get a stem in `--ghost` at 70% opacity pointing the same way as the expected note's stem.
-- Duration tail: a 3 px tall bar in `--ghost` at 35% opacity extending right from the notehead centre for the held duration (`note-update.durationBeats` mapped through `beatToPoint`). It grows while the note sounds and stops at `note-end`. This is how the player sees "held too long" or "cut short".
-- Ledger lines for ghosts: dashed (2 px on, 2 px off) in `--ghost`, so ghost ledger lines never look like real ones.
-- Accidental: drawn in `--ghost` left of the ghost notehead when the spelling rule (02 4.7) needs one, including courtesy naturals (target F♯, played F: ghost shows ♮).
-- Octave clamp: if the ghost would need more than 4 ledger lines, draw it at 4 ledger lines with a small "8va" or "8vb" label in `--ghost` (10 px), so wild octave errors stay on screen.
-
-Position:
-- x = `beatToPoint(ghost.scoreBeat)` for the played onset. A ghost of an early or late note therefore sits left or right of the expected note: the horizontal displacement is the error.
-- Leader line for timing errors: a 1 px dotted line in `--ghost` from the ghost notehead's edge to the expected notehead's edge at the ghost's y, with a 4 px arrowhead pointing at the expected note ("it belonged here"). Drawn only if the gap is at least 1.5 notehead widths; for smaller gaps the lane chevron suffices.
-- Same staff position as the expected note (sharp, flat, or an on-time note one step away that would overlap): offset the ghost to the right by 1.1 notehead widths, the way a second is written in a chord. If the expected note has a right-side accidental conflict (next note's accidental), offset left instead.
-- Ghost lands across a barline or system break: draw it where it was played. If the played beat falls in the next system, draw it at that system's position. If it falls before bar 1 (very early start), clamp to the left margin of system 1 with the ◂ glyph.
-- Ghost collisions: if two ghosts would overlap (within 0.8 notehead widths and 1 staff step), the later one is offset right by 0.8 widths. More than 3 ghosts within a beat: draw the first 2 and a "+n" label; review shows all.
-
-Kinds (01 `GhostNote.kind`):
-
-| Kind | Ghost pitch | Ghost x | Extra marks |
+| State (from `NoteVisualState`) | Live (Full) | Review | Ghost |
 | --- | --- | --- | --- |
-| `early` / `late` (right pitch) | expected pitch | played onset | leader line; lane ◂ / ▸ |
-| `sharp` / `flat` | expected pitch (same staff position) | played onset, offset right 1.1 widths | cents chip (6.3); a 6 px arrow ▲/▼ attached to the ghost's top-right |
-| `wrong-pitch` | played pitch, spelled per 02 4.7 | played onset | accidental per spelling rule; lane ✕ |
-| `octave` | played pitch (clamped per above) | played onset | "8" in lane |
-| `extra` | played pitch | played onset | ghost only, no expected note changes; lane "+" under the ghost |
-| combined (late + wrong) | played pitch | played onset | one ghost; leader line plus accidental; lane shows both glyphs |
+| `pending` | `n-ink`, no glyph | `n-ink` | none |
+| `active` (note started, no verdict yet) | `n-ink` + 1.5 px `--active` ring | n/a | none, so a correct note never flickers |
+| correct (judged, on-time, in-tune or not-graded, not marginal) | `n-ink` kept; lane `dot` (3 px, `--correct`) | `n-correct`; lane `check` | none |
+| correct-marginal (`marginal: true`) | as correct, never red | `n-correct`; lane `check-marginal` in `--text-muted`; inspector gives the numbers | none |
+| early / late | `n-error`; lane `early` ◂ / `late` ▸ | same | at the played x, written pitch |
+| sharp / flat | `n-error`; lane `sharp` ▲ / `flat` ▼ | same; cents in the inspector | same staff position, offset right 1.1 notehead widths, 6 px `arrow-up` / `arrow-down` |
+| wrong-pitch | `n-error`; lane `wrong` ✕ | same | at the played pitch, spelled per 02 §4.8 |
+| octave (non-voice families only) | `n-error`; lane `octave` "8" | same | at the played pitch; beyond 4 ledger lines it is clamped with a 10 px "8va"/"8vb" label |
+| voice octave displacement | correct (R7) | correct; inspector "Sung an octave lower (counts as right)" | none |
+| missed | `n-error-hollow` (fill removed, 1.5 px stroke); lane `missed` ○ | same | none |
+| combined timing + pitch | `n-error`; two glyphs, timing on top | same | one ghost with both |
+| `rejudged: true` | n/a | final state + 2 px dashed `--text-muted` ring for the whole review | per 6.6 |
 
-When the note is `correct`, no ghost is drawn (live or review). The player sees a confirmed note, not a duplicate.
+| Ghost kind (from `GhostNote`) | Style | Lane |
+| --- | --- | --- |
+| early, late, sharp, flat, wrong-pitch, octave | `ghost` | from the expected note's state |
+| extra | `ghost` | `extra` + under the ghost; the expected notes do not change |
+| `displaced: true` (replayed notes) | `ghost-replay`: 1.5 px dashed outline in `--ghost-replay`, no fill | `replay` ↺ under the ghost; never red on current notes; review groups them under a bracket "bars 5–6 replayed" |
 
-### 6.3 Cents indicator
+Timings: note colour changes 100 ms linear; ghosts appear with an 80 ms opacity fade; reduced motion makes both instant. A provisional pitch error (`provisional: true`) may revert to correct before note-off with a 100 ms fade back; this is the only live reversal. Timing verdicts never revert during a take.
 
-For `sharp` and `flat`:
-- Live: a chip above the staff, centred over the note, 2 sp above the top line (or above the highest ledger line): text "+38¢" or "−22¢" in 11 px tabular numerals with the ▲/▼ glyph, `--error` text on `--surface-chip` with a 1 px `--error` border, 4 px radius. The chip shows for 1.5 s, then collapses into the lane glyph (fade 150 ms). At most one chip is visible at a time; a new chip replaces the old one immediately.
-- Review: chips are hidden by default and appear on hover or focus of the note, and for all pitch errors when the "Pitch" filter is on. When "Show cents and milliseconds in review" is off, chips read "sharp" or "flat" instead of numbers.
-- Notes that are correct but beyond the "good" band (marginal) never get a chip live; in review their tooltip gives the cents.
-- Voice with drift compensation: cents shown are relative to the compensated target (02 4.5); the tooltip says "relative to where you'd drifted".
+### 6.2 Ghost geometry
 
-Optional "tuner" style (not in v1): a small vertical needle next to the note. Rejected for v1 because it pulls the eye down to the current note instead of ahead.
+- Notehead: the Bravura black notehead path from the glyph sprite, outline only: 1.5 px `--ghost` stroke, `--ghost` fill at 15% (high contrast: 2.25 px, 30%).
+- Live: no stem, no flag, no duration tail, no leader line. Review: stem in `--ghost` at 70%, duration tail (3 px bar at 35%), and a 1 px dotted leader with a 4 px arrowhead to the expected note when the gap is ≥ 1.5 notehead widths.
+- Ledger lines for ghosts are dashed (2 on, 2 off) in `--ghost`.
+- Accidental in `--ghost` left of the ghost whenever the spelling rule needs one, including courtesy naturals (target F♯, played F: ♮). Ghost accidentals are never dropped, even under the brake.
+- x = `beatToPoint(ghost.scoreBeat)` for the played onset, so horizontal displacement is the timing error. A ghost in the next system is drawn there; a ghost before bar 1 is clamped to the left margin of system 1.
+- Collisions: a ghost within 0.8 notehead widths and 1 staff step of another is offset right by 0.8 widths, down to 0.5 widths when space runs out. Overlap is allowed; omission is not.
 
-### 6.4 Timing indicator in review
+### 6.3 Sequence and latency per note
 
-Tooltip and focus description for timing errors give both units: "Late by 90 ms (about a sixteenth at this tempo)". The beat-fraction phrase uses the nearest of: a 32nd, a sixteenth, a triplet eighth, an eighth, a quarter (relative to the current tempo); "less than a sixteenth" below that.
+| Event (01) | What appears | When (01 §10, §12) |
+| --- | --- | --- |
+| `note-start`, on time | active ring only | with the timing judgment |
+| `judgment` with early or late | original red and the ghost at once | sound to visible p95 ≤ 150 ms (non-beta) |
+| wrong pitch at confirmation | original red and the ghost at the played pitch | same budget in about 90% of notes, else after the steady window |
+| sharp or flat (provisional, after 02's live window and hysteresis in `grading-config.json`) | original red, offset ghost with arrow | p95 ≤ 300 ms winds/brass/strings, ≤ 350 ms voice |
+| `missed` | hollow red | expected onset + `W_i` + 01's confirm delay |
+| extra | ghost and "+" | about onset + 100 ms rule + pipeline |
 
-### 6.5 Keeping the live view readable
+Marks are drawn at the played position whatever their arrival time. At L7 and 132 bpm a 300 ms pitch mark lands about 0.66 beat behind the playhead, still in the current bar or the one just left. The owner should be told that out-of-tune marks arrive about a third of a second after the note starts (01 §10).
 
-Hard rules for live mode:
+### 6.4 Keeping the default ("Full") readable
 
-1. **No forward clutter.** No overlay element is drawn more than 0.5 beat right of the playhead, except a ghost's own notehead at onset, which is at the playhead by definition, and the next-bar marker.
-2. **One transient at a time.** At most one cents chip is visible. No text other than the chip appears in the score frame during a take.
-3. **No motion in the music.** Noteheads, systems, and the page never move during a take, except page turns in page-turn mode. Ghosts appear with an 80 ms fade, never a pop, scale, or bounce.
-4. **Fade the past.** When the playhead leaves a system, all overlay marks on it drop to 60% opacity, so the current system is visually dominant.
-5. **Correct is quiet.** Correct notes use the fill change and a 3 px lane dot only. In "Errors only" mode they stay `--ink`.
-6. **Density brake.** If more than 4 error states fire within one bar, the remaining errors in that bar render the note colour and lane glyph but suppress ghosts until the next bar; the review view shows all ghosts. This prevents a wall of purple when a player is lost.
-7. **No sound, no speech, no vibration** from feedback.
-8. **Performance budget:** at most 150 overlay elements live at once (ghosts, tails, ledger lines, chips); the overlay uses one `<g>` per system, and opacity changes are applied per group.
+Full is the default and shows every error (R11). These rules may simplify drawing; none may hide an early, late, wrong or out-of-tune note's red original or its ghost.
 
-"After the take" (blind) mode skips all of the above and shows only the playhead and metronome.
+1. **Forward marks.** An overlay mark may sit right of the playhead only on the single next unplayed note that an early note matched, and only within that note's `W_i`. Its ghost is at the played position (the playhead). Static score, bar tint and the next-bar marker are not marks.
+2. **Nothing moves.** Marks only appear (80 ms ghost fade, 100 ms fill). No tails, leaders or growing elements live.
+3. **No text in the score frame.** No cents chip; out-of-tune shows as the offset ghost with an arrow; numbers are in review only. Status text lives outside the frame (5.4.1).
+4. **Correct is quiet.** Live correct notes stay `--ink` with a 3 px lane dot. Teal fill and ✓ come in review. So the only colour events in peripheral vision are errors.
+5. **Fade the past.** Marks drop to 60% opacity once the playhead is one beat past their bar, and to 40% once their system is left. The current bar stays at 100%.
+6. **Lead the eye.** Bar tint 8% (light) / 10% (dark) behind the ink; the next-bar marker from 75% of the bar.
+7. **Ghosts are not printed notes**: violet outline, 15% fill, no stem, dashed ledgers.
+8. **Verdict lane**: glyphs in a 20 px lane under each staff at 9 px live (12 px review, 14 px high contrast).
+9. **Density brake** (a bar with more than 4 error states): in that bar ghosts appear without fade, ghost arrows are dropped, the lane shows one glyph per note (pitch before timing), and the bar's ghosts sit at 70% opacity. Every red original and every ghost and ghost accidental stays.
+10. **Unmatched ghosts cap**: extra and replayed ghosts (no matched written note) are capped at 3 per bar live; beyond that the lane shows a `plus-n` glyph with the count. Review shows all. Matched-note ghosts are never capped.
+11. **Budget**: up to 600 overlay nodes live, using `<use>` from the glyph sprite and one `<path>` per ledger set; opacity changes are applied per bar group.
+12. **Coaching instead of hiding**: the scan cover says "Keep your eyes ahead. Every mark waits for you after the take."
 
-### 6.6 Review rendering (after the take)
+"After the take" (blind) draws nothing in the overlay during the take: only the bar tint and beat dots.
 
-Computed from the final judgments, not the live ones.
+### 6.5 Review rendering
 
-- All notes keep their final state colour. Correct notes show ✓ in the lane at 12 px.
-- Ghosts are opaque (100% stroke, 20% fill) with stems; duration tails stay at 35%.
-- Per-bar heat strip above each bar (6 px tall, full bar width), from bar error share: 0 errors: no fill, track only; up to 25% of notes wrong: one hatch line; up to 50%: two; above 50%: solid `--error` at 60%. Hatching (diagonal lines) carries the meaning without colour. Hover or focus on a bar's strip: "Bar 6: 2 of 5 notes off (1 late, 1 flat)".
-- Filter chips over the score: All, Pitch (Notes and In tune), Rhythm (Rhythm and Steady). Filtering dims non-matching marks to 25% opacity; it does not hide the music.
-- Toggle "Show: My take / Clean score". Clean score hides the overlay and restores ink colours, so the player can reread the passage.
-- Note inspector: clicking or focusing any note opens a popover anchored to the note:
+Computed from the final judgments only.
+
+- Notes take their final review classes (6.1). Ghosts are opaque (100% stroke, 20% fill) with stems, tails and leaders. Replayed runs get a bracket above the staff: "bars 5–6 replayed".
+- Heat strip, 6 px above each bar, from the bar's error share: 0: track only; ≤ 25%: hatch spacing 8 px; ≤ 50%: hatch spacing 4 px; > 50%: solid `--error` at 60%. Hatch lines are 1.5 px at 45° in `--error`. Hover or focus: "Bar 6: 2 of 5 notes off (1 late, 1 flat)".
+- Toggle "Show: My take / Clean score" (C). Clean score hides the overlay and restores ink.
+- Slip stepper: [◀ prev slip] [next slip ▶] step through error notes in time order (Shift+← / Shift+→). A count button or the re-judged button restricts the stepper to that set; "All slips" resets it.
+- Note inspector (click or Enter on a focused note), a popover anchored to the note:
 
 ```
  +-------------------------------------+
  | Bar 6, beat 2                       |
  | Written  F♯5 (eighth)               |
  | Played   F♮5, 90 ms late            |
- | Held     80% of its value           |
- | "The F is sharp in E major."  [Tip] |
+ | Late (partial credit)               |
+ | Pattern: Missed key-signature notes |
  +-------------------------------------+
 ```
 
-  The quoted hint comes from the pattern that this note belongs to (02 6.2); omitted when none.
-- [◀ prev slip] [next slip ▶] step through error notes in time order (also arrow keys, section 8.3). The page-turn layout in review shows the system containing the selected note.
-- Playback in review moves the playhead line (review always uses the line style) and highlights each note as it sounds.
+  - Timing in both units: "90 ms late (about a sixteenth)". The phrase uses the nearest of a 32nd, sixteenth, triplet eighth, eighth, quarter at the take tempo, or "less than a sixteenth".
+  - Notes between tRed and tBad say "Late (partial credit)" or "Early (partial credit)" so a red note with credit does not look like a bug.
+  - Marginal notes: "On time, 55 ms late (a little credit lost)".
+  - Cents: "22 cents sharp" (voice: "relative to where you'd drifted"). With "Show cents and milliseconds" off, "sharp" or "late" without numbers.
+  - Re-judged notes: "During the take this showed as late. Looking at the whole take, it was on time."
+  - The pattern line comes from the pattern this note belongs to (`patterns[].notes`); omitted when none.
 
-### 6.7 Feedback acceptance criteria
+### 6.6 Live-to-final changes
 
-1. For every `FollowerEvent` in the 01 6.6 table, the corresponding visual change appears within 33 ms and matches the state table in 6.1.
-2. A note played 100 ms late at ♩ = 60 with an 8th-note-dense bar: ghost drawn right of the expected note by `beatToPoint(onset)` minus `beatToPoint(expected)` within ±1 px.
-3. Sharp by 38 cents: expected note red, ghost at the same staff position offset right by 1.1 notehead widths, chip "+38¢ ▲", lane ▲.
-4. Target F♯ in E major played as F: ghost shows a natural sign.
-5. A missed note shows a hollow red notehead and ○ in the lane, and no ghost.
-6. An extra note during a rest shows a ghost and "+" in the lane; the rest stays ink-coloured.
-7. With a Deuteranopia or Protanopia simulation filter applied (Chrome DevTools rendering emulation), every state in 6.1 remains identifiable by glyph and notehead shape alone; a visual regression test captures each state in both themes and in grayscale.
-8. Live overlay never shows more than one cents chip, and nothing right of the playhead beyond the rules in 6.5 (E2E assertion on overlay element x positions).
+01 gates divergence at ≤ 3% of notes on the synthetic suite.
+
+- After "Scoring…", each note whose final state or ghost kind differs from live crossfades from its live look to its final look over 200 ms (instant with reduced motion). Ghost positions never move.
+- Each such note keeps the 2 px dashed ring for the whole review.
+- The counts line ends with the button "{n} notes re-judged after the take", which restricts the slip stepper to them.
+- If more than 10% of the attempt's notes were re-judged, a results banner: "Several marks changed after the take. Check your mic position." and the attempt gets the diagnostic flag `manyRejudged`.
+- Grade, components, XP and history use final judgments only.
+
+### 6.7 Feedback acceptance
+
+All automated (Playwright against 01's `fixtures/render/*.events.jsonl`, plus the trace budgets of 01 §12):
+
+1. For every event in each render stream, the note's `data-*` attributes and drawn classes equal `noteVisual()` / `ghostVisual()` for that state; re-sending the same `judgment` changes nothing.
+2. Ghost x within ±1 px of `beatToPoint` at the played onset.
+3. Every overlay element's x ≤ playhead x + 1 px, except elements of the one note allowed by rule 1, which are ≤ playhead x + px(`W_i`).
+4. Sharp by 38 cents: original red, ghost at the same staff position offset 1.1 widths with ▲, lane ▲, no text node in the score frame.
+5. Target F♯ in E major played F: ghost shows ♮.
+6. Missed: hollow red notehead, ○, no ghost. Extra in a rest: ghost and "+", the rest stays ink.
+7. Voice an octave low: no red, no ghost, no "8".
+8. Brake fixture (6 errors in one bar): every error note is red, every matched ghost is present.
+9. Stress fixture: 200 ghosts + 200 lane glyphs hold 60 fps for 10 s (rAF trace, ≤ 6 ms main thread per frame).
+10. End to end (Chromium fake capture): early/late and wrong-note red plus ghost visible ≤ 150 ms p95 after the sample-time onset; sharp/flat within 01 §12's budget.
+11. No `aria-live` update between count-in start and the `end` event.
 
 ---
 
-## 7. Design system
+## 7. Design system (frozen in `design/tokens.json`)
 
-### 7.1 Colour tokens
+`tokens.json` is the source; a generator writes `src/ui/tokens.css` (custom properties on `:root[data-theme]`, `[data-paper]`, `[data-contrast="high"]`) and `src/ui/tokens.ts` (typed constants for the overlay and tests). Stylelint bans hex, `rgb()`, `hsl()` and raw px values outside `tokens.css` (layout px in `layout-table.ts` are exempt).
 
-Two themes, plus the score "paper" which follows the theme by default. Contrast ratios are WCAG 2.x relative-luminance ratios measured against the listed surface.
+### 7.1 Colour
+
+Contrast ratios are WCAG relative-luminance ratios against the listed surface; a Vitest test recomputes every ratio from `tokens.json` and fails below the stated minimum.
 
 UI tokens:
 
-| Token | Light | Dark | Use |
+| Token | Light | Dark | Use / minimum |
 | --- | --- | --- | --- |
 | `--bg` | `#F6F5F1` | `#121418` | App background |
 | `--surface` | `#FFFFFF` | `#1A1D22` | Cards, panels |
-| `--surface-2` | `#EFEDE6` | `#22262C` | Inputs, segmented controls, hover |
-| `--surface-chip` | `#FFFFFF` | `#2A2F36` | Chips over the score |
-| `--border` | `#D6D3CA` | `#323840` | Hairlines, dividers (decorative) |
-| `--border-strong` | `#8E8A80` | `#6B727C` | Input borders (≥ 3:1 for non-text contrast) |
-| `--text` | `#1B1D21` (16.9:1 on surface) | `#E9EBEE` (14.2:1) | Body text |
-| `--text-muted` | `#575C66` (6.7:1) | `#A3A9B3` (7.2:1) | Secondary text |
-| `--accent` | `#2F4BD8` (6.7:1) | `#8FA1FF` (7.0:1) | Primary buttons, links, focus |
-| `--on-accent` | `#FFFFFF` (6.7:1 on accent) | `#121418` (7.6:1 on accent) | Text on primary buttons |
+| `--surface-2` | `#EFEDE6` | `#22262C` | Inputs, segmented controls |
+| `--surface-2-hover` | `#DEDCD6` | `#32363B` | surface-2 mixed 8% toward `--text` |
+| `--surface-2-pressed` | `#D1D0CA` | `#3E4247` | mixed 14% |
+| `--border` | `#D6D3CA` | `#323840` | Decorative hairlines |
+| `--border-strong` | `#8E8A80` | `#6B727C` | Control boundaries, ≥ 3:1 |
+| `--text` | `#1B1D21` | `#E9EBEE` | Body, ≥ 4.5:1 (16.9 / 14.2) |
+| `--text-muted` | `#575C66` | `#A3A9B3` | Secondary, ≥ 4.5:1 (6.7 / 7.2) |
+| `--accent` | `#2F4BD8` | `#8FA1FF` | Primary buttons, links (6.7 / 7.0) |
+| `--accent-hover` | `#2D45C2` | `#9AAAFD` | mixed 12% toward `--text` |
+| `--accent-pressed` | `#2B42B3` | `#A1B0FC` | mixed 20% |
+| `--on-accent` | `#FFFFFF` | `#121418` | Text on accent, ≥ 4.5:1 in every accent state |
 | `--focus-ring` | `#2F4BD8` | `#8FA1FF` | 2 px outline, 2 px offset |
 | `--track` | `#E4E1D8` | `#2C3138` | Progress tracks |
-| `--star` | `#8A6400` (5.4:1) | `#E0B341` (8.6:1) | Stars, streak flame |
-| `--caution` | `#8A6400` | `#E0B341` | Warning banners (always with icon) |
-| `--danger` | `#C5300A` | `#FF7B52` | Destructive buttons, error banners (always with icon) |
+| `--star` | `#8A6400` | `#E0B341` | Stars, streak (5.4 / 8.6) |
+| `--caution` | `#8A6400` | `#E0B341` | Caution banners, always with an icon |
+| `--danger` | `#C5300A` | `#FF7B52` | Destructive buttons, error banners |
+| `--danger-hover` | `#B12E0D` | `#FC8865` | mixed 12% |
+| `--danger-pressed` | `#A32C0F` | `#FB9171` | mixed 20% |
+| `--on-danger` | `#FFFFFF` | `#121418` | 5.5 / 7.2 |
+| `--toast-bg` / `--toast-text` | `#1B1D21` / `#FFFFFF` | `#E9EBEE` / `#121418` | Toasts |
+| `--scrim` | `rgba(0,0,0,0.32)` | `rgba(0,0,0,0.56)` | Behind sheets and modals |
 
-Score tokens:
+Disabled controls use 40% opacity on the whole control (WCAG exempts disabled controls from contrast).
+
+Score tokens (dark theme always uses dark paper in v1):
 
 | Token | Light paper | Dark paper | Ratio on paper (L / D) | Use |
 | --- | --- | --- | --- | --- |
 | `--paper` | `#FFFDF8` | `#1B1E23` | | Score background |
 | `--ink` | `#1A1A1A` | `#ECE9E2` | 17.1 / 13.8 | Notation |
-| `--staff-line` | `#7A7A7A` | `#8C9098` | 4.2 / 5.2 | Staff lines and barlines |
-| `--correct` | `#00756A` | `#3FC7B4` | 5.5 / 8.0 | Correct notes, ✓ |
-| `--error` | `#C5300A` | `#FF7B52` | 5.4 / 6.5 | Notes with any error ("red") |
-| `--ghost` | `#7A3EC8` | `#BFA2FF` | 6.2 / 7.8 | Played notes, tails, ghost accidentals |
-| `--active` | `#1A1A1A` | `#ECE9E2` | | Ring on the active note (shape, not hue) |
+| `--staff-line` | `#7A7A7A` | `#8C9098` | 4.2 / 5.2 | Staff lines, barlines |
+| `--correct` | `#00756A` | `#3FC7B4` | 5.5 / 8.0 | Correct notes, ✓, live dot |
+| `--error` | `#C5300A` | `#FF7B52` | 5.4 / 6.5 | Any error ("red") |
+| `--ghost` | `#7A3EC8` | `#BFA2FF` | 6.2 / 7.8 | Played notes |
+| `--ghost-replay` | `#6B6B6B` | `#9AA0A8` | 5.2 / 6.3 | Replayed (displaced) ghosts |
+| `--active` | `#1A1A1A` | `#ECE9E2` | | Active ring (shape, not hue) |
 | `--playhead-bar` | `rgba(47,75,216,0.08)` | `rgba(143,161,255,0.10)` | | Current-bar tint |
-| `--playhead-next` | `#2F4BD8` at 60% | `#8FA1FF` at 60% | | Next-bar top marker |
-| `--playhead-line` | `#1A1A1A` at 45% | `#ECE9E2` at 45% | | Line playhead (neutral, so it never resembles the violet ghost) |
+| `--playhead-next` | `rgba(47,75,216,0.60)` | `rgba(143,161,255,0.60)` | | Next-bar marker, wrap bar |
 | `--ink-accent-soft` | `rgba(47,75,216,0.18)` | `rgba(143,161,255,0.22)` | | Scan highlights |
 | `--metro-active` | `#1A1A1A` | `#ECE9E2` | | Active beat dot |
 
-"Light paper" in dark theme uses the light-paper column inside a dark UI.
+Colour vision (CIE Lab ΔE between Machado 2009 simulated colours, light paper): correct vs error 104 normal, 43 protanopia, 60 deuteranopia, 111 tritanopia; ghost vs error ≥ 85 in every simulation; ghost vs correct ≥ 41; dark paper correct vs error ≥ 37. Correct and error have near-equal luminance, so in grayscale they are separated only by glyph and notehead shape, which 6.1 guarantees and 13.1 tests. The playhead is neutral because accent blue and ghost violet collapse under protanopia (ΔE 7).
 
-Colour-vision check (CIE Lab ΔE between simulated colours, Machado 2009 matrices, light paper): correct vs error 104 normal, 43 protanopia, 60 deuteranopia, 111 tritanopia; ghost vs error ≥ 85 in every simulation; ghost vs correct ≥ 41. Dark paper: correct vs error ≥ 37 in all simulations. Correct and error have nearly equal luminance (contrast 1.0 to 1.2 between them), so for monochromacy and grayscale they are separated only by glyph and shape, which section 6.1 guarantees. The playhead is deliberately neutral because the accent blue and the ghost violet collapse under protanopia (ΔE 7).
+High contrast (`[data-contrast="high"]`): `--error` `#A32100` / `#FF9A78`, `--correct` `#005A52` / `#6FE0D0`, ghost stroke 2.25 px, fill 30%, lane glyphs 14 px, error notes gain a 2 px bar under the notehead in `--error`.
 
-High-contrast feedback setting: `--error` becomes `#A32100` (light) / `#FF9A78` (dark), `--correct` `#005A52` / `#6FE0D0`, ghost stroke 2.25 px, lane glyphs 14 px, and error notes gain a 2 px underline bar under the notehead in `--error`.
-
-Forced-colours mode (Windows High Contrast): map `--ink` to `CanvasText`, `--paper` to `Canvas`, `--error` to `Mark`/`Highlight`, `--ghost` to `LinkText`; glyphs carry the meaning.
+Forced colours: `--ink` → `CanvasText`, `--paper` → `Canvas`, `--error` → `Mark`, `--ghost` → `LinkText`, `--correct` → `CanvasText`; glyphs carry the meaning.
 
 ### 7.2 Typography
 
-- UI font: system stack `system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif` (no web font download; first paint matters on phones). Numbers use `font-variant-numeric: tabular-nums` wherever they update (scores, timers, XP, tempo).
-- Music font: Bravura via VexFlow 5 (SMuFL). Ghost glyphs and lane glyphs ✓ ◂ ▸ ▲ ▼ ✕ ○ + use SMuFL code points from Bravura where available, else inline SVG paths shipped in `src/ui/glyphs.ts`; never rely on emoji fonts.
-- Scale (px / line height / weight):
+- UI font: `system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif`. No web font. `font-variant-numeric: tabular-nums` on every updating number.
+- Music: Bravura bundled with VexFlow 5 (01). Lane glyphs and ghost noteheads come from the sprite (7.4), never from fonts or emoji.
 
-| Token | Size | Line | Weight | Use |
-| --- | --- | --- | --- | --- |
-| `--type-grade` | 72 | 1.0 | 700 | Grade letter |
-| `--type-display` | 48 | 1.1 | 700 | Count-in numbers on phone full-screen, rank-up |
-| `--type-h1` | 32 | 1.2 | 650 | Screen titles, numeric score |
-| `--type-h2` | 24 | 1.25 | 600 | Section titles, tip headline |
-| `--type-h3` | 20 | 1.3 | 600 | Card titles |
-| `--type-body` | 16 | 1.5 | 400 | Body, controls |
-| `--type-small` | 14 | 1.45 | 400 | Secondary text, table cells |
-| `--type-caption` | 12 | 1.35 | 500 | Badges, chart labels, chips over the score (11 px allowed only for cents chips) |
+| Token | Size / line / weight | Use |
+| --- | --- | --- |
+| `--type-grade` | 72 / 1.0 / 700 | Grade letter |
+| `--type-display` | 48 / 1.1 / 700 | Rank-up headline |
+| `--type-count` | 32 / 1.0 / 700 | Count-in numbers |
+| `--type-h1` | 32 / 1.2 / 650 | Screen titles, numeric score |
+| `--type-h2` | 24 / 1.25 / 600 | Section titles, tip headline |
+| `--type-h3` | 20 / 1.3 / 600 | Card titles |
+| `--type-body` | 16 / 1.5 / 400 (600 for buttons) | Body, controls |
+| `--type-small` | 14 / 1.45 / 400 | Secondary text, table cells |
+| `--type-caption` | 12 / 1.35 / 500 | Badges, chips, system numbers |
 
-Minimum text size anywhere: 12 px (cents chips 11 px bold, always duplicated in review tooltips). Text scales with browser zoom to 200% without loss (8.1).
+Minimum text size is 12 px. Text scales with browser zoom to 200% (8.1).
 
-### 7.3 Spacing, radii, elevation, iconography
+### 7.3 Space, radius, elevation, z-index, motion, score geometry
 
-- Spacing scale (4 px base): `--space-1` 4, `--space-2` 8, `--space-3` 12, `--space-4` 16, `--space-5` 24, `--space-6` 32, `--space-7` 48, `--space-8` 64.
-- Radii: `--radius-s` 4 (chips), `--radius-m` 8 (buttons, inputs), `--radius-l` 12 (cards), `--radius-xl` 20 (sheets' top corners).
-- Elevation: cards are flat with `--border`; sheets and popovers use `0 8px 24px rgba(0,0,0,0.16)` (light) / `0 8px 24px rgba(0,0,0,0.5)` (dark). The score frame has no shadow (paper on desk).
-- Icons: 20 px line icons, 1.75 px stroke (Lucide, ISC licence). Instrument icons: a custom set of 24 single-colour silhouettes (one per instrument in 02 1.1), made by the designer as SVG; until delivered, use the family name initial in a circle.
-- Rank emblems: geometric, generated from SVG primitives so they theme correctly. Ranks 1–3 a circle with 1–3 inner rings; 4–6 a diamond with 1–3 inner bars; 7–9 a hexagon with 1–3 inner chevrons; 10 a star inside a hexagon. Achieved emblems filled `--text`, current ringed in `--accent`, future outlined `--border-strong`. Shape plus count distinguishes ranks without colour.
+- Space (4 px base): `--space-1` 4, `-2` 8, `-3` 12, `-4` 16, `-5` 24, `-6` 32, `-7` 48, `-8` 64.
+- Radius: `--radius-s` 4 (chips), `-m` 8 (buttons, inputs, banners), `-l` 12 (cards, modals), `-xl` 20 (sheet top corners).
+- Elevation: cards flat with `--border`; sheets, modals, popovers `0 8px 24px rgba(0,0,0,0.16)` light / `0 8px 24px rgba(0,0,0,0.5)` dark. The score frame has no shadow.
+- z-index: base 0, sticky 10, sheet 40, popover 45, modal 50, toast 60.
+- Motion: `--dur-instant` 0, `--dur-fast` 100, `--dur-base` 200, `--dur-slow` 320; `--ease-out` `cubic-bezier(0.2, 0, 0, 1)`, `--ease-in-out` `cubic-bezier(0.4, 0, 0.2, 1)`. During a take only colour and opacity change, except slot crossfades. Outside takes: screen transitions 200 ms fade plus 8 px slide; sheets and the results panel 240 ms slide.
+- Reduced motion (`prefers-reduced-motion` or the setting): all durations 0 except 100 ms opacity fades on ghosts; slot swaps instant; beat dots change instantly with no ease-back; the 6.6 crossfade instant.
+- Score geometry (group `score`): sp per layout row (4.2); lane 20 px; system gap 12 px; lane glyphs 9 / 12 / 14 px; ghost stroke 1.5 / 2.25 px; ghost fill 0.15 live, 0.20 review, 0.30 high contrast; replay ghost dash 3 on 2 off; past-mark opacity 0.6 / 0.4; braked ghost opacity 0.7; sharp/flat offset 1.1 notehead widths; collision offset 0.8, minimum 0.5; ring 1.5 px (active), 2 px dashed (re-judged).
+- UI rules (group `ui`): `levelThinThreshold` 10, `meterChipMinExcerpts` 5, `noSignalHintMs` 3000, `swapDelayMs` 400, `swapLatestFraction` 0.5, `wrapSwapFraction` 0.75 (v = 1), `crossfadeMs` 160, `rejudgeBannerShare` 0.10, `unmatchedGhostCapPerBar` 3, `brakeErrorsPerBar` 4, `wakeLockIdleMs` 300000.
 
-### 7.4 Components
+### 7.4 Glyphs and icons (`src/ui/glyphs.svg`, `src/ui/glyph-ids.ts`)
 
-Each component lives in `src/ui/components/`, has a Storybook-style fixture page (`/#/dev/components`, dev builds only), and states: default, hover, focus-visible, active, disabled, and (where relevant) error. Hit targets are at least 44 × 44 px on touch and 32 × 32 px with a pointer (WCAG 2.5.8 needs 24).
+One SVG sprite, every symbol on a 24-unit viewBox, referenced with `<use href="#id">`, coloured by `currentColor`. `glyph-ids.ts` exports the `GlyphId` union.
 
-| Component | Spec |
-| --- | --- |
-| Button | Variants primary (accent fill), secondary (surface-2 fill, border-strong), tertiary (text only, underline on hover), danger. Heights 36 (compact), 44 (default), 56 (hero: Start, Next excerpt). Label 16/600. Icon optional left. Loading state replaces label with a spinner and keeps width. |
-| RandomChip | Toggle button "Random" with a dice icon, `aria-pressed`. Pressed: accent border and text, surface-2 fill. Sits trailing each setup row. |
-| SegmentedControl | Radio group; 36 px tall; selected segment surface fill with border-strong; arrow keys move selection. |
-| Select | Native `<select>` styled; never a custom listbox (accessibility and phone pickers). |
-| Stepper | [-] value [+] with the value as an `<input type="number">`; long-press repeats at 8 Hz. |
-| TempoSlider | Native range input plus numeric field, step 1 bpm, beat-unit glyph label. |
-| Toggle | Switch with label on the left; `role="switch"`. |
-| Card, Sheet, Modal, Popover, Toast | Sheet: bottom on phone, right side on desktop when attached to the score. Toast: bottom-centre, 4 s, never during a take. |
-| Banner | Info, caution, danger; icon + text + optional action + dismiss. |
-| BeatDots | Metronome strip; props `beatsPerBar`, `grouping`, `currentBeat`, `countIn`. |
-| LevelMeter | Input level bar with gate and clip markers. |
-| ScanTimer | 28 px ring, remaining seconds in the centre; at 0 shows a check. |
-| ChecklistItem | Checkbox plus title plus detail line; `aria-describedby` to the detail. |
-| GradeBadge | Letter in a square (32 px in lists, 72 px in results), with accessible name. |
-| StarRow | 3 stars, filled/outlined (shape differs: filled vs outline) plus optional shine ring. |
-| ComponentBar | Label, 10 segments, value, expand chevron. |
-| HeatStrip | Per-bar 6 px strip with hatch levels. |
-| VerdictGlyph | One of ✓ ◂ ▸ ▲ ▼ ✕ ○ 8 + at 9/12/14 px. |
-| CentsChip | Text plus arrow; error colours. |
-| RankEmblem | Props `rank`, `state` (achieved, current, future), size. |
-| StreakGrid | 7 × 12 cells, 5 fill steps plus streak-day dot. |
-| TrendChart | SVG line chart with grade bands, plus a visually hidden table. |
-| TipCard | Header (instrument, dimension), headline, body, evidence line, drill button, expandable secondary. |
-| EmptyState | 48 px icon, title, one sentence, one action. |
-| ScoreFrame | Paper container; owns the VexFlow SVG and overlay SVG; exposes `ScoreView`. |
+- Verdict glyphs: `dot`, `check`, `check-marginal`, `early` ◂, `late` ▸, `sharp` ▲, `flat` ▼, `wrong` ✕, `missed` ○, `octave` 8, `extra` +, `replay` ↺, `plus-n` (+ with a slot for a number).
+- Ghost parts: `ghost-head` (Bravura `noteheadBlack` path, SIL OFL; the OFL notice is added to `LICENSES/`), `arrow-up`, `arrow-down`, `ledger-dashed`.
+- Rank emblems `rank-1` … `rank-10`, geometric: ranks 1–3 a circle with 1–3 inner rings; 4–6 a diamond with 1–3 inner bars; 7–9 a hexagon with 1–3 inner chevrons; 10 a star inside a hexagon. Stroke width = size / 32 (2 px at 64). Achieved: filled `--text`; current: ringed `--accent`; future: outlined `--border-strong`.
+- UI icons: a pinned Lucide subset (ISC licence) copied as paths: `mic`, `mic-off`, `settings`, `dice`, `play`, `stop`, `chevron-down`, `chevron-left`, `chevron-right`, `x`, `info`, `alert-triangle`, `alert-octagon`, `check-circle`, `download`, `upload`, `trash`, `volume-2`, `headphones`, `bluetooth`, `flame` (streak). 20 px, 1.75 px stroke.
+- Instrument marks are text (abbreviations in `en.json`) in a 40 px circle, `--surface-2` with a `--border-strong` outline. No silhouettes in v1.
 
-### 7.5 Motion
+### 7.5 Components (`src/ui/components/`)
 
-Tokens: `--dur-instant` 0 ms, `--dur-fast` 100 ms, `--dur-base` 200 ms, `--dur-slow` 320 ms; `--ease-out` `cubic-bezier(0.2, 0, 0, 1)`, `--ease-in-out` `cubic-bezier(0.4, 0, 0.2, 1)`.
+Every component has a fixture on `#/dev/components` showing every state below. Heights are "fine pointer / coarse pointer". Focus is always a 2 px `--focus-ring` outline with 2 px offset; disabled is always 40% opacity with `aria-disabled`.
 
-Rules:
-- During a take, only colour and opacity change, never position or size (except the line playhead and page turns). Max duration 100 ms for note states, 80 ms for ghost appearance, 150 ms for chip collapse, 160 ms for page-turn crossfade.
-- Outside takes: screen transitions 200 ms fade plus 8 px slide; sheets 240 ms slide; results panel 240 ms slide.
-- Celebration is restrained: rank-up emblem draws in over 320 ms (stroke-dash animation) with no particles or confetti; S grade shine ring rotates once over 800 ms.
-- Nothing flashes more than 3 times per second (beat pulse rule in 5.4.5).
+| Component | Props | Height | Padding | Radius | Font | Colours: default / hover / pressed |
+| --- | --- | --- | --- | --- | --- | --- |
+| Button primary | `label`, `icon?`, `size: compact\|default\|hero`, `loading?` | 36/44, 44/44, 56/56 | 0 16 (hero 0 24) | m | body 600 | bg `--accent`, text `--on-accent` / `--accent-hover` / `--accent-pressed` |
+| Button secondary | same | same | same | m | body 600 | bg `--surface-2`, 1 px `--border-strong`, text `--text` / `--surface-2-hover` / `--surface-2-pressed` |
+| Button tertiary | same | same | 0 8 | m | body 600 | text `--accent` / underline / text `--accent-pressed` |
+| Button danger | same | same | same | m | body 600 | bg `--danger`, text `--on-danger` / `--danger-hover` / `--danger-pressed` |
+| RandomChip | `pressed`, `onToggle` | 32 visual, 44 hit (coarse) | 0 12 | s | small 500 | 1 px `--border-strong`, text `--text-muted`; pressed: 1 px `--accent`, text `--accent`, bg `--surface-2` / bg `--surface-2-hover` / bg `--surface-2-pressed` |
+| SegmentedControl | `options[{value,label,disabled?,tooltip?}]`, `value` | 36/44 | segment 0 12 | m | body | track `--surface-2` with 1 px `--border-strong`; selected segment `--surface`, 1 px `--border-strong`, text `--text` 600; others `--text-muted` / `--surface-2-hover` / `--surface-2-pressed` |
+| Select | native `<select>` | 40/44 | 0 12 | m | body | bg `--surface`, 1 px `--border-strong` / 1 px `--text` |
+| Stepper | `value`, `min`, `max`, `disabledValues?` | buttons 36/44 square, value field 56 wide | | m | body tabular | as Button secondary |
+| TempoSlider | `value`, `min`, `max`, `beatUnit` | track 4, thumb 20, hit 44; field 72 wide | | full / m | body tabular | track `--track`, fill and thumb `--accent` |
+| Toggle | `checked`, `label` | track 36 × 20, thumb 16, hit 44 | | full | body | off: track `--border-strong`; on: `--accent`; thumb `--surface` |
+| Card | `children` | auto | 24 (`lg`+) / 16 | l | | bg `--surface`, 1 px `--border` |
+| Banner | `tone: info\|caution\|danger`, `text`, `action?`, `dismissible?` | min 48 | 12 16 | m | small | bg `--surface`, 1 px `--border`, 4 px left bar in `--accent` / `--caution` / `--danger`, 20 px icon |
+| Sheet | `side: bottom\|right`, `peek?` | peek 56; right sheet 400 wide | 16 / 24 | xl (top corners) | | bg `--surface`, elevation, `--scrim`, z 40 |
+| Modal | `title`, `children` | auto, max width 560 | 24 | l | | bg `--surface`, elevation, `--scrim`, z 50 |
+| Popover | `anchor`, `children` | auto, max width 320 | 12 | m | small | bg `--surface`, 1 px `--border-strong`, elevation, z 45 |
+| Toast | `text`, `action?` | min 48 | 12 16 | m | small | `--toast-bg` / `--toast-text`; 4 s; z 60; never during a take |
+| BeatDots | `beatsPerBar`, `grouping`, `currentBeat`, `countIn` | 32 (count numbers) | gap 8, group gap 16 | full | count | outline `--text-muted`, active `--metro-active` |
+| LevelMeter | `levelDb`, `gateDb`, `clipping` | 8 × 64 | | s | | track `--track`, fill `--text-muted`, clip zone `--danger` + "!" |
+| ScanTimer | `remainingSec`, `totalSec`, `mode: ranked\|practice` | 28 ring, 3 px stroke | | full | caption tabular | ring `--accent` on `--track`; 0 in practice: `check` glyph |
+| ChecklistItem | `checked`, `title`, `detail`, `active` | min 44 | 8 12 | m | body / small | active: 3 px left bar `--accent` |
+| GradeBadge | `grade`, `score`, `size: 32\|72` | 32 / 72 square | | m | caption 700 / grade | text `--text`, 1 px `--border-strong` |
+| StarRow | `stars`, `shine` | 20 (lists), 28 (results) | gap 4 | | | filled `--star`; empty 1.5 px `--border-strong` outline |
+| ComponentBar | `label`, `value \| null`, `explainer`, `focus?` | 44 | 0 | | body tabular | 10 segments 12 × 8, gap 2; filled `--text`, empty `--track` |
+| HeatStrip | `share` per bar | 6 | | | | per 6.5 |
+| VerdictGlyph | `id: GlyphId`, `size: 9\|12\|14` | | | | | `currentColor` |
+| RankEmblem | `rank`, `state`, `size: 24\|64\|96` | | | | | per 7.4 |
+| TipCard | `tip`, `secondary?` | auto | 24 / 16 | l | caption, h2, body, small | bg `--surface`, evidence `--text-muted` |
+| EmptyState | `icon`, `title`, `body`, `action?` | auto | 32 | | h3, body | |
+| ScoreFrame | `layout`, `slots` | fills | safe-area padding | 0 | | `--paper`; owns the system SVGs and `ScoreView` |
 
-Reduced motion (`prefers-reduced-motion: reduce` or the in-app setting):
-- All durations become 0 except opacity fades on transient chips (kept at 100 ms, opacity only).
-- Line playhead becomes a stepped bar highlight (jumps per beat) unless the player explicitly chose "Line" after enabling reduced motion.
-- Beat pulse: dots change fill instantly per beat with no ease-back; peripheral pulse off.
-- Page turns are instant swaps.
-- Count-up numbers, rank-up draw-in, S shine, and the live-to-final correction ring animation are replaced by the final state immediately.
+### 7.6 Theming
 
-### 7.6 Theming implementation
-
-- Tokens are CSS custom properties on `:root[data-theme="light|dark"]` and `[data-paper="light|dark"]` on the score frame. VexFlow is rendered with `fillStyle`/`strokeStyle` set to `currentColor` where possible and classes, so theme switches do not require re-render; if VexFlow 5 needs explicit colours, re-render the static score on theme change (never during a take; theme change is disabled during takes).
-- `color-scheme: light dark` is set so native controls match.
+Tokens are CSS custom properties; VexFlow is rendered with classes and `currentColor` so theme changes need no re-render. If VexFlow 5 needs explicit colours, the static score re-renders on theme change outside takes only. `color-scheme: light dark` is set for native controls.
 
 ---
 
 ## 8. Accessibility
 
-Target: WCAG 2.2 AA across the app. The score is a complex image with a full text alternative; the performance itself depends on playing an instrument, which is the product's purpose and not a barrier we can remove, but everything around it must be operable by keyboard and screen reader.
+Target: WCAG 2.2 AA everywhere outside the take. The take itself needs an instrument, which is the product's purpose; everything around it is operable by keyboard and screen reader.
 
-### 8.1 Requirements checklist
+### 8.1 Checklist
 
-- 1.1.1: score SVG has `role="img"` and an `aria-label` summary ("Excerpt, 10 bars, E major, 6/8, treble clef, dotted quarter equals 60"); a "Read the music as text" disclosure gives a bar-by-bar list ("Bar 1: B4 dotted quarter, C♯5 eighth, ..."). Charts have hidden data tables.
-- 1.3.1: settings rows are `<fieldset>` with `<legend>`; Random chips are `aria-pressed` buttons described by the row (`aria-describedby`).
-- 1.4.1: no information by colour alone (section 6 and 7.1).
-- 1.4.3 / 1.4.11: contrast values in 7.1; all meet 4.5:1 for text and 3:1 for graphics and control boundaries.
-- 1.4.4 / 1.4.10: 200% zoom and 320 px reflow for every screen except the score frame, which switches to page-turn mode and keeps note size.
-- 1.4.13: popovers stay while hovered, dismiss with Esc.
-- 2.1.1 / 2.1.2: everything keyboard operable; no traps; modals trap focus intentionally and release on close.
-- 2.2.1 timing: the scan timer never ends the scan; there is no timed action other than the musical performance itself. Stop is always available.
-- 2.3.1: flash limit (5.4.5).
-- 2.4.3 / 2.4.7 / 2.4.11: logical focus order; 2 px `--focus-ring` with 2 px offset, never removed; focused elements are not obscured by sticky bars (scroll padding equals sticky heights).
-- 2.5.7: no drag-only interactions (slider has a numeric field; history has no swipe-only delete).
-- 2.5.8: targets per 7.4.
-- 3.3.1 / 3.3.3: import errors and calibration failures say what went wrong and how to fix it.
-- 4.1.3: status messages via live regions as defined in 8.4.
+- 1.1.1: each system SVG has `role="img"` and the frame has a summary label ("Excerpt, 10 bars, E major, 6/8, treble clef, dotted quarter equals 60"); a "Read the music as text" disclosure gives a bar-by-bar list.
+- 1.3.1: setup rows are `<fieldset>`/`<legend>`; Random chips are `aria-pressed` buttons described by their row.
+- 1.4.1, 1.4.3, 1.4.11: 6.1 and 7.1, enforced by the contrast and grayscale tests.
+- 1.4.4, 1.4.10: 200% zoom and 320 px reflow on every screen except the score frame, which uses slots and keeps note size.
+- 1.4.13: popovers stay while hovered, close with Esc.
+- 2.1.1, 2.1.2: everything keyboard operable; modals trap focus and release it.
+- 2.2.1: the ranked scan is a timed reading task. It meets 2.2.1 because the cover states the time and offers untimed Practice one tap away before the timer starts.
+- 2.3.1: no flash above 3 per second (5.4.3).
+- 2.4.3, 2.4.7, 2.4.11: logical order; focus never hidden under sticky bars (`scroll-padding` equals sticky heights).
+- 2.5.7: no drag-only control (slider has a numeric field).
+- 2.5.8: targets per 4.1 and 7.5.
+- 3.3.1, 3.3.3: import and calibration errors say what went wrong and what to do.
+- 4.1.3: live regions per 8.4.
 
-### 8.2 Focus order per key screen
+### 8.2 Focus order
 
-- Home: skip link "Start practice" → app bar → banners → settings rows top to bottom (control, then its Random chip) → Start → Today panel.
-- Scan: toolbar (Home, Start scan / Start playing) → STARS items → helper buttons → score text alternative disclosure → Skip excerpt. Start playing has initial focus once the cover is removed.
-- Performance: focus on Stop. Tab is limited to Stop and the metronome mode toggle is disabled during a take (no accidental changes).
-- Results: initial focus on the grade block heading (so screen readers read the grade first) → component rows → counts buttons → filter chips → score note navigation → XP block → Next excerpt → Try again → links.
+- Home: skip link "Start practice" → app bar → banner → rows top to bottom (control, then its Random chip) → Start → Today → Credits.
+- Scan: toolbar (Home, Start scan or Start playing, overflow) → STARS items → helpers → text-alternative disclosure. Start playing has initial focus once the cover is removed.
+- Performance: focus on Stop; nothing else is focusable.
+- Results: initial focus on the grade heading → components → diagnostics → counts buttons → score note navigation → XP → level card → Next excerpt → Try again.
 
-### 8.3 Keyboard shortcuts
+### 8.3 Keyboard
 
-Single-key shortcuts are active only when focus is not in a text field, and can be turned off in Settings (WCAG 2.1.4).
+Single-key shortcuts work only outside text fields and can be turned off (WCAG 2.1.4).
 
 | Key | Context | Action |
 | --- | --- | --- |
-| Space | Scan | Start scan / Start playing |
+| Space | Scan | Start scan, then Start playing |
 | Enter | Scan, Results, Tips | Primary action |
-| Esc | Performance | Stop take (no confirm; Esc is deliberate) |
+| Esc | Performance | Stop at once (no sheet); same rules as 5.10 for scoring |
 | Esc | Sheets, popovers, modals | Close |
 | N | Results, Tips | Next excerpt |
 | R | Results | Try again (practice) |
-| ← / → | Results score | Previous / next note (all notes) |
-| Shift+← / Shift+→ | Results score | Previous / next slip (errors only) |
+| ← / → | Results score | Previous / next note |
+| Shift+← / Shift+→ | Results score | Previous / next slip |
 | ↑ / ↓ | Results score | Previous / next system |
-| Enter | Results score, note focused | Open note inspector |
-| C | Results | Toggle My take / Clean score |
-| P | Results | Play the score / stop |
-| ? | Anywhere | Shortcut list dialog |
+| Enter | Results score, note focused | Note inspector |
+| C | Results | My take / Clean score |
+| ? | Anywhere outside takes | Shortcut list |
 
-During a take, only Esc and Space (Space = stop, same as the Stop button) are live, to avoid stray keys from a hand or knee.
+During a take only Esc is live; Space does nothing, so a second press of Start cannot stop the take.
 
-The score in review is a single tab stop (`role="application"` is not used); inside it, a roving `tabindex` moves between notes rendered as focusable `<g>` elements with `role="button"` and an `aria-label` like "Bar 6, beat 2, written F sharp 5 eighth note, you played F natural 5, 90 milliseconds late, wrong note".
+The review score is one tab stop with a roving `tabindex` over notes rendered as focusable `<g role="button">`, each with an `aria-label` such as "Bar 6, beat 2, written F sharp 5 eighth note, you played F natural 5, 90 milliseconds late, wrong note". Pitches are spoken through a `speakPitch()` helper ("F sharp 5").
 
-### 8.4 Screen-reader behaviour during a take
+### 8.4 Screen readers during a take
 
-- Screen-reader speech through speakers would be picked up by the microphone and graded as extra notes, and per-note announcements are useless at tempo. So:
-  - Before the count-in, one polite announcement: "Count-in, 4 beats, then play. Press Escape to stop." If the system reports no headphones (cannot be detected reliably on the web), the scan screen shows a visible and announced note for screen-reader users: "Use headphones so the screen reader doesn't interfere with listening."
-  - During the take: the live region is muted. No `aria-live` updates fire. Note state changes are `aria-hidden` overlay changes.
-  - Take end: "Take finished. Scoring." then on results, the grade block heading receives focus, which reads "Grade B, 84 out of 100, 2 stars. Ranked." If "Announce results automatically" is on, a polite region also reads the top component and the tip headline.
-- The metronome strip is `aria-hidden` during the take (the click is the audible metronome). In "visual only" metronome mode, screen-reader users get a warning in setup that visual-only mode has no audible pulse.
-- The input level meter has `role="meter"` with `aria-valuetext` ("good level") outside takes and is `aria-hidden` during takes.
-
-### 8.5 Other
-
-- Language: `lang="en"` on the document; note names are spelled for speech ("F sharp 5", not "F♯5") in all `aria-label`s via a `speakPitch()` helper.
-- Motion: section 7.5.
-- Cognitive load: one primary action per screen, consistent placement (primary bottom-right on desktop cards, full-width bottom on phone).
+- Speech through speakers would be heard by the mic. Before the count-in, one polite announcement: "Count-in, then play. Press Escape to stop." The scan shows, for everyone, "Screen reader on? Use headphones so speech isn't heard as notes."
+- From count-in start to the `end` event, no `aria-live` update fires; overlay changes are `aria-hidden`; beat dots and the meter are `aria-hidden`.
+- At the end: "Take finished. Scoring." Then the grade heading takes focus ("Grade B, 85 out of 100, 2 stars. Ranked."). With "Announce results automatically" on, a polite region adds the focus component and the tip headline.
 
 ---
 
@@ -922,142 +923,243 @@ The score in review is a single tab stop (`role="application"` is not used); ins
 
 | Where | Title | Body | Action |
 | --- | --- | --- | --- |
-| Progress, no attempts | Your progress starts with one take | Play an excerpt and your score, level, and rank show up here. | [Start practising] |
+| Progress, no attempts | Your progress starts with one take | Play an excerpt and your score, level and rank show up here. | [Start practising] |
 | History, no attempts | No takes yet | Every take you play is saved on this device. | [Start practising] |
-| History, filters match nothing | No takes match these filters | Try another instrument or grade range. | [Clear filters] |
+| History, filters match nothing | No takes match these filters | Try another instrument, or show practice takes too. | [Clear filters] |
 | Common slips, fewer than 3 attempts | Not enough takes yet | After a few takes we'll show the slips you make most. | none |
-| Corpus has no excerpt for the chosen settings | No excerpt fits these settings | Level 2 has no music in 7/8 yet. Try another time signature or set it to Random. | [Set time to Random] |
+| Selector returns `empty-pool` (01 §6.3) | No excerpt fits these settings | Built from the selector's suggestions, for example "Level 2 has no unseen music in 3/4 for flute yet." | One button per suggestion ("Set time to Random", "Practise a seen excerpt") |
 
 ### 9.2 Microphone permission
 
+Detection uses `getUserMedia` errors only; `permissions.query` is never relied on for the microphone.
+
 | Case | Detection | UI |
 | --- | --- | --- |
-| Not yet asked | `permissions.query` = prompt, or unknown | Pre-prompt card (5.1). |
-| Denied | `getUserMedia` NotAllowedError, or state = denied | Card with mic-off icon: "Microphone is blocked. The app can't hear you play." Browser-specific steps detected from UA: Chrome/Edge "Click the lock icon left of the address, set Microphone to Allow, then reload."; Safari macOS "Safari > Settings for This Website > Microphone > Allow"; iOS Safari "Settings > Safari > Microphone > Allow, then reload"; Firefox "Click the mic icon with a slash in the address bar, remove the block, then reload." [Reload] [Try again] [Practise without listening]. |
-| No device | NotFoundError | "We can't find a microphone. Plug one in or check your system settings." [Try again] |
-| Device busy | NotReadableError | "Another app is using the microphone. Close it and try again." [Try again] |
-| Insecure context | `!isSecureContext` | "The microphone only works on a secure (https) page." (development only) |
-| Revoked mid-session | track `ended` | Take aborts; results show the void state with "The microphone stopped." |
+| Not yet asked | no stream yet | Pre-prompt card (5.1) |
+| Denied | `NotAllowedError` | "Microphone is blocked. The app can't hear you play." Steps by browser: Chrome/Edge "Click the icon left of the address, set Microphone to Allow, then reload."; Safari macOS "Safari > Settings for This Website > Microphone > Allow."; iOS Safari tab "Tap aA in the address bar > Website Settings > Microphone > Allow, then reload. Or Settings > Apps > Safari > Microphone."; iOS home-screen app "Close and reopen the app, then tap Allow when asked."; Firefox "Click the crossed-out mic in the address bar, remove the block, then reload." [Try again] [Practise without listening] |
+| No device | `NotFoundError` | "We can't find a microphone. Plug one in or check your system settings." [Try again] |
+| Busy | `NotReadableError` | "Another app is using the microphone. Close it and try again." [Try again] |
+| Insecure context | `!isSecureContext` | "The microphone only works on a secure (https) page." |
+| Revoked mid-take | track `ended` | Void, `voidReason: device-change` card |
 
-"Practise without listening" mode: the full flow works (scan, metronome, count-in, playhead), results show "Not graded: microphone off", no XP, and the self-assessment buttons "How did it go? [Clean] [A few slips] [Rough]" are recorded in history for the player's own reference. This keeps SRF-style use possible for players who cannot grant mic access.
+**Practise without listening** (R13): scan, metronome, count-in and bar highlight run with no capture. Results show the score and "Not graded · no XP"; history records it as not graded. The excerpt is marked seen. No self-assessment in v1.
 
-### 9.3 Errors
+### 9.3 Errors and void cards
 
-| Case | Where shown | Copy | Action |
+| Case | Where | Copy | Action |
 | --- | --- | --- | --- |
-| AudioContext suspended (iOS interruption, call) | Performance → results void state | "The take was interrupted, so it wasn't graded." | [Try again] |
-| No sound detected 5 s after bar 1 | Status line during take, then void if continued | "We can't hear you. Move closer to the mic?" | none during take |
-| Clipping for > 20% of frames | Results banner | "The mic was overloaded, so some notes may be misjudged. Move back a little or turn down." | [Check level] |
-| Calibration stale or missing | Home banner | "Calibrate once so timing grades are fair. It takes 8 seconds." | [Calibrate] |
-| Consistent timing bias (01 5.7 rule) | Results banner | "You've been about 50 ms late on every take. That may be your device, not you." | [Recalibrate] |
-| Bluetooth suspected | Home banner and calibration | see 5.9 | [Recalibrate] |
-| Corpus failed to load (offline, first visit) | Home full-card error | "Couldn't load the music library. Check your connection; after the first visit it works offline." | [Retry] |
-| Storage full or blocked (private mode) | Toast after attempt, then Settings > Data | "This browser isn't saving your progress (private browsing or storage full)." | [Export this take] |
-| Import file invalid | Settings > Data inline | "That file isn't a Sightread backup." | none |
-| Unsupported browser (no AudioWorklet) | Full-page | "This browser can't run the listening engine. Use a recent Chrome, Edge, Firefox, or Safari." | none |
+| Void `interrupted` (call, lock, app switch) | Results void card | The take was interrupted, so it wasn't graded. | [Try again] |
+| Void `no-signal` | Results void card | We couldn't hear you, so this take wasn't graded. | [Check microphone] [Try again] |
+| Void `device-change` | Results void card | The microphone or speakers changed during the take. Recalibrate, then try again. | [Recalibrate] |
+| Void `backlog` or `capture-gap` | Results void card | This device fell behind while listening, so the take wasn't graded. Close other apps and try again. | [Try again] |
+| Clipping > 20% of frames | Results banner | The mic was overloaded, so some notes may be misjudged. Move back a little or play softer. | none |
+| Calibration missing or stale | Home banner | Calibrate once so timing grades are fair. It takes 8 seconds. | [Calibrate] |
+| Recheck shift > 10 ms (01 §7.7) | Results banner | Your audio delay changed. Recalibrate for fair timing. | [Recalibrate] |
+| Many re-judged notes (6.6) | Results banner | Several marks changed after the take. Check your mic position. | none |
+| Bluetooth suspected | Home banner, calibration | as 5.9 item 6 | [Recalibrate] |
+| Clock-rate mismatch twice | Full card | Audio setup problem. Please reload the page. | [Reload] |
+| Storage loss (05 W12) | Home card | Your progress on this device was cleared by the browser. If you have a backup, import it. | [Import backup] [Start fresh] |
+| Storage blocked or full | Toast after an attempt, then Settings > Data | This browser isn't saving your progress (private browsing or storage full). | [Export this take] |
+| Corpus failed to load | Home full card | Couldn't load the music library. Check your connection; after the first visit it works offline. | [Retry] |
+| Import file invalid | Settings > Data inline | That file isn't a Sightread backup. | none |
+| No AudioWorklet | Full page | This browser can't run the listening engine. Use a recent Chrome, Edge, Firefox or Safari. | [Practise without listening] |
 
 ---
 
-## 10. Microcopy
+## 10. Copy
 
-Voice: a calm, encouraging teacher. Short sentences. Second person. No exclamation marks except the rank-up headline. Never "fail", "wrong" about the player (notes can be wrong; the player is not). Use musicians' terms (bar, beat, sharp, flat, rush, drag).
+### 10.1 Rules
 
-| Moment | Copy |
+- Voice: a calm, encouraging teacher. Short sentences, second person, no exclamation marks except the rank-up headline. Notes can be wrong; the player never is. Musicians' terms (bar, beat, sharp, flat, rush, drag).
+- Every string is in `src/ui/copy/en.json` with dotted keys (`results.badge.incomplete`). Placeholders use `{name}`; plurals use `{n, plural, one {...} other {...}}`. A 60-line in-house formatter supports exactly these two forms (no dependency). A lint rule (`react/jsx-no-literals` in `src/app` and `src/ui`) bans hard-coded strings.
+- Strings that depend on other roles' data are templates: level descriptions, pattern names and tip text come from 02's config; credit fields from the excerpt. Copy never restates a number another role owns (no rank thresholds, XP totals or tolerances in prose).
+
+### 10.2 Key strings
+
+| Key | Copy |
 | --- | --- |
-| Welcome headline | Read it. Play it. See how it went. |
-| Welcome body | Real music, a few bars at a time. We listen while you play and show you every note. |
-| Mic pre-prompt | Let the app hear you play. Sound is analysed on this device and never recorded or uploaded. |
-| Calibration intro | Your speakers and mic add a small delay. We'll measure it so "late" really means late. |
-| Calibration success | Your setup adds 42 ms. We'll correct for it. |
-| Home Start button | Start |
-| Scan cover | Take a moment to read before you play. |
-| Scan time up | Scan time's up. Start when ready. |
-| Count-in status | Count-in… |
-| During take status | Bar 6 of 10 |
-| Stop confirm | Stop this take? It won't be graded. [Keep playing] [Stop] |
-| Scoring | Scoring… |
-| Grade S | Performance-ready. |
-| Grade A | Excellent read. |
-| Grade B | Solid. A few slips. |
-| Grade C | Passed. Keep going. |
-| Grade D | Rough one. Stay at this level for now. |
-| Grade F | This one was a stretch. Try an easier level? |
-| Incomplete | Less than half the notes came through, so this one's capped at 50. |
-| Practice badge tooltip | Practice: you've played this excerpt before, so it isn't sight reading any more. |
-| Level-up offer | You're reading level 5 well. Move up to level 6? [Move up] [Stay at 5] |
-| Level-down suggestion | Level 6 has been a stretch lately. A few takes at level 5 can build the reading back up. [Go to level 5] [Stay at 6] |
-| Rank-up | You're now an Ensemble player! Next: Principal at 9,000 XP and level 6. |
-| Streak at risk | One more ranked take today keeps your 6-day streak. |
-| Tips header | Before the next one |
-| Clean read | Clean read. Try it a little faster next time, or move up a level. |
-| Re-judged notes | 2 notes re-judged after the take. |
-| Not graded (mic off) | Not graded: the microphone is off. How did it go? |
-| Excerpt credit (results) | {title} · {composer} · bars {a}–{b} · {licence} |
+| `welcome.headline` | Read it. Play it. See how it went. |
+| `welcome.body` | Real music, a few bars at a time. We listen while you play and show you every note. |
+| `calibrate.intro` | Your speakers and mic add a small delay. We'll measure it so "late" really means late. |
+| `scan.cover` | Take a moment to read before you play. Keep your eyes ahead. Every mark waits for you after the take. |
+| `scan.ranked.notice` | You'll have {seconds} seconds to read, then the count-in starts by itself. Want more time? Switch to Practice. |
+| `scan.startingIn` | Starting in {n} |
+| `scan.practice.timeUp` | Scan time's up. Start when ready. |
+| `play.status.bar` | Bar {n} of {total} |
+| `results.scoring` | Scoring… |
+| `grade.S` … `grade.F` | Performance-ready. / Excellent read. / Solid. A few slips. / Passed. Keep going. / Rough one. Stay at this level for now. / This one was a stretch. Try an easier level? |
+| `ranked.reason.practice-mode` | Practice mode. |
+| `ranked.reason.seen-before` | You've seen this excerpt before, so it isn't sight reading any more. |
+| `ranked.reason.scan-extended` | The scan ran past the level's time. |
+| `ranked.reason.tempo-below-90pct` | The tempo was below this level's range. |
+| `ranked.reason.visual-metronome` | Visual-only metronome. |
+| `ranked.reason.calibration` | Calibrate to earn XP on this device. |
+| `ranked.reason.measurement` | The audio check didn't pass for this take. |
+| `ranked.reason.familiar` | This tune is widely known, so it's practice. |
+| `ranked.reason.skip-limit` | This one came after a skip, so it's practice. |
+| `results.practice.tooltip` | Practice. Repeats earn a little XP the first time each day, then none. |
+| `results.rejudged` | {n, plural, one {# note re-judged after the take} other {# notes re-judged after the take}} |
+| `results.rejudged.why` | Listening live has a fraction of a second to decide. After the take we look at the whole performance. |
+| `credit.line` | {composer} ({dates}) · {work} · bars {a}–{b} · {licenceShort} |
+| `credit.work` / `credit.workOnly` | {title}, {catalog} / {title} (the caller picks one and passes it as `{work}`) |
+| `credit.source` | Typeset by {encoder} · {corpus} · CC BY 4.0 |
+| `credit.that-was` | That was: {credit} |
+| `credit.adapted` | Adapted: {modifications}. Written for {instrument} in {writtenKey} (concert {concertKey}). |
+| `mod.*` | excerpted, grace notes removed, ornaments removed, final fermata removed, words removed, note values doubled, final bar completed, transposed, moved by an octave |
+| `licence.*` | Public domain / CC0 / CC BY 4.0 |
+| `corpus.*` | OpenScore Lieder / OpenScore String Quartets / Mutopia Project |
+| `rankup.headline` | New rank: {rank}! |
+| `streak.atRisk` | 1 more ranked take today keeps your {days}-day streak. |
+| `verdict.*` | right, early, late, sharp, flat, wrong note, wrong octave, missed, extra note, replayed, held too short |
 
-Verdict words (review tooltips, aria labels): "right", "early", "late", "sharp", "flat", "wrong note", "wrong octave", "missed", "extra note", "held too short", "held too long".
+01's `RankedReason` type uses different names from 02's enum; copy is keyed by 02's enum (open question 1).
 
 ---
 
 ## 11. Reuse from ear-to-staff
 
-| ear-to-staff piece | Decision | Notes |
+| Piece | Decision |
+| --- | --- |
+| `style.css` palette | Replace with 7.1 (the teal, gold and red trio is not colour-blind safe as a set). |
+| Beat dots and count-in label (`showBeat`, `.beats.countin`) | Adapt: compound grouping, flash limit, audio-clock timing. |
+| Live notes drawn grey inside VexFlow (`notation.js`) | Replace with the overlay; VexFlow renders once per exercise. |
+| VexFlow system loop in `renderScore` | Adapt as the start of per-system rendering. |
+| Pitch trace canvas | Adapt for `#/dev/replay` only. |
+| Status line (`#status`) | Reuse as the quiet status line. |
+| History panel | Adapt into History; the GitHub save flow is dropped. |
+| Written and concert key captions | Reuse the wording pattern (R1). |
+| MusicXML export, print menu | Not in v1. |
+
+---
+
+## 12. Artefacts frozen in wave 0
+
+These files exist before any screen work. After the freeze a change needs an RFC in `docs/rfc/` (01 §14).
+
+| File | Contents | Check |
 | --- | --- | --- |
-| `style.css` dark palette (`--bg`, `--panel`, `--accent` gold, `--accent-2` teal) | Replace | New token set (7.1) with light and dark themes and colour-blind-safe feedback colours. The ear-to-staff teal/gold/red trio is not CVD-safe as a set. |
-| Beat dots and beat label (`showBeat`, `.beats.countin` in `js/app.js`, `index.html` 137–139) | Adapt | Same idea (one dot per beat, count-in label), extended with compound grouping, flash limit, and audio-clock timing. |
-| Live notes rendered grey in VexFlow (`el.live` in `notation.js` `renderScore`) | Replace | Live feedback moves to a separate overlay SVG; VexFlow renders once per exercise (01). |
-| VexFlow system layout loop in `renderScore` | Adapt | Starting point for fixed bars-per-system layout; add the breakpoint table (5.4.2) and `beatToPoint`. |
-| Pitch trace canvas (teal accepted, grey rejected dots) | Adapt for the developer replay tool and the optional live pitch dot | Not shown to players by default. |
-| Status line pattern (`#status`) | Reuse | One quiet line of text, now at the bottom of the performance screen. |
-| History panel list | Adapt | Becomes the History screen with grouping and filters; the GitHub save flow is dropped. |
-| Print menu and multi-part print | Drop for v1 | Possible later as "Print this excerpt". |
-| MusicXML export (`js/musicxml.js`) | Reuse | "Export MusicXML" on results, with a second part for what was played. |
-| Transposing instrument captions ("concert key" and written key) | Reuse the wording pattern | Setup shows written key with concert key secondary. |
+| `design/tokens.json` → `src/ui/tokens.css`, `src/ui/tokens.ts` | 7.1 colours for light, dark, high contrast and forced colours; state tokens; type; space; radius; elevation; z-index; motion; breakpoints and the pointer rule; score geometry; component sizes from 7.5; `ui` rules | generator is deterministic; contrast test; stylelint |
+| `src/ui/glyphs.svg`, `src/ui/glyph-ids.ts` | 7.4 sprite and the `GlyphId` union | every id in the union exists in the sprite and vice versa; every symbol has a 24-unit viewBox |
+| `src/ui/copy/en.json` (+ typed `copy.ts` key union) | every string in this section, the `rankedReason` and `voidReason` strings, permission and error copy, credit templates, instrument abbreviations | every key used in code exists; no unused keys; formatter tests |
+| `src/notation/visual-states.ts` | 6.1 as `noteVisual()` and `ghostVisual()` plus the brake and cap rules | exhaustive unit test over every `NoteVisualState` combination × mode × braked |
+| `src/ui/layout-table.ts` | 4.2 rows, system geometry, `barsPerSystem`, `slotCount`, `planSwaps` (4.3) | the worked cases of 4.3 as unit tests |
 
 ---
 
-## 12. Design acceptance summary (for QA)
+## 13. Automated design checks and acceptance (no human approval, R3)
 
-1. Every screen in section 5 is implemented at `xs`, `sm` short, `md`, `lg`, and `xl`, with Playwright visual snapshots in light and dark themes.
-2. 8, 10, and 12 bar excerpts render without scrolling on 1280 × 720, 1440 × 900, and 1024 × 768 (landscape) at Normal notation size; on 844 × 390 (phone landscape) and 390 × 844 (portrait) page-turn mode always shows the system after the current one.
-3. Each feedback state in 6.1 and each ghost kind in 6.2 has a fixture page and a visual test; all pass a grayscale check by glyph and shape alone.
-4. axe-core reports zero serious or critical issues on every non-performance screen; manual VoiceOver (Safari) and NVDA (Firefox) passes on Home, Scan, Results, and Settings.
-5. Keyboard-only run-through: onboarding to a completed take to results to next excerpt with no mouse.
-6. Reduced-motion run shows no transform animations (CSS audit: every `transition`/`animation` is gated by the motion tokens).
-7. No `aria-live` update fires between count-in start and take end (E2E spy on live regions).
-8. All copy in section 10 is in `src/ui/copy/en.json`; no hard-coded strings in components (prepares localisation).
+### 13.1 Checks in CI
+
+1. Stylelint: no hex, `rgb()`, `hsl()` or raw px outside `tokens.css`; every `transition` and `animation` uses motion tokens and is gated by the reduced-motion rule.
+2. Contrast: a Vitest test recomputes every pair in 7.1 from `tokens.json` (text ≥ 4.5:1, graphics and boundaries ≥ 3:1, each claimed ratio within 0.1).
+3. Sizes: Playwright bounding boxes at every acceptance viewport: hero Start 56 px tall; every interactive element ≥ 44 × 44 under `hasTouch`; nothing under the injected safe-area insets; sticky Start clears `--sai-bottom` by 8 px.
+4. Grayscale distinctness: on `#/dev/components` each pair of verdict states is rendered, a `grayscale(1)` filter applied, and the notehead-plus-lane box must differ by ≥ 8% of pixels.
+5. axe-core: zero serious or critical issues on every non-performance screen in both themes.
+6. Keyboard E2E: onboarding → take (fake capture) → results → next excerpt with no mouse.
+7. Live-region spy: no `aria-live` update between count-in start and `end`.
+8. Reduced motion E2E: no transform animation on any screen.
+9. Snapshots: self-baselined Playwright snapshots per screen, theme and viewport, used only as regression baselines.
+
+### 13.2 Acceptance viewports
+
+1280 × 720, 1440 × 900, 1024 × 768 (laptop); 1180 × 760 and 1024 × 1366 (iPad); 844 × 340 and 390 × 660 (iPhone Safari tab, WebKit with `isMobile`, `hasTouch`); 390 × 844 with insets 47 / 34 (home-screen app). 8, 10 and 12 bar excerpts render without scrolling on all laptop and iPad viewports; phone viewports follow 4.3.
 
 ---
 
-## Open questions
+## 14. Work packages (v1)
 
-1. **Key semantics.** This design assumes "Key" in setup means the written key for the player's instrument, with concert key shown as secondary text. Confirm with the lead musician and architect (01 open question 1).
-2. **Grade and points model conflict.** 01 section 7 defines a weighted total with an extras penalty and "points" with a level multiplier; 02 sections 4.6 and 5.3 define five components (P, I, R, C, T), letter grades S–F, and XP. This design follows 02. The overseer should confirm and have 01's `AttemptScore` carry `components: {P, I, R, C, T}`, `grade`, `stars`, and an XP breakdown so the results screen can show it.
-3. **State names.** 01 `NoteVisualState` has `timing-error`, `pitch-error`, `both-error`; 02 and this design use the specific verdicts (`early`, `late`, `sharp`, `flat`, `wrong-pitch`, `octave`) plus `correct-marginal`. The lane glyph needs the specific verdict. Proposal: `setNoteState(idx, state, detail?: { timing?: TimingVerdict; pitch?: PitchVerdict; marginal?: boolean })`.
-4. **Title and composer before the take.** Hidden until results to protect sight reading. Licences that require attribution are satisfied in results and history; the score researcher should confirm that this placement is acceptable for CC-BY material.
-5. **"Play what I played" synth playback** needs a small synth in the app (oscillator plus envelope is enough). Architect to confirm it fits the bundle and does not conflict with the audio graph.
-6. **Practise without listening** mode with self-assessment: keep for v1 (it costs little and helps mic-denied users), or cut?
-7. **Phone portrait performance.** Allowed with 2 bars per system in page-turn mode, or require landscape for takes? This design allows portrait and recommends landscape.
-8. **Instrument icon set** (24 silhouettes) needs a designer or a licensed set; until then, initials.
-9. **SRF comparison claims** need a fresh check against the current SRF release before any public-facing copy uses them.
-10. **Live pitch dot default** for voice: on or off? Currently off for all instruments.
+Sizes: S under about 150 lines plus tests, M 150 to 400, L above 400. Ids D*; dependencies on 01's packages use their ids (P0a, P0b, P0d, P0f, P6, P7, P9b, P12, P14, P15, P16). Full acceptance is in the structured response; summary:
+
+| Id | Package | Depends on | Size / difficulty |
+| --- | --- | --- | --- |
+| D0a | Tokens, generator, stylelint rule, contrast test | P0a | M / routine |
+| D0b | Glyph sprite and ids | P0a | M / moderate |
+| D0c | Copy catalogue, formatter, no-literals lint | P0a | M / routine |
+| D0d | `visual-states.ts` | P0b | S / moderate |
+| D0e | `layout-table.ts` with slot planning | P0b | S / moderate |
+| D1 | UI shell: routes, app bar, tabs, theme, reduced motion, sheet/modal/popover/toast primitives, `#/dev/components` | D0a–D0c | M / moderate |
+| D2a | Form and container components | D1 | M / routine |
+| D2b | Domain display components | D1, D0b | M / moderate |
+| D3 | ScoreFrame: slots, page turns, freeze and scale, system numbers | P7, P15, D0d, D0e | M / hard |
+| D4 | Onboarding and calibration screens, self-test card | D2a, P14 | M / moderate |
+| D5 | Home and setup | D2a, D2b, P9b | M / moderate |
+| D6 | Scan | D3, D2b, P16 | M / moderate |
+| D7 | Performance screen | D3, D2b, P16 | M / moderate |
+| D8a | Results panel | D2b, P12, P0f | M / moderate |
+| D8b | Review interactions | D3, D8a | M / hard |
+| D9 | Tips, session summary, rank-up, stop and skip sheets, install coach mark | D2b, D8a | M / routine |
+| D10 | Progress, History, attempt detail | D2b, D8a, P6 | M / moderate |
+| D11 | Settings, Data, About, Credits, source sheet | D2a, P6 | M / routine |
+| D12 | Permission, empty, error and void states; practise without listening UI | D4–D8a | M / routine |
+| D13 | Design QA automation (13.1) | D1–D12 | M / moderate |
+
+---
+
+## Open questions (still open after the rulings)
+
+1. **`RankedReason` names.** 02 §5.2 (owner) and 01 §6.5 (types) use different enum values. This section keys copy by 02's enum. 01's type should adopt 02's values.
+2. **Live sharp/flat window.** 02 §4.8 states an 80 ms window with +10 cents hysteresis; 01 §8.4 and §10 cite a 150 ms window. The 400 ms slot-swap delay holds if sharp/flat p95 stays ≤ 350 ms either way; it is a `tokens.json` value and will be raised if 01's measured p95 exceeds 350 ms.
+3. **End-of-take delay.** 02 says last note + 1 bar, 01 seeds 1 beat. The UI only reacts to `end`, so either works; the overlay waits on "Scoring…" for whatever the config says.
+4. **Real Safari chrome heights and the iOS 26 floating bar** are unverified without a device; slot counts use injected insets. Revisit with the device matrix (later).
 
 ## Dependencies on other roles
 
-- **Technical architect (01):**
-  - `ScoreLayout.beatToPoint` must cover pickups (negative beats) and beats beyond the last barline, and return the system index so ghosts can land on the next system.
-  - `setNoteState` needs the specific verdict detail (open question 3) and a `correct-marginal` flag, or a separate `setNoteDetail`.
-  - Expose to the UI per attempt: final judgments with `timingErrorMs`, `centsError`, `heldRatio`, and the pattern id per note (for the note inspector hint); a "re-judged" flag per note when live and final differ.
-  - Visual clock: a function returning the current audible score beat for the playhead and beat dots (01 5.1), at display refresh rate.
-  - Signal-quality events for the UI: input level (already `live-pitch.levelDb`), sustained silence, clipping ratio, AudioContext interruption.
-  - Calibration API that reports per-click detection for the 10-dot progress display, and headphone/loopback method switching.
-  - Screen Wake Lock during takes; theme change disabled during takes; VexFlow colour handling via CSS classes or a cheap re-render outside takes.
-  - Overlay performance: ≤ 150 live overlay elements and ≤ 33 ms event-to-paint.
-- **Lead musician (02):**
-  - Confirm `correct-marginal` (between tGood and tRed) as a visible but non-red state.
-  - Plain-language names for every error pattern (E-codes) for "Common slips" and the note inspector, and the dimension label per pattern (Rhythm, Notes, In tune, Flow, Steady, Technique).
-  - Short level descriptions (one line each, ≤ 60 characters) for the level stepper.
-  - Tip evidence template per pattern ("4 of 5 eighths after a dotted quarter were late").
-  - Confirm the density brake (6.5 rule 6) does not hide anything pedagogically important live.
-- **Music score researcher (03):** title, composer, source, bar range, and licence text per excerpt for the results header and credits; a rhythm-difficulty "hardest bar" tag and highest and lowest note per excerpt for the STARS highlights; enough excerpts per meter and level that the "no excerpt fits" empty state is rare.
-- **Senior iOS engineer (05):** reuse these tokens, states, glyphs, and copy; replace the visual peripheral pulse with an optional haptic metronome; native landscape lock for takes; VoiceOver behaviour identical to 8.4; Dynamic Type mapping of the type scale.
-- **Overseer:** decide open questions 2, 3, 6, and 7; assign the design-system components (7.4) as the first front-end wave so screen builders work from shared components.
+- **01**: `countEligible(instrument, level, meter?)` and the selector's list of relaxed preferences (served length differs) for 5.2 and 5.3; `PracticeSession` support to cancel and restart a take during the count-in on rotation; strict scan auto-start; `status` events (`come-in-at`, `lost-place`, `no-signal`, count-in restart); `rejudged` per note; `diagnostics.counts`; `xp.factors`; per-system SVGs, `setSlotSystems`, total `beatToPoint`; a VexFlow render counter for tests; the end-to-end trace hooks of §12; a CI flag for "Wood only in headphone modes".
+- **02**: `levels.json` descriptions, `tips.json` pattern names, dimensions and evidence templates (already in 02 revision 2); the `rankedReason` enum; incomplete and practice XP rules.
+- **03**: structured `source` fields (01 §6.1), `extremes: { highId, lowId }` per excerpt for the Signs highlight, `attributions.json` for the credits page, the modification vocabulary.
+- **05**: capability `outputLatencyReported`, install-coach and storage-loss triggers, Bluetooth and AirPods heuristics; the fork plan reuses these tokens, glyphs and copy.
+
+---
+
+# Part B — Later (not in this build)
+
+Brief by design. Nothing below is built in v1.
+
+- **Playback and export** (R9): "Play the score", "Play what I played", listen-back of any kind, MusicXML and image export (must embed attribution), "Report a problem with this excerpt".
+- **Practice tools**: tip drills on sub-excerpts, [Show me] mini excerpt, remedial bias from the focus card, Rhythms highlight in the scan (needs per-bar rhythm difficulty from 03), starting note for non-voice practice takes.
+- **Progress views**: score trend chart, 12-week streak calendar, streak freezes, review filter chips (All, Pitch, Rhythm), history search and grade chips, per-take delete.
+- **Profiles**: multiple local profiles per device (the data model is already per player, R5).
+- **Notation and playhead options**: line playhead, playhead off, notation size Small/Large (browser zoom covers it), light paper in dark theme, live pitch dot, note names under notes, "Errors only" and "Calm" live modes, separate larger-glyph setting.
+- **Metronome**: visual-only mode and the peripheral pulse, custom scan time, count-in length, subdivision and accent overrides.
+- **Range**: extended-range setting, voice range check (02).
+- **Assets and motion**: instrument silhouettes, XP count-up, S shine rotation, rank-up draw-in.
+- **Practise without listening**: self-assessment buttons.
+- **Validation**: manual VoiceOver and NVDA passes, device-matrix layout checks.
+- **iOS fork** (R12): haptic metronome, native orientation lock, Dynamic Type mapping, Settings deep link, Capacitor permission flows.
+- **Excluded by rulings**: lyrics (R8); swing, Web MIDI, polyphony, accounts, leaderboards, any backend (R9).
+
+---
+
+## Review log (revision 2)
+
+Structure:
+- Rewritten around v1 scope: a scope table (section 0), v1-only Part A, a brief Part B "Later". Owner table at the top; other roles' values are referenced by file and key, not restated.
+- New sections: 4.3 slots and half-page turns, 4.4 freeze and resize, 5.12 attribution, 6.3 sequence and latency, 6.6 live-to-final, 12 frozen artefacts, 13 automated checks, 14 work packages.
+
+Rulings applied:
+- R1: key rows and the Adapted line put the written key first; concert key secondary.
+- R2: grades, components, XP, rank and tips come from 02's config; the hand-written XP and rank examples were corrected (2,180 XP is Student, rank 3, 79% to Section player, needs level 4) and replaced by formulas; live and review read the same states.
+- R3: designer approval and manual screen-reader passes removed from acceptance; replaced by 13.1; custom icons replaced by text abbreviations.
+- R5: one player per device; rank and XP per player; level cards per instrument.
+- R6: strict ranked scan with "Starting in 5" and auto count-in; the "+30 s" rule removed; custom scan time later.
+- R7: voice octave displacement shows as correct (no red, no ghost, no "8"); reference tone plays before every voice count-in.
+- R8: no lyrics line, no share-alike notice, modal excerpts only under Random key (from the selector).
+- R9: playback, listen-back and export moved to Later.
+- R10: React screens only; overlay outside React.
+- R11: Full is the default; the density brake and "+n" rule no longer hide any matched-note error.
+- R12: iOS Safari layouts, insets, wake lock and install coach mark in v1; haptics and native layouts later.
+- R13: Practise without listening kept with no XP and no self-assessment; portrait takes use slots; landscape recommended in scan only.
+
+My cross-examination answers applied:
+- Q1: forward marks limited to the next matched note within `W_i`; per-note sequence (active ring, then red plus ghost); provisional pitch is the only live reversal; idempotent judgments; live-to-final crossfade, persistent ring, re-judged filter, inspector line, > 10% banner.
+- Q2: no live text, tails or leaders; correct is quiet; fade the past at 60% and 40%; brake simplifies drawing only; collision minimum 0.5; 600-node budget with sprite `<use>`; Errors only cut.
+- Q3: half-page turns with fixed slots, keep-behind, 400 ms swap delay, 160 ms crossfade, wrap marker, system numbers; phone review as a scroll; rotate hint in scan only.
+- Q4: all 18 mismatches fixed (rank figures, XP factors, m_mode not tied to the playhead, strict scan, ranked reasons, incomplete and practice XP, focus by lost points, family explainers, voice octave, auto level-up card with Undo, streak rule, focus card in the session summary, generic evidence template, level-gated length and keys, partial-credit wording, level descriptions from config, pattern names from config). Note names under notes cut.
+- Q5: wave-0 artefacts, state tokens, z-index, component size table, sprite instead of "SMuFL where available", automated checks.
+- Q6: v1 screen list and cut list as in sections 0 and Part B.
+- Q7: attribution placement; structured fields instead of the prebuilt string.
+- Changed from my own answers: calibration is not mandatory on iOS (iOS and architect challenges, and 01 §7.8); the 5-component results became 3 components plus diagnostics (musician challenge); unmatched ghosts get a cap (musician challenge, modified); Space no longer stops a take; History "Play again" kept as a practice action.
+
+Challenges answered (detail in the structured response): architect (forward marks, end-to-end acceptance, scope cuts, output and click settings, end rules, scan chip, lost-place styling) accepted, one with modification on iOS calibration; musician (brake, three components, strict scan, scope and skip/stop integrity, streak and end-of-take) accepted or accepted with modification, with the "Calm" mode and the 2 s "Get ready" rejected; researcher (CC BY source line, credit template, length preference and meter counts, scope cuts, STARS data) accepted or accepted with modification, with the Rhythms highlight moved to later; iOS (viewports, freeze, wake lock, never-block calibration, scope and permission copy) accepted.
+
+Removed: SRF observations as claims, multi-profile UI, five-component breakdown, cents chip, live duration tails and leaders, density-brake ghost suppression, "+n" for matched ghosts, line and off playheads, notation size, light paper, live pitch dot, note names, Errors only, visual-only metronome, peripheral pulse, scan-time setting, count-in and subdivision settings, drill and Show me, focus [Practice this], trend chart, streak grid and freezes, filter chips, history search, grade chips and delete, playback, MusicXML export, self-assessment buttons, bespoke instrument icons, celebratory motion, old open questions 1 to 10.

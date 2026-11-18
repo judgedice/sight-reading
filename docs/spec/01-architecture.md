@@ -1,876 +1,1134 @@
 # 01 — Technical architecture
 
-Owner: technical architect. Readers: the overseer merging the spec, and the implementers building each package in parallel.
+Owner: technical architect. Readers: the overseer, and the AI implementers who build each work package in parallel.
 
-This section fixes the stack, module boundaries and interfaces, the real-time audio and score-following design, the data model, persistence, budgets, testing, and the work breakdown. Where another role owns a decision (scoring weights, tip content, corpus sources, visual design, iOS), this section defines the interface that decision plugs into and a default that lets work start.
+Status: revision 2 (after the overseer's rulings R1 to R13 and the cross-examination round). The Review log at the end lists every change from the first draft.
+
+This section fixes the stack, module boundaries, interfaces, the real-time audio and score-following design, the measurement error budgets, the data model, persistence, budgets, testing, the files that must be frozen before parallel work, and the work packages. Part A is web v1, and everything in it ships in this build. Part B ("Later") is short and lists what is deliberately out of scope.
+
+How to read the scope marks: every feature row is marked **v1** or **later**. Anything not marked and not in Part A is out of scope.
 
 ---
+
+## 0. Who owns which values
+
+Under R2, one value has one owner and lives in one file. This section never restates a value another role owns; it names the file and the key.
+
+| Value | Owner | File (loaded as data by every consumer) |
+| --- | --- | --- |
+| Timing and cents tolerances, match window, live provisional window and hysteresis, credits, weights, gates, end-of-take rule, ranked rules | 02 | `config/grading-config.json` |
+| Levels: meters, keys, rhythm cells, intervals, tempo, NPS caps, bars, strict scan time, count-in, range tiers | 02 | `config/levels.json` |
+| Instrument ranges, tiers, clefs, `semis`, family, launch/beta status | 02 | `config/instruments.json` (the `detection` block in each entry is owned by 01, see 7.3) |
+| XP, rank table, level-up rules, placement | 02 | `config/progression.json` |
+| Tip patterns (thresholds) and tip text | 02 | `config/tips.json` |
+| Measurement error budgets, detectability floors (minimum tolerances, minimum IOIs, minimum steady durations, window limits) | 01 | `config/measurement-budget.json` |
+| Excerpt schema fields, licence allowlist, corpus sources, coverage gates | 03 | types in `src/core/types.ts` (01 maintains the file), gates in `tools/corpus-build/` |
+| Visual treatment of every verdict, tokens, copy, layout slots | 04 | `src/notation/visual-states.ts`, `src/ui/layout-table.ts`, `design/tokens.json`, `src/ui/copy/en.json` |
+| Platform seam shape and iOS rules | 05 with 01 | `src/core/platform.ts` |
+
+The floor rule (R2): 01 owns whether a tolerance is physically detectable. `config/measurement-budget.json` states the floors (section 8). A CI test (`rules/floor-check.test.ts`) fails if any value in `grading-config.json` or `levels.json` is below its floor. When it fails, 02 widens the value in config; code is never tuned to make the test pass.
+
+---
+
+# Part A — Web v1
 
 ## 1. Summary of decisions
 
-| Area | Decision | Runner-up (one sentence) |
+| Area | Decision | Scope |
 | --- | --- | --- |
-| Language | TypeScript 5.x, `strict: true`, `noUncheckedIndexedAccess: true` | Plain JS with JSDoc types, as in ear-to-staff, loses compiler-checked contracts between parallel teams. |
-| UI framework | React 19 for screens and controls only; the score, overlay, and audio path never go through React state | Svelte 5 is lighter, but smaller models write React far more reliably. |
-| App state | Zustand 5 store for UI state; plain TS event emitters for the real-time path | Redux Toolkit is heavier than needed. |
-| Build | Vite (current major, pinned), pnpm, single app package with enforced internal module boundaries | A pnpm monorepo of many packages adds publishing overhead without benefit at this size. |
-| Notation | VexFlow 5.x (SVG backend), our own layout of 2 to 3 systems, plus a separate SVG overlay layer for ghost notes and the playhead | Verovio (WASM) renders MusicXML beautifully but makes per-note live styling and time-to-x mapping harder and weighs about 7 MB. |
-| Audio capture | AudioWorklet that decimates to about 16 kHz and posts blocks over a MessagePort straight to a DSP Web Worker | SharedArrayBuffer ring buffer needs COOP/COEP headers, which GitHub Pages cannot send. |
-| Pitch | McLeod pitch method (ported from ear-to-staff), NSDF computed by FFT, range-limited per instrument | YIN is comparable; neural trackers (CREPE) cost too much on phones. |
-| Onsets | Pitch-change and energy-retrigger state machine (adapted from ear-to-staff segmenter) plus band-limited spectral flux, with onset backtracking | Pure spectral flux misses slurred wind and voice changes. |
-| Score following | Live: windowed cost-based greedy matcher on the audio clock. Final: banded dynamic-programming realignment that produces the graded result. | Full online DTW is unnecessary because the metronome fixes tempo. |
-| Where the follower runs | In the DSP worker, next to pitch and onset detection, driven by audio frame time | Main thread is exposed to render jank, which would delay missed-note deadlines. |
-| Persistence | IndexedDB via the `idb` library, behind repository interfaces | Dexie is fine but adds an abstraction juniors must learn. |
-| Corpus runtime format | Our own canonical JSON (`ExcerptDoc`), sharded by level, with a small manifest | Shipping MusicXML and parsing it in the browser costs bundle size and parse time on every load. |
-| Corpus build tooling | Offline Python 3.12 + music21 pipeline in `tools/corpus-build`, emitting JSON validated against a schema generated from the TS types | A Node MusicXML parser would be one language but would have to be written; music21 already reads kern, MusicXML, ABC, and MEI. |
-| Unit tests | Vitest | Jest is slower with ESM and TS. |
-| E2E tests | Playwright on Chromium with a fake audio capture device fed from WAV files | Cypress cannot inject fake microphone audio. |
-| Hosting | Static, GitHub Pages, offline-capable PWA via `vite-plugin-pwa` | Netlify or Cloudflare Pages would be equally fine and could send COOP/COEP headers if ever needed. |
+| Language | TypeScript 5.x, `strict`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes` (R10) | v1 |
+| UI | React 19 for screens only; score, overlay and audio never go through React state | v1 |
+| App state | Zustand 5 for UI state; typed emitters for the real-time path | v1 |
+| Build | Vite (pinned major), pnpm, one app package with lint-enforced internal boundaries, `base: './'`, hash routes, static PWA | v1 |
+| Notation | VexFlow 5 with Bravura bundled (no CDN font), one `<svg>` per system, each with its own SVG overlay group | v1 |
+| Capture | AudioWorklet: 3 kHz low-pass, decimation to about 16 kHz, 5 kHz high-band energy, posts every 2 quanta to the DSP worker over a MessagePort (main-thread relay fallback) | v1 |
+| Pitch | McLeod pitch method (ported from ear-to-staff), FFT-based NSDF, frames stamped at the window centre | v1 |
+| Onsets | Pitch-change midpoint crossing, 2 ms envelope half-rise for repeats, band-limited spectral flux, score-informed re-articulation hints | v1 |
+| Click | Two timbres (Tick 5.5 to 9 kHz, Wood 1.5 to 4 kHz), per-device low-band template subtraction, click-window gating; every take click scheduled at Start | v1 |
+| Following | Live greedy matcher plus displacement detector in the DSP worker on audio time; final banded DP plus displaced-segment relabel; one shared cost function and one tolerance source | v1 |
+| Grading | `grade/` implements 02's model only (P, I, R; grades; XP per player; level per instrument). 01's first-draft points, Elo and tolerance table are withdrawn | v1 |
+| Calibration | Loopback, play-along, per-take count-in recheck on speakers, sanity tone, clock-rate check; "reported" is unranked | v1 |
+| Output modes | Speakers, Wired headphones, Bluetooth (player-declared; the web cannot detect the route reliably) | v1 |
+| Persistence | IndexedDB via `idb`, behind async repository interfaces; implementation in `src/platform/web/` | v1 |
+| Corpus | Static JSON: column-oriented manifest plus chunks of at most 64 excerpts, generated by 03's Python pipeline and committed | v1 |
+| Tests | Vitest, Playwright (Chromium with fake capture; WebKit for non-audio flows, an oscillator-fed audio smoke test and iOS layouts), bare-runtime CI job | v1 |
+| iOS | Web app works on iOS Safari; platform seam exists; fork plan documented in 05. No native code (R12) | v1 |
+| Audio storage | None. No audio is stored, not even in memory after the take (R9) | v1 |
+
+## 2. v1 scope at a glance
+
+| Feature | Scope | Notes |
+| --- | --- | --- |
+| Monophonic single-line reading on 02's launch and beta instruments | v1 | Beta instruments behind a toggle (02) |
+| Written key everywhere; concert key as secondary text (R1) | v1 | `PracticeSettings.writtenKey` |
+| Real-time feedback: early/late ghost at the played position, wrong or out-of-tune ghost, original turns red (R11) | v1 | Default mode; 04 may add quieter optional modes |
+| Voice on relative pitch with a reference tone, octave-equivalent (R7) | v1 | Drift reference in `rules/` |
+| Stop, restart and skip handling (displacement) | v1 | Section 9.5 |
+| Practise without listening (no capture, no grade, no XP) (R13) | v1 | Section 9.8 |
+| Phone portrait takes with page turns; landscape recommended (R13) | v1 | One SVG per system (5.8) |
+| Strict ranked scan time (R6) | v1 | Session enforces the level default |
+| Tuning note for winds, brass, strings | v1 | 02 4.5 |
+| Single local profile (data model keeps `profileId`) | v1 | Multi-profile UI later |
+| Minimal `/dev/replay` and diagnostics export (no audio) | v1 | Agents need it to debug |
+| Key or meter change inside an excerpt, grace notes, trills, fermatas, lyrics, CC BY-SA (R8) | later | Rejected by the pipeline |
+| Listen-back, synth playback of the score or the take, MusicXML export, swing, Web MIDI, polyphony, accounts, any backend (R9) | later | |
+| Native iOS (Capacitor target, native audio, haptics, CoreMIDI) (R12) | later | 05 |
+| Real recordings, device matrix, human review of anything (R3) | later | Synthetic gates replace them in v1 |
 
 ---
 
-## 2. Stack and tooling
+## 3. Stack and tooling (v1)
 
-### 2.1 Why this stack for a swarm of junior implementers
+- Node 22 LTS, pnpm 9, Vite (pinned), `@vitejs/plugin-react`, `vite-plugin-pwa`.
+- ESLint flat config with `typescript-eslint`, `eslint-plugin-react-hooks`, `eslint-plugin-boundaries` (graph in 4.2) and `no-restricted-globals` (4.3). `dependency-cruiser` checks for cycles. A negative fixture directory (`test/lint-fixtures/`) contains files that must fail lint; CI asserts that they fail.
+- `tsconfig.core.json` compiles the pure packages with `lib: ["ES2022"]` (plus `"WebWorker"` for `dsp/`), no DOM.
+- Vitest with `@vitest/coverage-v8`. Coverage gate 85% lines for `dsp/`, `follow/`, `rules/`, `grade/`, `theory/`, `corpus/`.
+- Playwright projects: `chromium-audio` (fake capture), `chromium`, `webkit` (non-audio flows plus the oscillator smoke test), `webkit-iphone` and `webkit-ipad` (layout descriptors from 05 Q6).
+- `ts-json-schema-generator` produces `schemas/*.schema.json` from the TS types. Every fixture and config file is validated against them in CI, and the Python pipeline validates its output against `schemas/excerpt.schema.json`.
+- Worklet and worker bundling: `import workletUrl from './capture.worklet.ts?worker&url'`, then `audioWorklet.addModule(workletUrl)`; workers via `new Worker(new URL('./dsp.worker.ts', import.meta.url), { type: 'module' })`. Do not use `?url` alone on a `.ts` worklet; Vite will not transpile it.
+- VexFlow is imported from its ES module entry with Bravura bundled. No request to any CDN at runtime (tested in 13.4).
+- GitHub Actions jobs: lint, typecheck, unit, scenario (synthetic suite), bare-runtime, build, e2e, Pages deploy on `main`.
 
-- TypeScript types in `src/core/types.ts` are the contract between packages. An implementer can build `follow/` against the types and synthetic fixtures without `audio/` existing.
-- Each package lives in its own folder with an `index.ts` public surface. Imports from another package's internals are a lint error.
-- Real-time modules (`dsp/`, `follow/`, `grade/`, `theory/`, `corpus/`, `tips/`) are DOM-free and side-effect-free. They run in Node under Vitest, in the browser worker, and can later run in an iOS host (JavaScriptCore or a WKWebView). This is enforced by a separate `tsconfig.core.json` whose `lib` is `["ES2022"]` (plus `"WebWorker"` for `dsp/`) and excludes `"DOM"`.
-
-### 2.2 Toolchain
-
-- Node 22 LTS, pnpm 9, Vite (pinned), `@vitejs/plugin-react`.
-- ESLint (flat config) with `typescript-eslint`, `eslint-plugin-react-hooks`, and `eslint-plugin-boundaries` encoding the dependency graph in section 3.1. `dependency-cruiser` runs in CI as a second check for cycles.
-- Prettier, default config, 100 columns.
-- Vitest for unit and pipeline tests, `@vitest/coverage-v8`. Coverage gate: 85% lines for `dsp/`, `follow/`, `grade/`, `theory/`, `corpus/`; no gate for `app/`.
-- Playwright for E2E and visual regression.
-- `ts-json-schema-generator` produces `schemas/excerpt.schema.json` from `ExcerptDoc`; the Python pipeline validates its output against it with `jsonschema`.
-- GitHub Actions: lint, typecheck, unit, pipeline-accuracy suite, E2E (Chromium), build, deploy to Pages on `main`.
-- Worklet and worker bundling in Vite: `import workletUrl from './capture.worklet.ts?worker&url'` then `audioContext.audioWorklet.addModule(workletUrl)`; workers via `new Worker(new URL('./dsp.worker.ts', import.meta.url), { type: 'module' })`. Implementers must not use `?url` alone on a `.ts` worklet, because Vite will not transpile it.
-
-### 2.3 Browser support
-
-Chrome/Edge 120+, Firefox 120+, Safari 17+ (macOS and iOS). All required APIs (AudioWorklet, module workers, IndexedDB, `getUserMedia`) exist in these. Safari quirks are listed in section 5.9.
+Browser support: Chrome/Edge 120+, Firefox 120+, Safari 17+ on macOS and iOS. iOS Safari audio is **unverified at v1** (no device in this build); it is supported best-effort with the in-app audio self-test (7.9) and labelled "iOS: beta" in calibration and About (05).
 
 ---
 
-## 3. Module boundaries
+## 4. Module boundaries (v1)
 
-### 3.1 Folder layout and allowed dependencies
+### 4.1 Folder layout
 
 ```
 src/
-  core/         types.ts, time.ts (ticks/beats/seconds), rng.ts (seeded), events.ts (typed emitter)
-  theory/       spelled pitch, intervals, keys, transposition, MIDI conversion
-  instruments/  instrument table (data) + helpers
-  corpus/       manifest + shard loading, excerpt selection, transposition, expected-note builder
-  audio/        AudioContext lifecycle, mic, capture worklet, metronome, transport clock, calibration
-  dsp/          pure: fft, decimator, mpm, onset, segmenter, pipeline; dsp.worker.ts adapter
-  follow/       live follower, final aligner, tolerance tables
-  grade/        note and attempt scoring, points, rating, rank
-  tips/         tip selection engine (content authored by lead musician)
-  notation/     VexFlow rendering, layout model, overlay (note states, ghosts, playhead)
-  store/        IndexedDB repositories and migrations
-  session/      PracticeSession state machine that wires everything together
-  app/          React screens and components
-  testkit/      synthetic audio, scenario runner, fixtures (test-only, never imported by src/app)
-tools/corpus-build/   Python pipeline (separate, owned with the score researcher)
-public/corpus/v1/     generated manifest and shards
-test/                 e2e/, scenarios/, recordings/
+  core/         types.ts, platform.ts, time.ts, rng.ts, events.ts, onset-definition.ts   (pure)
+  theory/       spelled pitch, intervals, keys, transposition, ghost spelling           (pure)
+  instruments/  typed access to config/instruments.json                                  (pure)
+  rules/        config loaders, tolerance resolution, voice drift reference, octave
+                policy, live provisional rule, floor check                               (pure)
+  corpus/       manifest and chunk loading, selection, transposition, expected notes    (pure; fetch injected)
+  dsp/          decimator, filters, fft, mpm, envelope, flux, segmenter, click handling,
+                DspPipeline, runOffline; dsp.worker.ts is the only non-pure file         (pure)
+  follow/       cost function, LiveFollower, displacement detector, finalAlign           (pure)
+  grade/        note credits, components, gates, grades, patterns, XP, rank, progression (pure)
+  tips/         tip selection                                                            (pure)
+  calibration/  calibration-core: click arrival finding, RTL, MAD, recheck, templates   (pure)
+  store/        repository interfaces, migrations, export/import format                  (pure)
+  session/      PracticeSession state machine                                            (pure; uses PlatformServices)
+  platform/web/ WebAudioBackend, capture.worklet.ts, IndexedDB repos, wake lock, storage
+  notation/     VexFlow render, layout, overlay, visual-states.ts (04's table)           (DOM)
+  ui/           tokens, copy, components (04)                                            (DOM)
+  app/          React screens                                                            (DOM)
+  testkit/      synth, wav, fake backend, scenario runner (test only)
+config/         grading-config.json, levels.json, instruments.json, progression.json,
+                tips.json (02); measurement-budget.json (01)
+schemas/        generated JSON Schemas
+fixtures/       corpus/, expected/, follow/, grade/, render/  (frozen in P0)
+tools/corpus-build/   Python pipeline (03)
+public/corpus/v1/     generated corpus, committed
 ```
 
-Allowed imports (arrow means "may import"):
+### 4.2 Allowed imports
 
 ```
-core        <- everything
-theory      -> core
-instruments -> core, theory
-corpus      -> core, theory, instruments
-dsp         -> core
-follow      -> core, theory
-grade       -> core
-tips        -> core
-notation    -> core, theory, instruments        (DOM allowed)
-audio       -> core, dsp (types only)           (DOM allowed)
-store       -> core                             (DOM allowed: IndexedDB)
-session     -> all of the above except app, testkit
-app         -> session, notation, store, core, instruments (for pickers)
-testkit     -> core, theory, dsp, follow, grade, corpus
+core          <- everything
+theory        -> core
+instruments   -> core, theory
+rules         -> core, theory, instruments
+corpus        -> core, theory, instruments, rules
+dsp           -> core
+calibration   -> core, dsp
+follow        -> core, theory, rules
+grade         -> core, theory, rules
+tips          -> core
+store         -> core
+session       -> core, theory, instruments, rules, corpus, dsp (types), calibration, follow, grade, tips, store
+platform/web  -> core, dsp, calibration, store        (DOM, Web Audio, IndexedDB)
+notation      -> core, theory, instruments             (DOM)
+ui            -> core                                  (DOM)
+app           -> session, notation, ui, store, core, instruments, platform/web (composition root only: app/main.tsx)
+testkit       -> everything except app, ui, notation
 ```
 
-### 3.2 Public interfaces
+The tolerance resolution and the voice drift reference live in `rules/`, which both `follow/` and `grade/` import. That is what makes the live and final verdicts read the same numbers (R2).
 
-All types below live in `src/core/types.ts` unless noted. Package `index.ts` files export exactly the functions listed here. Signatures are binding; internal helpers are free.
+### 4.3 Restricted globals
 
-#### Time and units
+`AudioContext`, `OfflineAudioContext`, `navigator.mediaDevices`, `navigator.wakeLock`, `navigator.storage`, `navigator.audioSession`, `indexedDB`, `localStorage`, `fetch`, `serviceWorker`, `Date.now`, `Math.random`, `crypto`, `performance` are banned outside `src/platform/web/`, `src/app/main.tsx` and `testkit/`. `performance.now` is also allowed in `notation/` for rAF timing. Core packages get clocks, ids, randomness and fetch through injection.
+
+---
+
+## 5. Public interfaces (v1)
+
+All types are in `src/core/types.ts` or `src/core/platform.ts`. Package `index.ts` files export exactly the functions listed here. Signatures are binding; internals are free.
+
+### 5.1 Time and units
 
 ```ts
-export const TPQ = 480;                 // ticks per quarter note; divisible by 2,3,4,5,6,8,16,32
-export type Ticks = number;             // integer, from excerpt start (beat 1 of first full bar = pickupTicks)
-export type Beats = number;             // float, in units of the meter's beat (see Meter.beatUnitTicks)
-export type CtxSeconds = number;        // AudioContext clock
-export type ScoreSeconds = number;      // seconds from bar 1 beat 1 at the attempt's tempo (negative during pickup/count-in)
+export const TPQ = 480;                  // ticks per quarter
+export type Ticks = number;              // integer, from excerpt start
+export type Beats = number;              // float, in metronome beats (02 conventions)
+export type ScoreSeconds = number;       // seconds from bar 1 beat 1; negative in pickup and count-in
+// ClockSeconds (opaque, branded) is in platform.ts
 
-// src/core/time.ts
-export function ticksToScoreSeconds(t: Ticks, tempo: TempoSpec, meter: Meter): ScoreSeconds;
-export function scoreSecondsToTicks(s: ScoreSeconds, tempo: TempoSpec, meter: Meter): number; // float ticks
+export function ticksToBeats(t: Ticks, meter: Meter, pickupTicks: Ticks): Beats;
+export function beatsToScoreSeconds(b: Beats, bpm: number): ScoreSeconds;
 ```
 
-Tempo is constant within an attempt in v1 (no rubato, no tempo changes, no swing). Compound meters count the dotted beat (6/8 at "dotted quarter = 60").
+Tempo is constant within a take. Compound meters count the dotted beat (6/8 at "dotted quarter = 60"); 02 conventions define the beat for every meter.
 
-#### theory
+### 5.2 Platform seam (05's shape, adopted)
+
+```ts
+export type ClockSeconds = number & { readonly __brand: 'ClockSeconds' };
+export type OutputMode = 'speakers' | 'wired' | 'bluetooth';
+export type ClickTimbre = 'tick' | 'wood';
+export type MetronomeMode = 'audible' | 'countInOnly';          // 'visual' is later
+
+export interface PlatformCapabilities {
+  platform: 'web' | 'ios';
+  outputLatencyReported: boolean;    // false on iOS Safari and Safari macOS
+  wakeLock: boolean; serviceWorker: boolean; persistentStorage: 'granted' | 'best-effort';
+}
+export interface AudioRouteInfo {
+  routeKey: string;                  // hash(inputLabel | outputMode | sampleRate | uaFamily)
+  inputKind: 'built-in' | 'wired' | 'bluetooth' | 'usb-interface' | 'unknown';
+  outputMode: OutputMode;            // declared by the player
+  sampleRate: number;
+  appliedProcessing: { echoCancellation: boolean | null; noiseSuppression: boolean | null; autoGainControl: boolean | null };
+  reportedLatencySec?: number;
+}
+export interface CaptureBlock {
+  v: 1;
+  startT: ClockSeconds;              // time of the first decimated sample (carries the fractional phase)
+  lowband: Float32Array;             // decimated, low-passed at 3 kHz
+  hiEnergy: Float32Array;            // energy above 5 kHz per 1 ms sub-block (48 input samples at 48 kHz)
+  analysisRate: number;              // exact, e.g. 16000 or 14700
+  seq: number;                       // block counter, for gap detection
+}
+export interface ClickSpec { beatIndex: number; accent: boolean; t: ClockSeconds; countIn: boolean }
+export type WorkerMessage =
+  | { v: 1; type: 'config'; cfg: DspConfig; follow: FollowConfig }
+  | { v: 1; type: 'block'; block: CaptureBlock }
+  | { v: 1; type: 'clicks'; clicks: ClickSpec[] }
+  | { v: 1; type: 'end'; t: ClockSeconds };
+
+export interface AudioBackend {
+  readonly capabilities: PlatformCapabilities;
+  unlock(): Promise<AudioRouteInfo>;                 // call synchronously from a gesture handler (7.1)
+  permissionState(): Promise<'granted' | 'denied' | 'prompt' | 'unknown'>;
+  now(): ClockSeconds;
+  audibleNow(): ClockSeconds;                        // for playhead and beat dots
+  scheduleTake(p: { leadSec: number; bpm: number; beatsPerBar: number; countInBeats: number;
+                    totalBeats: number; mode: MetronomeMode; timbre: ClickTimbre; accentDb: number })
+    : Promise<{ t0: ClockSeconds; clicks: ClickSpec[] }>;   // every click scheduled now (7.6)
+  cancelTake(): void;
+  startCapture(sink: MessagePort | ((m: WorkerMessage) => void)): Promise<void>;
+  stopCapture(): void;
+  playCalibrationClicks(times: ClockSeconds[], timbre: ClickTimbre): Promise<void>;
+  playTone(hz: number, durSec: number, at: ClockSeconds): Promise<void>;   // sanity tone, voice reference
+  measureClockRate(durSec: number): Promise<{ framesPerSec: number; expected: number }>;
+  onRouteChange(cb: (r: AudioRouteInfo) => void): () => void;
+  onInterruption(cb: (reason: 'interrupted' | 'hidden' | 'track-ended' | 'device-change') => void): () => void;
+  close(): Promise<void>;
+  // later, optional and unimplemented in v1: onMidi?, haptic metronome modes
+}
+export interface PlatformServices {
+  audio: AudioBackend;
+  repos: StoreRepos;
+  kv: KeyValue;
+  keepAwake(on: boolean): Promise<void>;
+  clockWall(): string;               // ISO 8601 UTC
+  idGen(): string;                   // UUID
+  assets: { getJson<T>(relPath: string): Promise<T> };   // relative URLs only
+  lifecycle: { onVisibility(cb: (visible: boolean) => void): () => void };
+}
+```
+
+### 5.3 theory
 
 ```ts
 export type Step = 'C' | 'D' | 'E' | 'F' | 'G' | 'A' | 'B';
-export interface SpelledPitch { step: Step; alter: -2 | -1 | 0 | 1 | 2; octave: number } // scientific, C4 = MIDI 60
-export interface Interval { diatonic: number; chromatic: number }  // e.g. major sixth up = {5, 9}
-export interface KeySig { fifths: number; mode: 'major' | 'minor' } // -7..7
+export interface SpelledPitch { step: Step; alter: -2 | -1 | 0 | 1 | 2; octave: number }  // C4 = MIDI 60
+export interface Interval { diatonic: number; chromatic: number }
+export interface KeySig { fifths: number; mode: 'major' | 'minor' }
+export type Mode = 'major' | 'minor' | 'dorian' | 'mixolydian' | 'phrygian' | 'lydian' | 'aeolian' | 'locrian';
 
 export function toMidi(p: SpelledPitch): number;
 export function transposePitch(p: SpelledPitch, iv: Interval): SpelledPitch;
 export function transposeKey(k: KeySig, iv: Interval): KeySig;
-export function intervalBetweenKeys(from: KeySig, to: KeySig, octaveHint: number): Interval; // smallest motion, then octave shift
-export function spellMidiInKey(midi: number, key: KeySig): SpelledPitch;  // for ghost notes
-export function freqToMidi(hz: number, a4: number): number;               // fractional
+export function intervalBetweenKeys(from: KeySig, to: KeySig, chromaticShift: number): Interval;   // 03 7.4
+export function spellGhost(playedWrittenMidi: number, target: SpelledPitch, key: KeySig): SpelledPitch; // 02 4.7 rule
+export function freqToMidi(hz: number, a4: number): number;
 export function midiToFreq(midi: number, a4: number): number;
 ```
 
-Ported from ear-to-staff `theory.js`, but pitch is spelled (step/alter/octave), not a MIDI number plus a sharp/flat preference, because excerpts carry real spellings that must survive transposition.
-
-#### instruments
+### 5.4 instruments and rules
 
 ```ts
+export type Family = 'voice' | 'flute' | 'double-reed' | 'clarinet' | 'sax' | 'high-brass' | 'low-brass'
+  | 'upper-strings' | 'low-strings' | 'keyboard' | 'guitar';
 export type OnsetProfile = 'tongued-wind' | 'brass' | 'bowed' | 'plucked' | 'voice' | 'struck';
 export type Clef = 'treble' | 'bass' | 'alto' | 'tenor' | 'treble-8vb';
 
-export interface Instrument {
-  id: string;                         // 'alto-sax'
-  label: string;                      // 'E♭ alto saxophone'
-  family: 'woodwind' | 'brass' | 'strings' | 'voice' | 'keyboard' | 'guitar';
-  writtenMinusSounding: Interval;     // alto sax {5, 9}; guitar {7, 12}; concert {0, 0}
-  clefs: Clef[];                      // preferred first; viola ['alto','treble']
-  writtenRange: { min: number; max: number };        // MIDI, full
-  comfortableRange: { min: number; max: number };    // MIDI, by level band; see corpus selection
-  detection: {
-    minHz: number; maxHz: number;     // sounding, used to bound MPM lags
-    windowSamples: 512 | 1024 | 2048; // at analysis rate (~16 kHz)
-    onsetProfile: OnsetProfile;
-    allowOctaveEquivalence: boolean;  // true for voice by default
+export interface Instrument {                 // config/instruments.json; 02 owns all but `detection`
+  id: string; label: string; family: Family; status: 'launch' | 'beta';
+  semis: number; writtenMinusSounding: Interval;
+  clefs: { clef: Clef; fromLevel: number }[];
+  fullWrittenRange: [number, number];
+  tiers: Record<'A' | 'B' | 'C' | 'D' | 'E', [number, number]>;
+  pitchKind: 'continuous' | 'fixed';
+  relativePitch: boolean;                     // voice
+  detection: {                                // 01 owns, see 7.3
+    minHz: number; maxHz: number; windowSamples: 512 | 1024 | 2048;
+    onsetProfile: OnsetProfile; vibratoClass: 'none' | 'vibrato';
+    clarityThreshold: number; changeCents: number;
   };
-  intonationBonusCents: number;       // added to in-tune tolerance (voice +10, strings 0)
-  polyphonic: false;                  // v1 invariant
 }
-export const INSTRUMENTS: readonly Instrument[];
-export function instrumentById(id: string): Instrument;
+
+export interface ResolvedTolerance {          // one per ExpectedNote; computed once per take
+  tGoodSec: number; tRedSec: number; tBadSec: number; matchWindowSec: number;
+  goodCents: number | null; redCents: number | null;   // null: intonation not graded for this note
+  attackExcludeMs: number; minSteadyMs: number;
+  liveProvisionalMs: number; liveHysteresisCents: number;
+}
+// rules/
+export function loadConfigs(raw: RawConfigs): Configs;                       // schema-validated, frozen objects
+export function resolveTolerances(notes: ExpectedNote[], ctx: ToleranceContext, cfg: Configs): ResolvedTolerance[];
+export class VoiceDriftReference { offsetCents(): number; observe(devCents: number, correct: boolean): void }  // 02 4.5
+export function pitchCreditPolicy(inst: Instrument): { octave: 'equivalent' | 'wrong' };  // voice: equivalent (R7)
+export function checkFloors(cfg: Configs, budget: MeasurementBudget): FloorViolation[];   // CI
 ```
 
-v1 instrument list: flute, oboe, B♭ clarinet, bassoon, E♭ alto sax, B♭ tenor sax, E♭ baritone sax, B♭ trumpet, F horn, trombone, euphonium (bass clef), tuba, violin, viola, cello, double bass, voice (soprano, alto, tenor, bass), guitar (single line), piano (right-hand single line). The lead musician owns ranges per level; this table owns the shape.
+`resolveTolerances` implements 02's formula (02 Q4: level abs/frac, family floors, IOI caps, match window). The numbers come from `grading-config.json`; this function contains no tolerance constants.
 
-#### corpus
+### 5.5 corpus
 
 ```ts
 export interface PracticeSettings {
   instrumentId: string;
-  meter: Meter | 'random';
-  key: KeySig | 'random';             // concert or written? -> WRITTEN key, what the player reads
-  level: number | 'random';           // 1..10
+  level: number | 'random';
+  writtenKey: KeySig | 'random';            // R1: the key the player reads
+  meter: string | 'random';                 // '6/8'
   bpm: number | 'random';
   bars: 8 | 10 | 12 | 'random';
-  countInBars: 1 | 2;
-  a4Hz: number;                       // 415..446, default 440
-  metronome: 'audible' | 'countInOnly' | 'visual';
+  mode: 'ranked' | 'practice';
+  listening: boolean;                       // false = practise without listening (R13)
+  metronome: MetronomeMode;
+  clickTimbre: ClickTimbre;
+  outputMode: OutputMode;
+  a4Hz: number;                             // 415..446
   seed?: number;
 }
-
-export function loadManifest(baseUrl: string): Promise<CorpusManifest>;
-export function loadExcerpt(manifest: CorpusManifest, id: string): Promise<ExcerptDoc>;
-export function selectExcerpt(
-  manifest: CorpusManifest, settings: PracticeSettings, history: SelectionHistory, rng: Rng,
-): SelectionResult | { error: 'no-match'; relaxed: Partial<PracticeSettings> };
-export function prepareExcerpt(doc: ExcerptDoc, sel: SelectionResult, instrument: Instrument): PreparedExcerpt;
-export function buildExpectedNotes(p: PreparedExcerpt): ExpectedNote[];
+export function loadManifest(assets: PlatformServices['assets']): Promise<CorpusManifest>;
+export function loadExcerpt(m: CorpusManifest, id: string, assets: PlatformServices['assets']): Promise<ExcerptDoc>;
+export function selectExcerpt(m: CorpusManifest, s: PracticeSettings, h: SelectionHistory, cfg: Configs, rng: Rng)
+  : SelectionResult | { error: 'empty-pool'; suggestions: Partial<PracticeSettings>[] };
+export function prepareExcerpt(doc: ExcerptDoc, sel: SelectionResult, inst: Instrument, cfg: Configs): PreparedExcerpt;
+export function buildExpectedNotes(p: PreparedExcerpt, bpm: number, cfg: Configs): ExpectedNote[];
 ```
 
-The key setting means the written key the player sees, because that is what a sight-reader chooses. The transposer converts through the instrument's interval.
-
-#### dsp
+### 5.6 dsp
 
 ```ts
 export interface DspConfig {
-  analysisRate: number;               // actual decimated rate, e.g. 16000 or 14700
-  windowSamples: number; hopSamples: 128;
+  analysisRate: number; windowSamples: 512 | 1024 | 2048; hopSamples: 128;
   minHz: number; maxHz: number; a4Hz: number;
-  clarityThreshold: number;           // default 0.85
-  gateDb: number;                     // adaptive; noise floor + 12 dB
-  onsetProfile: OnsetProfile;
-  clickArrivals: CtxSeconds[];        // expected click arrival times in the input timeline, for gating
-  clickLeakDb: number;                // measured during calibration
+  clarityThreshold: number; changeCents: number; onsetProfile: OnsetProfile; vibratoClass: 'none' | 'vibrato';
+  outputMode: OutputMode;
+  clicks: { arrival: ClockSeconds; accent: boolean }[];   // input-timeline arrival = click.t + RTL; [] in headphone modes
+  clickTemplate: Float32Array | null;                     // low-band template for the selected timbre (speakers only)
+  repeatHints: { t: ClockSeconds; halfWidthSec: number }[];  // expected same-pitch re-articulations (7.5)
 }
-export interface PitchFrame { t: CtxSeconds; midi: number | null; clarity: number; rmsDb: number; flux: number; inClickWindow: boolean }
+export interface PitchFrame { t: ClockSeconds; midi: number | null; clarity: number; rmsDb: number; flux: number; inClickWindow: boolean }
 export interface DetectedNote {
   id: number;
-  onset: CtxSeconds;                  // backtracked onset, input timeline
-  offset: CtxSeconds | null;          // null while sounding
-  midi: number;                       // fractional concert MIDI, median of the stable region so far
-  cents: number;                      // midi - round(midi), *100
-  clarity: number;
-  onsetCause: 'pitch-change' | 'energy' | 'flux' | 'from-silence';
+  onset: ClockSeconds;                 // per core/onset-definition.ts
+  offset: ClockSeconds | null;
+  provisionalMidi: number;             // median of the confirming frames
+  midi: number;                        // fractional concert MIDI, median of the steady part so far
+  stableMedianCents: number; steadyMs: number; pitchSdCents: number;
+  clarity: number; altOctaveClarity: number | null;
+  onsetCause: 'pitch-change' | 'repeat' | 'flux' | 'from-silence';
 }
 export type DspEvent =
-  | { type: 'frames'; frames: PitchFrame[] }                 // batched, ~30/s to main for meters
   | { type: 'note-on'; note: DetectedNote }
-  | { type: 'note-update'; note: DetectedNote }              // every ~50 ms while sounding
-  | { type: 'note-off'; note: DetectedNote };
-
-export class DspPipeline {                                    // pure; no worker APIs inside
-  constructor(cfg: DspConfig);
-  push(block: Float32Array, startT: CtxSeconds): DspEvent[];
-  flush(t: CtxSeconds): DspEvent[];
-}
-export function runOffline(samples: Float32Array, rate: number, cfg: DspConfig): DspEvent[]; // tests
+  | { type: 'note-update'; note: DetectedNote }          // every 4 hops while sounding
+  | { type: 'note-off'; note: DetectedNote }
+  | { type: 'signal'; levelDb: number; clipping: boolean; voiced: boolean }   // every 4 hops
+  | { type: 'gap'; missingBlocks: number };
+export class DspPipeline { constructor(cfg: DspConfig); push(b: CaptureBlock): DspEvent[]; flush(t: ClockSeconds): DspEvent[]; frames(): PitchFrame[] }
+export function runOffline(samples: Float32Array, inputRate: number, cfg: DspConfig): { events: DspEvent[]; frames: PitchFrame[] };
+export function decimatorCreate(inputRate: number): Decimator;   // pure, carries phase and fractional startT
 ```
 
-#### follow
+### 5.7 follow
 
 ```ts
 export interface FollowConfig {
-  expected: ExpectedNote[];
-  t0: CtxSeconds;                     // context time of bar 1 beat 1 as scheduled (speaker)
-  roundTripLatency: number;           // seconds, from calibration
-  tolerances: Tolerances;             // from tolerance table, see 6.3
-  beatSeconds: number;
-  instrument: Instrument;
+  expected: ExpectedNote[]; tolerances: ResolvedTolerance[];
+  t0: ClockSeconds; latencyCompensationSec: number;    // RTL for mic input
+  bpm: number; beatsPerBar: number; instrument: Instrument; cfg: Configs;
+  voiceReferenceCents: number;                         // tuning-note offset (winds/brass/strings) or 0
 }
 export class LiveFollower {
-  constructor(cfg: FollowConfig);
+  constructor(c: FollowConfig);
   onDsp(ev: DspEvent): FollowerEvent[];
-  onClock(inputT: CtxSeconds): FollowerEvent[];  // called per DSP hop; fires deadlines (missed notes)
-  end(inputT: CtxSeconds): FollowerEvent[];
+  onClock(inputT: ClockSeconds): FollowerEvent[];     // every hop; fires missed deadlines and status
+  end(inputT: ClockSeconds, reason: EndReason): FollowerEvent[];
 }
-export function finalAlign(expected: ExpectedNote[], detected: DetectedNote[], cfg: FollowConfig): NoteJudgment[];
+export function finalAlign(c: FollowConfig, detected: DetectedNote[]): FinalAlignment;
+export interface FinalAlignment { judgments: NoteJudgment[]; extras: ExtraNote[]; displaced: DisplacedSegment[] }
 ```
 
-#### grade
+### 5.8 notation (04 owns the look; this is the API)
 
 ```ts
-export function scoreAttempt(j: NoteJudgment[], extras: ExtraNote[], ctx: GradeContext): AttemptScore;
-export function applyAttemptToProfile(p: PlayerProfile, a: AttemptRecord): PlayerProfile; // pure
-export function rankFor(points: number): Rank;
-```
-
-Weights, rank names, and thresholds come from a `grading.config.ts` data file the lead musician and designer own. Section 7 gives defaults.
-
-#### tips
-
-```ts
-export function selectTips(input: {
-  instrument: Instrument; attempt: AttemptRecord; recent: AttemptRecord[];
-  profile: PlayerProfile; catalog: TipCatalog; rng: Rng;
-}): Tip[];   // 1 primary + up to 2 secondary
-```
-
-#### notation
-
-```ts
-export interface RenderOptions { width: number; barsPerSystem: number; scale: number; showFingerings: false }
+export interface RenderOptions { widthPx: number; barsPerSystem: number[]; spPx: number }   // from 04 layout-table.ts
 export interface ScoreLayout {
-  systems: { index: number; top: number; bottom: number; staffTopY: number; lineSpacing: number; firstBar: number; lastBar: number }[];
-  noteBoxes: Map<string, { system: number; x: number; y: number; w: number; h: number }>; // by ScoreEvent.id
-  beatToPoint(scoreBeat: Beats): { system: number; x: number } | null;   // piecewise linear over tickable x's and barlines
+  systems: { index: number; firstBar: number; lastBar: number; heightPx: number; staffTopY: number; lineSpacing: number }[];
+  noteBoxes: Map<string, { system: number; x: number; y: number; w: number; h: number }>;
+  beatToPoint(scoreBeat: Beats): { system: number; x: number };   // total: covers pickups (negative) and beats past the last barline
   staffY(system: number, pitch: SpelledPitch, clef: Clef): number;
 }
+export interface NoteVisualState {
+  phase: 'pending' | 'active' | 'judged' | 'missed';
+  timing?: TimingVerdict; pitch?: PitchVerdict;
+  provisional?: boolean; marginal?: boolean; rejudged?: boolean;
+}
+export interface GhostNote {
+  detectedId: number; scoreBeat: Beats; writtenPitch: SpelledPitch;
+  kind: 'early' | 'late' | 'sharp' | 'flat' | 'wrong-pitch' | 'octave' | 'extra';
+  centsError: number | null; targetExpectedIdx: number | null; displaced: boolean;
+}
 export interface ScoreView {
-  render(p: PreparedExcerpt, container: HTMLElement, o: RenderOptions): ScoreLayout;
-  setNoteState(expectedIdx: number, s: NoteVisualState): void;
-  showGhost(g: GhostNote): void;                // add or update by g.detectedId
+  render(p: PreparedExcerpt, container: HTMLElement, o: RenderOptions): ScoreLayout;   // one <svg> per system
+  setSlotSystems(slotToSystem: number[]): void;      // page turns without re-rendering VexFlow
+  setNoteState(expectedIdx: number, s: NoteVisualState): void;   // idempotent; written as data-* on the note <g>
+  showGhost(g: GhostNote): void;                     // add or update by detectedId
   removeGhost(detectedId: number): void;
   setPlayhead(scoreBeat: Beats | null): void;
+  setMode(m: 'live' | 'review' | 'blind'): void;
   clearOverlay(): void;
 }
-export type NoteVisualState = 'pending' | 'active' | 'correct' | 'timing-error' | 'pitch-error' | 'missed' | 'both-error';
-export interface GhostNote {
-  detectedId: number; scoreBeat: Beats; durationBeats: number | null;
-  writtenPitch: SpelledPitch; cents: number; kind: 'early' | 'late' | 'sharp' | 'flat' | 'wrong-pitch' | 'extra' | 'octave';
+```
+
+The mapping from a judgment to a `NoteVisualState` and to drawing rules is 04's `visual-states.ts`. Nothing re-renders VexFlow during a take. If the viewport resizes during a take, the frozen layout is scaled with a CSS transform and the overlay groups scale with their system (05 Q4).
+
+### 5.9 grade, tips, store, session
+
+```ts
+// grade/
+export function grade(input: GradeInput): AttemptScore;        // 02 sections 4 and 6; reads Configs only
+export function detectPatterns(input: GradeInput): PatternResult[];
+export function applyAttempt(p: PlayerProfile, a: AttemptRecord, cfg: Configs): { profile: PlayerProfile; events: ProgressEvent[] };
+export function rankFor(xp: number, maxLevelAnyInstrument: number, cfg: Configs): Rank;
+// tips/
+export function selectTips(i: { patterns: PatternResult[]; instrument: Instrument; level: number;
+  recentTipIds: string[]; recentPrimaries: string[]; catalog: TipCatalog }): Tip[];   // at most 2
+// store/
+export interface StoreRepos {
+  profile: { get(): Promise<PlayerProfile | undefined>; put(p: PlayerProfile): Promise<void> };
+  attempts: { add(a: AttemptRecord): Promise<void>; recent(n: number): Promise<AttemptRecord[]>; byId(id: string): Promise<AttemptRecord | undefined>; list(q: AttemptQuery): Promise<AttemptSummary[]> };
+  calibrations: { get(routeKey: string): Promise<Calibration | undefined>; put(c: Calibration): Promise<void> };
+  settings: { get(): Promise<AppSettings>; put(s: AppSettings): Promise<void> };
 }
-```
-
-The static score SVG is rendered once per exercise. All live changes go to the overlay SVG (absolutely positioned on top) and to CSS classes on note groups found by `id`. Nothing re-renders VexFlow during a performance.
-
-#### store
-
-```ts
-export interface ProfileRepo { get(id: string): Promise<PlayerProfile | undefined>; put(p: PlayerProfile): Promise<void>; list(): Promise<PlayerProfile[]> }
-export interface AttemptRepo { add(a: AttemptRecord): Promise<void>; recent(profileId: string, n: number): Promise<AttemptRecord[]>; byExcerpt(excerptId: string): Promise<AttemptRecord[]> }
-export interface CalibrationRepo { get(deviceKey: string): Promise<Calibration | undefined>; put(c: Calibration): Promise<void> }
-export interface SettingsRepo { get(): Promise<AppSettings>; put(s: AppSettings): Promise<void> }
-export function openStore(): Promise<{ profiles: ProfileRepo; attempts: AttemptRepo; calibrations: CalibrationRepo; settings: SettingsRepo }>;
-export function exportAll(): Promise<Blob>;  export function importAll(b: Blob): Promise<void>;
-```
-
-#### session
-
-```ts
-export type SessionState = 'idle' | 'loading' | 'ready' | 'calibrating' | 'count-in' | 'performing' | 'finishing' | 'results' | 'error';
+export function exportAll(r: StoreRepos): Promise<ExportFileV1>;  export function importAll(r: StoreRepos, f: unknown): Promise<void>;
+// session/
+export type SessionState = 'idle' | 'loading' | 'covered' | 'scanning' | 'count-in' | 'performing' | 'finishing' | 'results' | 'error';
 export class PracticeSession {
-  constructor(deps: SessionDeps);          // injected repos, corpus, audio, view; enables tests with fakes
-  readonly events: Emitter<SessionEvent>;  // state changes + FollowerEvent passthrough + results
-  prepare(settings: PracticeSettings): Promise<PreparedExcerpt>;
-  start(): Promise<void>;                  // requires user gesture upstream
+  constructor(deps: { platform: PlatformServices; configs: Configs; manifest: CorpusManifest; workerFactory: () => WorkerLike });
+  readonly events: Emitter<SessionEvent>;
+  prepare(s: PracticeSettings): Promise<PreparedExcerpt>;
+  ensureAudio(): Promise<AudioRouteInfo>;      // call synchronously from the first gesture (Start scan)
+  revealScan(): void;                          // marks the dedupeGroup seen (02 Q7); starts the scan timer
+  startTake(): Promise<void>;                  // from a gesture, or automatically at strict scan expiry (R6)
   stop(): Promise<AttemptRecord | null>;
-  retrySameExcerpt(): Promise<void>;
+  skip(): Promise<void>;
+  captureTuningNote(): Promise<number>;        // cents; winds, brass, strings
+  playVoiceReference(): Promise<void>;         // tonic triad plus first note (R7)
 }
 ```
-
-`PracticeSession` is plain TS, not React. React subscribes to `events` and holds only display state. This keeps the orchestration portable to iOS.
 
 ---
 
-## 4. Canonical data model
+## 6. Data model (v1)
 
-### 4.1 Excerpt (corpus document)
+### 6.1 Excerpt document (03's fields folded in; R8 applied)
 
 ```ts
+export type Licence = 'PD' | 'CC0-1.0' | 'CC-BY-4.0';
+export type CorpusId = 'openscore-lieder' | 'openscore-quartets' | 'mutopia';
 export interface ExcerptDoc {
   schemaVersion: 1;
-  id: string;                          // stable, kebab: 'bach-bwv1013-allemande-m1-8'
+  id: string;
   source: {
-    composer: string; composerDates?: string; work: string; catalog?: string; movement?: string;
-    sourceMeasures: [number, number];  // inclusive, in the original numbering
-    corpus: string;                    // 'kernscores' | 'openscore-lieder' | 'mutopia' | ...
-    sourceUrl: string; license: 'PD' | 'CC0' | 'CC-BY-4.0' | 'CC-BY-SA-4.0'; attribution: string;
-    originalInstrument?: string;       // 'flute', 'voice', 'violin I'
+    composer: string; composerDates?: string; composerDeath: number | null;
+    work: string; catalog?: string; movement?: string; partName?: string;
+    sourceMeasures: [number, number];
+    edition?: string; encoder?: string; corpus: CorpusId; upstreamRef: string;
+    sourceUrl: string; license: Licence; licenseUrl: string; attribution: string;
+    originalInstrument?: string;
   };
-  meter: Meter;                        // single meter for the whole excerpt in v1
-  keyConcert: KeySig;                  // key at excerpt start, concert pitch
+  meter: Meter; keyConcert: KeySig; modal: Mode | null;       // one key and one meter per excerpt (R8)
   tempo: { markedBpm?: number; minBpm: number; maxBpm: number; marking?: string };
-  pickupTicks: Ticks;                  // 0 if none; length of anacrusis
-  measures: Measure[];                 // 8..12 full measures (+ optional pickup at index 0)
-  rangeConcert: { min: number; max: number };   // MIDI
-  features: DifficultyFeatures;
-  level: number;                       // 1..10, computed by pipeline, reviewed by lead musician
-  phraseQuality: 'complete-phrase' | 'period' | 'phrase-pair';   // researcher's musicality tag
-  tags: string[];                      // 'baroque','dance','stepwise','arpeggio','minor'...
+  pickupTicks: Ticks; measures: Measure[];
+  rangeConcert: { min: number; max: number };
+  features: DifficultyFeatures; rhythmCells: string[]; featureLevels: Record<string, number>;
+  level: number; levelConfidence: number;
+  cadenceEnd: 'PAC' | 'IAC' | 'HC'; phraseQuality: 'complete-phrase' | 'period' | 'phrase-pair';
+  breathMaxGapBars: number; familiarity: 0 | 1 | 2;
+  flags: ('noBreath' | 'leapy' | 'bass-line')[]; tags: string[]; idiomLocked: boolean;
+  dedupeGroup: string; work: string;
+  modifications: ('excerpted' | 'grace-removed' | 'ornament-removed' | 'fermata-removed' | 'lyrics-removed'
+    | 'rhythm-augmented-x2' | 'final-bar-completed')[];
+  quality?: Record<string, number>;
+  review: { rules: string; llmVerdicts: { pass: number; verdict: 'accept' | 'reject'; reasons: string[] }[]; promptVersion: string };
+  contentHash: string;
 }
-export interface Meter { beats: number; beatType: 2 | 4 | 8 | 16; countUnitTicks: Ticks; countsPerBar: number } // 6/8: countUnit = 720, counts = 2
+export interface Meter { beats: number; beatType: 2 | 4 | 8 | 16; countUnitTicks: Ticks; countsPerBar: number }
 export interface Measure { index: number; isPickup: boolean; startTick: Ticks; events: ScoreEvent[] }
 export type ScoreEvent = NoteEvt | RestEvt;
 interface EvtBase { id: string; tick: Ticks; dur: Ticks; tuplet?: { actual: number; normal: number; groupId: string } }
 export interface NoteEvt extends EvtBase {
-  kind: 'note'; pitch: SpelledPitch;   // concert pitch, original spelling
+  kind: 'note'; pitch: SpelledPitch;           // concert, original spelling
   tieStart?: true; tieStop?: true; slur?: 'start' | 'stop' | 'continue';
-  artic?: ('staccato' | 'staccatissimo' | 'tenuto' | 'accent' | 'marcato')[];
+  artic?: ('staccato' | 'tenuto' | 'accent' | 'marcato')[];
   dynamic?: 'pp' | 'p' | 'mp' | 'mf' | 'f' | 'ff'; breath?: true;
 }
 export interface RestEvt extends EvtBase { kind: 'rest' }
-export interface DifficultyFeatures {
-  noteCount: number; notesPerBeat: number; shortestDur: Ticks; maxLeapSemis: number; meanAbsInterval: number;
-  accidentalsOutsideKey: number; tupletCount: number; tieCount: number; syncopationIndex: number; restRatio: number; rangeSemis: number;
-}
 ```
 
-Excluded from v1 excerpts by the pipeline (reject or simplify): multiple voices, chords, grace notes, trills and ornaments, fermatas, tempo or meter changes, repeats and voltas (unrolled or rejected), cue notes, clef changes mid-excerpt. Dynamics and articulations are kept for display; only staccato and tenuto affect duration grading.
+No lyric field exists; lyrics are stripped at normalize (R8). Excluded from v1 excerpts: multiple voices, chords, grace notes, trills and ornaments, fermatas except a dropped final one, tempo, key or meter changes, repeats and voltas, cue notes, mid-excerpt clef changes. Runtime adds `transposed` and `octave-displaced` to the displayed modification list.
 
-### 4.2 Corpus files and loading
+### 6.2 Corpus files
 
 ```
-public/corpus/v1/manifest.<hash>.json      // ≤ 200 KB gzip at 3,000 excerpts
-public/corpus/v1/shard-L01.<hash>.json     // one shard per level; each ≤ 150 KB gzip
-public/corpus/v1/index.json                // { manifest: 'manifest.<hash>.json' } — the only un-hashed file
+public/corpus/v1/index.json                         no-cache; points to the hashed manifest
+public/corpus/v1/manifest.<hash>.json               column-oriented, dictionary-encoded strings; about 40 KB gzip
+public/corpus/v1/shard-L05-03.<hash>.json           at most 64 excerpts per chunk, about 110 KB gzip
+public/corpus/v1/attributions.<hash>.json
+public/corpus/v1/withdrawn.json                     no-cache; ids skipped at runtime
 ```
 
-```ts
-export interface CorpusManifest {
-  version: string; generatedAt: string;
-  entries: ManifestEntry[];
-}
-export interface ManifestEntry {
-  id: string; shard: string; level: number; meter: string /* '6/8' */; fifths: number; mode: 'major' | 'minor';
-  bars: number; rangeConcert: [number, number]; minBpm: number; maxBpm: number;
-  composer: string; title: string; tags: string[]; originalFamily?: string;
-}
-```
+`ManifestEntry` is 03 7.1's shape with `shard` naming the chunk and `license: Licence`. Loading: fetch `index.json`, then the manifest; the selector runs on the manifest; fetch the one chunk holding the chosen id; prefetch the level's other chunks and levels ±1 in idle time. The service worker caches chunks cache-first (they are hashed). Settings offers "Download all music for offline".
 
-Loading: at app start fetch `index.json` (no-cache), then the hashed manifest (immutable cache). Fetch the needed shard on first selection at that level and prefetch the neighbouring levels in idle time. The service worker precaches the manifest and the player's current level shard, and runtime-caches the rest. Target corpus at launch: 1,500 to 3,000 excerpts (score researcher's call), at roughly 2 to 4 KB per excerpt gzipped.
+### 6.3 Selection and transposition (runtime)
 
-### 4.3 Selection and transposition (runtime)
+Follows 02 (levels, stretch, ranked rules) and 03 (fit, spelling). No level, key or tempo defaults live in this section.
 
-Inputs: manifest, settings, last 50 excerpt ids seen by this profile, seeded RNG.
+1. Resolve `'random'` settings with the seeded RNG from `levels.json` (keys and meters allowed at the level; 02 decides how a random level is drawn and credited).
+2. Candidate pool for level L: excerpts with intrinsic level L; at most 20% from L−1; stretch excerpts (exactly one feature at L+1) at `levels.json stretchRate`.
+3. Filters: meter; bars; `familiarity < 2` in ranked mode; family-incompatible flags (`noBreath`, `leapy`); `bass-line` only where 03 7.2 allows; `modal != null` only when `writtenKey` is random (R8); `withdrawn.json`; in ranked mode every `dedupeGroup` this player has seen on any instrument is excluded (02 Q7).
+4. Range fit by 03 7.3's closed form against the instrument's tier band for the level; clef from 03 7.4.6.
+5. Spelled transposition by 03 7.4; reject or retry enharmonically per 03 7.5.
+6. Tempo: the excerpt's tempo range intersected with the level's range, clipped so every note's IOI respects the detectability floors in `measurement-budget.json` (8.3) by its `onsetKind`. Empty means the excerpt is ineligible at that tempo.
+7. Weighted pick (fit and variety, 03's `work` key). If the pool is empty, return `empty-pool` with suggestions; the UI offers practice or relaxing a setting (02). Nothing is relaxed silently.
 
-1. Resolve `'random'` settings with the RNG. Level random means "player level ±1". Key random draws from keys allowed at that level (lead musician supplies the table; default: levels 1–2 up to 2 accidentals, 3–4 up to 3, 5–6 up to 4, 7+ up to 6). Tempo random draws within the excerpt's `[minBpm, maxBpm]` intersected with the level cap.
-2. Filter: exact meter; `|entry.level - level| ≤ 1`; bar count matches (or any of 8 to 12 if random).
-3. For each candidate compute the interval from its concert key to the target concert key (target written key minus instrument interval), trying octave shifts of −2..+2. Keep the shift whose written range fits the instrument's comfortable range for the level, preferring the smallest absolute transposition. Reject if no shift fits. Major excerpts go to major targets and minor to minor; a minor target key uses the relative-minor reading of the chosen signature.
-4. Reject if the transposed spelling needs more than 2 double accidentals or a key beyond 6 sharps or flats (re-spell enharmonically first: F♯ major ↔ G♭ major).
-5. Score each survivor: `fit = 1 - |transposeSemis|/24`, `freshness = 0` if seen in last 50 else 1, `levelMatch = 1 - |Δlevel|/2`, tag variety bonus 0.2 if the composer differs from the last 3 excerpts. Weighted random pick, weights `fit*0.3 + freshness*0.4 + levelMatch*0.3 + variety`.
-6. If nothing survives, relax in this order and tell the UI what was relaxed: bars, level ±2, key (nearest by fifths), meter last.
-
-`PreparedExcerpt` carries the written-pitch events, the written key, the clef chosen from the written range and instrument clef list, the concert interval used, and the seed.
-
-### 4.4 Expected notes (follower input)
+### 6.4 Expected notes
 
 ```ts
 export interface ExpectedNote {
-  idx: number;                        // 0..N-1 in time order
-  eventIds: string[];                 // tied chain merged into one sounding note
-  onsetBeat: Beats; durBeats: Beats;  // score beats from bar 1 beat 1 (pickup negative)
-  onsetSec: ScoreSeconds; durSec: number;
-  concertMidi: number;                // integer
-  writtenPitch: SpelledPitch;
-  ioiPrevSec: number | null; ioiNextSec: number | null;  // inter-onset intervals to neighbours
-  followedByRest: boolean; precededByRest: boolean;
-  repeatOfPrev: boolean;              // same pitch as previous note with no rest between
+  idx: number; eventIds: string[];                 // a tie chain is one note
+  bar: number; beatInBar: number;
+  onsetBeat: Beats; durBeats: Beats; onsetSec: ScoreSeconds; durSec: number;
+  concertMidi: number; writtenPitch: SpelledPitch;
+  ioiPrevSec: number | null; ioiNextSec: number | null;
+  precededByRest: boolean; followedByRest: boolean;
+  onsetKind: 'articulated' | 'slurred' | 'repeat';  // from slur, tie and repeat flags; drives floors and segmenter hints
   artic: 'normal' | 'staccato' | 'tenuto' | 'accent';
-  inFastRun: boolean;                 // ioi < 0.12 s on either side
+  durationGraded: boolean;                          // 02 4.2 rule, computed once
+  keySigAltered: boolean; explicitAccidental: boolean; ledgerLines: number;   // pattern inputs
 }
-export interface ExpectedRest { startSec: ScoreSeconds; endSec: ScoreSeconds; eventIds: string[] }
 ```
 
-### 4.5 Note judgment and attempt
+### 6.5 Judgments and attempts
 
 ```ts
 export type TimingVerdict = 'on-time' | 'early' | 'late';
-export type PitchVerdict = 'in-tune' | 'sharp' | 'flat' | 'wrong-pitch' | 'octave';
-export type DurationVerdict = 'ok' | 'short' | 'long' | 'not-graded';
-
+export type PitchVerdict = 'in-tune' | 'sharp' | 'flat' | 'wrong-pitch' | 'octave' | 'not-graded';
 export interface NoteJudgment {
-  expectedIdx: number;
-  status: 'matched' | 'missed';
-  detectedId: number | null;
-  timing: TimingVerdict | null; timingErrorMs: number | null;      // + = late
-  pitch: PitchVerdict | null; playedConcertMidi: number | null; centsError: number | null; // vs expected, after octave handling
-  duration: DurationVerdict; heldRatio: number | null;             // played duration / written duration
-  credit: { pitch: number; timing: number; duration: number };     // 0..1 each, filled by grade/
-  source: 'live' | 'final';
+  expectedIdx: number; status: 'matched' | 'missed'; detectedId: number | null;
+  timing: TimingVerdict | null; timingErrorMs: number | null;        // + = late
+  pitch: PitchVerdict | null; playedConcertMidi: number | null; centsError: number | null;
+  octaveDisplaced: boolean;                                           // voice: true but credited as correct (R7)
+  duration: 'ok' | 'short' | 'not-graded'; heldRatio: number | null;
+  credit: { p: number; n: number | null; o: number; d: number | null };   // 02 4.2
+  marginal: boolean; rejudged: boolean;                               // rejudged: final differs from live
 }
+export type LiveJudgment = Omit<NoteJudgment, 'credit' | 'rejudged'> & { provisional: boolean };
 export interface ExtraNote { detectedId: number; onsetSec: ScoreSeconds; concertMidi: number; cents: number; durSec: number; duringRest: boolean }
+export interface DisplacedSegment { fromIdx: number; toIdx: number; offsetBeats: number; detectedIds: number[] }
 
-export interface AttemptRecord {
-  id: string; profileId: string; createdAt: string; appVersion: string;
-  excerptId: string; corpusVersion: string;
-  settingsResolved: Omit<PracticeSettings, 'seed'> & { seed: number };  // no 'random' left
-  transposition: Interval; writtenKey: KeySig; instrumentId: string; bpm: number;
-  calibration: { roundTripMs: number; method: Calibration['method']; deviceKey: string };
-  detected: DetectedNote[];            // compact; ≤ ~300 per attempt
-  judgments: NoteJudgment[];           // final
-  extras: ExtraNote[];
-  score: AttemptScore;
-  aborted: boolean;                    // stopped before last expected note
-  debug?: { liveJudgments: NoteJudgment[] };  // kept only when dev flag is on
+export type RankedReason = 'practice-mode' | 'seen-before' | 'scan-time' | 'tempo-below-min' | 'familiarity'
+  | 'voice-absolute-pitch' | 'calibration-unmeasured' | 'bluetooth-latency' | 'skip-limit' | 'not-listening';
+export type VoidReason = 'interrupted' | 'no-signal' | 'device-change' | 'backlog' | 'capture-gap' | 'clipping';
+export interface AttemptScore {                       // 02's model; 01's first-draft fields are withdrawn
+  status: 'ok' | 'incomplete';
+  components: { P: number; I: number | null; R: number };
+  score: number; grade: 'S' | 'A' | 'B' | 'C' | 'D' | 'F'; stars: 0 | 1 | 2 | 3; shine: boolean;
+  ranked: boolean; rankedReasons: RankedReason[];
+  diagnostics: { matched: number; n: number; stops: number; restarts: number; driftMsAtEnd: number | null;
+    counts: Record<'correct' | 'early' | 'late' | 'sharp' | 'flat' | 'wrong' | 'octave' | 'missed' | 'extra', number> };
+  patterns: PatternResult[];                          // { id, lostPoints, notes: number[] }
+  tipsShown: string[];
+  xp: { total: number; factors: { id: string; value: number }[] };
+  configVersion: string;
 }
-export interface AttemptScore {
-  total: number;                       // 0..100
-  pitchPct: number; rhythmPct: number; durationPct: number;
-  counts: { correct: number; early: number; late: number; sharp: number; flat: number; wrong: number; octave: number; missed: number; extra: number };
-  meanTimingBiasMs: number;            // + = dragging
-  timingSpreadMs: number;              // MAD of timing errors
-  meanCentsBias: number;
-  pointsEarned: number;
-  passed: boolean;                     // total ≥ pass threshold for the level
+export interface AttemptRecord {
+  schemaVersion: 1; id: string; profileId: string; createdAt: string; appVersion: string;
+  configVersion: string; corpusVersion: string; coreVersion: string;
+  excerptId: string; dedupeGroup: string; instrumentId: string; beta: boolean;
+  levelServed: number; stretch: boolean;
+  settingsResolved: Omit<PracticeSettings, 'seed'> & { seed: number };
+  transposition: Interval; writtenKey: KeySig; concertKey: KeySig; bpm: number; scanSeconds: number;
+  listening: boolean;
+  calibration: { method: Calibration['method']; latencyCompensationMs: number; outputMode: OutputMode;
+    recheck: { measuredMs: number; clicks: number; usedFresh: boolean } | null };
+  audioEnv: AudioEnv;                                 // 05 5.3, with gateFailures[]
+  detected: DetectedNote[]; judgments: NoteJudgment[]; extras: ExtraNote[]; displaced: DisplacedSegment[];
+  score: AttemptScore | null;                         // null when void or not listening
+  endReason: 'complete' | 'stopped' | 'void'; voidReason?: VoidReason;
+  debug?: { live: LiveJudgment[]; frames?: PitchFrame[] };   // dev flag only; pruned after 7 days; never audio
 }
 ```
 
-### 4.6 Player profile
+### 6.6 Profile and calibration (R5)
 
 ```ts
-export interface PlayerProfile {
-  schemaVersion: 1;
-  id: string; displayName: string; createdAt: string;
-  activeInstrumentId: string;
-  perInstrument: Record<string, InstrumentProgress>;
-  totals: { points: number; attempts: number; practiceSeconds: number };
-  rank: Rank;                          // derived from points, cached
-  streak: { currentDays: number; bestDays: number; lastPracticeDate: string };
-  seenExcerpts: string[];              // last 200 ids, ring
+export interface PlayerProfile {                    // 02 5.6; one per player
+  schemaVersion: 1; id: string; displayName: string; createdAt: string;
+  xp: number; rank: number;                         // per player
+  streak: { days: number; lastDay: string; freezes: number };
+  daily: { day: string; rankedCount: number };      // m_daily is per player
+  instruments: Record<string, InstrumentProgress>;  // level is per instrument
+  seenGroups: Record<string, string>;               // dedupeGroup -> first reveal time, all instruments
+  recentTips: string[]; recentPrimaries: { instrumentId: string; pattern: string }[];
+  skipLedger: { rankedSinceSkip: number };
+  activeInstrumentId: string; configVersion: string;
 }
 export interface InstrumentProgress {
-  level: number;                       // current suggested level 1..10
-  rating: number;                      // Elo-like skill estimate, default 1000
-  attempts: number; bestScoreByLevel: Record<number, number>;
-  errorRates: Record<'early' | 'late' | 'sharp' | 'flat' | 'wrong' | 'octave' | 'missed' | 'extra' | 'short' | 'long', number>; // EWMA per note, α = 0.1
-  timingBiasMs: number; centsBias: number;   // EWMA
-  lastTipIds: string[];                // avoid repeats, last 10
+  level: number; window: number[]; attemptsRanked: number;
+  bestByLevel: Record<number, number>; patternCounts: Record<string, number>;
+  tuningOffsetCents: number | null; levelUpSuppressedFor: number;
 }
-export interface Rank { id: string; label: string; minPoints: number }
 export interface Calibration {
-  deviceKey: string;                   // hash(inputDeviceLabel|outputDeviceLabel|sampleRate|uaFamily)
-  roundTripMs: number; method: 'loopback' | 'play-along' | 'reported';
-  clickLeakDb: number; noiseFloorDb: number; measuredAt: string; spreadMs: number;
+  routeKey: string; platform: 'web' | 'ios'; outputMode: OutputMode;
+  method: 'loopback' | 'play-along' | 'reported';
+  roundTripMs: number; outputLatencyMs?: number; spreadMs: number; clicksDetected: number;
+  clickLeakDb: number; noiseFloorDb: number;
+  templates: Partial<Record<ClickTimbre, { rate: number; samples: number[] }>>;
+  sanityToneCents: number | null; aecSuspected: boolean; clockRateError: number | null;
+  measuredAt: string; stale: boolean;
 }
 ```
 
 ---
 
-## 5. Real-time audio pipeline
+## 7. Real-time audio pipeline (v1)
 
-### 5.1 Clock model
+### 7.1 Clock and startup
 
-One clock: the AudioContext clock. Every timestamp in the system is either a context time or a score time derived from it.
+- One clock per take: the backend's `ClockSeconds` (the AudioContext clock on web).
+- Startup order (05 W1, corrected): inside the first gesture handler (Start scan, or Allow microphone in onboarding), synchronously set `navigator.audioSession.type = 'play-and-record'` if present, create `new AudioContext({ latencyHint: 'interactive' })` and call `resume()` with nothing awaited before them. Then await `getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 1 } })`, add the worklet, read `track.getSettings()`, and run the rate guard: if `ctx.sampleRate` differs from a reported track rate, recreate the context once.
+- One stream and one context per practice session (05 W2). They close on leaving practice, on page hide, and after 5 minutes idle on results. Because unlock happens at Start scan, the strict scan timer can auto-start the count-in at expiry (R6) without a second gesture.
+- `t0` (bar 1 beat 1) = `now() + leadSec + countInSec`, with `leadSec ≥ 0.5`. iOS may drop the first 100 to 300 ms of output after resume; on speakers the worker verifies the first count-in click arrived (7.7). If it did not, the session restarts the count-in once.
+- Score time of a detected onset: `scoreSec = onset − t0 − latencyCompensationSec`. For microphone input `latencyCompensationSec` is the round-trip latency (RTL). This holds in every output mode; only the way RTL is measured differs (7.8).
+- Visual playhead and beat dots use `audibleNow()`: `getOutputTimestamp()` where present, else `currentTime − baseLatency − outputLatency`. Visual only; never used for grading.
 
-- The transport picks `t0` (context time of bar 1 beat 1) as `ctx.currentTime + 0.25 + countIn` when the player presses Start. Clicks are scheduled at `t0 + k*beatSec` for integer `k` (negative during count-in).
-- The capture worklet stamps each block with `currentFrame / sampleRate`, which is the context time of that input block.
-- A player who hears a click and plays exactly on it produces sound whose captured timestamp is `clickTime + RTL`, where RTL (round-trip latency) is output latency plus input latency. That holds for speakers and headphones alike. So the follower converts a detected onset to score time with `scoreSec = onset - t0 - RTL`. RTL is the only latency number the follower needs, and calibration measures it directly.
-- Visual playhead: drawn at `audibleNow = ctx.getOutputTimestamp()`-mapped context time minus `ctx.outputLatency` (0 when unreported), so the cursor matches what the player hears.
-
-### 5.2 Graph
+### 7.2 Graph and capture worklet
 
 ```
-getUserMedia({ audio: { echoCancellation:false, noiseSuppression:false, autoGainControl:false,
-                        channelCount:1, deviceId? } })
-  -> MediaStreamSource -> CaptureWorkletNode ("capture-processor")   (not connected to destination)
-        |  MessagePort (transferred to the worker at startup; main thread not in the path)
-        v
-     DSP worker: DspPipeline -> LiveFollower -> postMessage(FollowerEvent[]) -> main thread
-Metronome: OscillatorNode-free; AudioBufferSourceNode playing a pre-rendered click buffer -> GainNode -> destination
+getUserMedia -> MediaStreamSource -> CaptureWorkletNode (1 output of zeros) -> GainNode(gain 0) -> destination
+   worklet -> MessagePort (transferred to the DSP worker); fallback: node.port -> main -> worker.postMessage(transfer)
+Metronome: pre-rendered click AudioBuffers -> AudioBufferSourceNode per click -> GainNode -> destination
 ```
 
-- AudioContext: `new AudioContext({ latencyHint: 'interactive' })`. Do not force a sample rate; read `ctx.sampleRate`.
-- Echo cancellation, noise suppression, and AGC are off. AEC treats sustained instrument tones as echo or noise and chews them; AGC changes level mid-note and breaks retrigger detection. Ear-to-staff made this a toggle; here it is forced off, with a hidden diagnostic toggle.
-- Capture worklet work per 128-frame quantum: (a) 8th-order IIR low-pass at 4 kHz (two biquad sections are not enough; use four cascaded biquads), (b) decimate by `D = round(sampleRate / 16000)` (3 at 48 kHz, 3 at 44.1 kHz giving 14.7 kHz), (c) compute high-band energy above 4 kHz over 48-sample sub-blocks (about 1 ms) for click detection and calibration, (d) accumulate and post every 4 quanta: `{ startT, lowband: Float32Array, hiEnergy: Float32Array }` as transferables. Worklet code must not allocate in `process()` after warm-up.
+- The worklet is connected to the destination through a zero gain so WebKit pulls it (05 Q3). If no block reaches the worker within 500 ms of `startCapture`, the backend switches to the main-thread relay and records `audioEnv.captureRelay = true`.
+- Per 128-frame quantum the worklet: (a) downmixes to mono, (b) low-passes at 3 kHz (8th order, four cascaded biquads; coefficients fixed per input rate in `dsp/filters.ts`), (c) decimates by `D = round(rate / 16000)` with phase carried across blocks, (d) high-passes a copy at 5 kHz (4th order) and sums energy per 1 ms sub-block into `hiEnergy`, (e) posts every 2 quanta (5.3 ms at 48 kHz). Each post is 85 or 86 decimated samples at 48 kHz; `startT` carries the fractional sample position, so no sample is lost and `startT` drifts by less than one sample period over any length (P4a acceptance).
+- Zero allocation after warm-up: a pool of 32 lowband/hiEnergy buffer pairs (170 ms of headroom) is transferred to the worker and returned. If the pool is empty the block is dropped and counted; a gap voids the take (`capture-gap`).
+- The 3 kHz low-pass costs under 1 dB at the violin's top note (E7, 2637 Hz) and gives about 35 dB at 5 kHz and 48 dB at 6 kHz.
 
-### 5.3 Pitch detection
+### 7.3 Pitch detection and the `detection` block
 
-- Port `PitchDetector` from ear-to-staff `js/pitch.js`. Keep the NSDF, peak picking, `peakCutoff = 0.9`, and parabolic interpolation. Replace the O(n·τ) autocorrelation loop with FFT autocorrelation (zero-padded to 2n) so a 1024-sample window costs about 0.15 ms. Reuse ear-to-staff `js/fft.js` (radix-2 with tables), ported to TS.
-- Window per instrument (`detection.windowSamples` at about 16 kHz): 512 (32 ms) for flute, oboe, violin, trumpet, soprano and alto voice; 1024 (64 ms) for clarinet, saxes, horn, viola, tenor voice, guitar, piano; 2048 (128 ms) for bassoon, trombone, euphonium, tuba, cello, double bass, bass voice. Hop is always 128 samples (8 ms).
-- Lags are limited to the instrument's sounding range widened by 3 semitones each side. This alone removes most sub-octave errors.
-- Clarity threshold 0.85 default (0.80 for voice and low brass).
-- Output frame: fractional concert MIDI using `a4Hz`, or null.
+- Port `PitchDetector` from ear-to-staff `js/pitch.js`: NSDF, peak picking, `peakCutoff = 0.9`, parabolic interpolation. NSDF via FFT (zero-padded to 2n), about 0.15 ms per 1024 window.
+- Every `PitchFrame` is stamped at its window centre: `t = blockStart + (frameStartSample + W/2) / analysisRate`. This removes the W/2 late bias a streaming implementer would otherwise introduce.
+- Hop is 128 samples (8 ms at 16 kHz; 8.7 ms at 14.7 kHz). All segmenter parameters are expressed in seconds and converted with `hopSec` (`segmenterOptions(hopSec)`).
+- Lags are limited to the instrument's sounding range widened by 3 semitones.
+- Octave hysteresis: a 12 ± 0.5 semitone jump against the current note's median must persist for 4 frames, else the frame is folded back. `altOctaveClarity` records the NSDF value at the expected octave's lag for the follower's score-informed octave correction (9.3).
+- Window per instrument (01 owns; values go into each `instruments.json` entry's `detection.windowSamples`):
 
-### 5.4 Octave errors
+| Window at ~16 kHz | Instruments | Lowest f0 with 3 periods |
+| --- | --- | --- |
+| 512 (32 ms) | flute, oboe, violin, trumpet, soprano and alto voice | 94 Hz |
+| 1024 (64 ms) | clarinet, all saxes, horn, viola, cello, bassoon, trombone, euphonium, tenor and bass voice, guitar, piano RH and LH | 47 Hz |
+| 2048 (128 ms) | tuba, double bass (both beta) | 23 Hz |
 
-1. Range restriction (5.3).
-2. Frame-level octave hysteresis: a jump of 12 ± 0.5 semitones relative to the current note's median must persist for 4 consecutive frames (32 ms) before the segmenter accepts it, otherwise the frame is folded back to the current octave.
-3. Score-informed correction in the follower, not the detector: when a detected note is exactly one octave from the expected note's pitch and the NSDF had a secondary peak at the expected lag with clarity ≥ 0.8 of the chosen peak (the worker includes `altOctaveClarity` on the note), treat it as the expected octave. Otherwise judge it as `pitch: 'octave'`. For voice with `allowOctaveEquivalence`, any octave displacement counts as in-tune and is reported only as an informational flag.
+- Built-in laptop and phone mics roll off 10 to 30 dB below about 100 Hz; octave-error risk rises to an estimated 2 to 5% below about 70 Hz. That is why tuba, double bass, bari sax and piano LH are beta (02). Detectability floor: no served fundamental below 47 Hz on a 1024 window; piano LH must not be served below C2 (65 Hz) even in beta. 02 sets the served ranges in `instruments.json`; the floor check (0) enforces this.
+- Clarity threshold 0.85 default, 0.80 for voice, low brass and piano. `changeCents`: voice 80, winds, brass and strings 60, fixed pitch 40 (02 8).
 
-### 5.5 Onset detection and segmentation
+### 7.4 Onset definition (frozen in P0 as `core/onset-definition.ts`)
 
-Adapt ear-to-staff `NoteSegmenter` (`js/segmenter.js`): keep its state machine (onset after stable frames, offset after silence frames, split on pitch change beyond `changeCents`, level-jump retrigger). Changes:
+One reference function shared by the synth (ground truth), the DSP tests and the grader's fixtures.
 
-- Frame rate goes from about 60/s (16 ms `setInterval` polling of an AnalyserNode) to 125/s (8 ms hop) on sample-accurate timestamps. Parameter defaults in frames are rescaled: `onsetFrames 3` (24 ms), `offsetFrames 8` (64 ms), `changeFrames 3`, `minNoteMs 60`.
-- Add band-limited spectral flux (100 Hz to 4 kHz, half-wave rectified log-magnitude difference, 512-point FFT at hop 128) as a third onset cue. A flux peak above an adaptive threshold (median of last 0.5 s plus 3 MAD) while a note is sounding at the same pitch triggers a re-articulation split. This is what catches tongued repeated notes and bow changes that do not dip enough in RMS.
-- Onset backtracking: the reported onset time is the earlier of (a) the start of the confirming candidate, and (b) the flux peak or RMS minimum within the 40 ms before confirmation. Target accuracy ±10 ms against ground truth on synthetic audio, ±20 ms on real recordings.
-- Profile-specific parameters (`OnsetProfile`): `struck` and `plucked` rely mainly on flux and energy; `voice` and `bowed` raise `changeFrames` to 4 and lower flux sensitivity because of vibrato and bow noise; `tongued-wind` and `brass` use all three cues.
-- Adaptive noise gate: noise floor measured in the 400 ms before the count-in starts and between count-in clicks (outside click windows); gate = floor + 12 dB, never below −70 dBFS.
-- Detection latency (sound in, `note-on` out, excluding RTL): p50 ≤ 40 ms, p95 ≤ 60 ms for the 512 and 1024 windows; ≤ 90 ms for the 2048 window. The onset timestamp is backtracked, so this latency affects only how soon the UI reacts, not the timing grade.
+1. **Pitch-change onset** (slur, legato, voice, bowed slur): the time the frame pitch track crosses the cents midpoint between the previous note's stable median and the new note's stable median, linearly interpolated between the two frames either side. Frames below the clarity threshold in the transition are skipped and the crossing is interpolated across the gap. With centre stamping, a step change has no bias.
+2. **Repeated same-pitch onset**: find the envelope minimum between the two notes; the onset is the first point after it where the envelope has recovered half the dip depth in dB ("half-rise"). The envelope is a separate low-band RMS at 2 ms resolution (32-sample hops on the decimated stream). A spectral-flux peak within ±10 ms refines it.
+3. **Onset from silence or a hard attack**: flux peak or envelope half-rise, whichever comes first within 20 ms of the confirming frames.
+4. **Detectability of a re-articulation**: the dip must be at least `max(3 dB, 1.5 × AM depth over the previous 200 ms of the same note)`, or a flux peak must pass its threshold. The AM term stops flute and voice vibrato (3 to 6 dB amplitude modulation) from splitting into false notes. Below this, two notes are physically indistinguishable from one held note.
 
-### 5.6 Metronome and bleed rejection (same-device click and mic)
+### 7.5 Segmentation
 
-The click must be audible to the player yet invisible to the detector. Four layers:
+Adapted from ear-to-staff `NoteSegmenter` (state machine kept): onset after stable frames, offset after silence frames, split on pitch change beyond `changeCents`, energy retrigger. Changes for v1:
 
-1. Click design: 12 ms white-noise burst, 4th-order high-pass at 5 kHz, 2 ms attack, exponential decay. Accent: +5 dB and 18 ms. No tonal content in instrument bands. This replaces ear-to-staff's square-wave click at 1.2/1.8 kHz, whose fundamentals and harmonics sit squarely in instrument range. Pre-render both clicks into AudioBuffers once.
-2. Spectral separation: the analysis path is low-passed at 4 kHz before decimation (5.2), so the click is attenuated by more than 40 dB in what MPM and flux see. The worklet's separate high-band channel sees the click clearly, which is what calibration uses.
-3. Time gating: the follower knows every click's arrival time in the input timeline (`clickTime + RTL`). Within the window `[arrival − 5 ms, arrival + 35 ms]`, energy-only and flux-only onsets are suppressed unless pitch evidence (clarity above threshold for 3 frames) supports a new note. Pitch tracking of an already-sounding note continues through the window.
-4. Leak floor: calibration measures the click's residual low-band level (laptop speakers distort and rattle). Inside click windows the energy-onset threshold is raised to `max(gate, clickLeakDb + 6 dB)`.
+- 125 frames per second on sample-accurate, centre-stamped timestamps. Defaults: `onsetConfirm 3 frames`, `offsetFrames 8`, `minNoteMs 60`.
+- Band-limited spectral flux (100 Hz to 3 kHz, half-wave rectified log-magnitude difference, 512-point FFT at hop 128), adaptive threshold (median of the last 0.5 s plus 3 MAD).
+- Score-informed re-articulation hints: at take start the follower computes, for every `onsetKind: 'repeat'` note, its expected arrival `t0 + RTL + onsetSec` with half-width `matchWindowSec`, and passes them in `DspConfig.repeatHints`. Inside a hint window the dip threshold drops to `max(2 dB, 1.0 × AM depth)`. Outside, it stays strict.
+- Profile parameters: `struck` and `plucked` rely on flux and envelope; `voice` and `bowed` raise the pitch-change confirmation to 4 frames and lower flux sensitivity; `tongued-wind` and `brass` use all cues.
+- Adaptive noise gate: floor measured in the 400 ms before the count-in and between count-in clicks (outside click windows); gate = floor + 12 dB, never below −70 dBFS.
+- Per-note statistics for grading and patterns: `steadyMs` (time from `onset + attackExcludeMs` to the last frame before offset or the next onset, minus 30 ms), `stableMedianCents`, `pitchSdCents` (no vibrato removal in v1).
 
-Metronome modes (setting): `audible` (default), `countInOnly` (count-in audible, then visual pulse only), `visual`. Recommend headphones in the setup screen, never require them. Scheduling uses the lookahead pattern from ear-to-staff `startMetronome` (timer every 25 ms, schedule 150 ms ahead), but the timer runs in the main thread only for scheduling, and the click times are also sent to the DSP worker at session start (they are fully determined by `t0` and tempo).
+### 7.6 Metronome and click handling
 
-### 5.7 Latency measurement and calibration
+- Two pre-rendered timbres, both noise-based with no tonal content below 1 kHz:
+  - **Tick** (default on speakers): 12 ms noise burst band-passed 5.5 to 9 kHz, 2 ms attack, exponential decay; accent +5 dB and 18 ms.
+  - **Wood**: 8 ms burst band-passed 1.5 to 4 kHz, much more audible to older players and over loud instruments.
+- Every click of a take is scheduled at Start as its own `AudioBufferSourceNode` (worst case about 170). No main-thread lookahead timer runs during a take (05 W9). `OscillatorNode` is banned in the metronome (lint test, 05 W10).
+- Modes: `audible` (default) and `countInOnly`. `visual` is later.
+- Bleed rejection on speakers (all off in headphone modes, where there is no bleed and gating could only suppress real on-beat onsets):
+  1. Spectral separation: Tick sits above the 3 kHz analysis low-pass (about 35 to 48 dB down in the low band).
+  2. Template subtraction: calibration averages the received clicks of the selected timbre into a per-device low-band template (`Calibration.templates`). At each known arrival the worker aligns the template within ±1 ms by cross-correlation, fits its gain by least squares, and subtracts it before pitch and flux analysis. Expected residual: 15 to 25 dB below the click.
+  3. Time gating: in `[arrival − 5 ms, arrival + 35 ms]`, energy-only and flux-only onsets are suppressed unless pitch evidence (clarity above threshold for 3 frames) supports a new note. Pitch tracking of a sounding note continues.
+  4. **Backtracking ignores flux inside click windows.** An on-time note and the click reach the mic at the same instant; snapping to the click flux would make early or late playing within about ±35 ms read as on time.
+  5. Leak floor: inside click windows the energy-onset threshold is `max(gate, clickLeakDb + 6 dB)`.
+- Gate for Wood: the synthetic suite runs both timbres with bleed at −20 dB and −10 dB. If Wood with subtraction fails onset F1 ≥ 0.97 or zero click-induced extras, the settings offer Wood in headphone modes only. This is decided by CI, not by a person.
+- Calibration includes a one-tap audibility check ("Can you hear the click clearly while you play a note?") that suggests Wood or headphones (04 owns the copy).
 
-Run on first use per device, when the device key changes, or on request. Takes about 8 seconds.
+### 7.7 Per-take count-in recheck (speakers only)
 
-- Loopback (default, speakers): ask for silence. Play 10 accent clicks at randomized gaps of 400 to 700 ms. In the high-band energy channel find each click's arrival as the first 1 ms sub-block above noise + 20 dB, refined to the sample by the energy derivative peak. `RTL_i = arrival − scheduled`. Accept if at least 7 of 10 are detected and MAD ≤ 3 ms; `RTL = median`. Also record `clickLeakDb` (low-band level during arrivals) and `noiseFloorDb`.
-- Play-along (fallback, and default when the output is headphones or loopback fails): play 8 clicks at 80 bpm; the player plays a short staccato note on each. `RTL = median(onset − click)` with MAD ≤ 25 ms required, clamped to 0..400 ms. Includes the player's own anticipation bias, which is acceptable and documented in the UI.
-- Reported (last resort): `ctx.baseLatency + ctx.outputLatency + 0.010`. Mark attempts graded with this method; timing grades show a "timing may be offset" note.
-- Sanity checks: RTL above 120 ms suggests Bluetooth output; show a warning and recommend wired or built-in output. If the player's mean timing bias across the last 5 attempts is consistently above +40 or below −40 ms with spread under 30 ms, suggest recalibrating rather than telling them they drag or rush.
-- Typical expected values: built-in laptop 20 to 60 ms, phones 30 to 90 ms, Bluetooth 150 to 300 ms.
+Every count-in click on speakers is visible to the worker (Tick in `hiEnergy`, Wood by template correlation in the low band). The worker measures RTL from the count-in clicks of each take (4 to 8 clicks). If at least 4 are found with MAD ≤ 3 ms:
+- If the result differs from the stored calibration by more than 5 ms, the take uses the fresh value (`recheck.usedFresh = true`). This removes stale-calibration error, including iOS IO-buffer changes mid-session (05).
+- If it differs by more than 10 ms, the calibration is marked stale and the results screen prompts recalibration (04 copy).
+- If the first count-in click is not found at all, the count-in restarts once (7.1).
+In headphone modes the mic cannot hear the click and no recheck runs.
 
-### 5.8 Transposing instruments and A4
+### 7.8 Calibration (P14)
 
-Everything inside `dsp/`, `follow/`, and `grade/` is concert pitch. Written pitch exists only in `PreparedExcerpt`, `ExpectedNote.writtenPitch`, ghost notes, and the UI. Ghost notes convert played concert MIDI to written with the instrument interval, then spell it with `spellMidiInKey` in the written key, preferring the expected note's spelling when the pitch class matches. A4 is a setting (default 440 Hz) applied in `freqToMidi`.
+Calibration analysis is pure (`calibration/`), consuming `CaptureBlock`s and scheduled times; the backend only plays sounds and delivers blocks (05 Q5).
 
-### 5.9 Platform quirks to handle
+| Method | When | Procedure | Accept |
+| --- | --- | --- | --- |
+| Loopback | Output mode Speakers (default) | Silence request; 10 accent Tick clicks at random 400 to 700 ms gaps; arrival = first 1 ms sub-block above noise + 20 dB, refined by the energy-derivative peak; then 6 clicks of the selected timbre to build its template | ≥ 7 of 10 found, MAD ≤ 3 ms, 15 ≤ RTL ≤ 400 ms; RTL = median |
+| Play-along | Wired or Bluetooth headphones, or loopback failed | 8 clicks at 80 bpm; the player plays a short note on each; RTL = median(onset − click) | MAD ≤ 15 ms (05 Q2), 0 ≤ RTL ≤ 400 ms |
+| Reported | Last resort | `baseLatency + outputLatency + 10 ms` | Always unranked (`calibration-unmeasured`); timing shown with a badge |
 
-- `AudioContext` must be created or resumed inside a user gesture (Start button). iOS Safari also suspends it on interruptions; listen to `statechange` and abort the attempt with a clear message.
-- iOS Safari routes output to the receiver in some record configurations, making the click quiet. Detect low `clickLeakDb` plus failed loopback and fall back to play-along; the native iOS fork can fix routing properly.
-- Safari reports `outputLatency` as 0; calibration covers it.
-- Firefox may ignore `channelCount: 1`; the worklet downmixes.
-- Some Android devices force AGC; detect with a level-stability check during calibration and warn.
+- Wired headphones use play-along in v1. Reusing a speaker loopback for wired headphones is later (it needs device validation).
+- Bluetooth: play-along only; RTL varies take to take, so the budget adds ±20 ms (8.1). Takes above 120 ms RTL are graded and flagged `bluetooth-latency`; the P0 config default is unranked (05's gate); 02 may change that in `grading-config.json`.
+- Sanity tone (speakers): a 300 ms sine at concert A4 must read within ±8 cents. AEC signature: loopback fails on the built-in speaker and the tone's captured level is more than 20 dB below the level predicted from the clicks; record `aecSuspected` and tell the player.
+- Clock-rate check (any output mode; needs no loopback): `measureClockRate(1.5)` counts worklet input frames against `performance.now()`. An error above 2% (a 44.1/48 kHz mismatch shows as 8.8%) recreates the context once; failing again shows "Audio setup problem; please reload".
+- Calibration is per `routeKey`. `devicechange` marks it stale; a device change mid-take voids the take (05 W7).
+- Calibration never blocks a take (04). Where `capabilities.outputLatencyReported` is false (iOS Safari), the app prompts calibration before the first take; a take without a measured calibration is graded as practice with reason `calibration-unmeasured` (05 W6 as revised). Practise without listening never needs calibration.
 
-### 5.10 Polyphonic instruments
+### 7.9 Signal quality, interruptions, self-test
 
-v1 is monophonic. Piano and guitar are offered in single-line mode only: piano reads the right-hand melody in treble clef; guitar reads a single line in treble-8vb. Piano's sustain overlap is tolerated because flux onsets are strong for struck strings and the segmenter splits on the new attack; overlapping decay can lower clarity, so piano uses clarity 0.80. True polyphony (chords, two staves) is deferred to v2 and will use score-informed verification, not blind transcription: for each expected chord, compare a harmonic template of the expected notes against the observed spectrum (chroma plus per-partial energy) in a window around the expected onset. That is far more robust and cheaper than general polyphonic transcription. A neural transcriber such as Basic Pitch is the runner-up for v2 if templates prove insufficient.
+- Void reasons (no score, no XP, excerpt stays burned for ranked play): interruption, page hidden, track ended, device change mid-take (05 W4, W7); no voiced frames for 5 s after bar 1 (02 gate); DSP queue above 8 blocks (`backlog`, replaces 05 W15); capture gap; clipping over 20% of frames is a results banner, not a void (04 9.3).
+- Wake lock is requested in the Start-scan gesture and held until the player leaves practice or after 5 minutes idle on results (05 W11).
+- **Audio self-test** (inside the calibration screen; result is a pass/fail card plus a local diagnostics export): sanity tone, loopback, count-in recheck on a 1-bar test, clock-rate check, applied-constraints readback, rAF rate during a 2 s overlay stress. This is the automated substitute for the device checklist that R3 moves to later.
+
+### 7.10 Transposition, A4, tuning
+
+Everything inside `dsp/`, `follow/`, `rules/` and `grade/` is concert pitch. Written pitch exists only in `PreparedExcerpt`, `ExpectedNote.writtenPitch`, ghosts and the UI. Ghost spelling uses `theory.spellGhost` (02 4.7's rule). A4 is a setting applied in `freqToMidi`. The optional tuning note (02 4.5) runs the same DSP over a 3 s capture and returns the offset, capped by 02's config.
 
 ---
 
-## 6. Score following
+## 8. Measurement error budgets and detectability floors (v1, owned by 01)
 
-### 6.1 Why not DTW
+These numbers are the inputs to the floor check. They live in `config/measurement-budget.json`. "Phone" means a mid-range phone on its built-in speaker and mic. Values are 1σ in ms; components combine as root-sum-square.
 
-The metronome fixes tempo, so the mapping from score time to performance time is known up to latency (calibrated) and the player's local error, which is what we grade. A time-anchored matcher is simpler, deterministic, and gives immediate feedback. DTW would "forgive" rushing by warping time, which is the opposite of what a sight-reading grader wants.
+### 8.1 Onset error
 
-### 6.2 Live matcher (runs in the DSP worker)
+| Component | Laptop | Phone |
+| --- | --- | --- |
+| Hop quantization after interpolation | 2 | 2 |
+| Detector vs ground truth, articulated | 6 | 8 |
+| Detector, slurred winds and strings | 10 | 12 |
+| Detector, voice (scoops and glides of 30 to 100 ms are real ambiguity, not noise) | 18 | 22 |
+| Calibration, loopback with per-take recheck | 1.5 | 2.5 |
+| Calibration, loopback from stored value only | 2 | 5 |
+| Calibration, play-along (25 ms tap spread / √8 × 1.25; players anticipate clicks by 10 to 40 ms) | 11 | 11 |
+| Calibration, Bluetooth (added on top of play-along) | 20 | 20 |
+| Clock mapping (shared context clock; separate-device drift under 3 ms per 60 s) | 1 | 2 |
+| Calibration, reported | unbounded (20 to 80 ms systematic on Safari) | unbounded |
 
-State per expected note: `pending → provisional → judged`, or `pending → missed`.
+Totals (σ / p95):
 
-On `note-on(d)`:
+| Notes | Laptop, loopback + recheck | Phone, loopback + recheck | Phone, play-along |
+| --- | --- | --- | --- |
+| articulated | 6.6 / 13 | 8.9 / 17 | 13.9 / 27 |
+| slurred | 10.4 / 20 | 12.6 / 25 | 16.5 / 32 |
+| voice | 18.2 / 36 | 22.3 / 44 | 24.8 / 49 |
 
-1. `s = d.onset − t0 − RTL` (score seconds).
-2. Candidates: expected notes that are `pending`, with `|s − e.onsetSec| ≤ W(e)`, limited to all pending notes before `s` plus the next 4 pending notes after it. `W(e) = clamp(2.5 × tolOnTime, 0.15 s, min(0.6 s, 1 beat))`.
-3. Cost for each candidate: `c = (Δt / tolOnTime)² + P + K` where `Δt = s − e.onsetSec`, `P` is the pitch cost from the provisional pitch (0 if the nearest semitone equals expected, 1.5 if octave-related, 4 otherwise), and `K = 1.0 × (number of pending notes skipped over)`.
-4. Take the lowest cost. If `c ≤ 9`, mark it `provisional`, emit `note-start` with `matchedExpected`. Otherwise the detected note is an extra: emit `extra`.
-5. Timing verdict is final at match time and is emitted immediately in a `judgment` event with `pitch: null`, so the renderer can turn the note red and place the ghost at once if the player is early or late.
+Repeated-note onsets (half-rise): tongued, brass and struck SD 5 to 8 ms; soft legato tongue, bow change and voice re-articulation SD 12 to 20 ms.
 
-On `note-update` / `note-off` for a matched note: pitch is judged from the median of frames in `[onset + 30 ms, onset + min(0.8 × written duration, 300 ms)]` (skips the attack transient). Once that window has elapsed or the note ends, emit an updated `judgment` with the pitch verdict. Duration verdict is emitted on `note-off`.
+### 8.2 Timing floors (the rule 02 must satisfy)
 
-On `onClock(t)` (every hop): any `pending` expected note with `t − t0 − RTL > e.onsetSec + W(e)` becomes `missed`; emit `missed`. Any detected note sounding for more than 100 ms inside an expected rest (and not the release tail of a matched note within `tolOnTime` of its written end) produces an `extra` with `duringRest: true`.
+Perfect playing must rarely lose credit or turn red: `tGood ≥ 2σ` (about 5% of perfect notes lose full credit) and `tRed ≥ 3σ` (about 0.3% false red per note, about 0.2 per 60-note take), using the worst **ranked** path (phone, play-along):
 
-Session end: last expected note's end plus one bar, or the Stop button, or 2 bars of silence after the last activity (player gave up; remaining notes are `missed`, `aborted: true` if more than 25% remain).
+| `onsetKind` / family | tGood floor | tRed floor |
+| --- | --- | --- |
+| articulated | 30 ms | 45 ms |
+| slurred | 35 ms | 50 ms |
+| voice (all notes) | 50 ms | 75 ms |
 
-### 6.3 Tolerances
+- 02's family floors (02 Q4: hard 40/60/90, soft 55/85/120) satisfy these. The floor check applies per note through `onsetKind` and family.
+- Bluetooth adds 20 ms σ: articulated phone σ ≈ 24 ms, so `tGood` would need ≥ 49 ms. That is why Bluetooth takes default to unranked.
+- "Reported" calibration has no bound, so it is always unranked.
+- The synthetic suite publishes measured detector error per onset profile (`e90`, `σ`) as a CI artifact (13.2). The floor check uses `σ_detector = max(measured synthetic σ, the table value above)`, so synthetic results can only raise floors, never lower them below the modelled budget. (02 may use a stricter multiplier such as 2 × e90; 01's check enforces the minimum.)
 
-Timing tolerance is the tighter of the level value and 25% of the note's shorter adjacent IOI, but never below 35 ms (our measurement noise is about ±15 ms).
+### 8.3 Minimum IOIs and durations
 
-| Level | On-time ±ms | Partial credit to ±ms | In-tune ±cents | Partial credit to ±cents |
-| --- | --- | --- | --- | --- |
-| 1–2 | 120 | 240 | 30 | 45 |
-| 3–4 | 90 | 180 | 25 | 40 |
-| 5–6 | 70 | 140 | 20 | 35 |
-| 7–8 | 55 | 110 | 15 | 30 |
-| 9–10 | 45 | 90 | 12 | 25 |
+| Floor | Value |
+| --- | --- |
+| Pitch-change IOI, 512 / 1024 / 2048 window | ≥ 70 / 90 / 150 ms |
+| Same-pitch repeat IOI, tongued or struck | ≥ 100 ms |
+| Same-pitch repeat IOI, voice or bowed | ≥ 130 ms |
+| Minimum duration for a pitch judgment | `attackExcludeMs + W` (for example winds on 1024: 50 + 64 = 114 ms); below it only the semitone is judged, with ±15 to 20 c uncertainty |
 
-- Instrument `intonationBonusCents` adds to both cents columns (voice +10).
-- Pitch verdict: nearest semitone of `playedMidi` ≠ expected → `wrong-pitch` (or `octave`); otherwise `|cents| ≤ inTune` → `in-tune`, else `sharp` or `flat`. Cents are measured against equal temperament at A4. The lead musician may revise numbers; the table is data in `follow/tolerances.ts`.
-- Duration (graded only for notes ≥ 1 beat, or followed by a rest, and not staccato): `heldRatio < 0.6` → `short`; held more than `tolOnTime + 150 ms` into a following rest → `long`. Staccato notes are `short`-exempt and only `long` if `heldRatio > 1.0`.
+Consequences for 02's `levels.json`: the NPS cap per window class is at most `1000 / pitch-change floor` (about 6.5 for tuba and double bass; the 512 and 1024 classes are not limited by the detector below 02's caps). Tempo clipping (6.3 step 6) uses the per-note IOI against the floor for that note's `onsetKind`, not only the NPS window.
 
-### 6.4 Special cases
+### 8.4 Cents
 
-- Ties: merged into one `ExpectedNote` (one onset). A re-articulation inside a tie is an `extra`.
-- Repeated notes (`repeatOfPrev`): need a detected re-articulation (energy or flux split). If the player holds through, the second note is `missed` and the tips engine gets an "articulate repeated notes" signal.
-- Rests: silence expected; sound only becomes an extra after 100 ms, so normal release tails are not punished.
-- Fast passages (`inFastRun`, IOI under 120 ms): tolerance becomes `max(tolOnTime, 0.4 × IOI)`, `changeFrames` drops to 2 for pitch-change onsets, and the pitch window shrinks to `[onset + 15 ms, onset + 0.7 × IOI]`. Detection limits that the difficulty system must respect: minimum reliably resolvable IOI is about 70 ms for pitch changes and 90 ms for same-pitch repeats. The corpus selector caps tempo so the shortest note at that level is not below these (for example 16ths at 150 bpm are 100 ms, allowed; at 200 bpm they are 75 ms, only allowed for slurred stepwise runs at level 9 and up).
-- Pickups: count-in includes the beats before the pickup; pickup notes have negative `onsetSec`.
-- Player starts late or skips a bar: handled naturally; notes whose windows pass are missed, and later notes still match by time.
-- Grace notes, trills, fermatas: not present in v1 excerpts.
+Sustained non-vibrato notes with ≥ 250 ms steady: p90 ±5 c synthetic, ±8 c real (estimator ±1 to 2, median noise ±2, reverberant previous note ±3; the iOS 44.1/48 kHz error is removed by the rate guard and clock-rate check). Vibrato (about 5.5 Hz, one cycle 180 ms): median over ≥ 2 cycles ±5 c; one cycle ±10 c; under one cycle biased by up to the vibrato extent (±20 to 50 c).
 
-### 6.5 Final realignment (graded result)
+| Steady duration | Non-vibrato families | Vibrato families (voice, strings) |
+| --- | --- | --- |
+| ≥ 360 ms | good ≥ 12 c, red ≥ 25 c | good ≥ 15 c, red ≥ 30 c |
+| 250 to 360 ms | good ≥ 12 c, red ≥ 25 c | good ≥ 20 c, red ≥ 35 c |
+| 180 to 250 ms | good ≥ 20 c, red ≥ 35 c | good ≥ 20 c, red ≥ 35 c |
+| 150 to 180 ms | good ≥ 20 c, red ≥ 35 c | intonation not graded |
+| under 150 ms | intonation not graded | intonation not graded |
 
-At session end, run `finalAlign` on all expected and detected notes. Monotonic alignment by dynamic programming over `(i expected, j detected)` with moves: match (cost from 6.2 step 3 with final pitch, without `K`), skip expected (cost 6, "missed"), skip detected (cost 4, "extra"). Band constraint: only consider pairs within `W(e)`. Complexity is O(N × band), trivially fast for 100 to 200 notes. The final judgments are authoritative for grading and storage. When they differ from live judgments (expected under 3% of notes on the test suite), the results screen animates the correction. The live judgments are kept only in debug mode.
+- `intonationMinSteadyMs` floor: 150 ms non-vibrato, 180 ms vibrato families. Below it, `n_i` is not graded and no live sharp/flat is shown; the semitone is still graded. 02's current 120 ms value is below this floor and must be raised to 150 / 180.
+- Voice relative pitch adds ±5 c of reference and drift-estimate uncertainty: voice good ≥ 20 c (02's L7 to L10 voice value meets it).
+- Live provisional sharp/flat rule (02 owns the values in `grading-config.json`): floor `liveProvisionalMs ≥ 80`; hysteresis ≥ 10 c if the window is under 150 ms, ≥ 5 c otherwise. 02's 150 ms / +5 c meets this.
 
-### 6.6 Follower output event stream
+---
+
+## 9. Score following (v1)
+
+### 9.1 Why not DTW
+
+The metronome fixes tempo, so score time maps to performance time up to latency (calibrated) and the player's own error, which is what we grade. DTW would forgive rushing by warping time.
+
+### 9.2 Shared cost function (`follow/cost.ts`)
+
+For detected note d and expected note e with resolved tolerance `T_e`:
+`Δt = s − e.onsetSec`, where `s = d.onset − t0 − latencyCompensationSec`. A pair is admissible only if `|Δt| ≤ T_e.matchWindowSec` (02's W_i).
+`cost = 4 × (Δt / matchWindowSec)² + P`, with `P = 0` if the nearest semitone equals the target (after octave folding for voice), `2` for an octave (non-voice), `5` otherwise.
+Within the window this prefers the correct pitch, then the nearest onset (02 4.1). Live and final use the same function; live adds `K = 2` per pending note it would skip.
+
+### 9.3 Live matcher (in the DSP worker)
+
+State per expected note: `pending → active → judged` or `pending → missed`. On `note-on(d)`:
+
+1. Candidates: pending notes with admissible `Δt`, limited to all pending notes before `s` plus the next 4 after it. Pick the lowest `cost + K`. No admissible candidate means an extra (or a displaced note, 9.5).
+2. Emit `note-start` and a `judgment` with the timing verdict at once (timing is final at onset; tGood/tRed/tBad from `T_e`). If early or late, also emit the ghost at the played position with the provisional pitch.
+3. **Wrong pitch at confirmation**: emitted with the timing judgment only if the 3 confirming frames agree and sit at least 80 c from the target. Otherwise it waits for the steady window. This stops brass and voice attack scoops from flashing a false red.
+4. Sharp/flat: after `attackExcludeMs + liveProvisionalMs` of steady pitch, red only if `|dev| > redCents + liveHysteresisCents`; provisional until note end; it may revert before note-off (02 4.7, 04 6.1). Notes under `minSteadyMs` get no intonation verdict.
+5. Octave: score-informed correction first (detected one octave from target and `altOctaveClarity ≥ 0.8 ×` chosen peak means the expected octave). Otherwise voice octave displacement is correct (`octaveDisplaced: true`, R7); for other families it is `pitch: 'octave'` with zero pitch credit (02).
+6. Voice: targets are `expected + VoiceDriftReference.offsetCents()`; the reference is updated per correctly pitched note by the same `rules/` class the grader uses.
+7. Duration verdict on `note-off` (02 4.2 rule).
+
+On `onClock(t)`: a pending note becomes `missed` when `t − t0 − RTL > e.onsetSec + matchWindowSec + confirmDelay`, where `confirmDelay = W/2 + 3 hops` for the instrument's window (it cannot be earlier without calling valid late notes missed). A detected note sounding more than 100 ms inside a written rest (outside the release-tail allowance of the previous note) is an extra with `duringRest: true`. After 1 bar of silence not covered by rests, emit `status: come-in-at` with the next downbeat at least 1 beat ahead (02 Q5).
+
+### 9.4 End of take
+
+Silence never ends a take mid-excerpt (02 Q5). The take ends when the player presses Stop, or at the end rule in `grading-config.json endOfTake` (P0 default: 1 beat after the last expected note's written end, see Open questions), or on a void condition (7.9). The UI reacts only to the `end` event.
+
+### 9.5 Stops, restarts and skips (displacement)
+
+- **Drop notes and rejoin on time** (correct sight-reading behaviour): handled by time anchoring. Notes whose windows pass are missed (hollow red, R11). 02 counts a stop for a silence ≥ max(1 beat, 600 ms) not covered by rests.
+- **Going back or skipping ahead** displaces the player from the metronome by δ. Without a detector the greedy matcher would paint false wrong-pitch ghosts on a player who lost their place.
+- **Live displacement detector**: on each new detected note, take the last 4 detected notes' pitch-interval and IOI sequence and search for an expected subsequence matching it at a constant offset δ in [−2 bars, +4 bars] (hash of interval n-grams, O(N) per note). If an offset with `|δ| ≥ max(matchWindow, 1 beat)` matches at least 3 of the 4 pitches with IOIs within tolerance and costs at least 2× less than δ = 0, the follower enters `displaced(δ)`:
+  - detected notes are not matched to current expected notes, so current notes never turn red from pitch mismatch; they are drawn as extra ghosts with `displaced: true` (04 chooses whether that looks like an extra or a quieter variant);
+  - expected notes still go missed as their deadlines pass (honest, R11);
+  - the status line shows `status: lost-place` (04 copy: "Lost your place? Rejoin at the next bar line.");
+  - it leaves the state as soon as a note matches at δ ≈ 0.
+- The first 2 or 3 displaced notes before the detector fires may show live wrong-pitch marks; the final alignment overturns them (9.7).
+
+### 9.6 Final alignment (authoritative)
+
+At take end, `finalAlign` runs a monotonic banded DP over (expected i, detected j): match cost from 9.2 with final pitch medians (no `K`), skip expected = 6 (missed), skip detected = 5 (extra). Any admissible match (maximum cost 9) beats missed plus extra (11), so a note inside its window always matches, as 02 requires. Then a relabel pass turns runs of at least 3 consecutive DP extras that match an expected run at a constant δ beyond the band into a `DisplacedSegment`. Replayed notes never overwrite an earlier judgment of the same expected note.
+
+Credit is 02's decision. The P0 config defaults: displaced notes are excluded from P's extras term; each displaced segment counts once in `diagnostics.restarts` and fires E6; expected notes skipped while displaced are missed.
+
+### 9.7 Live vs final
+
+- Results render only from final judgments. `NoteJudgment.rejudged` marks every note whose final state or ghost kind differs from live; 04 draws the change. Ghost positions never move (the played time is a fact); only colours, ghost kind and leader targets can change.
+- Divergence stays low because both read one tolerance array and one cost function; they differ only in greedy vs DP order, final pitch medians, and the displacement relabel. CI gate: ≤ 3% of notes on the synthetic suite.
+
+### 9.8 Practise without listening (R13)
+
+`listening: false` runs scan, metronome, count-in and playhead with no capture and no worker. The record stores `listening: false`, `score: null`, no XP. The excerpt is marked seen at reveal like any other.
+
+### 9.9 Follower event stream
 
 ```ts
 export type FollowerEvent =
-  | { type: 'clock'; scoreBeat: Beats }                               // ≤ 60 Hz, playhead hint from the audio side
-  | { type: 'live-pitch'; concertMidi: number | null; cents: number; clarity: number; levelDb: number } // ≤ 30 Hz, tuner/meter
-  | { type: 'note-start'; detectedId: number; scoreBeat: Beats; concertMidi: number; matchedExpected: number | null }
-  | { type: 'note-update'; detectedId: number; concertMidi: number; cents: number; durationBeats: number }
+  | { type: 'clock'; scoreBeat: Beats }                                   // ≤ 60 Hz
+  | { type: 'level'; levelDb: number; clipping: boolean }                 // ≤ 30 Hz, input meter
+  | { type: 'note-start'; detectedId: number; scoreBeat: Beats; provisionalConcertMidi: number; matchedExpected: number | null; displaced: boolean }
   | { type: 'note-end'; detectedId: number; durationBeats: number }
-  | { type: 'judgment'; judgment: NoteJudgment }                       // may be sent up to 3 times per note: timing, pitch, duration
-  | { type: 'extra'; extra: ExtraNote }
+  | { type: 'judgment'; judgment: LiveJudgment }                          // idempotent update per expectedIdx
+  | { type: 'ghost'; ghost: GhostNote }                                   // add or update by detectedId
   | { type: 'missed'; expectedIdx: number }
-  | { type: 'end'; reason: 'complete' | 'stopped' | 'silence' }
-  | { type: 'final'; judgments: NoteJudgment[]; extras: ExtraNote[] };
+  | { type: 'status'; kind: 'come-in-at'; bar: number } | { type: 'status'; kind: 'lost-place' | 'rejoined' | 'no-signal' }
+  | { type: 'end'; reason: 'complete' | 'stopped' | 'void'; voidReason?: VoidReason }
+  | { type: 'final'; alignment: FinalAlignment };
 ```
 
-Renderer mapping (the designer owns the look; this is the binding behaviour):
-
-| Event | Renderer action |
-| --- | --- |
-| `note-start` matched, on time, pitch unknown | `setNoteState(idx, 'active')` |
-| `judgment` timing early or late | `setNoteState(idx, 'timing-error')` (red); `showGhost` at the played beat with kind `early`/`late` |
-| `judgment` pitch sharp, flat, wrong, octave | `setNoteState(idx, 'pitch-error' or 'both-error')` (red); `showGhost` at the played pitch and beat |
-| `judgment` all ok | `setNoteState(idx, 'correct')` |
-| `note-update` | extend the ghost's duration bar; update its cents |
-| `extra` | `showGhost` kind `extra` |
-| `missed` | `setNoteState(idx, 'missed')` (red, distinct treatment) |
+The event-to-visual mapping is 04's `visual-states.ts`; 01 only guarantees the events, their order per note, and idempotence.
 
 ---
 
-## 7. Grading, points, rank (interfaces and defaults)
+## 10. Latency from sound to visible judgment (v1)
 
-Owned with the lead musician and designer; these defaults let `grade/` be built and tested now.
+Components (typical / p95, ms): input latency laptop 10/15, phone 20/35; worklet batching (2 quanta) 3/5; pitch confirmation with centre stamps: 512 → 36/40, 1024 → 52/56, 2048 → 84/88; worker compute and two postMessages 3/8; rAF wait 8/16; paint and scan-out 12/20.
 
-- Per note credit: pitch 1.0 in-tune, 0.5 within the partial band, 0 wrong or missed, octave 0.5 (1.0 for voice with octave equivalence). Timing 1.0 on-time, linear down to 0 at the partial limit, 0 missed. Duration 1.0 ok, 0.5 short or long.
-- Attempt total = `100 × (0.5 × mean pitch credit + 0.35 × mean timing credit + 0.15 × mean duration credit) − 2 × extras` (extras penalty capped at 15), floored at 0.
-- Points = `round(total × levelMultiplier[level] × (aborted ? 0.5 : 1))`, `levelMultiplier = 1 + 0.25 × (level − 1)`. Only the best of repeated attempts on the same excerpt in one day counts fully; others earn 25%.
-- Rating: Elo-like update per attempt with the excerpt's level as the opponent rating (`1000 + 100 × (level − 1)`), expected score from the logistic curve, K = 24. Level suggestion moves up after 3 passing attempts above 85 and down after 3 below 50.
-- Rank: from cumulative points via a threshold table in `grading.config.ts`.
+| Judgment | Window | Laptop typ / p95 | Phone typ / p95 |
+| --- | --- | --- | --- |
+| Early/late, wrong note at confirmation | 512 | 72 / 104 | 82 / 124 |
+| | 1024 | 88 / 120 | 98 / 140 |
+| | 2048 (beta) | 120 / 152 | 130 / 172 |
+| Sharp/flat (02's 150 ms provisional window) | winds, brass, strings | about 260 / 300 | |
+| | voice | about 310 / 350 | |
+| Missed | all | expected onset + matchWindow + confirmDelay + 40 | |
+| Extra | all | onset + 100 ms rule + about 70 | |
 
----
+Flux and envelope onsets (struck, tongued repeats) are about 15 ms faster.
 
-## 8. Tips engine
-
-```ts
-export interface Tip {
-  id: string;
-  instruments: string[] | ['*']; families?: Instrument['family'][];
-  levels: [number, number];
-  triggers: { signal: TipSignal; minRate: number }[];  // any satisfied
-  text: string;                                         // ≤ 280 chars, plain text
-  exercise?: { description: string; bpm?: number };
-}
-export type TipSignal = 'early' | 'late' | 'rushing-trend' | 'dragging-trend' | 'sharp' | 'flat' | 'wrong'
-  | 'octave' | 'missed' | 'extra' | 'short' | 'long' | 'repeated-note-merge' | 'fast-run-errors' | 'rest-noise' | 'general';
-```
-
-Signals are computed from the last attempt (rates per note) and the profile EWMAs. Pick the signal with the highest `rate / baseline` (baseline per level, from config), choose a matching tip not in `lastTipIds`, most specific instrument match first, then family, then `*`. Always return one tip; fall back to `general`. Content lives in `src/tips/catalog.json`, authored by the lead musician; target at least 8 tips per family per major signal at launch.
+- The owner's requirement (early/late and wrong note visible quickly, R11) is met at **≤ 150 ms p95 end to end** for every non-beta instrument on laptop and phone. Beta tuba and double bass reach about 170 ms on phones; this is documented, not hidden.
+- Out-of-tune ghosts arrive at about 260 to 350 ms, and physics forbids much better: judging ±25 c needs about 100 ms of steady tone after the attack. The owner must be told this plainly (overseer).
+- Ghost position is always correct, because x comes from the backtracked onset, not from when the event arrives.
+- Component budgets for implementers: sound-in to `judgment` event excluding input latency p95 ≤ 60 ms (512), ≤ 75 ms (1024), ≤ 105 ms (2048); event to paint ≤ 33 ms (04).
 
 ---
 
-## 9. Persistence
+## 11. Persistence (v1)
 
-- IndexedDB database `srt`, version 1, via `idb`. Object stores: `profiles` (key `id`), `attempts` (key `id`, indexes `byProfileTime [profileId, createdAt]`, `byExcerpt excerptId`), `calibrations` (key `deviceKey`), `kv` (settings, flags).
-- Migrations: one function per version bump in `store/migrations.ts`, with a test that opens a v(n−1) fixture and upgrades it.
-- Audio is never stored or uploaded. An attempt stores detected notes (about 5 KB per attempt); 10,000 attempts is about 50 MB, within quota. Prune `debug` payloads older than 7 days.
-- `navigator.storage.persist()` is requested after the first completed attempt.
-- Backup: export and import of all stores as one JSON file.
-- Multiple local profiles are supported (shared family laptop).
-
-Where a backend becomes necessary (not in v1): cross-device sync, global or class leaderboards, teacher accounts and assignments, a corpus too large to ship statically (above about 50 MB), and crash or quality telemetry. The repository interfaces in 3.2 are the seam; a v2 sync service (for example a hosted Postgres with auth) implements the same interfaces plus a sync queue. Nothing else changes.
+- IndexedDB database `srt` v1 via `idb`, implemented in `src/platform/web/idb-repos.ts` behind `StoreRepos`. Stores: `profile`, `attempts` (indexes `byTime`, `byExcerpt`, `byInstrument`), `calibrations` (key `routeKey`), `kv`.
+- All documents are JSON-serialisable with ISO 8601 UTC timestamps and UUIDs, so a later native store holds them unchanged. The export file (`ExportFileV1`) is versioned and platform-neutral.
+- Migrations: one pure function per version in `store/migrations.ts`, tested by upgrading a committed v(n−1) fixture.
+- No audio is stored (R9). An attempt is about 5 KB. `debug` payloads (dev flag) are pruned after 7 days.
+- `navigator.storage.persist()` after the first completed attempt; storage-loss detector via a `kv` marker mirrored in `localStorage` (05 W12); install coach mark once in iOS tab mode (05 W13).
+- One profile per device in the v1 UI; the data model keeps `profileId`.
 
 ---
 
-## 10. Performance budgets
+## 12. Performance budgets (v1)
 
 | Metric | Budget | Measured how |
 | --- | --- | --- |
-| Capture worklet `process()` | ≤ 0.3 ms per 128-frame quantum on a 2020 MacBook Air; zero allocations after warm-up | Chrome performance panel; unit benchmark of the pure decimator |
-| DSP worker per 8 ms hop (pitch + flux + segmenter + follower) | ≤ 1.5 ms on a 2020 laptop, ≤ 3 ms on iPhone 12 / Pixel 6 | Vitest benchmark plus in-app `performance.now()` telemetry in dev |
-| Sound-in to `note-on` (excluding RTL) | p95 ≤ 60 ms (≤ 90 ms for 2048 windows) | Synthetic suite timestamps |
-| `note-on` to ghost visible | ≤ 32 ms (two frames) | Playwright trace |
-| Main thread per animation frame during performance | ≤ 6 ms; no React renders triggered by FollowerEvents except a throttled status line (≤ 4 Hz) | Performance panel |
-| Score render (VexFlow, 12 bars) | ≤ 120 ms on laptop, ≤ 300 ms on phone | Vitest + jsdom-free Playwright timing |
-| JS bundle | ≤ 450 KB gzip total initial (VexFlow included); app code alone ≤ 200 KB | `vite build` report gate in CI |
-| First exercise ready on cold load over fast 4G | ≤ 2.5 s | Lighthouse in CI |
-| Memory during performance | ≤ 150 MB | Performance panel |
-| Onset timing accuracy | ±10 ms synthetic, ±20 ms real (p90) | Accuracy suite |
-| Pitch accuracy on matched notes | ±5 cents synthetic, ±10 cents real (p90) | Accuracy suite |
+| Worklet `process()` | ≤ 0.3 ms per quantum on a 2020 laptop; zero allocations after warm-up | Unit benchmark of the pure decimator; allocation counter in a test harness |
+| DSP worker per hop (pitch, flux, envelope, segmenter, click handling, follower) | ≤ 1.5 ms laptop; ≤ 3 ms phone (modelled; iPhone unverified at v1) | Vitest benchmark; in-app telemetry in dev |
+| Sound to `judgment` event, excluding input latency | p95 ≤ 60 / 75 / 105 ms by window class | Synthetic suite timestamps |
+| Sound to visible red plus ghost (early/late, wrong note) | p95 ≤ 150 ms, non-beta | Playwright trace from fake-capture sample time to paint |
+| Sharp/flat visible | p95 ≤ 300 ms winds/brass/strings, ≤ 350 ms voice | Same |
+| Main thread per animation frame during a take | ≤ 6 ms; React renders only for the status line (≤ 4 Hz) | Performance trace in E2E |
+| Score render, 12 bars | ≤ 120 ms laptop, ≤ 300 ms phone-class CPU throttle | Playwright with 4× CPU throttle |
+| JS initial bundle | ≤ 450 KB gzip including VexFlow and Bravura; re-measured in P0 before P7, raised by RFC if Bravura does not fit | `vite build` report gate |
+| Corpus | manifest ≤ 60 KB gzip; chunk ≤ 128 KB gzip | Build check |
+| First exercise ready, cold load, fast 4G | ≤ 2.5 s | Lighthouse CI |
+| Memory during a take | ≤ 150 MB | Trace |
 
 ---
 
-## 11. Testing strategy
+## 13. Testing (v1)
 
-### 11.1 Unit (Vitest, Node)
+All v1 gates are automated. No gate depends on a human, a real recording or a physical device (R3).
 
-- `theory`: spelling round-trips, transposition of every key by every instrument interval, enharmonic re-spelling, no more than 6 accidentals.
-- `corpus`: selection determinism with a fixed seed, range fit, relaxation order, tie merging, IOI computation, pickup handling.
-- `dsp`: carry over ear-to-staff `test/run.mjs` pitch cases (82 Hz to 1046 Hz with harmonics and noise, within 5 cents, clarity > 0.85; noise clarity < 0.6) and segmenter cases; add decimator frequency response, flux onset on synthetic attacks, octave hysteresis.
-- `follow`: table-driven tests on hand-written `DetectedNote` streams, no audio: on-time, early 150 ms, late 150 ms, sharp 30 c, wrong pitch, octave, missed, extra in rest, repeated-note merge, tie, pickup, fast run, player stops at bar 5, live vs final divergence.
-- `grade`, `tips`, `store` (with `fake-indexeddb`).
+### 13.1 Unit (Vitest, Node)
 
-### 11.2 Synthetic-audio pipeline tests (the core quality gate)
+`theory`, `rules` (02's worked examples reproduced exactly), `corpus` (determinism, fit, chunk loading, `withdrawn.json`), `dsp` (ear-to-staff pitch cases, decimator response, phase carry over 10,000 blocks, centre stamping, onset definition, flux, envelope, hysteresis, template subtraction), `follow` (golden streams in `fixtures/follow/`), `grade` (02's acceptance cases as predicates in `fixtures/grade/`), `tips`, `store` (with `fake-indexeddb` against the web repos), `session` (with `FakeAudioBackend`, including every 05 Q6 item 3 case).
 
-`testkit/synth.ts` renders a performance to a Float32Array from an `ExpectedNote[]` plus perturbations:
+### 13.2 Synthetic-audio suite (the core quality gate)
 
-```ts
-export interface Perturbation { idx: number; dtMs?: number; cents?: number; semis?: number; drop?: true; holdRatio?: number }
-export interface SynthOptions {
-  timbre: 'flute' | 'clarinet' | 'sax' | 'trumpet' | 'violin' | 'cello' | 'voice' | 'piano' | 'tuba';
-  sampleRate: 48000 | 44100; noiseDb: number; reverbRt60: number; vibrato?: { rateHz: number; cents: number };
-  clickBleed?: { rtlMs: number; levelDb: number };  // injects the real click buffer through a laptop-speaker EQ
-  extras?: { atSec: number; midi: number; durSec: number }[];
-  legatoGlideMs?: number; tonguingDipDb?: number;
-}
-export function renderPerformance(expected: ExpectedNote[], bpm: number, p: Perturbation[], o: SynthOptions): Float32Array;
-export function runScenario(s: Scenario): { events: FollowerEvent[]; final: NoteJudgment[]; score: AttemptScore };
-```
+`testkit/synth.ts` renders a performance from `ExpectedNote[]` plus perturbations, using `core/onset-definition.ts` for ground truth.
 
-Timbres: additive partial recipes (clarinet odd-heavy, sax and trumpet bright with formant shaping, violin sawtooth-like with bow noise and 5.5 Hz vibrato, voice as a pulse train through 3 formant filters with vibrato, piano with inharmonic decaying partials, tuba with strong 2nd harmonic to provoke octave errors).
+- Timbres: flute, clarinet, sax, trumpet, violin, cello, voice, piano, tuba (02's launch families plus one beta low timbre).
+- Realism conditions (the automated stand-in for real devices): phone-mic EQ (2nd-order high-pass at 100 and 150 Hz, low-pass at 7 kHz), small-speaker click-bleed EQ, room impulse responses with RT60 0.2 to 0.8 s, soft attacks with 30 to 80 ms rise for voice and bowed timbres, vibrato 5 to 6 Hz at ±30 c, breath noise, AGC pumping envelopes, capture band limits at 24 and 16 kHz, noise floors −45 and −50 dBFS, click bleed at −20 and −10 dB for both timbres.
+- Scenario generator: 300 scenarios drawn with a fixed seed from the shipped corpus (from the 24-excerpt fixture corpus until P5 delivers), covering real rhythms and ranges, with random perturbations (timing, cents, semitones, drops, extras, stops, restarts, skips).
+- Gates per launch instrument over its served range, under click bleed and the phone-mic condition:
+  - onset F1 ≥ 0.97 at ±30 ms, both click timbres;
+  - pitch-class accuracy ≥ 0.99 on matched notes; octave errors ≤ 0.5%;
+  - judgment agreement with ground truth ≥ 0.95; false missed ≤ 1%; false extras ≤ 1 per attempt; zero click-induced extras;
+  - live vs final divergence ≤ 3%;
+  - displacement: the four golden cases (stop at bar 5, back 2 beats, skip a bar ahead, rejoin on the next downbeat) produce the expected segments in ≥ 95% of randomized renders;
+  - tip precision (02 Q6): 300 perfect takes fire only E30; each injected error fires its pattern in ≥ 90% of runs with < 5% cross-firing.
+- Artifacts: per onset profile `σ` and `e90` for onset error, per family `c90` for cents, per window class sound-to-judgment latency distribution. The floor check (8.2) reads them.
 
-Scenarios are JSON in `test/scenarios/` (`{ excerptId, instrumentId, bpm, perturbations, synth, expect: { judgments: [{ idx, timing?, pitch?, status? }], scoreRange } }`). A generator produces 300 randomized scenarios from the corpus with a fixed seed. The same `runOffline` pipeline code runs in the worker and in Node, so these tests exercise production code end-to-end minus the browser audio APIs.
+### 13.3 Bare runtime
 
-CI gates on the generated suite, with click bleed on at −20 dB relative to the instrument:
-- Onset F1 ≥ 0.97 at ±30 ms.
-- Pitch-class accuracy ≥ 0.99 on matched notes; octave error rate ≤ 0.5%.
-- Judgment agreement with ground truth ≥ 0.95 (timing and pitch verdicts); false `missed` ≤ 1%; false `extra` ≤ 1 per attempt on average; zero click-induced extras.
-- Live vs final judgment divergence ≤ 3%.
+esbuild bundles the pure packages into one IIFE and runs 20 synthetic scenarios in a Node `vm` context with only ES2022 globals. The judgments JSON must be byte-identical to the Vitest run (05 Q5). QuickJS or JavaScriptCore jobs are later.
 
-### 11.3 Real-recording regression set
+### 13.4 Browser E2E (Playwright)
 
-`test/recordings/`: at least 30 short takes (6+ instruments, laptop and phone mics, with and without speaker click) recorded by the team, CC0, with hand-labelled ground truth JSON. Gate: judgment agreement ≥ 0.90. Stored with Git LFS.
+- `chromium-audio`: `--use-fake-ui-for-media-stream --use-fake-device-for-media-stream --use-file-for-fake-audio-capture=<wav>%noloop`. A `?testClock=1` flag sets `t0` to the first captured frame plus 2.0 s and skips calibration with RTL = 0; test WAVs are rendered with that offset. Assert DOM note states (`data-*` on note groups), ghost x within ±1 px of `beatToPoint`, results predicates, and the trace latency budgets in section 12.
+- Flows: onboarding with a loopback WAV, random settings, take and results, retry, persistence across reload, offline reload, practise without listening, strict scan auto-start.
+- `webkit`: all non-audio flows; an audio smoke test with an `OscillatorNode` plus scheduled clicks in place of the mic (worklet loads, zero-gain path renders, blocks reach the worker contiguously for 30 s via port or relay, synthetic loopback measures the injected delay within ±1 ms).
+- `webkit-iphone`, `webkit-ipad`: 05 Q6 layout checks (viewports 844×340, 390×660, 1180×760, 1024×1366; injected safe areas; mid-take resize causes zero VexFlow renders and keeps the overlay aligned within 1 px).
+- Portability: `dist/` served from another origin under a subpath with all third-party network blocked boots and completes a fixture take.
+- Visual regression: self-baselined snapshots (regression only, no human approval) plus 04's automated design checks.
 
-### 11.4 Browser E2E (Playwright)
+### 13.5 Corpus validation (per corpus build, 03 owns the pipeline)
 
-- Chromium launched with `--use-fake-ui-for-media-stream --use-fake-device-for-media-stream --use-file-for-fake-audio-capture=<wav>%noloop`. Because the fake device starts playing when `getUserMedia` resolves, the app supports a `?testClock=1` URL flag that sets `t0` to the first captured frame plus a fixed 2.0 s and skips calibration with `RTL = 0`; test WAVs are rendered by `testkit` with that offset. Assert DOM note states (`data-state` attributes on note groups) and the results screen score range.
-- Flows: first-run onboarding and calibration (with a loopback WAV), settings with random values, perform and get results, retry, profile and rank updates persisted across reload, offline reload via service worker.
-- Visual regression: screenshots of rendered excerpts at three widths for 20 fixed excerpts and of overlay states.
-- WebKit and Firefox run the non-audio flows only (fake capture flags are Chromium-only).
+Schema-valid; measures sum to the meter; renders in VexFlow without exceptions in headless Chromium; transposes to at least 3 launch instruments within range. The TypeScript recomputation of difficulty features is dropped.
 
-### 11.5 Corpus validation (runs on every corpus build)
+### 13.6 Developer replay (v1, minimal)
 
-Every excerpt: schema-valid; measures sum to meter length; renders in VexFlow without exceptions (headless Playwright page); transposes to at least 3 instruments within range; features recomputed in TS match the pipeline within tolerance.
-
-### 11.6 Developer replay tool
-
-A dev-only route `/dev/replay` loads a WAV plus attempt settings, runs the pipeline in the browser, and shows the score, overlay, pitch trace (ported from ear-to-staff's trace view), and event log. In-app "Report a grading problem" exports the attempt plus the last attempt's frames (not audio) for debugging.
+`#/dev/replay` loads an attempt export or a `fixtures/render/*.events.jsonl` stream (and optional frame trace), and shows the score, overlay, pitch trace and event log. The diagnostics export (from results and the self-test) contains settings, detected notes, frames and the event log, never audio.
 
 ---
 
-## 12. Reuse from ear-to-staff
+## 14. Artefacts frozen in P0 (before wave 1)
 
-| ear-to-staff module | Verdict | Notes |
-| --- | --- | --- |
-| `js/pitch.js` (MPM) | Adapt | Port to TS; FFT-based NSDF; lag range from instrument; expose alternate-octave clarity. Keep its tests. |
-| `js/segmenter.js` | Adapt | Keep the state machine; rescale for 8 ms hops; add spectral flux, onset backtracking, click-window gating, per-profile params. |
-| `js/fft.js` | Reuse | Port to TS as is. |
-| `js/whistle.js` | Defer | Whistle is not a v1 instrument. Its harmonic-sibling test is a candidate for v2 octave checking. |
-| `js/analysis.js` | Adapt the pattern | Separation of frame detection from segmentation becomes `runOffline` for tests and replay. |
-| `js/theory.js` | Adapt | Keep `KEYS`, `transposeKey` idea, instrument interval data (alto +9, tenor +14, bari +21, B♭ +2, F horn +7). Replace MIDI-plus-preference spelling with `SpelledPitch` and interval transposition. Krumhansl key detection is not needed. |
-| `js/notation.js` | Replace, keep as reference | Quantization is unnecessary (the score is given). Its VexFlow code is a working reference for ties across system breaks, beaming groups by meter, `Accidental.applyAccidentals`, and dotted notes. Note it loads VexFlow 4.2.3 from a CDN as a global; we import VexFlow 5 as an ES module. |
-| `js/musicxml.js` | Not used at runtime | Import happens offline in Python. An optional "export my attempt as MusicXML" can reuse it later. |
-| `js/app.js` metronome | Adapt the pattern | Keep the lookahead scheduler. Replace the square-wave click (in-band) and the `setInterval` AnalyserNode polling (16 ms jitter, no sample timestamps, no latency compensation, count-in handled by gating rather than by a shared clock). |
-| `js/history.js`, GitHub Contents API | Not used | Local IndexedDB instead; no tokens in the browser. |
-| `test/*.mjs` | Adapt | Move to Vitest; the synthetic-record end-to-end test is the model for 11.2. |
+Each is a committed file with a CI contract test; every fixture validates against the generated schemas. After freeze, a change needs an RFC file in `docs/rfc/` and a passing contract suite.
 
----
-
-## 13. Work breakdown
-
-Each package has an owner directory, inputs (what it depends on), and acceptance criteria. "Size" suggests the model tier for the overseer's swarm: L = Opus (algorithmic, cross-cutting), M = Sonnet, S = Haiku (well-specified, mostly data or UI). Packages in the same wave can run in parallel.
-
-### Wave 0 (blocks everything; one implementer, L)
-
-**P0 Foundation.** Scaffold Vite + React + TS, ESLint boundaries config from 3.1, `tsconfig.core.json`, Vitest, Playwright, CI workflow, Pages deploy, `src/core/types.ts` with every type in this document, `core/time.ts`, `core/rng.ts` (mulberry32), `core/events.ts`.
-Accept: `pnpm lint typecheck test build` pass on an empty app; an import from `app/` into `dsp/` fails lint; types compile; Pages URL serves a placeholder.
-
-### Wave 1 (parallel, all depend only on P0)
-
-- **P1 theory** (M). Accept: unit tests in 11.1 pass; 100% of keys × instruments transpose without exceeding 6 accidentals after re-spelling.
-- **P2 instruments data** (S, with lead musician's ranges). Accept: table typed; every instrument has detection params; snapshot test.
-- **P3 testkit synth** (L). `renderPerformance`, timbres, click bleed, reverb, scenario JSON loader. Accept: rendered notes measured by a reference offline analyzer land within 1 ms and 1 cent of intent; deterministic output with seed.
-- **P4 dsp core** (L). Port MPM and FFT, decimator, flux, segmenter, `DspPipeline`, `runOffline`. Accept: carried-over pitch tests; onset F1 ≥ 0.97 on P3 output without click bleed; per-hop benchmark within budget.
-- **P5 corpus build pipeline** (M, with score researcher). Python music21 tool that ingests sources, cuts phrase excerpts, rejects unsupported features, computes features and level, writes shards and manifest, validates schema. Accept: 200 excerpts produced from at least 2 sources; corpus validation (11.5) passes.
-- **P6 store** (M). Repos, migrations, export and import. Accept: tests with `fake-indexeddb`; upgrade test.
-- **P7 notation static render** (M). VexFlow render of a `PreparedExcerpt`, layout model, `beatToPoint`, `staffY`, note group ids. Accept: 20 fixture excerpts render with no VexFlow errors in all 4 clefs; `beatToPoint` is monotonic and hits each note's x within 1 px; visual snapshots approved by the designer.
-- **P8 UI shell and design system** (M for shell, S for components). Routes, layout, settings form with random options, design tokens from the designer. Accept: screens render with fake data; keyboard accessible; Lighthouse accessibility ≥ 95.
-
-### Wave 2
-
-- **P9 corpus runtime** (M; needs P1, P2, P5 sample output). Manifest and shard loader, `selectExcerpt`, `prepareExcerpt`, `buildExpectedNotes`. Accept: 11.1 corpus tests; 1,000 random settings with fixed seeds always return an excerpt or a documented relaxation.
-- **P10 follower** (L; needs P1, P3 for fixtures, P4 types). `LiveFollower`, `finalAlign`, tolerances. Accept: table-driven tests in 11.1; with P4, the synthetic gates in 11.2.
-- **P11 audio IO** (L; needs P4). AudioContext lifecycle, mic with constraints, capture worklet, worklet-to-worker MessagePort, metronome with pre-rendered clicks, transport `t0`. Accept: in Chromium E2E the worker receives contiguous blocks with no gaps over 5 minutes; click scheduling jitter under 1 ms; no allocations in `process()`.
-- **P12 grade** (M; needs P0 types). Accept: unit tests on fixed judgment sets; config-driven weights.
-- **P13 tips engine** (M) and **P13b tip catalog content** (S, from lead musician's material). Accept: deterministic selection with seed; never repeats within `lastTipIds`; every family has a fallback.
-
-### Wave 3
-
-- **P14 calibration** (L; needs P11, P4). Loopback and play-along flows plus UI hooks. Accept: on a synthetic loopback WAV with known 37 ms RTL, measures 37 ± 2 ms; play-along on synthetic notes within ± 5 ms of ground truth.
-- **P15 notation overlay** (M; needs P7). `setNoteState`, ghosts, duration bars, playhead, driven by FollowerEvents through rAF. Accept: 60 fps with 200 overlay updates per second in a stress page; visual states match the designer's spec.
-- **P16 PracticeSession** (L; needs P9 to P15). State machine wiring, worker hosting of follower, result persistence, profile update. Accept: full flow with fakes in Node; E2E perform-and-results test passes.
-- **P17 screens** (M/S; needs P8, P16). Setup, calibration wizard, practice, results with tips, profile and rank history. Accept: designer review; E2E flows in 11.4.
-
-### Wave 4
-
-- **P18 accuracy and performance hardening** (L). Real-recording set, threshold tuning, budget verification on real phones. Accept: all gates in 10 and 11 met.
-- **P19 PWA and release** (S). Service worker, offline corpus caching, versioning, about and licences page listing every excerpt source and attribution. Accept: offline reload works; every excerpt's attribution reachable from the UI.
-
-Critical path: P0 → P4 → P11 → P14 → P16 → P18. P3 and P10 should start on day one of wave 1 and 2 respectively because they carry the most risk.
+1. `src/core/types.ts`: every type in sections 5 and 6.
+2. `src/core/platform.ts`: section 5.2. MIDI and haptic members are absent (later, additive).
+3. `src/core/time.ts`, `rng.ts` (mulberry32), `events.ts`: implemented and tested.
+4. `src/core/onset-definition.ts`: section 7.4 as code with tests.
+5. `config/measurement-budget.json` (01) and seeded copies of 02's `grading-config.json`, `levels.json`, `instruments.json`, `progression.json`, `tips.json`, transcribed from 02 with a `_source` field per block naming the 02 section, plus their schemas and pure loaders. The floor check passes on the seeded values (after 02 raises `intonationMinSteadyMs`).
+6. `schemas/*.schema.json` generated from the types.
+7. `fixtures/corpus/`: 24 hand-authored `ExcerptDoc`s in final runtime format with manifest, `index.json` and chunks, covering treble, bass, alto and tenor clefs; pickup; ties across the barline; triplets; 2/4, 3/4, 4/4, 6/8, 2/2; major and minor; accidentals; a repeated-note passage; a slurred run; rests.
+8. `fixtures/expected/`: golden `ExpectedNote[]` for 6 of those excerpts × flute, B♭ clarinet, alto sax, including written-key transposition.
+9. `fixtures/follow/*.json`: about 20 `DetectedNote` streams with predicate expectations for live events and final judgments: on time; early and late 150 ms; sharp and flat 30 c; wrong note; octave (voice and non-voice); missed; extra in a rest; repeated merge and split; tie; pickup; fast run; slurred run; stop at bar 5; back 2 beats; skip a bar ahead; rejoin on the next downbeat; live/final divergence.
+10. `fixtures/grade/*.json`: inputs for 02's acceptance cases with assertion predicates (for example `R == 100`, `E12 fires`), not hand-computed totals.
+11. `fixtures/render/*.events.jsonl`: time-stamped `FollowerEvent` streams plus a final alignment for 8 excerpts, so the overlay and screens can be built and visually tested with no audio.
+12. `testkit/synth-min.ts`, `testkit/wav.ts`: deterministic additive renderer (harmonics, ADSR, legato glide, tonguing dip, click bleed at known times, white noise) and WAV I/O; 6 reference WAVs with checksums (Node 22 in CI). P3 extends timbres behind the same signature.
+13. `testkit/fake-backend.ts`: `FakeAudioBackend` streaming a Float32Array or WAV as `CaptureBlock`s at real time or faster, with scripted clicks, `t0`, interruptions and route changes.
+14. Tooling: lint boundaries and restricted globals with negative fixtures, `tsconfig.core.json`, bare-runtime job, CI, Pages with `base: './'`.
+15. From 04 (their files, copied in by P0 so screens can start): `design/tokens.json` → `src/ui/tokens.css`, `src/ui/copy/en.json`, `src/notation/visual-states.ts`, `src/ui/layout-table.ts`.
 
 ---
 
-## Open questions
+## 15. Work plan (v1)
 
-1. Key setting semantics: this section assumes "key" means the written key the player reads. Confirm with the lead musician and designer.
-2. Grading weights, tolerance numbers, level-to-tempo caps, and rank thresholds are defaults here; the lead musician should confirm or replace them before P12 and P10 are tuned.
-3. Should the timing grade measure against the metronome (current design) or against the player's own steady pulse when they are consistently offset? Current design reports bias separately and suggests recalibration; a "tempo-relative" mode is possible later.
-4. Voice: default octave equivalence on. Should singers instead pick a voice type and be held to its octave?
-5. Is a stored short audio clip of the last attempt (in memory only, for "listen back") wanted? It is cheap to add and stays on-device.
-6. Corpus size target and whether any openly licensed (CC-BY-SA) sources impose share-alike obligations on the app's corpus files; the score researcher must confirm license compatibility for redistribution in a static bundle.
-7. Do we want swing or compound "feel" options (jazz etudes) in v1? Current design excludes swing.
-8. iOS fork approach: wrap the web app (WKWebView/Capacitor) reusing the DOM-free core, or native Swift with a port of `dsp/` and `follow/`. Haptic metronome on iOS removes bleed entirely and is a strong reason to go native for audio.
+Sizes: S under about 150 lines plus tests, M 150 to 400, L above 400 or algorithmically subtle. "Hard" means it needs the strongest model. Packages in a wave run in parallel once their dependencies are done. 03's corpus jobs and 04's UI-shell and screen packages are defined in their sections and are not repeated here.
+
+| Id | Package | Depends on | Size / difficulty | Acceptance (summary; every item is an automated test) |
+| --- | --- | --- | --- | --- |
+| P0a | Scaffold and tooling | – | M / routine | lint, typecheck, test, build pass; negative lint fixtures fail; `dist/` boots under another origin and subpath; no absolute `/assets` URLs |
+| P0b | Core types, platform seam, schemas | P0a | L / hard | types compile under `tsconfig.core`; schema generation byte-identical across runs; drift between types and schemas fails CI |
+| P0c | Core utilities and onset definition | P0b | S / moderate | exact tick/beat/second round trips for 6 meters with pickups; mulberry32 known sequence; onset definition within 0.1 ms (crossing) and 0.5 ms (half-rise) of analytic values; vibrato AM never detected as a re-articulation |
+| P0d | Config seeding, loaders, floor check | P0b | M / moderate | 02's five files plus `measurement-budget.json` validate; every block cites its 02 section; `checkFloors` reports zero violations or a listed RFC |
+| P0e | Fixture corpus and golden expected notes | P0b, P0c | M / hard | 24 excerpts schema-valid with the coverage list of section 14 asserted; bar sums exact; golden `ExpectedNote` produced by two independent runs with an empty diff |
+| P0f | Follow, grade and render fixtures | P0d, P0e | M / hard | about 20 follow and 10 grade cases with predicate expectations; 8 render streams ordered, idempotent per note, ending in `final` |
+| P0g | Minimal testkit and fake backend | P0b, P0c | M / moderate | 6 reference WAV checksums stable on Node 22; WAV round trip lossless; fake backend streams contiguous blocks with scripted clicks and interruptions |
+| P1 | theory | P0b, P0c | M / moderate | every key × instrument transposes with correct spelling; `spellGhost` reproduces 02 4.7 examples |
+| P2 | rules | P0d, P1 | M / hard | reproduces every worked example in 02 Q4 exactly; drift reference clamps and rate limits; no tolerance constants in `follow/` or `grade/` |
+| P3 | Synth, realism conditions, scenario generator | P0g | L / hard | 9 timbres; every 13.2 condition; ground truth within 1 ms and 1 c on clean renders; 300 seeded scenarios deterministic |
+| P4a | Capture primitives (decimator, filters, hi-band, envelope) | P0b | M / moderate | 10,000 random blocks at 16, 24, 44.1, 48 kHz lose no sample and drift < 1 sample; ≤ 1 dB at 2637 Hz, ≥ 35 dB at 5 kHz; zero allocations after warm-up |
+| P4b | Pitch (FFT MPM, centre stamps, octave hysteresis) | P4a | M / moderate | ear-to-staff cases pass; 47 to 2637 Hz within 5 c; step-change crossing bias < 1 ms; ≤ 0.2 ms per 1024 window |
+| P4c | Segmenter, flux, onsets, repeat hints | P4b, P0g | L / hard | onset F1 ≥ 0.97 at ±30 ms on clean launch timbres; 6 dB tonguing dips split; ±30 c vibrato with 5 dB AM never splits; hints act only inside windows |
+| P4d | Click gating and template subtraction | P4c, P0g | M / hard | Tick at −20 and −10 dB bleed: zero click extras, F1 ≥ 0.97; on-beat onset bias < 3 ms vs no bleed; Wood gate flag set automatically; all off in headphone modes |
+| P5 | Corpus pipeline (03's C1 to C9) | P0b, P0e | L / hard | ≥ 300 excerpts from OpenScore Lieder and String Quartets committed before wave 2 ends; byte-identical rebuild; schema-valid |
+| P6 | Store and web repositories | P0b | M / moderate | every repo method tested with `fake-indexeddb`; migration from a committed fixture; export/import round trip deep-equal; storage-loss detector |
+| P7 | Notation static render | P0e, P1 | L / hard | 24 fixtures render in 4 clefs at every layout breakpoint; one SVG per system; `beatToPoint` total, monotonic, ±1 px; `setSlotSystems` triggers zero VexFlow renders; no font requests |
+| P9a | Corpus loading | P0e | S / routine | column manifest decodes to the fixture objects; only the needed chunk is fetched; withdrawn ids skipped from a cached chunk |
+| P9b | Selection and transposition | P9a, P1, P2 | M / hard | 03's 10,000-request property test; pool mix and stretch rate within ±5% of config over 5,000 draws; ranked never returns a seen group; modal only with random key; empty pool returns suggestions |
+| P9c | Expected notes | P9b, P2 | S / moderate | equals `fixtures/expected/`; `onsetKind` correct; tempo clipping respects IOI floors |
+| P10a | Live follower and displacement detector | P2, P0f, P4c | L / hard | all follow fixtures pass; displacement entered within 4 notes on the back and skip cases and never on 300 perfect takes; ≤ 0.3 ms per hop |
+| P10b | Final alignment and relabel | P10a | M / hard | fixtures pass; 4 golden displaced segments; replays never overwrite; divergence ≤ 3%; < 5 ms for 200 notes |
+| P11 | Web audio backend | P4a, P0g | L / hard | unlock order per 7.1; zero-gain path; 5 min contiguous blocks in Chromium; forced relay works; all clicks scheduled at Start and on time under a 200 ms stall; void paths; clock-rate mismatch caught |
+| P12 | Grade and progression | P2, P0f | M / moderate | 02's acceptance cases as predicates; XP factors, rank, level rules, ranked reasons; byte-identical in Node and the bare runtime |
+| P12b | Patterns | P12 | M / moderate | 02's 16 v1 patterns each with firing and non-firing fixtures; `lostPoints` per 02 6.1 |
+| P13 | Tips selection | P12b | S / routine | at most 2 tips; recency and family rules; clean-read fallback; deterministic |
+| S1 | Thin vertical slice | P4c, P6, P7, P10a, P10b, P11, P12, P0g | M / moderate | as described below |
+| P14 | Calibration and audio self-test | P11, P4d | L / hard | synthetic 37 ms loopback measured 37 ± 1 ms; play-along ±5 ms; recheck uses the fresh value when stored differs by > 5 ms; sanity tone ±8 c; AEC signature flagged; self-test exports no audio |
+| P15 | Notation overlay | P7, P0f | M / moderate | every render stream yields the DOM states of `visual-states.ts`; idempotent re-sends; 200 ghosts + 200 glyphs at 60 fps; no React renders from follower events |
+| P16 | PracticeSession | P9c, P10b, P11, P12, P13, P14, P15, P6 | L / hard | full flow on the fake backend in Node; strict scan auto-start; seen at reveal; practise without listening; void paths; voice reference and tuning note; record reloads identically |
+| P18 | Accuracy gates and latency telemetry | P3, P4d, P10b, P12b, P16 | M / moderate | all 13.2 gates per launch instrument; σ, e90, c90 and latency artifacts published; trace gates of section 12 |
+| P19 | PWA and portability | P16 | S / routine | standalone manifest and icons; offline reload; chunks cache-first; boots from another origin with third-party network blocked |
+| P20 | Dev replay and diagnostics export | P15, P16 | S / routine | replays every render stream and an attempt export identically to results; exports contain no audio |
+| P21 | WebKit and iOS Playwright projects | P11, P15, P19 | M / moderate | 05 Q6 items 4 and 5: oscillator smoke test, loopback ±1 ms, 4 iOS viewports, mid-take resize with zero VexFlow renders |
+
+**Thin vertical slice (S1)**, the first integration milestone: flute, concert pitch, treble clef, 512 window, one 8-bar 4/4 G major fixture excerpt, 80 bpm, 1-bar count-in, Tick click, laptop Chromium, `testClock` with RTL = 0 (a dev field accepts a typed RTL on a real mic). Path: synth-min WAV with perturbations (note 3 late 150 ms, note 6 a semitone wrong, note 9 omitted, an extra in the bar-4 rest) → fake capture → worklet → DSP (no flux) → live follower → static render plus overlay → final align → grade (P and R) → bare results → AttemptRecord to IndexedDB and back. Acceptance: Playwright asserts the DOM states; the note-3 ghost sits within ±1 px of `beatToPoint` at its played onset; the trace shows sample onset to paint ≤ 150 ms; the grade is identical in Node and the browser.
+
+Critical path: P0 → P4b/P4c → P10a → S1 → P11 → P14 → P16 → P18. P3 and P10a carry the most risk and start as soon as their inputs exist.
+
+---
+
+## 16. Reuse from ear-to-staff (v1)
+
+| Module | Verdict |
+| --- | --- |
+| `js/pitch.js` (MPM) | Adapt: TS, FFT NSDF, instrument lag range, centre stamps, alternate-octave clarity. Keep its tests. |
+| `js/segmenter.js` | Adapt: keep the state machine; hop-scaled parameters; flux, 2 ms envelope, onset definition, hints, click handling. |
+| `js/fft.js` | Reuse, ported to TS. |
+| `js/theory.js` | Adapt: keep instrument interval data; replace MIDI-plus-preference spelling with `SpelledPitch` and spelled intervals. |
+| `js/notation.js` | Reference only for VexFlow details (ties across systems, beaming, `Accidental.applyAccidentals`); ear-to-staff loads VexFlow 4 from a CDN, we bundle VexFlow 5. |
+| `js/app.js` metronome and capture | Replace: no square-wave click, no `setInterval` AnalyserNode polling, no lookahead timer during takes. Keep scheduling on the audio clock. |
+| `js/history.js` GitHub token storage | Not used. |
+| `test/*.mjs` | Adapt to Vitest; the synthetic end-to-end test is the model for 13.2. |
+
+---
+
+# Part B — Later (out of scope for this build)
+
+Brief by design. Each item needs an RFC before work starts.
+
+- **Real-device validation** (R3): real-recording regression set, device latency and accuracy matrix, re-tuning floors from measured data, wired-headphone reuse of speaker loopback, the 4 kHz capture-bandwidth heuristic (05 W8 full), W15 auto-degrade (cut; it would change grades silently).
+- **iOS native** (R12): Capacitor target in `ios/`, native audio engine plugin, haptic metronome (adds `outputLatencyMs`/`hapticLatencyMs` paths), CoreMIDI, native store, bridge budgets, QuickJS/JavaScriptCore runtime job, AEC experiments.
+- **Input and notation** (R9): Web MIDI (latency model `midiTime − t0 − outputLatency − midiInputLatency`, separate rank pool), polyphony by score-informed chord verification (template of expected partials against the spectrum), schema v2 with two staves.
+- **Playback and export** (R9): listen-back, synth playback of the score or the take, MusicXML export with attribution.
+- **Musical features** (R8): key and meter changes inside an excerpt, grace notes, trills, fermatas, lyrics, a CC BY-SA shard, swing and feel options, tempo-relative timing mode.
+- **Product**: accounts, backend, sync, leaderboards (with server re-grading from event lists), telemetry; multi-profile UI; visual-only metronome; live pitch dot; tip drills on sub-excerpts.
+- **Corpus**: PDMX, KernScores, in-house encoding, human review and calibration samples (03 owns the list).
+
+---
+
+## Open questions (still open after the rulings)
+
+1. **End-of-take delay after the last note.** 02 proposes last expected note + 1 bar; 04 proposes the last note's end + 1 beat. 01 seeds 1 beat (a bar at 60 bpm in 4/4 is a 4 s wait; duration grading needs no more). 02 owns the value in `grading-config.json endOfTake`; overseer to confirm.
+2. **Components shown on results.** 02's v1 model has three components (P, I, R) with stops and drift as text lines; 04's draft and v1 cut still show five. The types follow 02 (R2); 04 should drop Flow and Steady as bars.
+3. **iOS first-take calibration.** 04 says calibration is mandatory on iOS; 05's revised W6 says nothing is blocked and unmeasured takes are practice. 01 implements 05's rule (prompt, never block).
+4. **Bluetooth ranking.** The P0 config marks takes with RTL > 120 ms unranked (05's gate, and 8.2 shows they fail the floor). 02 to confirm.
+5. **02 floor fixes needed before P0 freeze**: raise `intonationMinSteadyMs` from 120 to 150 (non-vibrato) and 180 (vibrato families); express NPS caps per window class; clamp piano LH's served range at C2.
 
 ## Dependencies on other roles
 
-- Lead musician: instrument ranges per level band and comfortable ranges; clef choices; tolerance table sign-off; difficulty-level definition and the mapping from `DifficultyFeatures` to level; key sets per level; tempo caps per level; grading weights and pass thresholds; tip catalog content keyed to the `TipSignal` list; whether voice uses octave equivalence.
-- Music score researcher: source corpora and licences; the excerpt cutting rules (phrase boundaries, 8 to 12 bars); conforming to `ExcerptDoc` schema version 1 and the exclusion list in 4.1; attribution text per excerpt; ownership of `tools/corpus-build` with an implementer; at least 200 validated excerpts before wave 2 starts.
-- Senior designer: visual treatment for each `NoteVisualState` and `GhostNote.kind` (including how to show sharp or flat when the ghost sits on the same staff position as the original); bars per system and responsive layout for laptop and phone landscape; calibration and setup flows; results, rank, and tips screens; design tokens for P8. The binding behaviour is the event-to-renderer table in 6.6.
-- Senior iOS engineer: choose wrap versus native; if native, conform to the same data model (section 4), event stream (6.6), and synthetic scenario suite (11.2) so both platforms grade identically; own iOS audio session routing and a haptic metronome.
-- Overseer: confirm the stack decisions, the wave plan, and the model-tier sizing; reconcile any conflicts between this section's defaults and the lead musician's numbers.
+- **02**: values in the five config files (section 0), within the floors of section 8; credit rules for displaced segments (9.6); whether Bluetooth takes rank; pattern definitions computable from `NoteJudgment`, `ExpectedNote` and per-note DSP statistics only.
+- **03**: corpus pipeline (C1 to C9) emitting the section 6.1 schema and 6.2 files, committed; at least 300 excerpts from OpenScore Lieder and String Quartets before wave 2; the 24-excerpt fixture corpus format is the contract.
+- **04**: `visual-states.ts` mapping from `NoteVisualState`/`GhostNote` (including `displaced` ghosts, `rejudged` notes, `status` events); `layout-table.ts` slots for `setSlotSystems`; Output mode and Click sound settings with the audibility check; calibration and self-test screens; copy for every `RankedReason` and `VoidReason`.
+- **05**: the platform seam and iOS rules adopted here; 05 is rewritten as the fork plan with `docs/ios/device-checklist.md` (written, not executed).
+- **Overseer**: open questions 1 to 4; tell the owner that out-of-tune marks arrive 260 to 350 ms after the note starts (section 10).
+
+---
+
+## Review log (revision 2)
+
+Rulings applied:
+- R1: `PracticeSettings.key` renamed `writtenKey`; `AttemptRecord` stores both written and concert key.
+- R2: withdrew first-draft section 7 (points, level multiplier, Elo rating, level rule, `rankFor(points)`, extras penalty) and section 6.3 (tolerance table, 35 ms floor, ±15 ms claim) and `intonationBonusCents`; added section 0 (value owners), `rules/` (tolerance resolution and drift reference shared by follow and grade), `config/measurement-budget.json`, and the floor check.
+- R3: removed the real-recording set, designer approvals, real-phone tuning and human review from every gate; replaced with synthetic realism conditions, corpus-driven scenarios, self-baselined snapshots, the in-app audio self-test, and the WebKit oscillator smoke test; iOS audio stated as unverified at v1.
+- R4: corpus enum limited to OpenScore Lieder, OpenScore String Quartets and Mutopia (GitHub); the first draft's KernScores example removed.
+- R5: profile restructured (XP and rank per player, level per instrument, per-player daily count and seen groups).
+- R6: session enforces the strict scan; unlock moved to the Start-scan gesture so the count-in can auto-start.
+- R7: voice octave displacement is correct (`octaveDisplaced`), relative pitch through `VoiceDriftReference`, reference tone via `playVoiceReference`.
+- R8: one key and one meter per excerpt, no lyric field, licence enum without BY-SA, modal excerpts only when the key is random.
+- R9: no audio stored anywhere; listen-back, playback, MIDI, polyphony, swing, accounts moved to Part B.
+- R10: stack table aligned (strict TS, Vite, pnpm, React for screens, Zustand, VexFlow 5 with SVG overlay, Vitest, Playwright, PWA).
+- R11: live early/late and wrong-pitch judgments at confirmation with an end-to-end ≤ 150 ms p95 gate; displacement detector stops false reds without hiding missed notes.
+- R12: platform seam (`platform.ts`, `platform/web/`), restricted globals, bare-runtime job, portability test; native work in Part B.
+- R13: `listening: false` mode; per-system SVGs and `setSlotSystems` for phone portrait page turns.
+
+Own cross-examination answers applied:
+- Q1: window-centre stamps; frozen onset definition (midpoint crossing, half-rise, detectability rule); 2 ms envelope; score-informed repeat hints; `onsetKind`.
+- Q2: section 8 error budgets and floors; cents duration gates; per-take count-in recheck; withdrew the 35 ms floor.
+- Q3: analysis low-pass moved from 4 kHz to 3 kHz; corrected the "> 40 dB separation" claim; Tick and Wood timbres; template subtraction; no flux backtracking in click windows; output modes; audibility check. Changed from the answer: wired headphones use play-along in v1 (reuse of speaker loopback moved to later because it cannot be validated without devices).
+- Q4: posting every 2 quanta; bassoon, trombone, euphonium, cello and bass voice moved from 2048 to 1024; wrong-pitch-at-confirmation rule; missed deadline formula; section 10 latency tables; `rejudged` flag.
+- Q5: displacement detector and final relabel; `DisplacedSegment`; golden displacement fixtures.
+- Q6: section 14 frozen artefacts.
+- Q7: thin slice S1 and the v1 cut.
+
+Challenges accepted or modified (details in the structured response): AttemptScore and profile types replaced with 02's model (three components, not five); `setNoteState` takes a state object; one SVG per system with `setSlotSystems` and a total `beatToPoint`; worklet connected through zero gain with relay fallback; all clicks scheduled up front with a 0.5 s lead and first-click check; buffer pool (32 pairs, because posting is now twice as frequent); pure phase-carrying decimator; `routeKey`, `latencyCompensationSec`, `outputLatencyReported`, AEC signature, clock-rate check; Bravura bundled, `base: './'`, hash routes; chunked corpus; MusicXML-only pipeline with the corpus committed and the MuseScore spike withdrawn; selection rules from 02 and 03 with no defaults in 01; silence never ends a take mid-excerpt; restart detection at 3 notes; `status` events for "come in at" and "lost place"; live sharp/flat uses 02's 150 ms / +5 c within 01's floors; "reported" calibration is unranked; floor check uses σ with budget minimums instead of 2 × e90; TS feature recompute dropped.
+
+Removed or moved: first-draft sections 7 (grading) and 8 (tips engine with `TipSignal`), 11.3 (real recordings), P18 device work, lookahead metronome scheduler, `store/` DOM access, multiple-profile UI, open questions 1 to 8 of the first draft (all answered by the rulings or moved to Part B).
