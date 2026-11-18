@@ -71,6 +71,16 @@ Every tolerance and weight lives in `config/grading-config.json`. The follower, 
 40. The pitch-step crossing bias measured in wave 1 (up to 1.6 ms for a 1 semitone step on the 1024 window, up to 3.6 ms for larger steps) is accepted. It is two orders below the timing tolerances. The segmenter treats it as part of the onset error budget and P18 reports it.
 41. Firefox reports `outputLatencyReported` as false. The conservative value stands.
 
+## Rulings after wave 2 (R42 to R48)
+
+42. Displacement range: a restart may go back up to 4 bars and a skip may jump ahead up to 2 bars. The follower's reading stands.
+43. An S grade requires no wrong-pitch and no missed note in the take. A take that scores in the S band with either is graded A. The flag lives in `config/grading-config.json`.
+44. The frozen types take the additions wave 2 asked for: `FollowConfig.analysisRate` and `writtenKey`, `DspConfig.attackExcludeMs` and `clickLeakDb`, a frames-agree flag on `DetectedNote`, the key signature on `GradeInput`, spelling data and `peakNotesPerBeat` on `ManifestEntry`, and `finalAlign` taking the live outcome. Local workarounds are then removed.
+45. Room reverb: the segmenter gets vibrato-aware dip rejection. Target: onset F1 of at least 0.93 on every launch timbre under the planned room conditions, with no regression on clean capture. If the target is missed, the numbers are reported and reverberant rooms are listed as a known limit.
+46. Rhythm cells are read per metronome beat, as 02 defines the beat. Fixture cell ids that differ in 2/2 and 3/8 are regenerated.
+47. Note-on latency of 79 ms at the 95th percentile on the long analysis window is accepted against the 75 ms budget.
+48. The agent review in ruling 29 runs in wave 3 on levels 1 to 3 only. Other flagged excerpts stay excluded in v1. Mutopia (C3b) is dropped from v1.
+
 ## What the owner should know
 
 - Early, late, and wrong-note marks appear within about 150 ms of the note. Sharp and flat marks appear about 260 to 350 ms after the note starts, because pitch needs roughly 100 ms of steady tone after the attack before it can be measured to the cent.

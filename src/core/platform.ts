@@ -96,6 +96,19 @@ export type WorkerMessage =
   /** Ends the take at input time t. `reason` added in P0b so the worker can call `LiveFollower.end`. */
   | { v: 1; type: 'end'; t: ClockSeconds; reason: EndReason };
 
+/**
+ * DSP worker → capture worklet, on the capture port (P11; moved to core by the wave 2 review so dsp/ and the worker
+ * need not import platform/web). Posted after the worker has copied a block's samples, with both buffers
+ * transferred, so the worklet can reuse its pooled buffers. Without it the backend falls back to the main-thread
+ * relay after `relayFallbackMs`.
+ */
+export interface CaptureReturn {
+  v: 1;
+  type: 'return';
+  lowband: ArrayBuffer;
+  hiEnergy: ArrayBuffer;
+}
+
 /** DSP worker → main thread (P0b addition; 01 §5.2 names only the inbound direction). */
 export type WorkerReply =
   | { v: 1; type: 'ready' }

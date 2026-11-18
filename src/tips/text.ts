@@ -1,18 +1,22 @@
 /**
  * Text of a chosen tip (02 §6.1 item 7, §6.3, §6.4): placeholder filling for tip text and the evidence line.
- * Pure. The bar-list join and the direction words are not in `src/ui/copy/en.json` yet; they live here until the
- * copy owner adds keys (see the P13 report under needsFromOthers).
+ * Pure. `tips/` may import only core, so the direction words and the bar-list join are mirrored here from the copy
+ * keys tips.direction.sharp, tips.direction.flat and tips.bars.join in `src/ui/copy/en.json`; copy-sync.test.ts
+ * fails if they drift.
  */
 import type { PatternDef, PatternResult, TipCatalog } from '../core/types.ts';
 
 /** Direction words for U22-style placeholders (`{direction}`): +1 sharp, −1 flat. */
-const DIRECTION_WORD = { sharp: 'sharp', flat: 'flat' } as const;
+export const DIRECTION_WORD = { sharp: 'sharp', flat: 'flat' } as const;
+
+/** Mirror of tips.bars.join: joins the comma list of all but the last bar to the last bar. */
+export const BARS_JOIN_TEMPLATE = '{list} and {last}';
 
 /** Formats sorted, de-duplicated bar numbers as an English list: "3", "3 and 5", "3, 5 and 7". */
 export function formatBars(bars: readonly number[]): string {
   const sorted = [...new Set(bars)].sort((a, b) => a - b);
   if (sorted.length <= 1) return sorted.map(String).join('');
-  return `${sorted.slice(0, -1).join(', ')} and ${sorted[sorted.length - 1]}`;
+  return BARS_JOIN_TEMPLATE.replace('{list}', sorted.slice(0, -1).join(', ')).replace('{last}', String(sorted[sorted.length - 1]));
 }
 
 function paramText(key: string, params: Readonly<Record<string, number>> | undefined): string | undefined {

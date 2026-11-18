@@ -5,3 +5,4 @@ export { tickablesPerBar, systemHeightPx } from './render-excerpt.ts';
 export { renderHeadless, type HeadlessResult } from './headless.ts';
 export { ensureNotationFonts } from './fonts.ts';
 export { pitchY, ledgerLineCount, stepsBelowTopLine } from './pitch-geometry.ts';
+export { SvgOverlay, type OverlayOptions } from './overlay/index.ts';

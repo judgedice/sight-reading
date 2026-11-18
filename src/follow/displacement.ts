@@ -60,6 +60,7 @@ export class DisplacementDetector {
   private readonly beatSec: number;
   private readonly maxWindowSec: number;
   private readonly onsets: number[];
+  private readonly onsetBeats: number[];
 
   constructor(
     private readonly expected: readonly ExpectedNote[],
@@ -72,6 +73,19 @@ export class DisplacementDetector {
     this.beatSec = 60 / bpm;
     this.maxWindowSec = tol.reduce((m, t) => Math.max(m, t.matchWindowSec), 0);
     this.onsets = expected.map((e) => e.onsetSec);
+    this.onsetBeats = expected.map((e) => e.onsetBeat);
+  }
+
+  /** First expected index with onsetBeat ≥ b (expected notes are in onset order). */
+  private lowerBoundBeat(b: number): number {
+    let lo = 0;
+    let hi = this.onsetBeats.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if ((this.onsetBeats[mid] as number) < b) lo = mid + 1;
+      else hi = mid;
+    }
+    return lo;
   }
 
   /** First expected index with onsetSec ≥ t. */
@@ -131,9 +145,12 @@ export class DisplacementDetector {
     for (const n of window) {
       const playedBeat = n.s / this.beatSec;
       const near = n.midi - offsetCents / CENTS_PER_SEMITONE;
-      for (const e of this.expected) {
+      // Only expected notes with δ in [lo, hi] can qualify; scan that slice in onset order (same order as a full scan).
+      for (let i = this.lowerBoundBeat(playedBeat + lo); i < this.expected.length; i++) {
+        const e = this.expected[i] as ExpectedNote;
         const d = e.onsetBeat - playedBeat;
-        if (d < lo || d > hi || Math.abs(d) < MIN_OFFSET_BEATS) continue;
+        if (d > hi) break;
+        if (d < lo || Math.abs(d) < MIN_OFFSET_BEATS) continue;
         // Cheap reject before the full classification: more than a semitone from every octave of the target.
         const off = near - e.concertMidi;
         if (Math.abs(off - SEMITONES_PER_OCTAVE * Math.round(off / SEMITONES_PER_OCTAVE)) > 1) continue;

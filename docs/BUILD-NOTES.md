@@ -505,3 +505,222 @@ Review verdicts (trust as a base for wave 2):
 - P12b patterns and P13 tips: pattern threshold keys are P0d's naming in config/tips.json; E22/E23 beta exclusion is in selection.betaDisabledPatterns.
 - P15 overlay: implement NotationOverlay (src/notation/overlay-seam.ts); colour via CSS color on note <g>; zero fades under reduced motion except the 100 ms ghost fade; ruling 36 (a new note state replaces all earlier marks, including a ghost).
 - C5 to C7: read extract records via partdata.load_part; reject windows with chord, tremolo, second-voice or gap problems; C6 must keep minorForm for the tagger and can call the TS tagger's rules through the Python port in tools/fixtures/excerpt_lib.py tag_levels (they agree on the fixture corpus); C7 refits config/filters.yaml.
+
+## From wave 2
+
+### P4c segmenter
+
+- API: `import { DspPipeline, runOffline, decimatorCreate } from 'src/dsp/pipeline.ts'` (satisfies DspApi). `new DspPipeline(cfg, { segmenter?: Partial<SegmenterOptions> })` has push, flush, frames() and a gateDb getter. `runOffline(samples, inputRate, cfg, opts?)` takes analysisRate from the decimator; time 0 is input sample 0.
+- Pass DspConfig.minHz/maxHz as the unwidened instruments.json detection range; the pipeline widens it by 3 semitones.
+- Events: note-on carries the 7.4 onset. Splits are retroactive (a dip is recognised after its half-rise), so the previous note's note-off (offset = new onset) comes just before the new note-on. note-update about every 4 hops. A pitch that settles in a note's first 60 ms re-pitches that note through note-update instead of splitting. Ids increase in onset order.
+- onsetCause: 'from-silence', 'repeat' (same-semitone dip), 'pitch-change' (crossing or tongued change), 'flux' (only the flux route made the dip detectable).
+- Repeat hints: DspConfig.repeatHints {t on the input timeline, halfWidthSec}; inside a window the dip threshold is max(2 dB, 1.0 x AM).
+- P18: per-rule onset e90 on the clean set is 0.6-2.6 ms (silence), 0.4-3.3 ms (dips), 1.9-13.7 ms (pitch change, mean up to +4.2 ms on trumpet; ruling 40). `P4C_FULL=1 pnpm vitest run src/dsp/segmenter.test.ts` prints F1 per timbre.
+- Worker: push CaptureBlocks in order, then flush(endT). frames() returns every PitchFrame for the debug export.
+
+Known gaps:
+
+- Room reverb: with each scenario's planned conditions (no click bleed) F1 is 0.69 (voice) to 0.94 (trumpet). Vibrato under reverb makes 8-9 dB dips that pass 7.4 item 4; reverb fills tongue and damper dips; slurs come 10-30 ms late; some notes end early. Needs vibrato-phase-aware dip rejection before the 13.2 gates (P18).
+- Voice 1-semitone slurs with vibrato miss (changeCents 80 in frozen instruments.json vs ±25-30 c vibrato). Voice F1 0.9845 on the clean set.
+- Note-on latency p95 59 ms (512 window) and 79 ms (1024): the 1024 class is already 4 ms over 01 §12's 75 ms before the follower.
+- altOctaveClarity is the NSDF at the octave above the frame pitch (the DSP does not know the expected note).
+- Steady-statistics attack exclusion is mirrored per onset profile in segmenter-options.ts (DspConfig has no family or attackExcludeMs).
+- Flux timing refinement is implemented but off; the flux route is on with scaled thresholds (x2 struck/plucked, x3 winds/brass, x6 voice/bowed).
+- Not zero-allocation per frame (0.14 ms per hop). Blocks are assumed contiguous; a seq gap emits {type:'gap'}.
+
+### P4d click handling
+
+- src/dsp/click.ts: ClickSubtractor, buildClickTemplate, clickHandlingActive and the CLICK_* constants. Fits lag and gain on whitened ([1,-2,1]) signals; a fit is confident at normalised rho^2 >= 0.5; a non-confident fit takes the median of the last 8 confident fits.
+- DspPipeline.clickFits() exposes per-click fits (shift, gain, confident, leak levels, before/after dB); P14's per-take recheck (7.7) can reuse confident count-in fits.
+- segmenter.ts: setClickLeak(arrival, envDb, frameDb), CLICK_LEAK_MARGIN_DB 6, CLICK_EVIDENCE_SEC 0.1.
+- Everything is off unless outputMode is 'speakers'. WOOD_ON_SPEAKERS in src/dsp/click-gate.ts is measured by click.test.ts (regenerate with CLICK_GATE_WRITE=1).
+- P14: build Calibration.templates with buildClickTemplate (plain click at analysis rate, sample 0 at arrival - 2 ms, 20 ms long, accents divided by +5 dB). P16/S1: scale clickTemplate by take metronome gain / calibration gain; pass clicks with accent flags.
+
+Known gaps:
+
+- Residual figures (28-132 dB) are idealised: the synthetic click is exactly repeatable. Expect 15-25 dB on devices.
+- Without a template, Wood bleed under full scenario conditions adds about +2 false positives over 63 scenarios at -10 dB.
+- Leak levels come from each click's template fit, not Calibration.clickLeakDb (not in DspConfig). hiEnergy is unused.
+- ui/ may not import dsp/, so the settings screen needs WOOD_ON_SPEAKERS moved or passed through the session.
+- DspPipeline onsets move about 0.1 ms with block size even in headphone modes.
+
+### P10a live follower
+
+- Import from src/follow/index.ts: LiveFollower (optional 2nd arg { analysisRate }: FollowConfig has no analysis rate, and confirmDelay = W/2 + 3 hops; pass 14700 for 44.1 kHz captures), cost.ts (matchCost, pitchCost, classifyAgainst, correctedMidi, SKIP_* costs), DisplacementDetector, inferWrittenKey, ghostPitch.
+- Live events: matched notes get a judgment at note-on (timing final, pitch null unless wrong at confirmation), a new judgment whenever pitch, marginal or octave state changes after liveProvisionalMs of steady pitch, and a final live judgment (provisional false) at note-off. Ghost events only when the ghost kind changes. Missed notes get 'missed' and no judgment. Status: lost-place and rejoined once per displacement, come-in-at once per silence, no-signal at most once. Clock events capped at 60 Hz, level at 30 Hz.
+- Ruling 36: a reverting sharp/flat sends a new judgment and no ghost event; P15's overlay drops the stale ghost.
+- Testing without audio: P3 plan, then fixtures/follow/gen/perform.ts perform + buildStream, then runFollowStream (see src/follow/displacement.test.ts runPlan).
+
+Known gaps:
+
+- Displacement range sign: 01 §9.5's [-2, +4] bars is read as player lag, so offsetBeats is in [-4 bars, +2 bars]. Architect to confirm.
+- Rejoin and detector rules are P10a's reading (cost(0) - cost(δ) >= one wrong-pitch term on top of the 2x rule). 6 of 103 P3 restart/skip scenarios whose replay is indistinguishable at δ = 0 are excluded from the scenario gate.
+- Ghost spelling infers the written key sign from the expected notes (FollowConfig has no writtenKey). Displaced ghosts are spelled from the key signature.
+- wrongPitchAtConfirm assumes the confirming frames agree (DetectedNote has no such flag).
+- At note-off the live judgment uses the final rules, so a note between red and red + hysteresis can turn sharp/flat at note end.
+
+### P10b final alignment
+
+- Use from src/follow/index.ts: finalAlign (FollowApi), alignFinal(c, detected, live | null), liveOutcomeOf(events), replayLive, alignDp/alignNotes/relabel, followApi.
+- P16 should call alignFinal(c, detected, liveOutcomeOf(liveEvents)): 2.4 ms median for 231 notes. finalAlign(c, detected) replays the live follower to fill `rejudged` (the frozen signature carries no live events); it was 8.2 ms before the review indexed DisplacementDetector candidates by onset (see repairs).
+- DP per 01 §9.6 with cost.ts; notes shorter than extraMinDurMs are skipped at no cost and never extras; ties go match, missed, extra. Relabel seeds are wrong-pitch matches and extras; a segment needs >= 3 bad notes that fit at δ and the 2x rule; up to 8 DP rounds.
+- Bare follow scenarios rebuild the meter as makeMeter(beatsPerBarOf(expected), 4); a non-x/4 follow fixture would need its meter in tools/bare-runtime/follow-scenarios.ts.
+
+Known gaps:
+
+- No segment when fewer than 3 replayed notes are bad at offset 0 (repeated material): 4/103 P3 restart/skip scenarios; their displaced notes are judged as wrong or off-time current notes but never overwrite an on-time note.
+- The randomized golden displacement cases are symbolic streams; the audio-path gate is P18's.
+
+### P11 web audio backend
+
+- Import from src/platform/web/audio/index.ts. Construct `new WebAudioBackend({ capabilities, workletUrl: CAPTURE_WORKLET_URL })` (worklet-url.ts). Call checkClockRate() in calibration or self-test, setOutputMode() when the output is declared, and subscribe onCaptureFault (backlog and capture-gap voids are not AudioBackend.onInterruption reasons).
+- The DSP worker must post `CaptureReturn` ({v:1, type:'return', lowband, hiEnergy}, both buffers transferred) on the capture port after copying a block. The type now lives in src/core/platform.ts. Without it the backend falls back to the main-thread relay after 500 ms (captureRelay true).
+- startT = (originFrame + decimator.nextOutputInputPos) / ctx.sampleRate on the AudioContext clock: same timeline as now() and ClickSpec times.
+- Node tests: FakeAudioWorld in src/platform/web/audio/testing/fake-web-audio.ts runs the real CaptureCore behind a MessageChannel. E2E: `pnpm exec playwright test -c e2e/audio/playwright.audio.config.ts` (add to CI). e2e/audio/page.ts and entry.ts can be reused for the WebKit smoke test.
+
+Known gaps:
+
+- WebKit not run; headless Chromium runs at 44.1 kHz, so the 48 kHz path is Node-tested only. resume() after a W3 recreate runs outside a gesture (unverified on iOS).
+- The backend does not close itself on page hide or idle (IOS2/session policy). ?testClock=1 is not wired in the page yet.
+
+### P9b selection and transposition
+
+- Entry points (src/corpus/index.ts): selectExcerpt, countEligible, prepareExcerpt (frozen), selectExcerptWith(m, s, h, cfg, rng, {doc, excludeIds}), selectAndPrepare(m, s, h, cfg, rng, load, cache?), TranspositionError (codes triple-accidental, double-accidental, too-many-doubles, mismatch, range, tempo). Helpers in src/corpus/transpose/ and src/corpus/select/. Test helper src/corpus/select/testing/synthetic.ts (synthDoc, manifestOf).
+- P16 must call selectAndPrepare with a loader built on loadExcerpt: the manifest has no spelling data, so plain selectExcerpt + prepareExcerpt can throw for a minor or chromatic excerpt in a key that needs double accidentals.
+- SelectionResult.transposition is the concert interval; written pitches use t + c_I. A random key is resolved after the excerpt is picked.
+
+Known gaps:
+
+- ManifestEntry lacks pitch-spelling data and peakNotesPerBeat (03 §7.1 change needed via the overseer); without the doc, NPS clipping uses a conservative bound.
+- bandFor, clefsAt and getInstrument are local in src/corpus/select/levels.ts (src/instruments/ is empty).
+- Many fixture excerpts are tempo-ineligible at their own level under 03 §7.5 rule 5 (source tempo ranges miss the level range).
+- Interpretations (a) to (j) in the P9b report (random level, key and meter draws, bars as a preference, L-1 never alone, variety weights) are P9b's.
+
+### P9c expected notes
+
+- buildExpectedNotes equals all 18 fixtures/expected goldens and matches notation's expectedChains order (tested). src/testkit/scenarios/corpus.ts now uses it.
+- Ledger-line counting is duplicated in src/corpus/expected (corpus may not import notation); a shared helper in theory would remove it. bpm is taken as given (tempo clipping is in select/prepare).
+
+### P12 grade
+
+- `import { grade, gradeWithPatterns, gradeApi } from 'src/grade/index.ts'` (barrel added in the review). grade() is pure and returns patterns [] and tipsShown []; gradeWithPatterns fills patterns from detectPatterns.
+- XP factors are {id, value}[] in the order q, m_tempo, m_random, m_mode, m_streak, m_daily, m_below, plus practice or repeat. Stops use the same arithmetic as fixtures/follow/gen/reference.ts; drift is the least-squares slope times the last bar number.
+
+Known gaps:
+
+- 'visual-metronome' ranked reason is never emitted (MetronomeMode has no visual mode in v1).
+- Stops recover the input-to-score offset from matched notes or extras; a take with neither reports no stops.
+- Practice repeat XP reading (25% on the first repeat of the day, 0 after, replacing the practice factor) is P12's.
+
+### G6+G7 progression and eligibility
+
+- src/grade/progression (re-exported by src/grade/index.ts). P16 must call applyAttemptOnDay(p, a, cfg, platform.localDay()) (applyAttempt uses the UTC date), build XpInput with xpInputFor, check postRevealSkipAllowed before serving a replacement, and fill AttemptRecord.score.patterns and tipsShown before applying the attempt.
+- startPlacement begins placement (first excerpt at progression.placement.startLevel); setInstrumentLevel(from) is the auto level-up Undo. Declining an offer suppresses it for the next 5 ranked attempts.
+- evaluateGate takes plain inputs (calibration is P14); only an 'unmeasured' recheck fails it (R31).
+
+Known gaps:
+
+- The auto level-up run keeps {count, atMidTempo}; past 8 straight scores >= 90 the mid-tempo count covers the whole run.
+- Unranked placement attempts earn XP but do not consume a placement step.
+
+### P12b patterns
+
+- `detectPatterns` from src/grade/patterns/index.ts (and the grade barrel); DETECTORS and TIMING_PATTERNS for P18's cross-fire matrix. Results follow config/tips.json order, not lostPoints.
+- params: E22/E23 {offset, direction}, E6 {stops, restarts}, E1/E2 {slopeBeatsPerBar, driftBeats}, E7/E8 {medianRatio}, E28/E29 {lateMs}. The synthetic builder in patterns.test.ts (build) is reusable for event-level injection.
+
+Known gaps:
+
+- 02 §6.2 statistical acceptance (300 takes, >= 90% hit, <= 5% cross-fire) needs P18's suite.
+- GradeInput has no key signature: E12/E13/E18 infer it from keySigAltered notes. ExpectedNote has no phrase-end flag (E4).
+- SX04's 'bflat-involved' param is not emitted, so SX04 never fires.
+- Choices (a) to (h) in the P12b report are P12b's readings.
+
+### P13 tips
+
+- selectTips (src/tips); fillTipText, evidenceLine, formatBars in src/tips/text.ts. The direction words and bar-list join now have copy keys (tips.direction.sharp, tips.direction.flat, tips.bars.join); tips/ may import only core, so text.ts mirrors them and src/tips/copy-sync.test.ts checks they match.
+- P16: pass recentTipIds and recentPrimaries most recent first, excluding the current attempt; never call selectTips for void attempts. 'Incomplete' shows E6 plus the tips.incomplete card.
+
+Known gaps:
+
+- Session summary (02 §6.1 item 8) is not in TipsApi.
+- skipRecent also applies to the clean-read tip U18.
+
+### P15 overlay
+
+- `new VexScoreView({ overlay: new SvgOverlay({ reducedMotion, highContrast }) })`; SvgOverlay is now exported from src/notation/index.ts. The #glyph sprite must be mounted inline. The app must pass a highContrast getter.
+- DOM: per system svg, underlay holds a <style>, .sr-bar-tint and .sr-next-bar; overlay holds g.sr-bar[data-bar] with .sr-note-marks[data-marks-for] and .sr-ghost[data-detected-id], .sr-overflow, and line.sr-playhead, in canonical order. Note colour is inline style.color plus n-* classes (tests read classes).
+- e2e/notation/overlay.spec.ts: 200 ghosts + 468 glyphs, frame p95 16.8 ms, overlay JS p95 0.5 ms.
+
+Known gaps:
+
+- Review-only extras (heat strip, replay bracket, ghost duration tails, note inspector) belong to D3/D8b.
+- Ghost accidentals ignore in-bar accidental memory. The 200-ghost stress case has 1347 nodes (over the 600-node live budget; deliberate overload).
+- glyphs.svg ghost-head cannot be outlined through <use>; the overlay draws an inline path.
+
+### P7b bundle
+
+- Import VexFlow only from src/notation/font/vexflow-bravura.ts, never 'vexflow/bravura'. After a VexFlow upgrade regenerate src/notation/font/bravura-data.ts.
+- pnpm size: initial 89.2 KB, total 463.5 KB gzip (limits 150/500). Only 36 KB headroom; the notation chunk is 374 KB, mostly the base64 woff2.
+- main.tsx short-circuits #/dev/notation when DEV or VITE_NOTATION_DEV=1; remove it and the dev screen when the practice screen lazy-imports notation, and keep that import lazy.
+
+### C5 windowing, C6 features, C7 filters
+
+- Run: `cd tools/corpus-build && python -m corpus_build` (default run now includes windows, augment, features, filters, dedupe). `calibrate` and `familiar` are developer stages; re-run calibrate after features, windows or filter changes and update config/filters.yaml if the fitted values move.
+- Window id: <part id>@[p]<first full bar>-<last bar>[-aug2], 0-based normalized measure indices.
+- C6 output (build/features/candidates.jsonl): level, effectiveLevel (half cadence needs L3), featureLevels, minorForm, replaces. C7 output (build/dedupe/candidates.jsonl): flags, familiarity, dedupeGroup, work, quality {soft, interest, interestMargin}.
+- Survivors after filters and dedupe: 2263 (L1 16, L2 32, L3 264, L4 192, L5 460, L6 537, L7 234, L8 264, L9 48, L10 216). On rules alone (before C8r): 1499, with L1-L3 at 0 (ruling 29 needs the agent veto for all L1-L3 items, x2 variants, quartet inner/cello windows and interest margin < 0.10).
+- Filter calibration: 95.2% negatives rejected, 76.5% positives accepted (26/34 positives: about ±7 points). repeated_note_ratio_max refitted 0.35 -> 0.48, pedal_alternation_share_max 0.25 -> 0.26.
+
+Known gaps:
+
+- Ruling 25: L1 ships unserved (16 < 30). L2 and L3 are unserved until C8r runs. v1.0 gates fail at L2 (32 < 40) and G2-launch at L1-L2 for winds and voice and at L9 for voices.
+- Rhythm cells are read per metronome beat (2/2 half note, 3/8 eighth), so two 2/2 fixture excerpts get different cell ids from the fixture builder. 'other' beat groups (reverse dotted, some compound figures, duplets) tag L10 (496 windows). Overseer decision on both.
+- Mode-unknown rejects 1750 Lieder and 4923 quartet proposals (mid-movement key sections); tempo-change keyword regex may over-reject.
+- Three Lieder voice parts named 'Clarinet in C' (Erlkönig D328, Der Musensohn D764, Dichterliebe 1) are never extracted (C3/C4 role matching).
+- Fingerprints are augmentation-invariant, so the C10 'no shared fingerprint' gate must exempt pairs within one dedupeGroup (64 pairs).
+- Mutopia yields nothing (C3b not built). H12 beam groups are not checked (no beam data).
+
+### Wave 2 review
+
+repairs:
+
+- src/grade/index.ts created: re-exports grade, detectPatterns, DETECTORS, TIMING_PATTERNS, the progression exports and computeXp; adds gradeWithPatterns and the GradeApi conformance object (P12, P12b, G6+G7 needs).
+- src/notation/index.ts exports SvgOverlay and OverlayOptions (P15 need).
+- Copy keys tips.direction.sharp, tips.direction.flat and tips.bars.join added to src/ui/copy/en.json (P13 need). src/tips/text.ts mirrors them (tips may import only core) and src/tips/copy-sync.test.ts fails if they drift.
+- DisplacementDetector.candidates scans only the expected notes inside the allowed offset range by binary search on onset beat, instead of every expected note per window note (P10b need). Output is unchanged (same iteration order); all follow tests pass.
+- CaptureReturn moved into src/core/platform.ts (P11 need, additive); protocol.ts re-exports it.
+- New src/testkit/e2e-pipeline.test.ts (see below).
+
+frozenChanges:
+
+- src/core/platform.ts: added the CaptureReturn interface (additive; the same shape P11 defined in protocol.ts). No existing type changed. No schema is generated from platform.ts.
+
+End-to-end pipeline test (src/testkit/e2e-pipeline.test.ts):
+
+- Three fixture excerpts (jaell L3 4/4, mayer cello L3 3/4 with pickup, gouvy L5 6/8 at 40 dotted-quarter bpm) x flute, trumpet and violin. Each runs P3 synth (default vibrato and breath) -> FakeAudioBackend (production decimator and high band) -> DspPipeline -> LiveFollower -> alignFinal -> grade.
+- Injected notes are chosen by rule: late by halfway between tRed and the match window (+318 ms at 66 bpm, +502 ms at 40), wrong by ±2 semitones, flat by halfway between redCents and 50 c (-43 to -45 c). All 9 cases give late / wrong-pitch / flat both live and final, every other note matched, on time and right in pitch, and no extras. Clean takes score 100 (S) with P/I/R 100/100/100.
+- Error takes score 96 to 97 (A or S) with three red notes out of 13 to 29. This follows 02's weights; the lead musician may want to check that three visible errors can still earn an S.
+- E2E_PIPELINE_INSTRUMENTS=clarinet-bb,sax-alto,cello also passes all 9 cases. Capture is clean (headphones, no room, no clicks); room and click conditions are P18's gates.
+- Held-out check of P4c: a fresh scenario seed (48879, 72 clean scenarios, not the set P4c tuned on) gives F1 flute, clarinet, sax, trumpet, violin, piano 1.0000, cello 0.9975, voice 0.9794.
+
+Trust as a base for wave 3:
+
+- P4c: trusted on clean capture (gates reproduce on a held-out seed and in the e2e test). Not yet robust to room reverb (F1 0.69-0.94), and note-on latency on the 1024 window is over budget.
+- P4d: trusted for headphone and clean speaker use; residual numbers are idealised.
+- P10a: trusted. Fixture predicates, golden displacement in 100 randomized renders, 300 clean takes with no false lost-place, and the e2e live verdicts all hold.
+- P10b: trusted. Use alignFinal with the streamed live outcome.
+- P11: trusted for Chromium; WebKit and real iOS are unverified, and the DSP worker's CaptureReturn is still to be written.
+- P12: trusted (all non-pattern grade predicates, bare runtime byte-identical, e2e grades consistent).
+- P9b: trusted with the selectAndPrepare caveat (manifest lacks spelling data).
+
+### Notes for wave 3
+
+- S1 thin slice: the e2e test is the reference wiring. The DSP worker builds DspPipeline + LiveFollower(config, { analysisRate: block.analysisRate }) from the 'config' message, posts CaptureReturn after copying each block, batches follower events per block into WorkerReply 'events', and on 'end' flushes the pipeline, calls follower.end, then alignFinal(c, detected, liveOutcomeOf(events)). FollowConfig.t0 is bar 1 beat 1 on the output timeline and latencyCompensationSec the RTL; the e2e test uses t0 = capture origin + lead-in and latency 0 because the fake has no output path.
+- P14 calibration: build click templates with buildClickTemplate; call WebAudioBackend.checkClockRate(); the recheck (7.7) can reuse DspPipeline.clickFits() confident count-in fits. Only an unmeasured recheck on speakers fails the gate (R31); evaluateGate takes plain inputs.
+- P16 session: selectAndPrepare (not selectExcerpt + prepareExcerpt), buildExpectedNotes, resolveTolerances, alignFinal with the live outcome, gradeWithPatterns (or grade + detectPatterns), selectTips (never for void attempts), applyAttemptOnDay with platform.localDay(), xpInputFor, postRevealSkipAllowed. Subscribe onCaptureFault for backlog and capture-gap voids. End the take on void (the follower only reports no-signal). Session summary (02 §6.1 item 8) has no API yet.
+- D3 score frame: VexScoreView with SvgOverlay; mount the glyph sprite inline; pass highContrast and reducedMotion getters; keep notation behind a lazy import (size headroom is 36 KB). Review extras (heat strip, replay bracket, inspector) sit above the overlay and read FinalAlignment.
+- D4 to D12: tip text words come from tips.direction.* and tips.bars.join; WOOD_ON_SPEAKERS cannot be imported from ui/ (route it through the session or move it). The 'S with three red notes' result above may need copy or grading attention.
+- iOS: WebKit has never run; the W3 recreate calls resume() outside a gesture; the close-on-hide and idle policies are IOS2's; ?testClock=1 must be wired in the page.
+- C8 review layer and C8r: L1-L3 are empty on rules alone, so C8r decides whether L2 and L3 ship. Use quality.interestMargin, role, augmentOf and effectiveLevel from build/dedupe/candidates.jsonl.
+- C9 emitter: emit `level` as effectiveLevel; event ids e<n> from 1 in window order (C6 extremes); carry flags, familiarity, dedupeGroup, work and quality; minorForm is not in ExcerptDoc. Consider adding pitch-spelling data and peakNotesPerBeat to ManifestEntry (P9b need, frozen-type change).
+- Open architect decisions: 01 §9.5 displacement range sign; FollowConfig analysisRate and writtenKey; DspConfig attackExcludeMs and clickLeakDb; DetectedNote frames-agree flag; GradeInput key signature; FollowApi.finalAlign without live events.

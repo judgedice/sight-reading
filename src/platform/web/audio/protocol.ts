@@ -11,7 +11,7 @@
  *                      then the worklet posts freshly allocated copies, and if no return arrives within
  *                      `relayFallbackMs` the backend switches to the main-thread relay.
  */
-import type { CaptureBlock } from '../../../core/platform.ts';
+import type { CaptureBlock, CaptureReturn } from '../../../core/platform.ts';
 
 /** The registered AudioWorkletProcessor name. */
 export const CAPTURE_PROCESSOR_NAME = 'sr-capture';
@@ -19,13 +19,8 @@ export const CAPTURE_PROCESSOR_NAME = 'sr-capture';
 /** Input frames per capture post: 2 render quanta (01 §7.2). */
 export const FRAMES_PER_BLOCK = 256;
 
-/** Worker -> worklet on the capture port: give the block's buffers back to the pool. */
-export interface CaptureReturn {
-  v: 1;
-  type: 'return';
-  lowband: ArrayBuffer;
-  hiEnergy: ArrayBuffer;
-}
+/** Worker -> worklet on the capture port: give the block's buffers back to the pool (defined in core/platform.ts). */
+export type { CaptureReturn } from '../../../core/platform.ts';
 
 /** Main -> worklet, on `node.port`. */
 export type ToWorklet =
