@@ -163,14 +163,14 @@ describe('IOS4 keep-awake: request timing', () => {
   it('a request still in flight when practice ends is released as soon as it is granted', async () => {
     const timers = new Timers();
     const lock = new FakeWakeLock();
-    lock.deferred = { resolve: () => undefined, reject: () => undefined };
     const ctrl = new KeepAwakeController({ wakeLock: lock, timers });
     const pending = ctrl.startPractice();
     ctrl.leavePractice();
-    lock.deferred!.resolve(new FakeSentinel());
+    const granted = new FakeSentinel();
+    lock.deferred!.resolve(granted);
     expect(await pending).toBe(false);
     await flush();
-    expect(lock.sentinels[0]!.released).toBe(true);
+    expect(granted.released).toBe(true);
     expect(ctrl.isHeld()).toBe(false);
   });
 
