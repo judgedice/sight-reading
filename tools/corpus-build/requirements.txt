@@ -1,0 +1,6 @@
+# Pinned for the corpus pipeline (03 section 6). Install with: pip install -r tools/corpus-build/requirements.txt
+music21==10.5.2
+python-ly==0.9.10
+jsonschema==4.26.0
+PyYAML==6.0.3
+pytest==9.1.1

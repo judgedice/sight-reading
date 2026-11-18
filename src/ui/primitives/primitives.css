@@ -1,0 +1,245 @@
+/* Sheet, modal, popover and toast primitives (04 section 7.5). Tokens only; no raw colours or px. */
+
+.ui-visually-hidden {
+  position: absolute;
+  width: 0.0625rem;
+  height: 0.0625rem;
+  margin: -0.0625rem;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.ui-scrim {
+  position: fixed;
+  inset: 0;
+  background: var(--scrim);
+}
+
+.ui-modal-layer,
+.ui-sheet-layer {
+  position: fixed;
+  inset: 0;
+}
+
+.ui-modal-layer {
+  z-index: var(--z-modal);
+  display: grid;
+  place-items: center;
+  padding: var(--space-4);
+}
+
+.ui-sheet-layer {
+  z-index: var(--z-sheet);
+}
+
+.ui-modal {
+  position: relative;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: var(--modal-max-width);
+  max-height: 100%;
+  overflow-y: auto;
+  padding: var(--modal-padding);
+  background: var(--surface);
+  color: var(--text);
+  border-radius: var(--radius-l);
+  box-shadow: var(--elevation-overlay);
+  animation: ui-fade-in var(--dur-base) var(--ease-out);
+}
+
+.ui-modal-head,
+.ui-sheet-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.ui-modal-title,
+.ui-sheet-title {
+  margin: 0;
+  font-size: var(--type-h3-size);
+  line-height: var(--type-h3-line);
+  font-weight: var(--type-h3-weight);
+}
+
+.ui-modal-body,
+.ui-sheet-body {
+  margin-top: var(--space-3);
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+}
+
+.ui-sheet {
+  position: fixed;
+  box-sizing: border-box;
+  z-index: var(--z-sheet);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--elevation-overlay);
+  padding: var(--sheet-x-padding);
+  overflow-y: auto;
+}
+
+.ui-sheet-bottom {
+  left: 0;
+  right: 0;
+  bottom: 0;
+  max-height: 80dvh;
+  padding-bottom: max(var(--sheet-x-padding), var(--sai-bottom, 0));
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  animation: ui-slide-up var(--dur-base) var(--ease-out);
+}
+
+.ui-sheet-right {
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(var(--sheet-side-width), 100%);
+  padding: var(--sheet-x-padding-lg);
+  animation: ui-slide-left var(--dur-base) var(--ease-out);
+}
+
+.ui-sheet-peek {
+  padding: 0;
+  min-height: var(--sheet-peek-height);
+  border-top: 0.0625rem solid var(--border-strong);
+}
+
+.ui-sheet-peek-button {
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: var(--sheet-peek-height);
+  padding: 0 var(--sheet-x-padding);
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ui-icon-button {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  min-width: var(--target-min);
+  min-height: var(--target-min);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-m);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.ui-icon-button:hover {
+  background: var(--surface-2-hover);
+}
+
+.ui-icon-button:active {
+  background: var(--surface-2-pressed);
+}
+
+.ui-popover {
+  position: fixed;
+  z-index: var(--z-popover);
+  box-sizing: border-box;
+  max-width: min(var(--popover-max-width), 100%);
+  padding: var(--popover-padding);
+  background: var(--surface);
+  color: var(--text);
+  border: 0.0625rem solid var(--border-strong);
+  border-radius: var(--radius-m);
+  box-shadow: var(--elevation-overlay);
+  font-size: var(--type-small-size);
+  line-height: var(--type-small-line);
+}
+
+.ui-toast-region {
+  position: fixed;
+  z-index: var(--z-toast);
+  left: 0;
+  right: 0;
+  bottom: max(var(--space-4), var(--sai-bottom, 0));
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.ui-toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  box-sizing: border-box;
+  min-height: var(--toast-min-height);
+  padding: var(--toast-y-padding) var(--toast-x-padding);
+  background: var(--toast-bg);
+  color: var(--toast-text);
+  border-radius: var(--radius-m);
+  font-size: var(--type-small-size);
+  line-height: var(--type-small-line);
+  animation: ui-fade-in var(--dur-base) var(--ease-out);
+}
+
+.ui-toast-action {
+  min-height: var(--target-min);
+  padding: 0 var(--button-tertiary-x-padding);
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* Focus is always a 2 px ring with 2 px offset (7.5). */
+.ui-modal :focus-visible,
+.ui-sheet :focus-visible,
+.ui-popover :focus-visible,
+.ui-toast :focus-visible,
+.ui-icon-button:focus-visible,
+.ui-sheet-peek-button:focus-visible {
+  outline: 0.125rem solid var(--focus-ring);
+  outline-offset: 0.125rem;
+}
+
+.ui-modal:focus,
+.ui-sheet:focus,
+.ui-popover:focus {
+  outline: none;
+}
+
+@keyframes ui-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes ui-slide-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes ui-slide-left {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}

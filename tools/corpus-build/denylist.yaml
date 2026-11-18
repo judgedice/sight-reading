@@ -1,0 +1,3 @@
+# Takedowns and known misattributions (03 section 6.2 step 3, 9.1 item 8). Empty at launch.
+# An entry matches on any one of: id (exact candidate id), path_prefix (corpus:relative/path prefix), composer (key).
+denylist: []

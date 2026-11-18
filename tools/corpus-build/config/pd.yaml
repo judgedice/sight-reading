@@ -1,0 +1,28 @@
+# Public-domain rule for v1 (03 section 9.2 and PLAN ruling 28). Recompute each January.
+# A composer passes if the death year is strictly below composer_died_before.
+composer_died_before: 1931
+# Traditional and anonymous pieces: the Mutopia `source` header must name an edition year at or below this.
+edition_year_max: 1930
+# Years outside this range in a `source` header are ignored when looking for an edition year.
+edition_year_plausible_min: 1400
+# composers-extra.yaml entries (03 section 6.2): death year at or below auto_pass_died_max passes with one
+# cited reference; a later death below composer_died_before needs min_refs_later cited references.
+extra:
+  auto_pass_died_max: 1900
+  min_refs_later: 2
+  min_refs_auto: 1
+# Mutopia folders whose pieces have no named composer. Their PD status rests on the edition year.
+anonymous_composer_names:
+  - traditional
+  - anonymous
+  - anon
+  - anon.
+  - unknown
+  - folk
+  - trad.
+anonymous_composer_patterns:
+  - '(?i)\bfolk (song|music|dance|tune)s?\b'
+  - '(?i)\bvolksweise\b'
+  - '(?i)\bhardanger\b'
+  - '(?i)^trad\b'
+  - '(?i)^traditional\b'

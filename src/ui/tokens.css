@@ -156,7 +156,7 @@
   --surface: #FFFFFF;
   --surface-2: #EFEDE6;
   --surface-2-hover: #DEDCD6;
-  --surface-2-pressed: #D1D0CA;
+  --surface-2-pressed: #D6D5CF;
   --border: #D6D3CA;
   --border-strong: #8E8A80;
   --text: #1B1D21;
@@ -196,7 +196,7 @@
   --surface: #1A1D22;
   --surface-2: #22262C;
   --surface-2-hover: #32363B;
-  --surface-2-pressed: #3E4247;
+  --surface-2-pressed: #3A3E43;
   --border: #323840;
   --border-strong: #6B727C;
   --text: #E9EBEE;
@@ -237,7 +237,7 @@
     --surface: #1A1D22;
     --surface-2: #22262C;
     --surface-2-hover: #32363B;
-    --surface-2-pressed: #3E4247;
+    --surface-2-pressed: #3A3E43;
     --border: #323840;
     --border-strong: #6B727C;
     --text: #E9EBEE;

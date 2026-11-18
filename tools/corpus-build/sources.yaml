@@ -1,0 +1,69 @@
+# Pinned upstream sources for the corpus pipeline (03 section 3.2 and 3.3).
+# `id` equals CorpusId in src/core/types.ts. SHAs come from the reachability check in 03 section 3.1.
+# `python -m corpus_build lock` records the SHA-256 of every file used in sources.lock.yaml.
+version: 1
+cache_env: SIGHT_READING_CORPUS_CACHE
+cache_default: ~/.cache/sight-reading-corpus
+sources:
+  - id: openscore-lieder
+    name: OpenScore Lieder
+    url: https://github.com/OpenScore/Lieder
+    sha: 38c5db510224d9facdc4b08d741fc788cfb58ea8
+    sparse_mode: no-cone
+    sparse_paths:
+      - /scores/**/*.mxl
+      - /data/*.yaml
+      - /LICENSE.txt
+    score_glob: scores/**/*.mxl
+    metadata_files:
+      - data/composers.yaml
+      - data/scores.yaml
+    licence_policy:
+      kind: repository
+      licence: CC0-1.0
+      evidence_file: LICENSE.txt
+      evidence_text: CC0 1.0 Universal
+    composer_metadata: data/composers.yaml
+    part_selection: voice part only (name matches the voice pattern in 03 section 6.5)
+    dedupe_priority: 1
+  - id: openscore-quartets
+    name: OpenScore String Quartets
+    url: https://github.com/OpenScore/StringQuartets
+    sha: 2614b0b2958dd1ce3f52e172a43e5f4d0e29570f
+    sparse_mode: no-cone
+    sparse_paths:
+      - /scores/**/*.mxl
+      - /data/*.yaml
+      - /LICENSE.txt
+    score_glob: scores/**/*.mxl
+    metadata_files:
+      - data/composers.yaml
+      - data/scores.yaml
+    licence_policy:
+      kind: repository
+      licence: CC0-1.0
+      evidence_file: LICENSE.txt
+      evidence_text: CC0 1.0 Universal
+    composer_metadata: data/composers.yaml
+    part_selection: all four parts, labelled vn1, inner or cello (03 section 6.5)
+    dedupe_priority: 2
+  - id: mutopia
+    name: Mutopia Project
+    url: https://github.com/MutopiaProject/MutopiaProject
+    sha: 2144afd6f52d56c5b6995b8b589ef1268b3139f0
+    sparse_mode: cone
+    sparse_paths:
+      - ftp/Traditional
+      - ftp/Anonymous
+      - ftp/MasonL
+    score_glob: ftp/**/*.ly
+    metadata_files: []
+    licence_policy:
+      kind: file-header
+      fields:
+        - license
+        - copyright
+    composer_metadata: null
+    part_selection: single melodic line, or the soprano of an SATB hymn (non-blocking, job C3b)
+    dedupe_priority: 3
+    optional: true

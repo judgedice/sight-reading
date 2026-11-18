@@ -1,0 +1,124 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sight-reading.local/tools/corpus-build/schemas/candidate.schema.json",
+  "title": "Corpus pipeline candidate record",
+  "description": "One line of a stage's JSON Lines output in build/<stage>/ (03 section 6, Interchange). Every stage writes one record per unit it examined, passed or rejected, and every rejection carries a reason. Nothing is dropped silently. The envelope is shared by all stages. Stage-specific fields are allowed (additionalProperties) and are documented per kind below. Records are written with sorted keys, one per line, in a stable order, so a rerun is byte-identical.",
+  "type": "object",
+  "required": ["schemaVersion", "stage", "kind", "id", "corpus", "status"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "stage": {
+      "description": "The stage that wrote this record.",
+      "enum": ["fetch", "gate", "read", "normalize", "extract", "windows", "rules", "augment", "features", "filters", "dedupe", "review", "emit"]
+    },
+    "kind": {
+      "description": "file: one upstream score file (stages fetch, gate). part: one melodic part of a file (read to extract). window: one proposed excerpt (windows onward).",
+      "enum": ["file", "part", "window"]
+    },
+    "id": {
+      "description": "Stable id. file: '<corpus>:<path relative to the repo root>'. part: '<file id>#<partIndex>'. window: '<part id>@<startMeasure>-<endMeasure>', with suffix '-aug2' for augmented variants.",
+      "type": "string",
+      "minLength": 1
+    },
+    "parentId": { "description": "Id of the record this one derives from (part to file, window to part, augmented variant to original).", "type": "string" },
+    "corpus": { "enum": ["openscore-lieder", "openscore-quartets", "mutopia"] },
+    "status": { "enum": ["pass", "reject", "flag"] },
+    "reason": {
+      "description": "Machine-readable rejection code. Required when status is reject. Codes for the gate stage are listed in $defs.gateReason; later stages add their own, in kebab-case.",
+      "type": "string",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+    },
+    "detail": { "description": "Human-readable explanation for a rejection or a flag.", "type": "string" },
+    "tags": { "description": "Window tags such as grace-removed, ornament-removed, fermata-removed, final-bar-completed.", "type": "array", "items": { "type": "string" }, "uniqueItems": true }
+  },
+  "allOf": [
+    { "if": { "properties": { "status": { "const": "reject" } }, "required": ["status"] }, "then": { "required": ["reason"] } },
+    { "if": { "properties": { "kind": { "const": "file" } }, "required": ["kind"] }, "then": { "$ref": "#/$defs/fileRecord" } },
+    { "if": { "properties": { "kind": { "const": "part" } }, "required": ["kind"] }, "then": { "required": ["parentId"] } },
+    { "if": { "properties": { "kind": { "const": "window" } }, "required": ["kind"] }, "then": { "required": ["parentId"] } },
+    { "if": { "properties": { "stage": { "const": "gate" } }, "required": ["stage"] }, "then": { "properties": { "reason": { "$ref": "#/$defs/gateReason" } } } }
+  ],
+  "additionalProperties": true,
+  "$defs": {
+    "gateReason": {
+      "enum": [
+        "licence-not-allowed",
+        "licence-unrecognised",
+        "licence-ambiguous",
+        "licence-evidence-missing",
+        "file-not-in-lock",
+        "file-hash-mismatch",
+        "composer-not-in-metadata",
+        "composer-death-unknown",
+        "composer-not-public-domain",
+        "arranger-unverified",
+        "arranger-not-public-domain",
+        "edition-year-missing",
+        "edition-year-too-late",
+        "extra-entry-missing-references",
+        "denylisted"
+      ]
+    },
+    "sha256": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "fileRecord": {
+      "description": "Fields of a kind=file record. Written by stage fetch (path, sha256, upstream) and extended by stage gate (licence, composer, pd). Later stages read these records to find the files that passed.",
+      "required": ["path", "sha256", "upstream"],
+      "properties": {
+        "path": { "description": "Path relative to the repository root, forward slashes.", "type": "string" },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "upstream": { "description": "repo@sha:path (03 section 6.11).", "type": "string", "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+@[0-9a-f]{40}:.+$" },
+        "licence": {
+          "description": "Gate stage only. Present on every record, so a rejected record still says what was found.",
+          "type": "object",
+          "required": ["id", "evidence"],
+          "properties": {
+            "id": { "description": "PD, CC0-1.0 or CC-BY-4.0 when recognised; the raw header text (collapsed, at most 200 characters) or null otherwise.", "type": ["string", "null"] },
+            "allowed": { "type": "boolean" },
+            "url": { "type": ["string", "null"] },
+            "evidence": {
+              "type": "object",
+              "required": ["kind"],
+              "properties": {
+                "kind": { "enum": ["repository-licence-file", "file-header"] },
+                "file": { "type": "string" },
+                "sha256": { "$ref": "#/$defs/sha256" },
+                "field": { "type": "string" },
+                "text": { "type": "string" }
+              }
+            }
+          }
+        },
+        "composer": {
+          "description": "Gate stage only. Who the piece is by, and where the death year came from.",
+          "type": "object",
+          "required": ["key", "name", "died", "source"],
+          "properties": {
+            "key": { "type": "string" },
+            "name": { "type": "string" },
+            "born": { "type": ["integer", "null"] },
+            "died": { "type": ["integer", "null"] },
+            "source": { "enum": ["openscore-composers", "composers-extra", "anonymous", "none"] },
+            "references": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "pd": {
+          "description": "Gate stage only. The public-domain decision. basis says which clause of 03 section 6.2 step 2 decided it.",
+          "type": "object",
+          "required": ["passed", "basis", "cutoff"],
+          "properties": {
+            "passed": { "type": "boolean" },
+            "basis": { "enum": ["composer-death", "composer-extra", "edition-year", "none"] },
+            "cutoff": { "description": "composer_died_before, or edition_year_max for the edition-year basis.", "type": "integer" },
+            "editionYear": { "type": ["integer", "null"] },
+            "arrangers": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "meta": {
+          "description": "Gate stage only. Header facts later stages need for attribution (03 section 6.11). Keys are free-form strings.",
+          "type": "object",
+          "additionalProperties": { "type": ["string", "null"] }
+        }
+      }
+    }
+  }
+}

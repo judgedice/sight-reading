@@ -1,0 +1,342 @@
+{
+  "format": "sightread-export",
+  "version": 0,
+  "exportedAt": "2025-12-01T00:00:00.000Z",
+  "appVersion": "0.0.0-pre",
+  "profile": {
+    "schemaVersion": 1,
+    "id": "11111111-1111-4111-8111-111111111111",
+    "displayName": "Player",
+    "createdAt": "2026-01-01T00:00:00.000Z",
+    "xp": 120,
+    "rank": 1,
+    "streak": {
+      "days": 2,
+      "lastDay": "2026-01-02"
+    },
+    "daily": {
+      "day": "2026-01-02",
+      "rankedCount": 1,
+      "attemptCount": 2,
+      "repeats": {
+        "ex-1": 1
+      }
+    },
+    "instruments": {
+      "flute": {
+        "level": 2,
+        "window": [],
+        "attemptsRanked": 3,
+        "bestByLevel": {
+          "1": 88
+        },
+        "patternCounts": {
+          "E1": 2
+        },
+        "recentPrimaryPatterns": [
+          "E1"
+        ],
+        "tuningOffsetCents": null,
+        "offerSuppressedUntil": null,
+        "pendingOffer": null,
+        "autoLevelUpUndo": null,
+        "autoRun": {
+          "count": 0,
+          "atMidTempo": 0
+        },
+        "placement": null
+      }
+    },
+    "seenGroups": {
+      "grp-1": "2026-01-02T10:00:00.000Z"
+    },
+    "recentTips": [
+      "tip-a"
+    ],
+    "rankedIndex": 3,
+    "lastSkipRankedIndex": null,
+    "activeInstrumentId": "flute",
+    "configVersion": "cfg-1"
+  },
+  "attempts": [
+    {
+      "schemaVersion": 1,
+      "id": "00000000-0000-4000-8000-000000000001",
+      "profileId": "11111111-1111-4111-8111-111111111111",
+      "createdAt": "2026-02-01T10:00:01.000Z",
+      "appVersion": "0.0.0",
+      "configVersion": "cfg-1",
+      "corpusVersion": "c-1",
+      "coreVersion": "core-1",
+      "excerptId": "ex-1",
+      "dedupeGroup": "grp-1",
+      "instrumentId": "violin",
+      "beta": false,
+      "levelServed": 2,
+      "stretch": false,
+      "placement": false,
+      "settingsResolved": {
+        "instrumentId": "flute",
+        "level": 1,
+        "writtenKey": {
+          "fifths": 0,
+          "mode": "major"
+        },
+        "meter": "4/4",
+        "bpm": 72,
+        "bars": 8,
+        "mode": "ranked",
+        "listening": true,
+        "metronome": "audible",
+        "clickTimbre": "tick",
+        "outputMode": "speakers",
+        "a4Hz": 440,
+        "seed": 1
+      },
+      "transposition": {
+        "diatonic": 0,
+        "chromatic": 0
+      },
+      "writtenKey": {
+        "fifths": 0,
+        "mode": "major"
+      },
+      "concertKey": {
+        "fifths": 0,
+        "mode": "major"
+      },
+      "clef": "treble",
+      "bpm": 72,
+      "scanSeconds": 20,
+      "listening": true,
+      "calibration": {
+        "method": "loopback",
+        "latencyCompensationMs": 40,
+        "outputMode": "speakers",
+        "recheck": null
+      },
+      "tuning": null,
+      "audioEnv": {
+        "platform": "web",
+        "osFamily": "other",
+        "displayMode": "browser",
+        "appBuild": "0.0.0",
+        "coreVersion": "core-1",
+        "inputPath": "mic",
+        "metronomeMode": "audible",
+        "clickTimbre": "tick",
+        "outputMode": "speakers",
+        "route": {
+          "inputKind": "built-in",
+          "sampleRate": 48000,
+          "appliedProcessing": {
+            "echoCancellation": false,
+            "noiseSuppression": false,
+            "autoGainControl": false
+          }
+        },
+        "contextSampleRate": 48000,
+        "contextRecreated": false,
+        "clockRateError": null,
+        "audioSessionType": null,
+        "latencyCompensationMs": 40,
+        "calibrationMethod": "loopback",
+        "captureRelay": false,
+        "droppedBlocks": 0,
+        "maxQueueMs": 10,
+        "dspHopP95Ms": 1.5,
+        "gateFailures": []
+      },
+      "detected": [],
+      "judgments": [],
+      "extras": [],
+      "displaced": [],
+      "score": null,
+      "endReason": "stopped",
+      "excerptBurned": true,
+      "credit": {
+        "composer": "Composer",
+        "work": "Work 1",
+        "sourceMeasures": [
+          1,
+          8
+        ],
+        "corpus": "openscore-lieder",
+        "license": "CC0-1.0"
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "id": "00000000-0000-4000-8000-000000000002",
+      "profileId": "11111111-1111-4111-8111-111111111111",
+      "createdAt": "2026-02-01T10:00:02.000Z",
+      "appVersion": "0.0.0",
+      "configVersion": "cfg-1",
+      "corpusVersion": "c-1",
+      "coreVersion": "core-1",
+      "excerptId": "ex-2",
+      "dedupeGroup": "grp-2",
+      "instrumentId": "flute",
+      "beta": false,
+      "levelServed": 3,
+      "stretch": false,
+      "placement": false,
+      "settingsResolved": {
+        "instrumentId": "flute",
+        "level": 1,
+        "writtenKey": {
+          "fifths": 0,
+          "mode": "major"
+        },
+        "meter": "4/4",
+        "bpm": 72,
+        "bars": 8,
+        "mode": "ranked",
+        "listening": true,
+        "metronome": "audible",
+        "clickTimbre": "tick",
+        "outputMode": "speakers",
+        "a4Hz": 440,
+        "seed": 2
+      },
+      "transposition": {
+        "diatonic": 0,
+        "chromatic": 0
+      },
+      "writtenKey": {
+        "fifths": 0,
+        "mode": "major"
+      },
+      "concertKey": {
+        "fifths": 0,
+        "mode": "major"
+      },
+      "clef": "treble",
+      "bpm": 72,
+      "scanSeconds": 20,
+      "listening": true,
+      "calibration": {
+        "method": "loopback",
+        "latencyCompensationMs": 40,
+        "outputMode": "speakers",
+        "recheck": null
+      },
+      "tuning": null,
+      "audioEnv": {
+        "platform": "web",
+        "osFamily": "other",
+        "displayMode": "browser",
+        "appBuild": "0.0.0",
+        "coreVersion": "core-1",
+        "inputPath": "mic",
+        "metronomeMode": "audible",
+        "clickTimbre": "tick",
+        "outputMode": "speakers",
+        "route": {
+          "inputKind": "built-in",
+          "sampleRate": 48000,
+          "appliedProcessing": {
+            "echoCancellation": false,
+            "noiseSuppression": false,
+            "autoGainControl": false
+          }
+        },
+        "contextSampleRate": 48000,
+        "contextRecreated": false,
+        "clockRateError": null,
+        "audioSessionType": null,
+        "latencyCompensationMs": 40,
+        "calibrationMethod": "loopback",
+        "captureRelay": false,
+        "droppedBlocks": 0,
+        "maxQueueMs": 10,
+        "dspHopP95Ms": 1.5,
+        "gateFailures": []
+      },
+      "detected": [],
+      "judgments": [],
+      "extras": [],
+      "displaced": [],
+      "score": null,
+      "endReason": "stopped",
+      "excerptBurned": true,
+      "credit": {
+        "composer": "Composer",
+        "work": "Work 2",
+        "sourceMeasures": [
+          1,
+          8
+        ],
+        "corpus": "openscore-lieder",
+        "license": "CC0-1.0"
+      }
+    }
+  ],
+  "calibrations": [
+    {
+      "routeKey": "built-in|speakers",
+      "platform": "web",
+      "outputMode": "speakers",
+      "method": "loopback",
+      "roundTripMs": 80,
+      "spreadMs": 2,
+      "clicksDetected": 8,
+      "clickLeakDb": -40,
+      "noiseFloorDb": -70,
+      "templates": {
+        "tick": {
+          "rate": 16000,
+          "samples": [
+            0,
+            0.5,
+            -0.5,
+            0
+          ]
+        }
+      },
+      "sanityToneCents": null,
+      "aecSuspected": false,
+      "clockRateError": null,
+      "measuredAt": "2026-01-01T00:00:00.000Z",
+      "stale": false
+    }
+  ],
+  "settings": {
+    "schemaVersion": 1,
+    "practice": {
+      "instrumentId": "flute",
+      "level": 1,
+      "writtenKey": "random",
+      "meter": "random",
+      "bpm": "random",
+      "bars": "random",
+      "mode": "ranked",
+      "listening": true,
+      "metronome": "audible",
+      "clickTimbre": "tick",
+      "outputMode": "speakers",
+      "a4Hz": 440
+    },
+    "audio": {
+      "inputDeviceId": null,
+      "metronomeVolume": 70
+    },
+    "display": {
+      "theme": "system",
+      "liveFeedback": "full",
+      "showCentsMs": true
+    },
+    "practicePrefs": {
+      "showStars": true,
+      "showTips": true,
+      "showBeta": false
+    },
+    "accessibility": {
+      "reduceMotion": "system",
+      "highContrast": false,
+      "keyboardShortcuts": true,
+      "announceResults": true
+    },
+    "onboardingDone": false
+  }
+}

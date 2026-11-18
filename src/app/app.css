@@ -1,0 +1,229 @@
+/* App shell: app bar, tab bar, skip link, main column (04 section 3.2, 4.1). Tokens only. */
+
+:root {
+  --sai-top: var(--test-sai-top, env(safe-area-inset-top, 0));
+  --sai-right: var(--test-sai-right, env(safe-area-inset-right, 0));
+  --sai-bottom: var(--test-sai-bottom, env(safe-area-inset-bottom, 0));
+  --sai-left: var(--test-sai-left, env(safe-area-inset-left, 0));
+  --page-margin: var(--space-4);
+  --tabbar-height: 3.5rem;
+}
+
+@media (min-width: 48em) {
+  :root {
+    --page-margin: var(--space-5);
+  }
+}
+
+@media (min-width: 64em) {
+  :root {
+    --page-margin: var(--space-6);
+  }
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+}
+
+body {
+  min-height: 100svh;
+}
+
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+}
+
+.app-bar {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky);
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--sai-top) max(var(--page-margin), var(--sai-right)) 0 max(var(--page-margin), var(--sai-left));
+  min-height: 3.5rem;
+  background: var(--surface);
+  border-bottom: 0.0625rem solid var(--border);
+}
+
+.app-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--target-min);
+  color: var(--text);
+  font-size: var(--type-h3-size);
+  font-weight: var(--type-h3-weight);
+  text-decoration: none;
+}
+
+.app-beta {
+  padding: 0 var(--space-2);
+  border: 0.0625rem solid var(--border-strong);
+  border-radius: var(--radius-s);
+  font-size: var(--type-caption-size);
+  font-weight: var(--type-caption-weight);
+  color: var(--text-muted);
+}
+
+.app-tabs {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.app-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--button-default-height);
+  min-width: var(--target-min);
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-m);
+  color: var(--text-muted);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.app-tab:hover {
+  background: var(--surface-2-hover);
+}
+
+.app-tab:active {
+  background: var(--surface-2-pressed);
+}
+
+.app-tab[aria-current='page'] {
+  color: var(--text);
+  box-shadow: inset 0 -0.1875rem 0 var(--accent);
+}
+
+.app-gear {
+  display: inline-grid;
+  place-items: center;
+  min-width: var(--button-default-height);
+  min-height: var(--button-default-height);
+  margin-left: auto;
+  border-radius: var(--radius-m);
+  color: var(--text);
+}
+
+.app-gear:hover {
+  background: var(--surface-2-hover);
+}
+
+.app-gear:active {
+  background: var(--surface-2-pressed);
+}
+
+.app-gear[aria-current='page'] {
+  box-shadow: inset 0 -0.1875rem 0 var(--accent);
+}
+
+/* Centre tabs from lg up, and in landscape from sm up; otherwise a bottom tab bar (xs, sm portrait). */
+@media (min-width: 64em), (min-width: 35.5em) and (orientation: landscape) {
+  .app-tabs {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+}
+
+@media (max-width: 63.99em) and (orientation: portrait), (max-width: 35.49em) {
+  .app-tabs {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: var(--z-sticky);
+    justify-content: space-around;
+    gap: 0;
+    padding: 0 var(--sai-right) var(--sai-bottom) var(--sai-left);
+    background: var(--surface);
+    border-top: 0.0625rem solid var(--border);
+  }
+
+  .app-tab {
+    flex: 1;
+    min-height: var(--tabbar-height);
+    border-radius: 0;
+  }
+
+  .app-shell[data-chrome='full'] .app-main {
+    padding-bottom: calc(var(--tabbar-height) + var(--sai-bottom));
+  }
+}
+
+.app-main {
+  flex: 1;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 70rem;
+  margin: 0 auto;
+  padding: var(--space-5) max(var(--page-margin), var(--sai-right)) var(--space-5) max(var(--page-margin), var(--sai-left));
+  scroll-padding-top: 4rem;
+}
+
+.app-shell[data-chrome='none'] .app-main {
+  max-width: none;
+  padding: 0;
+}
+
+.app-main:focus {
+  outline: none;
+}
+
+.app-main h1 {
+  margin: 0 0 var(--space-3);
+  font-size: var(--type-h1-size);
+  line-height: var(--type-h1-line);
+  font-weight: var(--type-h1-weight);
+}
+
+.app-skip-link {
+  position: absolute;
+  left: var(--space-2);
+  top: var(--space-2);
+  z-index: var(--z-toast);
+  padding: var(--space-2) var(--space-4);
+  border: 0.0625rem solid var(--border-strong);
+  border-radius: var(--radius-m);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+  transform: translateY(-300%);
+}
+
+.app-skip-link:focus {
+  transform: none;
+}
+
+.app-dev-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.app-shell a:focus-visible,
+.app-shell button:focus-visible,
+.app-main:focus-visible {
+  outline: 0.125rem solid var(--focus-ring);
+  outline-offset: 0.125rem;
+}
+
+@media (forced-colors: active) {
+  .app-tab[aria-current='page'],
+  .app-gear[aria-current='page'] {
+    box-shadow: none;
+    border-bottom: 0.1875rem solid Highlight;
+  }
+}

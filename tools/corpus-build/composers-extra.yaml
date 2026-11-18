@@ -1,0 +1,17 @@
+# Composers and arrangers missing from OpenScore's data/composers.yaml (03 section 6.2 step 2).
+# Each entry must cite references. died <= config/pd.yaml extra.auto_pass_died_max passes with one reference;
+# a later death before the PD cutoff needs two. No entry is added without a citation. No human adds rows (R3).
+# Keys are normalised composer names (lower case, no punctuation); `aliases` lists header spellings.
+composers:
+  - key: mason_lowell
+    name: Lowell Mason
+    born: 1792
+    died: 1872
+    aliases:
+      - MasonL
+      - Mason, Lowell
+      - Lowell Mason
+      - L. Mason
+    references:
+      - https://en.wikipedia.org/wiki/Lowell_Mason
+      - https://imslp.org/wiki/Category:Mason,_Lowell

@@ -1,0 +1,36 @@
+# Licence allowlist and the exact Mutopia header table (03 section 6.2 step 1, 9.3).
+# Ids are the values of `licence` on an excerpt (src/core/types.ts).
+allowlist:
+  - PD
+  - CC0-1.0
+  - CC-BY-4.0
+urls:
+  PD: https://creativecommons.org/publicdomain/mark/1.0/
+  CC0-1.0: https://creativecommons.org/publicdomain/zero/1.0/
+  CC-BY-4.0: https://creativecommons.org/licenses/by/4.0/
+# Mutopia: a header field that is a plain string is matched after lower-casing and collapsing whitespace.
+# Anything not in this table rejects the file (BY-SA, BY 2.5, BY 3.0, MutopiaBSD, unknown).
+mutopia_exact:
+  "public domain": PD
+  "creative commons attribution 4.0": CC-BY-4.0
+  "creative commons attribution 4.0 international": CC-BY-4.0
+  "creative commons attribution 4.0 international license": CC-BY-4.0
+# Mutopia: a header field that is a LilyPond \markup is matched on the URLs and phrases it contains.
+# Exactly one family must match, or the file is rejected as ambiguous.
+mutopia_markup:
+  PD:
+    - 'creativecommons\.org/licenses/publicdomain'
+    - 'creativecommons\.org/publicdomain'
+    - '(?i)placed in the\s+"?\s*public domain'
+  CC-BY-4.0:
+    - 'creativecommons\.org/licenses/by/4\.0'
+  # Families that always reject. Checked first so that "by-sa/4.0" never matches the by/4.0 pattern.
+  rejected:
+    - 'creativecommons\.org/licenses/by-sa/'
+    - 'creativecommons\.org/licenses/by/(2\.[05]|3\.0)'
+    - '(?i)share-?alike'
+    - '(?i)attribution 2\.[05]'
+    - '(?i)attribution 3\.0'
+    - '(?i)non-?commercial'
+    - '(?i)no-?derivs?'
+    - '(?i)\bgpl\b'

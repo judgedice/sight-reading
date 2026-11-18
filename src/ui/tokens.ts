@@ -22,8 +22,8 @@ export const tokens = {
         "dark": "#32363B"
       },
       "surface-2-pressed": {
-        "light": "#D1D0CA",
-        "dark": "#3E4247"
+        "light": "#D6D5CF",
+        "dark": "#3A3E43"
       },
       "border": {
         "light": "#D6D3CA",
@@ -218,6 +218,18 @@ export const tokens = {
         "id": "text-muted-on-surface-2",
         "fg": "text-muted",
         "bg": "surface-2",
+        "min": 4.5
+      },
+      {
+        "id": "text-on-surface-2-pressed",
+        "fg": "text",
+        "bg": "surface-2-pressed",
+        "min": 4.5
+      },
+      {
+        "id": "text-muted-on-surface-2-pressed",
+        "fg": "text-muted",
+        "bg": "surface-2-pressed",
         "min": 4.5
       },
       {
