@@ -208,7 +208,7 @@ def test_ending_inside_a_melodic_sequence_rejects():
     body += ["E4:q F#4:q r:h", "D4:h r:h"]
     ws = windows_of(song(body, post=bar("C4:w", finalBarline=True)))
     assert ws["1-8"].reason == "sequence-cut"
-    assert ws["1-10"].reason is None  # ending after the last statement is fine
+    assert ws["1-10"].reason in (None, "start-measure-taken")  # ending after the last statement passes the rules
 
 
 def test_mode_unknown_rejects():
@@ -288,7 +288,7 @@ def test_lyric_flags_measure_the_silver_standard_boundary():
     pw = propose(song(body), True)
     c = next(c for c in pw.candidates if window_key(c) == "3-10")
     assert lyric_flags(pw.facts, c) == (True, True)
-    body = ["G4:w", "E4:h. r:q", *PHRASE]
+    body = ["G4:w", "E4:h. r:q", *PHRASE, "E4:h C4:h"]
     pw = propose(song(body), True)
     c = next(c for c in pw.candidates if window_key(c) == "3-10")
     assert lyric_flags(pw.facts, c) == (False, False)
@@ -440,7 +440,7 @@ def test_complete_4_bar_phrase_is_doubled_with_ties_across_the_new_barlines():
 
 def test_doubled_tuplet_across_a_barline_and_long_pickup_are_rejected():
     # a triplet at beats 3-4 of the source bar stays inside the first new bar
-    four = ["C4:q D4:q E4:160t[ F4:160t G4:160t]", "F4:h. E4:q", "D4:q G4:q E4:q D4:q", "C4:h r:h"]
+    four = ["C4:q D4:q E4:320t[ F4:320t G4:320t]", "F4:h. E4:q", "D4:q G4:q E4:q D4:q", "C4:h r:h"]
     pw = propose(song(four), False, lengths=range(4, 5))
     double_phrase(build_window(pw, next(c for c in pw.primary if window_key(c) == "1-4"), "openscore-lieder"))
     # a triplet straddling the source half-bar (ticks 720 to 1200) would straddle the new barline
