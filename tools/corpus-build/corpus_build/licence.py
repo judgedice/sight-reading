@@ -152,7 +152,7 @@ def _read_value(s: str, i: int) -> tuple[HeaderValue, int]:
             raw, j = _read_string(s, j)
         else:
             raw = s[start:j]
-        return HeaderValue("markup", s[start:j] if raw is None else raw), j
+        return HeaderValue("markup", raw), j
     j = i
     while j < len(s) and s[j] not in " \t\r\n}":
         j += 1
@@ -188,11 +188,6 @@ def parse_ly_header(text: str) -> LyHeader:
                 i = im.end()
         pos = depth_end
     return h
-
-
-def markup_text(raw: str) -> str:
-    """All text a markup shows or links to: the string literals plus the raw text (for URLs inside \\with-url #"...")."""
-    return raw
 
 
 # ----------------------------------------------------------------------------------------------
@@ -284,7 +279,7 @@ def repository_licence(src_licence: str, evidence_ok: bool, cfg: LicenceConfig, 
 
 def licence_block(res: LicenceResult, cfg: LicenceConfig, evidence: dict[str, Any]) -> dict[str, Any]:
     return {
-        "id": res.id if res.id else (collapse(res.evidence_text, 200) if res.evidence_text else None),
+        "id": res.id,
         "allowed": res.allowed,
         "url": cfg.urls.get(res.id) if res.id else None,
         "evidence": evidence,

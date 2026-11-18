@@ -72,7 +72,7 @@
           "type": "object",
           "required": ["id", "evidence"],
           "properties": {
-            "id": { "description": "PD, CC0-1.0 or CC-BY-4.0 when recognised; the raw header text (collapsed, at most 200 characters) or null otherwise.", "type": ["string", "null"] },
+            "id": { "description": "PD, CC0-1.0 or CC-BY-4.0 when recognised, null otherwise (the raw header text is in evidence.text).", "type": ["string", "null"] },
             "allowed": { "type": "boolean" },
             "url": { "type": ["string", "null"] },
             "evidence": {
