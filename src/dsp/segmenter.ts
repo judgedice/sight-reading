@@ -171,6 +171,13 @@ const AM_EXCLUDE_AFTER_SEC = 0.02;
 /** Envelope smoothing for dips: whole periods, at least this long (and at most SMOOTH_MAX_SEC). */
 const SMOOTH_MIN_SEC = 0.004;
 const SMOOTH_MAX_SEC = 0.02;
+/**
+ * Noise band of a floor trough (`riseStart`): the NOISE_SPREAD_Q quantile of the noise envelope above the floor (at
+ * most NOISE_SPREAD_MAX_DB), plus NOISE_BAND_MARGIN_DB.
+ */
+const NOISE_SPREAD_Q = 0.95;
+const NOISE_SPREAD_MAX_DB = 6;
+const NOISE_BAND_MARGIN_DB = 1;
 /** Cumulative-energy ring: about 4 s at 16 kHz. */
 const CUM_RING = 1 << 16;
 
@@ -291,6 +298,8 @@ export class Segmenter {
   private noiseHead = 0;
   private noiseSince = 0;
   private noiseFloorDb = ENV_FLOOR_DB;
+  /** Spread of the noise envelope above the floor (NOISE_SPREAD_Q quantile minus the floor), dB. */
+  private noiseSpreadDb = 0;
 
   // dip tracker
   private trkIdx = 0;
@@ -336,7 +345,8 @@ export class Segmenter {
     this.clickArr = Float64Array.from(arr);
     this.leakEnv = new Float64Array(arr.length).fill(NaN);
     this.leakFrame = new Float64Array(arr.length).fill(NaN);
-    this.tol = o.changeCents / 100;
+    const E = (globalThis as any).process?.env ?? {}; // TEMPDBG
+    this.tol = (o.onsetProfile === 'voice' && E.VOICE_TOL ? Number(E.VOICE_TOL) : o.changeCents) / 100;
     this.soft = o.onsetProfile === 'voice' || o.onsetProfile === 'bowed';
     this.noiseRing = new Float64Array(256);
   }
@@ -480,6 +490,7 @@ export class Segmenter {
     const out: DspEvent[] = [];
     const voiced = sf.midi !== null && sf.clarity >= this.o.clarityThreshold && sf.rmsDb >= this.gateDb;
     const f: Fr = { ...sf, voiced };
+    (globalThis as any).__segTrace?.(f, this); // TEMPDBG
     this.lastFrameT = f.t;
     this.recent.push(f);
     if (this.recent.length > 128) this.recent.splice(0, 64);
@@ -558,7 +569,7 @@ export class Segmenter {
       this.split(p.dip.tOn, p.flux ? 'flux' : null, moved, out, p.dip);
       return;
     }
-    const med = this.noteMedian(cur);
+    const med = this.changeRef(cur, f.t);
     if (Math.abs((f.midi as number) - med) >= this.tol) {
       this.addStable(this.pitchCand, f);
       if (this.pitchCand.length >= this.o.changeConfirmFrames) {
@@ -593,6 +604,17 @@ export class Segmenter {
     cur.frames.push(f);
     cur.lastVoicedT = f.t;
     this.maybeUpdate(cur, out);
+  }
+
+  private changeRef(cur: Note, now: number): number {
+    const E = (globalThis as any).process?.env ?? {}; // TEMPDBG
+    const lag = Number(E.REF_LAG ?? -1);
+    if (lag < 0) return this.noteMedian(cur);
+    const before = cur.frames.filter((x) => x.t <= now - lag);
+    if (before.length === 0) return this.noteMedian(cur);
+    const steady = before.filter((x) => x.t >= cur.onset + this.o.attackExcludeSec);
+    const use = steady.length >= Number(E.REF_MIN ?? 3) ? steady : before;
+    return median(use.map((x) => x.midi as number));
   }
 
   /**
@@ -783,11 +805,17 @@ export class Segmenter {
     return this.attackOnset(i, clamp) ?? fallback;
   }
 
-  /** Last index of the trough that starts at `iMin` (a floor plateau ends where the rise begins). */
+  /**
+   * Last index of the trough that starts at `iMin` (a floor plateau ends where the rise begins). When the floor is the
+   * measured noise floor, the plateau is the noise band (the floor's measured spread, `noiseSpreadDb`), not 1 dB above
+   * the trough's lowest point: in a noisy gap the lowest point is a noise trough, and a later wiggle of the noise is
+   * not the attack (a damped piano gap under a -50 dBFS floor would otherwise start its attack inside the gap).
+   */
   private riseStart(iMin: number, len: number, clamp: number): number {
     const base = Math.max(clamp, this.smoothDb(iMin, len));
+    const top = clamp <= this.noiseFloorDb ? Math.max(base + 1, clamp + this.noiseSpreadDb + NOISE_BAND_MARGIN_DB) : base + 1;
     let i = iMin;
-    while (i + 1 < this.envLen && Math.max(clamp, this.smoothDb(i + 1, len)) <= base + 1) i++;
+    while (i + 1 < this.envLen && Math.max(clamp, this.smoothDb(i + 1, len)) <= top) i++;
     return i;
   }
 
@@ -863,6 +891,7 @@ export class Segmenter {
     }
     if (iMin < 0) return null;
     const clamp = this.clampDb(iMin);
+    (globalThis as any).__segTrace2?.({ ref, iA: this.envT(iA), iB: this.envT(iB), iMin: this.envT(iMin), minV, clamp, noise: this.noiseFloorDb, envEnd: this.envT(this.envLen - 1), fa: this.floorAttack(iMin, iB, len, clamp), env: Array.from({length: iB - iA + 1}, (_, k) => [this.envT(iA + k).toFixed(3), this.smoothDb(iA + k, len).toFixed(1), (this.envDb[iA + k] as number).toFixed(1)].join(' ')) }); // TEMPDBG
     if (Math.max(clamp, minV) <= clamp + NEAR_FLOOR_DB) return this.floorAttack(iMin, iB, len, clamp)?.t ?? null;
     const i0 = Math.max(iA, iMin - Math.round(DIP_SIDE_SEC / this.envHop));
     const ser = this.series(i0, iB, len, clamp);
@@ -1372,6 +1401,7 @@ export class Segmenter {
       this.noiseSince = 0;
       const s = Float64Array.from(this.noiseRing.subarray(0, this.noiseCount)).sort();
       this.noiseFloorDb = s[Math.floor(0.2 * (s.length - 1))] as number;
+      this.noiseSpreadDb = Math.min(NOISE_SPREAD_MAX_DB, (s[Math.floor(NOISE_SPREAD_Q * (s.length - 1))] as number) - this.noiseFloorDb);
     }
   }
 
