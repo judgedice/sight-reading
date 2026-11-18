@@ -7,20 +7,18 @@
  *    setting never produces an empty pool that another value would fill.
  * 2. Build the candidate pool from the manifest: intrinsic level L, L − 1 and stretch (exactly one feature at L + 1);
  *    filters of 03 §7.2 and 02 §2.6; range fit (03 §7.3) per allowed written key; tempo clipping (03 §7.5 rule 5).
+ *    Each fitting written key is checked against the spelling rule (03 §7.5 rule 3) from the manifest's `spelling`
+ *    column; a random key that fails is retried once with its enharmonic, a chosen key that fails is dropped (R1).
+ *    Tempo clipping uses the manifest's `peakNotesPerBeat` (PLAN ruling 44), so the manifest alone decides
+ *    eligibility exactly and `prepareExcerpt` on the chosen doc does not throw for a consistent corpus.
  * 3. Draw a pool (level / below / stretch) with the configured shares, then a weighted excerpt (fit margin, bar-count
  *    preference, variety by `work`, unseen first in practice), then for a random key a weighted written key
  *    (02 §2.6 rule 6).
- * 4. When the excerpt's doc is available through `opts.doc`, check the spelling (03 §7.5 rule 3) and retry
- *    enharmonically for a random key; a failing (excerpt, key) moves on to the next candidate.
- *
- * Without the doc the spelling is checked by `prepareExcerpt`, which throws `TranspositionError`; use
- * `selectAndPrepare`, which loads the doc, caches it and selects again, so its result always satisfies 03 §11 item 6.
  */
 import type { CorpusApi, SelectExcerptResult } from '../../core/api.ts';
 import type {
   Configs,
   CorpusManifest,
-  ExcerptDoc,
   FeatureKey,
   Instrument,
   KeySig,
@@ -35,7 +33,7 @@ import type {
 import { createRng } from '../../core/rng.ts';
 import { enharmonicKey, isValidKey } from '../../theory/index.ts';
 import { fitsInKey, shiftWindow, windowFits, type ShiftChoice } from '../transpose/fit.ts';
-import { planTransposition, spellExcerpt } from '../transpose/spell.ts';
+import { judgeSpelling, planTransposition } from '../transpose/spell.ts';
 import {
   allowedWrittenKeys,
   bandFor,
@@ -50,7 +48,7 @@ import {
   parseMeter,
   sameKey,
 } from './levels.ts';
-import { bpmPlayable, clippedTempo, peakBoundFromDensity, type TempoFacts } from './tempo.ts';
+import { bpmPlayable, clippedTempo, type TempoFacts } from './tempo.ts';
 
 /** Levels 1..10 (02 §2.3). */
 const MAX_LEVEL = 10;
@@ -75,8 +73,6 @@ export type PoolId = 'level' | 'below' | 'stretch';
 
 /** Options beyond the frozen `selectExcerpt` signature. */
 export interface SelectOptions {
-  /** Synchronous lookup of already loaded docs; when it returns one, spelling is checked exactly. */
-  doc?: (id: string) => ExcerptDoc | undefined;
   /** Entry ids to skip. */
   excludeIds?: ReadonlySet<string>;
   /** Internal: skip computing suggestions (used while computing them). */
@@ -87,6 +83,8 @@ interface KeyOption {
   key: KeySig;
   shift: ShiftChoice;
   weight: number;
+  /** The drawn random key failed the spelling rule and `key` is its enharmonic (03 §7.5 rule 3). */
+  enharmonicRetry: boolean;
 }
 
 interface Candidate {
@@ -154,18 +152,55 @@ function blockedKey(h: SelectionHistory, cfg: Configs): KeySig | null {
   return first;
 }
 
-function tempoFacts(entry: ManifestEntry, cfg: Configs, doc: ExcerptDoc | undefined): TempoFacts {
+function tempoFacts(entry: ManifestEntry): TempoFacts {
   return {
-    meter: doc?.meter ?? parseMeter(entry.meter),
+    meter: parseMeter(entry.meter),
     minBpm: entry.minBpm,
     maxBpm: entry.maxBpm,
     minIoiTicks: entry.minIoiTicks,
     minRepeatIoiTicks: entry.minRepeatIoiTicks,
-    peakNotesPerBeat: doc ? doc.features.peakNotesPerBeat : peakBoundFromDensity(entry.featureLevels, cfg),
+    peakNotesPerBeat: entry.peakNotesPerBeat,
   };
 }
 
-function buildCandidate(entry: ManifestEntry, pool: PoolId, req: Request, h: SelectionHistory, cfg: Configs, blocked: KeySig | null, doc: ExcerptDoc | undefined): Candidate | null {
+/** Spelling verdicts per instrument and entry, keyed by `spellingSlot` (selection runs often; this keeps it cheap). */
+const spellingCache = new WeakMap<Instrument, WeakMap<ManifestEntry, Map<number, boolean>>>();
+
+/** A number unique per (written key, shift, doubles allowed) for one entry and instrument. */
+function spellingSlot(key: KeySig, t: number, doubles: boolean): number {
+  return ((((key.fifths + 16) * 2 + (key.mode === 'minor' ? 1 : 0)) * 1024 + (t + 512)) * 2) + (doubles ? 1 : 0);
+}
+
+/** 03 §7.5 rule 3 for one written key, from the manifest's spelling column. */
+function spellingOk(entry: ManifestEntry, key: KeySig, t: number, req: Request): boolean {
+  const doubles = req.def.doubleAccidentals;
+  let byEntry = spellingCache.get(req.inst);
+  if (!byEntry) spellingCache.set(req.inst, (byEntry = new WeakMap()));
+  let m = byEntry.get(entry);
+  if (!m) byEntry.set(entry, (m = new Map()));
+  const slot = spellingSlot(key, t, doubles);
+  let ok = m.get(slot);
+  if (ok === undefined) {
+    const plan = planTransposition({ fifths: entry.fifths, mode: entry.mode }, key, t, req.inst);
+    ok = judgeSpelling(entry.spelling, plan.writtenInterval, doubles).verdict === 'ok';
+    m.set(slot, ok);
+  }
+  return ok;
+}
+
+/**
+ * The written key to serve for a fitting key: itself when its spelling passes; for a random key, its enharmonic when
+ * that passes instead (03 §7.5 rule 3, retried once); otherwise null. A chosen key is never changed (R1).
+ */
+function spelledKey(entry: ManifestEntry, key: KeySig, t: number, req: Request): { key: KeySig; enharmonicRetry: boolean } | null {
+  if (spellingOk(entry, key, t, req)) return { key, enharmonicRetry: false };
+  if (req.writtenKey !== null) return null;
+  const enh = enharmonicKey(key);
+  if (isValidKey(enh) && keyAllowed(req.def, enh) && spellingOk(entry, enh, t, req)) return { key: enh, enharmonicRetry: true };
+  return null;
+}
+
+function buildCandidate(entry: ManifestEntry, pool: PoolId, req: Request, h: SelectionHistory, cfg: Configs, blocked: KeySig | null): Candidate | null {
   if (req.meter !== null && entry.meter !== req.meter) return null;
   if (!req.def.bars.includes(entry.bars)) return null;
   if (req.ranked && (entry.familiarity >= 2 || entry.dedupeGroup in h.seenGroups)) return null;
@@ -177,7 +212,7 @@ function buildCandidate(entry: ManifestEntry, pool: PoolId, req: Request, h: Sel
   const band = bandFor(req.inst, req.def);
   if (!windowFits(shiftWindow(entry.rangeConcert, req.inst, band))) return null;
 
-  const facts = tempoFacts(entry, cfg, doc);
+  const facts = tempoFacts(entry);
   const tempo = clippedTempo(facts, req.inst, req.def, cfg);
   if (!tempo) return null;
   if (req.bpm !== null && !bpmPlayable(req.bpm, facts, req.inst, req.def, cfg)) return null;
@@ -187,7 +222,10 @@ function buildCandidate(entry: ManifestEntry, pool: PoolId, req: Request, h: Sel
   const tryKeys = req.writtenKey !== null ? [req.writtenKey] : allowedWrittenKeys(req.def, entry.mode).filter((k) => !blocked || !sameKey(k, blocked));
   for (const key of tryKeys) {
     const shift = fitsInKey(source, entry.rangeConcert, key, req.inst, band);
-    if (shift) keys.push({ key, shift, weight: req.writtenKey !== null ? 1 : keyWeight(key, req, cfg) });
+    if (!shift) continue;
+    const spelled = spelledKey(entry, key, shift.t, req);
+    if (!spelled) continue;
+    keys.push({ key: spelled.key, shift, weight: req.writtenKey !== null ? 1 : keyWeight(key, req, cfg), enharmonicRetry: spelled.enharmonicRetry });
   }
   if (keys.length === 0) return null;
 
@@ -217,7 +255,7 @@ function buildPool(m: CorpusManifest, req: Request, h: SelectionHistory, cfg: Co
     if (withdrawn.has(entry.id) || opts.excludeIds?.has(entry.id)) continue;
     const pool = poolOf(entry, req.level);
     if (!pool) continue;
-    const c = buildCandidate(entry, pool, req, h, cfg, blocked, opts.doc?.(entry.id));
+    const c = buildCandidate(entry, pool, req, h, cfg, blocked);
     if (!c) continue;
     byPool[pool].push(c);
     if (pool === 'level' && !(entry.dedupeGroup in h.seenGroups)) unseenAtLevel++;
@@ -328,42 +366,18 @@ export function selectExcerptWith(
     error: 'empty-pool',
     suggestions: opts.noSuggestions ? [] : suggestionsFor(m, s, h, cfg, level, opts),
   });
-  for (;;) {
-    if (poolSize(pool) === 0) return empty();
-    const shares = poolShares(
-      { level: pool.byPool.level.length, below: pool.byPool.below.length, stretch: pool.byPool.stretch.length },
-      pool.unseenAtLevel,
-      cfg,
-    );
-    const live = POOLS.filter((p) => pool.byPool[p].length > 0 && shares[p] > 0);
-    const poolId = live[weightedIndex(live, (p) => shares[p], r)]!;
-    const cands = pool.byPool[poolId];
-    const ci = weightedIndex(cands, (c) => c.weight, r);
-    const cand = cands[ci]!;
-    const ki = weightedIndex(cand.keys, (k) => k.weight, r);
-    const opt = cand.keys[ki]!;
-    const doc = opts.doc?.(cand.entry.id);
-    let key = opt.key;
-    let enharmonicRetry = false;
-    if (doc && !spellingOk(doc, cand.entry, key, opt.shift.t, req)) {
-      // 03 §7.5 rule 3: a random key may retry once with its enharmonic; a chosen key is never changed (R1).
-      const enh = enharmonicKey(key);
-      if (req.writtenKey === null && isValidKey(enh) && keyAllowed(req.def, enh) && spellingOk(doc, cand.entry, enh, opt.shift.t, req)) {
-        key = enh;
-        enharmonicRetry = true;
-      } else {
-        cand.keys.splice(ki, 1);
-        if (cand.keys.length === 0) cands.splice(ci, 1);
-        continue;
-      }
-    }
-    return buildResult(cand, key, opt.shift, enharmonicRetry, req, s, seed, r);
-  }
-}
-
-function spellingOk(doc: ExcerptDoc, entry: ManifestEntry, key: KeySig, t: number, req: Request): boolean {
-  const plan = planTransposition({ fifths: entry.fifths, mode: entry.mode }, key, t, req.inst);
-  return spellExcerpt(doc, plan, req.inst, req.def.doubleAccidentals).verdict === 'ok';
+  if (poolSize(pool) === 0) return empty();
+  const shares = poolShares(
+    { level: pool.byPool.level.length, below: pool.byPool.below.length, stretch: pool.byPool.stretch.length },
+    pool.unseenAtLevel,
+    cfg,
+  );
+  const live = POOLS.filter((p) => pool.byPool[p].length > 0 && shares[p] > 0);
+  const poolId = live[weightedIndex(live, (p) => shares[p], r)]!;
+  const cands = pool.byPool[poolId];
+  const cand = cands[weightedIndex(cands, (c) => c.weight, r)]!;
+  const opt = cand.keys[weightedIndex(cand.keys, (k) => k.weight, r)]!;
+  return buildResult(cand, opt.key, opt.shift, opt.enharmonicRetry, req, s, seed, r);
 }
 
 function buildResult(

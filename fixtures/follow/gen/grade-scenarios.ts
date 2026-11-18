@@ -448,6 +448,7 @@ export function gradeInput(s: GradeScenario, r: Run): GradeFixture['input'] {
     level: r.base.level,
     bpm: r.base.bpm,
     meter: r.base.meter,
+    writtenKey: r.base.writtenKey,
     tuning: inst.relativePitch || inst.pitchKind === 'fixed' ? null : { used: false, offsetCents: 0 },
     voiceReference,
     signal: { medianClarity: 0.95, clippingFrac: 0 },

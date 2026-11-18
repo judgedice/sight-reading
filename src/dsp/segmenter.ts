@@ -96,6 +96,8 @@ interface Note {
   cause: DetectedNote['onsetCause'];
   frames: Fr[];
   provisional: number;
+  /** All `onsetConfirmFrames` confirming frames round to one semitone (01 section 9.3 item 3). */
+  framesAgree: boolean;
   lastVoicedT: number;
   sinceUpdate: number;
   offset: number | null;
@@ -288,8 +290,8 @@ export class Segmenter {
     return -1;
   }
 
-  /** Leak levels of the click arriving at `arrival` (from its template fit), dBFS (01 section 7.6 item 5). */
-  setClickLeak(arrival: number, envDb: number, frameDb: number): void {
+  /** Index of the click arriving at `arrival`, or -1. */
+  private clickIndex(arrival: number): number {
     const a = this.clickArr;
     let lo = 0;
     let hi = a.length - 1;
@@ -298,9 +300,25 @@ export class Segmenter {
       if ((a[m] as number) < arrival) lo = m + 1;
       else hi = m;
     }
-    if (a.length === 0 || Math.abs((a[lo] as number) - arrival) > 1e-6) return;
-    this.leakEnv[lo] = envDb;
-    this.leakFrame[lo] = frameDb;
+    return a.length === 0 || Math.abs((a[lo] as number) - arrival) > 1e-6 ? -1 : lo;
+  }
+
+  /**
+   * Leak levels of the click arriving at `arrival`, dBFS (01 section 7.6 item 5): the calibration's `clickLeakDb`,
+   * or the click's own template fit.
+   */
+  setClickLeak(arrival: number, envDb: number, frameDb: number): void {
+    const i = this.clickIndex(arrival);
+    if (i < 0) return;
+    this.leakEnv[i] = envDb;
+    this.leakFrame[i] = frameDb;
+  }
+
+  /** The leak levels in force for the click arriving at `arrival`, or null when none is set (or no such click). */
+  clickLeakAt(arrival: number): { envDb: number; frameDb: number } | null {
+    const i = this.clickIndex(arrival);
+    if (i < 0 || !Number.isFinite(this.leakFrame[i] as number)) return null;
+    return { envDb: this.leakEnv[i] as number, frameDb: this.leakFrame[i] as number };
   }
 
   /** Leak floor for frame rmsDb at `t`: max(gate, leakFrameDb + 6 dB) inside a click window, else the gate. */
@@ -511,6 +529,7 @@ export class Segmenter {
       cause,
       frames,
       provisional: confirm.length > 0 ? median(confirm) : prevMidi,
+      framesAgree: confirm.length >= this.o.onsetConfirmFrames && confirm.every((m) => Math.round(m) === Math.round(confirm[0] as number)),
       lastVoicedT: last ? last.t : onset,
       sinceUpdate: 0,
       offset: null,
@@ -594,6 +613,7 @@ export class Segmenter {
       clarity: n.frames.length > 0 ? median(n.frames.map((x) => x.clarity)) : 0,
       altOctaveClarity: alts.length > 0 ? median(alts) : null,
       onsetCause: n.cause,
+      framesAgree: n.framesAgree,
     };
   }
 

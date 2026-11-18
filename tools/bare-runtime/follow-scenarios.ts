@@ -1,13 +1,16 @@
 // Follow scenarios for the bare-runtime job (02 §4.9 case 15, 01 §13.3): finalAlign over every fixtures/follow stream,
-// in the ES2022-only context and under Node, must give byte-identical alignments. `finalAlign` also replays the live
-// follower to mark `rejudged`, so the live follower and the displacement detector run here too. JSON is bundled by
+// in the ES2022-only context and under Node, must give byte-identical alignments. The live follower runs over the
+// fixture stream first and `finalAlign` takes its live outcome (PLAN ruling 44), so the live follower and the
+// displacement detector run here too. JSON is bundled by
 // esbuild, so nothing here touches fs. The follow fixtures carry no meter; every one is in an x/4 meter, so the
 // meter is rebuilt from the expected notes (src/follow/final-align.fixtures.test.ts checks this against the corpus).
 import type { Configs, FollowFixture, RawConfigs } from '../../src/core/types.ts';
 import { makeMeter } from '../../src/core/time.ts';
 import { finalAlign } from '../../src/follow/final-align.ts';
+import { LiveFollower } from '../../src/follow/live-follower.ts';
+import { liveOutcomeOf } from '../../src/follow/live-outcome.ts';
 import { loadConfigs, resolveTolerances } from '../../src/rules/index.ts';
-import { beatsPerBarOf, finalDetected, followConfigFor } from '../../src/testkit/predicates/subjects.ts';
+import { beatsPerBarOf, finalDetected, followConfigFor, runFollowStream } from '../../src/testkit/predicates/subjects.ts';
 import gradingRaw from '../../config/grading-config.json';
 import levelsRaw from '../../config/levels.json';
 import instrumentsRaw from '../../config/instruments.json';
@@ -56,7 +59,9 @@ export function followScenario(fx: FollowFixture): unknown {
   if (!instrument) throw new Error(`unknown instrument ${fx.instrumentId}`);
   const meter = makeMeter(beatsPerBarOf(fx.expected), QUARTER);
   const tolerances = resolveTolerances(fx.expected, { instrument, level: fx.level, bpm: fx.bpm, meter }, cfg);
-  return finalAlign(followConfigFor(fx, instrument, cfg, tolerances), finalDetected(fx.stream));
+  const config = followConfigFor(fx, instrument, cfg, tolerances);
+  const live = liveOutcomeOf(runFollowStream(fx.stream, new LiveFollower(config)));
+  return finalAlign(config, finalDetected(fx.stream), live);
 }
 
 export const FOLLOW_SCENARIOS: { id: string; run: () => unknown }[] = FIXTURES.map((fx) => ({ id: `follow-${fx.id}`, run: () => followScenario(fx) }));

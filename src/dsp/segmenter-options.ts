@@ -26,20 +26,6 @@ export const CLICK_WINDOW_AFTER_SEC = 0.035;
 export const HINT_MIN_DIP_DB = 2;
 export const HINT_AM_FACTOR = 1;
 
-/**
- * Attack excluded from the steady statistics, ms, per onset profile. These mirror
- * `grading.intonation.attackExcludeMsByFamily` in config/grading-config.json (dsp may import only core, and
- * DspConfig carries the profile, not the family): voice 80, brass and strings 60, winds and keyboard 50.
- */
-export const ATTACK_EXCLUDE_MS: Readonly<Record<OnsetProfile, number>> = {
-  'tongued-wind': 50,
-  brass: 60,
-  bowed: 60,
-  voice: 80,
-  struck: 50,
-  plucked: 50,
-};
-
 export interface SegmenterOptions {
   hopSec: number;
   /** Pitch window length, seconds (W / analysisRate). */
@@ -51,6 +37,7 @@ export interface SegmenterOptions {
   changeConfirmFrames: number;
   offsetFrames: number;
   minNoteSec: number;
+  /** Attack excluded from the steady statistics, seconds: `DspConfig.attackExcludeMs` (01 section 7.5). */
   attackExcludeSec: number;
   /** k in the flux threshold median + k x MAD. */
   fluxMadK: number;
@@ -76,7 +63,7 @@ export interface SegmenterOptions {
 
 export function segmenterOptions(
   hopSec: number,
-  p: { windowSec: number; clarityThreshold: number; changeCents: number; onsetProfile: OnsetProfile },
+  p: { windowSec: number; clarityThreshold: number; changeCents: number; onsetProfile: OnsetProfile; attackExcludeMs: number },
 ): SegmenterOptions {
   const frames = (sec: number): number => Math.max(1, Math.round(sec / hopSec));
   const soft = p.onsetProfile === 'voice' || p.onsetProfile === 'bowed';
@@ -90,7 +77,7 @@ export function segmenterOptions(
     changeConfirmFrames: frames(soft ? 4 * DEFAULT_HOP_SEC : 3 * DEFAULT_HOP_SEC),
     offsetFrames: frames(OFFSET_SEC),
     minNoteSec: MIN_NOTE_SEC,
-    attackExcludeSec: ATTACK_EXCLUDE_MS[p.onsetProfile] / 1000,
+    attackExcludeSec: p.attackExcludeMs / 1000,
     fluxMadK: 3,
     pitchChangeDipDb: soft ? 5 : 3,
     struck: p.onsetProfile === 'struck' || p.onsetProfile === 'plucked',

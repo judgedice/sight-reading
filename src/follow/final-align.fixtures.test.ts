@@ -1,7 +1,7 @@
 // P10b acceptance (01 §15 row P10b, PLAN R34/R35): every follow fixture's final predicates hold on `finalAlign`
-// over the detected notes of its stream, the displaced segments of the restart and skip fixtures come out of the
-// relabel pass, and the live outcome `finalAlign` rebuilds from the detected notes equals the one the live follower
-// streamed (so `rejudged` means the same either way).
+// over the detected notes of its stream with the live outcome the live follower streamed (PLAN ruling 44), the
+// displaced segments of the restart and skip fixtures come out of the relabel pass, and the test helper `replayLive`
+// rebuilds the same live outcome from the detected notes alone.
 import { readdirSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import type { FollowerEvent, FollowFixture, RenderStreamLine } from '../core/types.ts';
@@ -26,22 +26,28 @@ function setup(fx: FollowFixture) {
   return followConfigFor(fx, instrument, cfg, tolerances);
 }
 
+/** The take-end call the session makes: finalAlign with the live outcome of the streamed follower events. */
+function finalOf(fx: FollowFixture) {
+  const config = setup(fx);
+  const live = liveOutcomeOf(runFollowStream(fx.stream, new LiveFollower(config)));
+  return finalAlign(config, finalDetected(fx.stream), live);
+}
+
 describe('finalAlign on fixtures/follow (expectFinal)', () => {
   it.each(fixtures)('%s', (_f, fx) => {
-    const config = setup(fx);
-    const final = finalAlign(config, finalDetected(fx.stream));
+    const final = finalOf(fx);
     const fails = checkPredicates(finalSubject(final), fx.expectFinal);
     expect(fails, `final:\n${formatFailures(fails)}`).toEqual([]);
     expect(final.judgments.map((j) => j.expectedIdx)).toEqual(fx.expected.map((e) => e.idx));
   });
 
-  it.each(fixtures)('%s: the rebuilt live outcome equals the streamed one', (_f, fx) => {
+  it.each(fixtures)('%s: replayLive rebuilds the streamed live outcome from the detected notes', (_f, fx) => {
     const config = setup(fx);
     const events = runFollowStream(fx.stream, new LiveFollower(config));
     const detected = finalDetected(fx.stream);
     const streamed = liveOutcomeOf(events);
     expect([...replayLive(config, detected).entries()].sort((a, b) => a[0] - b[0])).toEqual([...streamed.entries()].sort((a, b) => a[0] - b[0]));
-    expect(JSON.stringify(alignFinal(config, detected, streamed))).toBe(JSON.stringify(finalAlign(config, detected)));
+    expect(JSON.stringify(alignFinal(config, detected, streamed))).toBe(JSON.stringify(finalAlign(config, detected, replayLive(config, detected))));
   });
 
   it.each(fixtures)('%s: a final event after the live stream keeps 01 §9.9 / §9.7 invariants', (_f, fx) => {
@@ -55,9 +61,7 @@ describe('finalAlign on fixtures/follow (expectFinal)', () => {
   });
 
   it.each(fixtures)('%s: deterministic, and the bare-runtime meter reading matches the corpus', (_f, fx) => {
-    const config = setup(fx);
-    const d = finalDetected(fx.stream);
-    expect(JSON.stringify(finalAlign(config, d))).toBe(JSON.stringify(finalAlign(config, d)));
+    expect(JSON.stringify(finalOf(fx))).toBe(JSON.stringify(finalOf(fx)));
     const m = corpusDoc(fx.excerptId).meter;
     expect(makeMeter(beatsPerBarOf(fx.expected), m.beatType)).toEqual(m);
     expect(m.beatType).toBe(4);
@@ -66,7 +70,7 @@ describe('finalAlign on fixtures/follow (expectFinal)', () => {
   it('the bare-runtime follow scenarios compute the same alignments (02 §4.9 case 15)', () => {
     expect(FOLLOW_SCENARIOS.map((s) => s.id)).toEqual(fixtures.map(([, fx]) => `follow-${fx.id}`));
     for (const [k, [, fx]] of fixtures.entries()) {
-      expect(JSON.stringify(FOLLOW_SCENARIOS[k]!.run())).toBe(JSON.stringify(finalAlign(setup(fx), finalDetected(fx.stream))));
+      expect(JSON.stringify(FOLLOW_SCENARIOS[k]!.run())).toBe(JSON.stringify(finalOf(fx)));
     }
   });
 });

@@ -255,7 +255,7 @@ export function refScore(a: FinalAlignment, inst: Instrument, level: number, cfg
   const status = matched / n < g.gates.incompleteBelowMatchedFrac ? 'incomplete' : 'ok';
   let score = Math.round(raw);
   if (status === 'incomplete') score = Math.min(score, g.gates.incompleteScoreCap);
-  const grade = [...g.grades.scale].sort((x, y) => y.minScore - x.minScore).find((r) => score >= r.minScore)!.grade;
+  let grade = [...g.grades.scale].sort((x, y) => y.minScore - x.minScore).find((r) => score >= r.minScore)!.grade;
   const counts: VerdictCounts = { correct: 0, early: 0, late: 0, sharp: 0, flat: 0, wrong: 0, octave: 0, missed: 0, extra: extras };
   for (const j of js) {
     if (j.status === 'missed') counts.missed++;
@@ -269,6 +269,8 @@ export function refScore(a: FinalAlignment, inst: Instrument, level: number, cfg
       if (j.timing === 'on-time' && (j.pitch === 'in-tune' || j.pitch === 'not-graded')) counts.correct++;
     }
   }
+  // PLAN ruling 43: no S with a wrong-pitch or a missed note.
+  if (grade === 'S' && g.grades.sRequiresNoWrongOrMissed && (counts.wrong > 0 || counts.missed > 0)) grade = 'A';
   return { P, I, R, weights: { P: wP, I: wI, R: row.R }, raw, score, grade, status, matched, n, counts };
 }
 

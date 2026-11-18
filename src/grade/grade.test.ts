@@ -4,7 +4,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { configs } from '../../fixtures/follow/gen/io.ts';
-import type { GradeFixture, GradeInput } from '../core/types.ts';
+import type { GradeFixture, GradeInput, NoteJudgment } from '../core/types.ts';
 import { resolveTolerances } from '../rules/index.ts';
 import { checkPredicates, formatFailures, gradeSubject } from '../testkit/predicates/index.ts';
 import { grade } from './grade.ts';
@@ -53,6 +53,57 @@ describe('letter grade and stars (02 §4.7)', () => {
     const rows = cfg.grading.grades.scale;
     expect(rows.map((r) => [r.grade, r.minScore, r.stars])).toEqual([['S', 97, 3], ['A', 90, 3], ['B', 80, 2], ['C', 70, 1], ['D', 60, 0], ['F', 0, 0]]);
     expect(grade(inputOf(base)).grade).toBe('S');
+  });
+});
+
+describe('S needs no wrong-pitch and no missed note (PLAN ruling 43)', () => {
+  const perfect = inputOf(fixtures.find((f) => f.id === 'case01-perfect-flute-l4')!);
+  const aRow = cfg.grading.grades.scale.find((r) => r.grade === 'A')!;
+  /** The perfect take with one note changed. */
+  const withNote = (k: number, change: (j: NoteJudgment) => NoteJudgment, flag = true): GradeInput => ({
+    ...perfect,
+    cfg: { ...cfg, grading: { ...cfg.grading, grades: { ...cfg.grading.grades, sRequiresNoWrongOrMissed: flag } } },
+    alignment: { ...perfect.alignment, judgments: perfect.alignment.judgments.map((j, i) => (i === k ? change(j) : j)) },
+  });
+  const wrong = (j: NoteJudgment): NoteJudgment => ({ ...j, pitch: 'wrong-pitch', playedConcertMidi: (j.playedConcertMidi ?? 60) + 2, centsError: null, credit: { ...j.credit, p: 0, n: null } });
+  const missed = (j: NoteJudgment): NoteJudgment => ({
+    ...j,
+    status: 'missed',
+    detectedId: null,
+    timing: null,
+    timingErrorMs: null,
+    pitch: null,
+    playedConcertMidi: null,
+    centsError: null,
+    duration: 'not-graded',
+    heldRatio: null,
+    credit: { p: 0, n: null, o: 0, d: j.credit.d === null ? null : 0 },
+  });
+  const sharp = (j: NoteJudgment): NoteJudgment => ({ ...j, pitch: 'sharp', centsError: 30, credit: { ...j.credit, n: 0.5 } });
+
+  it('the flag is on in config/grading-config.json', () => expect(cfg.grading.grades.sRequiresNoWrongOrMissed).toBe(true));
+
+  it('a wrong-pitch note in an S-band take gives A, with the A row stars and no shine', () => {
+    const s = grade(withNote(5, wrong));
+    expect(s.score).toBeGreaterThanOrEqual(97);
+    expect([s.grade, s.stars, s.shine]).toEqual(['A', aRow.stars, aRow.shine]);
+    expect(s.diagnostics.counts.wrong).toBe(1);
+  });
+
+  it('a missed note in an S-band take gives A', () => {
+    const s = grade(withNote(5, missed));
+    expect(s.score).toBeGreaterThanOrEqual(97);
+    expect(s.grade).toBe('A');
+    expect(s.diagnostics.counts.missed).toBe(1);
+  });
+
+  it('other marks (sharp) keep the S, and the score itself never changes', () => {
+    const s = grade(withNote(5, sharp));
+    expect(s.score).toBeGreaterThanOrEqual(97);
+    expect(s.grade).toBe('S');
+    const off = grade(withNote(5, wrong, false));
+    expect(off.grade).toBe('S');
+    expect(off.score).toBe(grade(withNote(5, wrong)).score);
   });
 });
 

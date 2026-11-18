@@ -77,7 +77,7 @@ describe('loadConfigs on the seeded files', () => {
     const cfg: Configs = loadConfigs({ grading, levels, instruments, progression, tips, budget, trumpetValves: valves });
     expect(cfg.levelByNumber[10]?.level).toBe(10);
     expect(cfg.instrumentById['trumpet-bb']?.family).toBe('high-brass');
-    expect(cfg.configVersion).toContain('grading-2.0.0');
+    expect(cfg.configVersion).toContain('grading-2.1.0');
   });
 });
 

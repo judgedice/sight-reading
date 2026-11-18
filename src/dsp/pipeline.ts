@@ -14,7 +14,8 @@
  *   template, `ClickSubtractor` removes the fitted template from the low band before the envelope, flux and pitch
  *   analysis (item 2; audio near a click is held back until its fit, at most about 24 ms). The segmenter marks frames
  *   in click windows (`inClickWindow`), keeps flux inside them out of onset refinement (item 4), and applies the time
- *   gate and leak floor there (items 3 and 5) with the per-click leak levels of the fits.
+ *   gate and leak floor there (items 3 and 5). The leak floor starts at `DspConfig.clickLeakDb` (the calibration's
+ *   click level, when there is one) and each confident template fit replaces it with that click's measured leak.
  */
 import type { Decimator } from '../core/api.ts';
 import type { CaptureBlock } from '../core/platform.ts';
@@ -82,6 +83,7 @@ export class DspPipeline {
         clarityThreshold: cfg.clarityThreshold,
         changeCents: cfg.changeCents,
         onsetProfile: cfg.onsetProfile,
+        attackExcludeMs: cfg.attackExcludeMs,
       }),
       ...opts.segmenter,
     };
@@ -93,6 +95,14 @@ export class DspPipeline {
       cfg.repeatHints.map((h) => ({ t: h.t as number, halfWidthSec: h.halfWidthSec })),
       this.clicks.map((c) => c.arrival),
     );
+    // 01 section 7.6 item 5: the calibrated leak level is every click window's floor until a confident template fit
+    // measures that click's own leak (`takeFits`).
+    if (cfg.clickLeakDb !== null) for (const c of this.clicks) this.seg.setClickLeak(c.arrival, cfg.clickLeakDb, cfg.clickLeakDb);
+  }
+
+  /** Leak levels in force for the click arriving at `arrival` (01 section 7.6 item 5), or null; for P14 and tests. */
+  clickLeakAt(arrival: number): { envDb: number; frameDb: number } | null {
+    return this.seg.clickLeakAt(arrival);
   }
 
   /** Template fits so far (speakers with a template only). */
@@ -136,12 +146,15 @@ export class DspPipeline {
     return out;
   }
 
-  /** Hands new template fits to the segmenter (leak levels for the click windows). */
+  /**
+   * Hands new template fits to the segmenter (leak levels for the click windows). A confident fit measured its click;
+   * a fit the music dominated only replaces the calibrated `clickLeakDb` when there is none.
+   */
   private takeFits(): void {
     const fits = (this.sub as ClickSubtractor).fits;
     for (; this.fitsSeen < fits.length; this.fitsSeen++) {
       const f = fits[this.fitsSeen] as ClickFit;
-      this.seg.setClickLeak(f.arrival, f.leakEnvDb, f.leakFrameDb);
+      if (f.confident || this.cfg.clickLeakDb === null) this.seg.setClickLeak(f.arrival, f.leakEnvDb, f.leakFrameDb);
     }
   }
 

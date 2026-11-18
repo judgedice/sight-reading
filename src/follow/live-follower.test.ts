@@ -1,13 +1,13 @@
 // Unit behaviour of the live follower beyond the fixture predicates: provisional sharp/flat reverting (R19, R36),
-// event rate caps (01 §9.9), no-signal, end handling, key inference for ghost spelling, voice drift, octave
+// event rate caps (01 §9.9), no-signal, end handling, the written key for ghost spelling, the frames-agree rule, voice drift, octave
 // correction and the shared cost function.
-import { readdirSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import type { ClockSeconds, DetectedNote, FollowerEvent, FollowFixture, FollowStreamItem, LiveJudgment } from '../core/types.ts';
 import { configs, corpusDoc } from '../../fixtures/follow/gen/io.ts';
 import { resolveTolerances } from '../rules/index.ts';
 import { followConfigFor, runFollowStream } from '../testkit/predicates/index.ts';
-import { correctedMidi, inferWrittenKey, LiveFollower, matchCost, PITCH_COST_WRONG } from './index.ts';
+import { correctedMidi, LiveFollower, matchCost, PITCH_COST_WRONG } from './index.ts';
 
 const fixture = (id: string): FollowFixture => JSON.parse(readFileSync(new URL(`../../fixtures/follow/${id}.json`, import.meta.url), 'utf8')) as FollowFixture;
 
@@ -110,13 +110,55 @@ describe('event stream housekeeping (01 §9.9)', () => {
   });
 });
 
-describe('ghost spelling key (02 §4.8)', () => {
-  it('recovers the key signature direction of every follow fixture from its expected notes', () => {
-    const dir = new URL('../../fixtures/follow/', import.meta.url);
-    for (const f of readdirSync(dir).filter((x) => x.endsWith('.json'))) {
-      const fx = JSON.parse(readFileSync(new URL(f, dir), 'utf8')) as FollowFixture;
-      expect(Math.sign(inferWrittenKey(fx.expected).fifths), f).toBe(Math.sign(fx.writtenKey.fifths));
-    }
+describe('ghost spelling key (02 §4.8): FollowConfig.writtenKey (PLAN ruling 44)', () => {
+  it('spells an extra on a black key with sharps in a sharp key and flats in a flat key', () => {
+    const fx = fixture('extra-in-rest');
+    const config = configFor(fx);
+    const extra = (writtenKey: { fifths: number; mode: 'major' }) => {
+      const base = runFollowStream(fx.stream, new LiveFollower(config));
+      const extraId = base.flatMap((e) => (e.type === 'ghost' && e.ghost.kind === 'extra' ? [e.ghost.detectedId] : []))[0];
+      if (extraId === undefined) throw new Error('fixture has no extra ghost');
+      // Move the extra to the nearest concert pitch whose written pitch is a black key.
+      const cI = config.instrument.writtenMinusSounding.chromatic;
+      const on = noteEvents(fx.stream, extraId)[0]!.event as { note: DetectedNote };
+      let m = Math.round(on.note.midi);
+      while (![1, 3, 6, 8, 10].includes((((m + cI) % 12) + 12) % 12)) m++;
+      const shift = m - Math.round(on.note.midi);
+      const stream = fx.stream.map((it) => {
+        if (it.kind !== 'dsp' || !('note' in it.event) || it.event.note.id !== extraId) return it;
+        const note = { ...it.event.note, midi: it.event.note.midi + shift, provisionalMidi: it.event.note.provisionalMidi + shift };
+        return { ...it, event: { ...it.event, note } } as FollowStreamItem;
+      });
+      const ev = runFollowStream(stream, new LiveFollower({ ...config, writtenKey }));
+      const g = ev.flatMap((e) => (e.type === 'ghost' && e.ghost.detectedId === extraId ? [e.ghost] : []));
+      return g[g.length - 1]!.writtenPitch;
+    };
+    expect(extra({ fifths: 2, mode: 'major' }).alter).toBe(1);
+    expect(extra({ fifths: -2, mode: 'major' }).alter).toBe(-1);
+  });
+});
+
+describe('wrong pitch at confirmation needs the confirming frames to agree (01 §9.3 item 3, PLAN ruling 44)', () => {
+  const fx = fixture('wrong-note-key-signature');
+  const config = configFor(fx);
+  const base = runFollowStream(fx.stream, new LiveFollower(config));
+  // The first note whose note-start judgment already says wrong-pitch.
+  const first = base.find((e) => e.type === 'judgment' && e.judgment.pitch === 'wrong-pitch' && e.judgment.provisional);
+  const idx = first && first.type === 'judgment' ? first.judgment.expectedIdx : -1;
+  const detId = first && first.type === 'judgment' ? first.judgment.detectedId : null;
+
+  it('a scoop (frames disagree) waits for the steady window instead of flashing red at note-on', () => {
+    expect(idx).toBeGreaterThanOrEqual(0);
+    const stream = fx.stream.map((it) => {
+      if (it.kind !== 'dsp' || it.event.type !== 'note-on' || it.event.note.id !== detId) return it;
+      return { ...it, event: { ...it.event, note: { ...it.event.note, framesAgree: false } } } as FollowStreamItem;
+    });
+    const ev = runFollowStream(stream, new LiveFollower(config));
+    const js = ev.flatMap((e) => (e.type === 'judgment' && e.judgment.expectedIdx === idx ? [e.judgment] : []));
+    const startJ = (b: FollowerEvent[]) => b.flatMap((e) => (e.type === 'judgment' && e.judgment.expectedIdx === idx ? [e.judgment] : []))[0]!;
+    expect(startJ(base).pitch).toBe('wrong-pitch');
+    expect(js[0]!.pitch).toBeNull();
+    expect(js[js.length - 1]!.pitch).toBe('wrong-pitch');
   });
 });
 

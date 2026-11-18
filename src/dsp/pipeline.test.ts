@@ -23,6 +23,8 @@ const CFG: DspConfig = {
   clicks: [],
   clickTemplate: null,
   repeatHints: [],
+  attackExcludeMs: 50,
+  clickLeakDb: null,
 };
 
 const line = (sampleRate = 48000) =>

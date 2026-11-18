@@ -23,6 +23,7 @@ import type {
 import { TPQ } from '../../../core/types.ts';
 import { intervalBetweenKeys, toMidi, tonicOf, transposePitch } from '../../../theory/index.ts';
 import { parseMeter } from '../levels.ts';
+import { spellingOf } from '../../transpose/spell.ts';
 
 const STEPS: readonly Step[] = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
 
@@ -213,6 +214,8 @@ export function synthDoc(spec: SynthSpec, rng: Rng): { doc: ExcerptDoc; entry: M
     dedupeGroup,
     corpus: 'openscore-lieder',
     license: 'CC0-1.0',
+    peakNotesPerBeat: doc.features.peakNotesPerBeat,
+    spelling: spellingOf(doc),
   };
   return { doc, entry };
 }

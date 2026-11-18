@@ -19,7 +19,7 @@ import { describe, expect, it } from 'vitest';
 import type { AttemptScore, ClockSeconds, DetectedNote, DspConfig, DspEvent, ExpectedNote, FinalAlignment, FollowConfig, FollowerEvent, FollowStreamItem, GradeInput, Instrument, LiveJudgment, ResolvedTolerance } from '../core/types.ts';
 import type { WorkerMessage } from '../core/platform.ts';
 import { DspPipeline } from '../dsp/pipeline.ts';
-import { LiveFollower, alignFinal, liveOutcomeOf } from '../follow/index.ts';
+import { LiveFollower, finalAlign, liveOutcomeOf } from '../follow/index.ts';
 import { grade } from '../grade/index.ts';
 import { resolveTolerances } from '../rules/index.ts';
 import { perform, endOfTakeSec, type PerformSpec } from '../../fixtures/follow/gen/perform.ts';
@@ -54,6 +54,8 @@ function dspConfig(inst: Instrument, analysisRate: number): DspConfig {
     clicks: [],
     clickTemplate: null,
     repeatHints: [],
+    attackExcludeMs: cfg.grading.intonation.attackExcludeMsByFamily[inst.family],
+    clickLeakDb: null,
   };
 }
 
@@ -162,10 +164,12 @@ async function runTake(base: ScenarioBase, spec: PerformSpec): Promise<TakeResul
     instrument: base.inst,
     cfg,
     voiceReferenceCents: 0,
+    analysisRate: be.analysisRate,
+    writtenKey: base.writtenKey,
   };
-  const live = runFollowStream(stream, new LiveFollower(config, { analysisRate: be.analysisRate }));
+  const live = runFollowStream(stream, new LiveFollower(config));
   const detected = finalDetected(stream);
-  const alignment = alignFinal(config, detected, liveOutcomeOf(live));
+  const alignment = finalAlign(config, detected, liveOutcomeOf(live));
   const input: GradeInput = {
     expected: base.expected,
     tolerances,
@@ -175,6 +179,7 @@ async function runTake(base: ScenarioBase, spec: PerformSpec): Promise<TakeResul
     level: base.level,
     bpm: base.bpm,
     meter: base.meter,
+    writtenKey: base.writtenKey,
     cfg,
     tuning: { used: false, offsetCents: 0 },
     voiceReference: null,
@@ -236,6 +241,8 @@ describe('end-to-end pipeline: synth -> FakeAudioBackend -> dsp -> live follower
         expect(flat.status, msg).toBe('matched');
         expect(flat.pitch, msg).toBe('flat');
         expect(flat.timing, msg).toBe('on-time');
+        // PLAN ruling 43: a take with a wrong-pitch note never earns an S, whatever its score.
+        expect(err.score.grade, msg).not.toBe('S');
 
         // Live: the same verdicts reach the overlay during the take.
         const lv = (i: number): LiveJudgment => liveJ[i] as LiveJudgment;

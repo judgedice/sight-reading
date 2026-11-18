@@ -24,6 +24,23 @@ const EPS = 1e-9;
 
 const mod = (n: number, m: number): number => ((n % m) + m) % m;
 
+/** Written pitch class of B♭ (A♯): the notes SX04's B♭ fingerings are about. */
+const BFLAT_PC = 10;
+
+/**
+ * Trigger condition params of E12 and E13 (02 §6.4, `config/tips.json` conditions): `bflat-involved` counts the
+ * evidence notes whose written target or played written pitch is B♭ / A♯, so SX04 can fire (tips/select reads a
+ * condition param above 0).
+ */
+function noteConditions(ctx: PatternContext, notes: readonly number[]): Record<string, number> {
+  let bflat = 0;
+  for (const i of notes) {
+    const played = playedWritten(ctx, i);
+    if (mod(targetWritten(ctx, i), OCTAVE) === BFLAT_PC || (played !== null && mod(played, OCTAVE) === BFLAT_PC)) bflat++;
+  }
+  return { 'bflat-involved': bflat };
+}
+
 /** A wrong pitch whose played semitone is clear (within `clearCents` of a semitone). */
 function clearWrong(ctx: PatternContext, idx: number, clearCents: number): number | null {
   if (!isWrongPitch(ctx, idx)) return null;
@@ -56,7 +73,7 @@ export function detectE12(ctx: PatternContext, def: PatternDef): Candidate | nul
   if (eligible === 0 || notes.length < ev(def, 'notes')) return null;
   if (new Set(notes.map((i) => ctx.expected[i]!.bar)).size < ev(def, 'bars')) return null;
   if (notes.length < th(def, 'minShareOfKeySigNotes') * eligible - EPS) return null;
-  return { notes };
+  return { notes, params: noteConditions(ctx, notes) };
 }
 
 /** E13: wrong pitch where played = target without its written accidental (the key's default for the letter). */
@@ -70,7 +87,7 @@ export function detectE13(ctx: PatternContext, def: PatternDef): Candidate | nul
     const without = targetWritten(ctx, e.idx) - e.writtenPitch.alter + (ctx.keySig.get(e.writtenPitch.step) ?? 0);
     if (without !== targetWritten(ctx, e.idx) && played === without) notes.push(e.idx);
   }
-  return notes.length >= ev(def, 'notes') ? { notes } : null;
+  return notes.length >= ev(def, 'notes') ? { notes, params: noteConditions(ctx, notes) } : null;
 }
 
 /**

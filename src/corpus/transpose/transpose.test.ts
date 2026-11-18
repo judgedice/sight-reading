@@ -1,13 +1,14 @@
 // Range fit (03 §7.3), spelled transposition (03 §7.4) and rejection (03 §7.5) against brute force, the fixture
 // goldens in fixtures/expected/ and hand-checked spelling cases.
 import { describe, expect, it } from 'vitest';
-import type { ExcerptDoc, Instrument, KeySig, SelectionResult } from '../../core/types.ts';
-import { configs, corpusDoc, golden, goldenFiles } from '../../../fixtures/follow/gen/io.ts';
+import type { ExcerptDoc, Instrument, KeySig, ManifestEntry, SelectionResult } from '../../core/types.ts';
+import { configs, corpusDoc, corpusDocs, golden, goldenFiles, readJson } from '../../../fixtures/follow/gen/io.ts';
 import { createRng } from '../../core/rng.ts';
 import { toMidi, transposeKey } from '../../theory/index.ts';
 import { bandFor, chooseClef, levelDef } from '../select/levels.ts';
 import { chooseShift, fitsInKey, pitchClassShift, shiftWindow } from './fit.ts';
-import { planTransposition, spellExcerpt } from './spell.ts';
+import { judgeSpelling, planTransposition, spellExcerpt, spellingOf } from './spell.ts';
+import { synthDoc } from '../select/testing/synthetic.ts';
 import { prepareExcerpt, TranspositionError } from './prepare.ts';
 
 const cfg = configs();
@@ -201,5 +202,58 @@ describe('prepareExcerpt', () => {
       expect(e).toBeInstanceOf(TranspositionError);
       expect((e as TranspositionError).code).toBe('range');
     }
+  });
+});
+
+describe('03 §7.5 rule 3 from the manifest spelling column (PLAN ruling 44)', () => {
+  const entries = readJson<ManifestEntry[]>('fixtures/corpus/manifest-entries.json');
+  const docs = corpusDocs();
+
+  it('the fixture manifest carries each doc\'s spelling and peak density', () => {
+    for (const d of docs) {
+      const e = entries.find((x) => x.id === d.id)!;
+      expect(e.spelling).toEqual(spellingOf(d));
+      expect(e.peakNotesPerBeat).toBe(d.features.peakNotesPerBeat);
+    }
+  });
+
+  it('gives the same verdict and double count as spelling the doc, for every key, shift and instrument', () => {
+    const rng = createRng(46);
+    const synth = Array.from({ length: 40 }, (_, i) =>
+      synthDoc(
+        { id: `sp${i}`, level: 7, key: key(rng.int(-7, 8), i % 2 ? 'minor' : 'major'), low: 60, span: 14, chromaticRate: 0.4, chromaticDirection: i % 3 ? 'up' : 'down' },
+        rng,
+      ).doc,
+    );
+    let checked = 0;
+    const verdicts = new Set<string>();
+    for (const d of [...docs, ...synth]) {
+      const sp = spellingOf(d);
+      for (const id of ['flute', 'clarinet-bb', 'sax-alto', 'trumpet-bb', 'cello']) {
+        for (let f = -7; f <= 7; f++) {
+          const kw = key(f, d.keyConcert.mode);
+          for (const t of [-12, 0, 12].map((o) => o + pitchClassShift(d.keyConcert, kw, inst(id)))) {
+            const plan = planTransposition(d.keyConcert, kw, t, inst(id));
+            for (const doubles of [false, true]) {
+              const want = spellExcerpt(d, plan, inst(id), doubles);
+              const got = judgeSpelling(sp, plan.writtenInterval, doubles);
+              expect(got.verdict).toBe(want.verdict);
+              if (want.verdict !== 'triple-accidental') expect(got.doubles).toBe(want.doubles);
+              verdicts.add(got.verdict);
+              checked++;
+            }
+          }
+        }
+      }
+    }
+    expect(checked).toBeGreaterThan(10000);
+    expect([...verdicts].sort()).toEqual(['double-accidental', 'ok', 'too-many-doubles']);
+  });
+
+  it('rejects a triple accidental from the manifest alone', () => {
+    // F double-sharp up an augmented unison would be F triple-sharp.
+    expect(judgeSpelling({ C0: 3, F2: 1 }, { diatonic: 0, chromatic: 1 }, true).verdict).toBe('triple-accidental');
+    expect(judgeSpelling({ C0: 3, F2: 1 }, { diatonic: 1, chromatic: 1 }, true)).toEqual({ verdict: 'ok', doubles: 0 });
+    expect(judgeSpelling({ 'B-1': 2 }, { diatonic: 0, chromatic: -1 }, true)).toEqual({ verdict: 'ok', doubles: 2 });
   });
 });

@@ -3,32 +3,22 @@
  * note whose final state or ghost kind differs from live").
  *
  * Two sources:
- *  - `liveOutcomeOf(events)`: the follower's own event stream (what the session holds at take end);
- *  - `replayLive(c, detected)`: `FollowApi.finalAlign` receives only the detected notes, so it rebuilds the live
- *    view by running the product `LiveFollower` over the DSP events those notes imply. Each note's `note-on` is
+ *  - `liveOutcomeOf(events)`: the follower's own event stream (what the session holds at take end). This is what
+ *    `FollowApi.finalAlign` takes (PLAN ruling 44).
+ *  - `replayLive(c, detected)`: for tests and tools that hold only detected notes, it rebuilds the live view by
+ *    running the product `LiveFollower` over the DSP events those notes imply. Each note's `note-on` is
  *    posted one pitch confirmation (W/2 + 3 hops, 01 §9.3, §10) after its onset with the note's confirming median,
  *    its `note-off` 3 hops after its offset with its final state, and a clock precedes every event so missed
  *    deadlines fire in time order; the take ends by the R14 rule. The greedy matcher, the displacement detector and the note-off judgment read
  *    only those fields (`provisionalMidi`, onset, clarity at note-on; the full note at note-off), so the replay
  *    reproduces the live judgments of the stream the notes came from. It does not depend on the update cadence.
  */
-import type { ClockSeconds, DetectedNote, FollowConfig, FollowerEvent, LiveJudgment, TimingVerdict } from '../core/types.ts';
+import type { ClockSeconds, DetectedNote, FollowConfig, FollowerEvent, LiveNoteOutcome, LiveOutcome } from '../core/types.ts';
 import { LiveFollower } from './live-follower.ts';
 
-/** The live state of one expected note at take end. */
-export interface LiveNoteOutcome {
-  status: 'matched' | 'missed';
-  detectedId: number | null;
-  timing: TimingVerdict | null;
-  pitch: LiveJudgment['pitch'];
-  marginal: boolean;
-}
+export type { LiveNoteOutcome, LiveOutcome };
 
-/** Live outcome per expectedIdx; an expected note the follower never resolved (still pending) is absent. */
-export type LiveOutcome = Map<number, LiveNoteOutcome>;
-
-/** Nominal analysis rate (01 §7.2) and hop (01 §5.6), as the live follower uses them. */
-const ANALYSIS_RATE = 16000;
+/** Analysis hop (01 §5.6), as the live follower uses it. */
 const HOP_SAMPLES = 128;
 const CONFIRM_HOPS = 3;
 const OFF_LAG_HOPS = 3;
@@ -51,8 +41,8 @@ type Ev = { t: number; order: number; seq: number; note: DetectedNote; kind: 'no
 
 /** Rebuild the live outcome from the detected notes alone (see the module comment). */
 export function replayLive(c: FollowConfig, detected: readonly DetectedNote[]): LiveOutcome {
-  const hopSec = HOP_SAMPLES / ANALYSIS_RATE;
-  const confirmSec = (c.instrument.detection.windowSamples / 2 + CONFIRM_HOPS * HOP_SAMPLES) / ANALYSIS_RATE;
+  const hopSec = HOP_SAMPLES / c.analysisRate;
+  const confirmSec = (c.instrument.detection.windowSamples / 2 + CONFIRM_HOPS * HOP_SAMPLES) / c.analysisRate;
   const evs: Ev[] = [];
   let seq = 0;
   for (const d of detected) {

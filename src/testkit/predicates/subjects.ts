@@ -6,7 +6,7 @@
  *   const follower = new LiveFollower(followConfigFor(fx, instrument, cfg, resolveTolerances(...)));
  *   const events = runFollowStream(fx.stream, follower);              // onDsp / onClock / end, in stream order
  *   assertPredicates(liveSubject(events, fx.expected.length), fx.expectLive);
- *   const final = finalAlign(config, finalDetected(fx.stream));
+ *   const final = finalAlign(config, finalDetected(fx.stream), liveOutcomeOf(events));
  *   assertPredicates(finalSubject(final), fx.expectFinal);
  *
  * Live subject: `{ events, judgments, missed, ghosts, noteStarts, status, ends }`
@@ -78,8 +78,13 @@ export function followConfigFor(fx: FollowFixture, instrument: Instrument, cfg: 
     instrument,
     cfg,
     voiceReferenceCents: fx.voiceReferenceCents,
+    analysisRate: FIXTURE_ANALYSIS_RATE,
+    writtenKey: fx.writtenKey,
   };
 }
+
+/** Follow fixture streams are timed at the nominal 16 kHz analysis rate (fixtures/follow/gen/perform.ts). */
+export const FIXTURE_ANALYSIS_RATE = 16000;
 
 /** Beats per bar recovered from expected notes (bar 1 starts at beat 0). */
 export function beatsPerBarOf(expected: readonly ExpectedNote[]): number {

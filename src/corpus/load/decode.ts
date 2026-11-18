@@ -35,7 +35,11 @@ const REQUIRED_COLUMNS: readonly ManifestColumn[] = [
   'id', 'shard', 'level', 'meter', 'fifths', 'mode', 'modal', 'bars', 'pickup', 'rangeConcert',
   'minBpm', 'maxBpm', 'minIoiTicks', 'minRepeatIoiTicks', 'composer', 'title', 'work', 'tags',
   'cadenceEnd', 'familiarity', 'featureLevels', 'flags', 'dedupeGroup', 'corpus', 'license',
+  'peakNotesPerBeat', 'spelling',
 ];
+
+/** A `ManifestEntry.spelling` key: letter and alteration, for example "C0", "F1", "B-1" (PLAN ruling 44). */
+const SPELLING_KEY = /^[A-G](-2|-1|0|1|2)$/;
 
 const malformed = (message: string, cause?: unknown): CorpusLoadError =>
   new CorpusLoadError('malformed', message, cause === undefined ? undefined : { cause });
@@ -77,6 +81,18 @@ function dictString(dict: readonly string[], cell: unknown, what: string): strin
     throw malformed(`${what} dictionary index ${JSON.stringify(cell)} is out of range`);
   }
   return dict[cell] as string;
+}
+
+function spelling(value: unknown, what: string): Record<string, number> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) throw malformed(`${what} is not an object`);
+  const out: Record<string, number> = {};
+  for (const [key, count] of Object.entries(value)) {
+    if (!SPELLING_KEY.test(key)) throw malformed(`${what} has invalid key ${JSON.stringify(key)}`);
+    const n = num(count, `${what}.${key}`);
+    if (!Number.isInteger(n) || n < 1) throw malformed(`${what}.${key} is not a positive count`);
+    out[key] = n;
+  }
+  return out;
 }
 
 function featureLevels(value: unknown): FeatureLevels {
@@ -154,6 +170,8 @@ export function decodeManifestEntries(file: ManifestFile): ManifestEntry[] {
       dedupeGroup: text(need('dedupeGroup'), `dedupeGroup of row ${i}`),
       corpus: oneOf(need('corpus'), CORPORA, `corpus of row ${i}`),
       license: oneOf(need('license'), LICENCES, `license of row ${i}`),
+      peakNotesPerBeat: num(need('peakNotesPerBeat'), `peakNotesPerBeat of row ${i}`),
+      spelling: spelling(need('spelling'), `spelling of row ${i}`),
     };
     const family = cell('originalFamily');
     if (typeof family === 'string') entry.originalFamily = family;

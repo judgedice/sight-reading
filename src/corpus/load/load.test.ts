@@ -45,7 +45,7 @@ function fakeAssets(options: FakeOptions = {}): { assets: CorpusAssets; requests
 }
 
 const golden = readFixture<ManifestEntry[]>('manifest-entries.json');
-const manifestFile = readFixture<ManifestFile>('manifest.3a2136cde3.json');
+const manifestFile = readFixture<ManifestFile>(readFixture<CorpusIndex>('index.json').manifest.file);
 const indexFile = readFixture<CorpusIndex>('index.json');
 
 async function loadFixtureManifest(options?: FakeOptions): Promise<{ m: CorpusManifest; assets: CorpusAssets; requests: string[] }> {

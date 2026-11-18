@@ -19,7 +19,7 @@ import { createScenarioSet, scenarioConfigs, type ScenarioRender } from '../test
 import { renderPerformance, type SynthRender } from '../testkit/synth/index.ts';
 import { applyConditions, type CaptureConditions } from '../testkit/synth/conditions.ts';
 import { TIMBRE_IDS } from '../testkit/synth/timbres.ts';
-import { WOOD_ON_SPEAKERS } from './click-gate.ts';
+import { WOOD_ON_SPEAKERS } from '../core/click-gate.ts';
 import {
   CLICK_ACCENT_GAIN,
   CLICK_ALIGN_SEC,
@@ -56,6 +56,8 @@ function dspConfig(instrumentId: string, o: Partial<DspConfig> = {}): DspConfig 
     clicks: [],
     clickTemplate: null,
     repeatHints: [],
+    attackExcludeMs: cfgs.grading.intonation.attackExcludeMsByFamily[inst.family],
+    clickLeakDb: null,
     ...o,
   };
 }
@@ -322,7 +324,7 @@ describe('click handling is off in headphone modes', () => {
 });
 
 describe('time gate and leak floor in click windows (01 section 7.6 items 3 and 5)', () => {
-  const opts = segmenterOptions(0.008, { windowSec: 0.064, clarityThreshold: 0.85, changeCents: 60, onsetProfile: 'tongued-wind' });
+  const opts = segmenterOptions(0.008, { windowSec: 0.064, clarityThreshold: 0.85, changeCents: 60, onsetProfile: 'tongued-wind', attackExcludeMs: 50 });
   const frames = (seg: Segmenter, from: number, to: number, rmsDb: number): DspEvent[] => {
     const out: DspEvent[] = [];
     for (let t = from; t < to; t += 0.008) {
@@ -347,6 +349,29 @@ describe('time gate and leak floor in click windows (01 section 7.6 items 3 and 
     seg.startEnvelope(0.001, 0.002, 0, RATE);
     seg.setClickLeak(1.0, -34, -44);
     expect(frames(seg, 1.05, 1.09, -40).filter((e) => e.type === 'note-on')).toHaveLength(1);
+  });
+
+  it('DspConfig.clickLeakDb is every click window\'s leak floor until a confident fit measures the click (PLAN ruling 44)', () => {
+    const clicks = [0.5, 1.0, 1.5, 2.0].map((t) => ({ arrival: t as ClockSeconds, accent: false }));
+    // No calibration, or headphones: no leak floor at all.
+    expect(new DspPipeline(dspConfig('flute', { outputMode: 'speakers', clicks })).clickLeakAt(1.0)).toBeNull();
+    expect(new DspPipeline(dspConfig('flute', { outputMode: 'wired', clicks, clickLeakDb: -44 })).clickLeakAt(1.0)).toBeNull();
+    // Speakers with a calibration and no template: the calibrated level holds for every click.
+    const cal = new DspPipeline(dspConfig('flute', { outputMode: 'speakers', clicks, clickLeakDb: -44 }));
+    for (const c of clicks) expect(cal.clickLeakAt(c.arrival)).toEqual({ envDb: -44, frameDb: -44 });
+    // With a template, the confident fits of clicks on silence replace it with each click's measured leak.
+    const tpl = calibrationTemplate({}, 'wood', -10);
+    const cap = applyConditions(silence(2.5, -18), { clickBleed: { clicks: clicks.map((c) => ({ t: c.arrival })), timbre: 'wood', bleedDb: -10 } });
+    const p = new DspPipeline(dspConfig('flute', { outputMode: 'speakers', clicks, clickTemplate: tpl, clickLeakDb: -44 }));
+    p.push({ v: 1, startT: 0 as ClockSeconds, lowband: decimate(cap.samples, cap.sampleRate), hiEnergy: new Float32Array(0), analysisRate: RATE, seq: 0 });
+    p.flush(2.5 as ClockSeconds);
+    const fits = p.clickFits();
+    expect(fits.length).toBe(clicks.length);
+    for (const f of fits) {
+      expect(f.confident).toBe(true);
+      expect(p.clickLeakAt(f.arrival)).toEqual({ envDb: f.leakEnvDb, frameDb: f.leakFrameDb });
+      expect(f.leakFrameDb).not.toBe(-44);
+    }
   });
 
   it('an on-beat tongued repeat still splits (pitch evidence), within 5 ms of the 7.4 onset', () => {
@@ -544,14 +569,15 @@ describe('click bleed acceptance (P4d)', () => {
     }
     process.stdout.write(`P4d Wood gate: ${pass ? 'Wood allowed on speakers' : `Wood headphones only (${lines.join('; ')})`}\n`);
     if (process.env.CLICK_GATE_WRITE) {
-      const file = fileURLToPath(new URL('./click-gate.ts', import.meta.url));
+      const file = fileURLToPath(new URL('../core/click-gate.ts', import.meta.url));
       const src = `/**
  * The Wood gate of 01 section 7.6, decided by CI and not by a person: the synthetic suite in click.test.ts runs
  * the launch timbres with Wood bleed at -20 and -10 dB through template subtraction, and Wood is offered on
  * speakers only if every run keeps onset F1 >= 0.97 with zero click-induced extras. Otherwise the settings offer
- * Wood in headphone modes only (04 section 5.11).
+ * Wood in headphone modes only (04 section 5.11). It lives in core so the settings screen (ui/) and the session can
+ * read it without importing dsp/ (PLAN ruling 44).
  *
- * Generated: click.test.ts fails when this value disagrees with the measurement. Regenerate with
+ * Generated: src/dsp/click.test.ts fails when this value disagrees with the measurement. Regenerate with
  * \`CLICK_GATE_WRITE=1 pnpm vitest run src/dsp/click.test.ts\`.
  */
 export const WOOD_ON_SPEAKERS: boolean = ${pass};
@@ -559,6 +585,6 @@ export const WOOD_ON_SPEAKERS: boolean = ${pass};
       writeFileSync(file, src);
       return;
     }
-    expect(WOOD_ON_SPEAKERS, 'src/dsp/click-gate.ts is stale: rerun with CLICK_GATE_WRITE=1').toBe(pass);
+    expect(WOOD_ON_SPEAKERS, 'src/core/click-gate.ts is stale: rerun with CLICK_GATE_WRITE=1').toBe(pass);
   });
 });

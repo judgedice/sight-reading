@@ -7,7 +7,7 @@ import type { FollowApi } from '../core/api.ts';
 import { finalAlign } from './final-align.ts';
 import { LiveFollower } from './live-follower.ts';
 
-export { LiveFollower, type LiveFollowerOptions } from './live-follower.ts';
+export { LiveFollower } from './live-follower.ts';
 export * from './cost.ts';
 export {
   DisplacementDetector,
@@ -20,7 +20,7 @@ export {
   type WindowFit,
   type WindowNote,
 } from './displacement.ts';
-export { ghostPitch, inferWrittenKey } from './ghost-spelling.ts';
+export { ghostPitch } from './ghost-spelling.ts';
 export { alignDp, alignFinal, alignNotes, differsFromLive, finalAlign, finalMatchCost, soundedSec } from './final-align.ts';
 export { relabel, type AlignNote } from './relabel.ts';
 export { liveOutcomeOf, replayLive, type LiveNoteOutcome, type LiveOutcome } from './live-outcome.ts';

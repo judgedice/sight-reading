@@ -51,6 +51,42 @@ export interface SpelledExcerpt {
   doubles: number;
 }
 
+/** `ManifestEntry.spelling` key of a spelled pitch class: letter and alteration, for example "F1" or "B-1". */
+export function spellingKey(p: Pick<SpelledPitch, 'step' | 'alter'>): string {
+  return `${p.step}${p.alter}`;
+}
+
+/** `ManifestEntry.spelling` of a doc: note events per concert spelled pitch class, tie continuations included. */
+export function spellingOf(doc: Pick<ExcerptDoc, 'measures'>): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const n of noteEvents(doc)) {
+    const k = spellingKey(n.pitch);
+    out[k] = (out[k] ?? 0) + 1;
+  }
+  return out;
+}
+
+const SPELLING_KEY = /^([A-G])(-?[0-2])$/;
+
+/**
+ * 03 §7.5 rule 3 from the manifest alone (PLAN ruling 44): the same verdict `spellExcerpt` gives the doc, because
+ * the written alteration of a transposed note depends only on its letter and alteration, never its octave.
+ */
+export function judgeSpelling(spelling: Readonly<Record<string, number>>, writtenInterval: Interval, doublesAllowed: boolean): { verdict: SpellingVerdict; doubles: number } {
+  let doubles = 0;
+  for (const [key, count] of Object.entries(spelling)) {
+    const m = SPELLING_KEY.exec(key);
+    if (!m) throw new RangeError(`invalid spelling key ${JSON.stringify(key)}`);
+    const pitch: SpelledPitch = { step: m[1] as SpelledPitch['step'], alter: Number(m[2]) as SpelledPitch['alter'], octave: 4 };
+    const w = tryTransposePitch(pitch, writtenInterval);
+    if (!w) return { verdict: 'triple-accidental', doubles };
+    if (Math.abs(w.alter) === 2) doubles += count;
+  }
+  if (doubles > MAX_DOUBLE_ACCIDENTALS) return { verdict: 'too-many-doubles', doubles };
+  if (doubles > 0 && !doublesAllowed) return { verdict: 'double-accidental', doubles };
+  return { verdict: 'ok', doubles };
+}
+
 export function noteEvents(doc: Pick<ExcerptDoc, 'measures'>): NoteEvt[] {
   const out: NoteEvt[] = [];
   for (const m of doc.measures) for (const e of m.events) if (e.kind === 'note') out.push(e);

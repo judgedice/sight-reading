@@ -13,14 +13,23 @@
  *    policy (R7, R20), duration, voice reference replayed in score order with the same `VoiceDriftReference`.
  * 4. `rejudged` against the live outcome (01 §9.7): status, played note, timing, pitch mark or marginal differ.
  *
- * `finalAlign` (the frozen `FollowApi` member) rebuilds the live outcome from the detected notes (`live-outcome.ts`);
- * `alignFinal` takes the outcome the session actually saw.
+ * `finalAlign` (the frozen `FollowApi` member) takes the live outcome the session saw (`liveOutcomeOf` over the take's
+ * follower events, PLAN ruling 44). `alignFinal` is the same with `null` allowed (no live view: nothing is rejudged).
  */
 import type { FollowApi } from '../core/api.ts';
-import type { DetectedNote, ExpectedNote, ExtraNote, FinalAlignment, FollowConfig, NoteJudgment, ResolvedTolerance } from '../core/types.ts';
+import type {
+  DetectedNote,
+  ExpectedNote,
+  ExtraNote,
+  FinalAlignment,
+  FollowConfig,
+  LiveNoteOutcome,
+  LiveOutcome,
+  NoteJudgment,
+  ResolvedTolerance,
+} from '../core/types.ts';
 import { intonationCredit, intonationVerdict, noteVerdict, onsetCredit, VoiceDriftReference } from '../rules/index.ts';
 import { classifyAgainst, matchCost, pitchCost, scoreSecondsOf, SKIP_DETECTED_COST, SKIP_EXPECTED_COST } from './cost.ts';
-import { replayLive, type LiveNoteOutcome, type LiveOutcome } from './live-outcome.ts';
 import { relabel, type AlignNote } from './relabel.ts';
 
 const MS = 1000;
@@ -314,5 +323,5 @@ export function alignFinal(c: FollowConfig, detected: readonly DetectedNote[], l
   return { judgments, extras, displaced };
 }
 
-/** `FollowApi.finalAlign` (01 §5.7, §9.6): the live outcome is rebuilt from the detected notes. */
-export const finalAlign: FollowApi['finalAlign'] = (c, detected) => alignFinal(c, detected, replayLive(c, detected));
+/** `FollowApi.finalAlign` (01 §5.7, §9.6, PLAN ruling 44): `rejudged` against the live outcome the session streamed. */
+export const finalAlign: FollowApi['finalAlign'] = (c, detected, live) => alignFinal(c, detected, live);

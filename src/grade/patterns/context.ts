@@ -3,7 +3,7 @@
  * final judgments. Every threshold is read from `config/tips.json` (pattern `thresholds` / `minEvidence`) or from the
  * resolved per-note tolerances; this file holds no tolerance constants.
  */
-import type { ComponentId, ExpectedNote, GradeInput, NoteJudgment, PatternDef, ResolvedTolerance, Step } from '../../core/types.ts';
+import type { ComponentId, ExpectedNote, GradeInput, KeySig, NoteJudgment, PatternDef, ResolvedTolerance, Step } from '../../core/types.ts';
 import { computeComponents, type ComponentResult } from '../components.ts';
 import { computeDiagnostics, type Diagnostics } from '../diagnostics.ts';
 
@@ -36,7 +36,7 @@ export interface PatternContext {
   medianDeltaMs: number | null;
   /** Expected indices that belong to a stop or are covered by a replay / skip (E6 evidence). */
   flowNotes: ReadonlySet<number>;
-  /** Key-signature alteration per letter, inferred from the notes marked `keySigAltered`. */
+  /** Key-signature alteration per altered letter, from `GradeInput.writtenKey` (PLAN ruling 44). */
   keySig: ReadonlyMap<Step, number>;
 }
 
@@ -188,9 +188,15 @@ function flowNotesOf(input: GradeInput, judgment: readonly (NoteJudgment | undef
   return out;
 }
 
-function keySigOf(expected: readonly ExpectedNote[]): Map<Step, number> {
+/** Order in which a key signature adds sharps (flats in reverse). */
+const SHARP_ORDER: readonly Step[] = ['F', 'C', 'G', 'D', 'A', 'E', 'B'];
+
+/** The letters a written key signature alters, with their alteration (+1 sharps, -1 flats). */
+export function keySigOf(k: KeySig): Map<Step, number> {
   const m = new Map<Step, number>();
-  for (const e of expected) if (e.keySigAltered && !e.explicitAccidental) m.set(e.writtenPitch.step, e.writtenPitch.alter);
+  const n = Math.min(SHARP_ORDER.length, Math.abs(k.fifths));
+  const letters = k.fifths >= 0 ? SHARP_ORDER : [...SHARP_ORDER].reverse();
+  for (let i = 0; i < n; i++) m.set(letters[i]!, Math.sign(k.fifths));
   return m;
 }
 
@@ -213,6 +219,6 @@ export function buildContext(input: GradeInput): PatternContext {
     beatsPerBar: input.meter.countsPerBar,
     medianDeltaMs: median(deltas),
     flowNotes: flowNotesOf(input, judgment, diag, beatMs),
-    keySig: keySigOf(input.expected),
+    keySig: keySigOf(input.writtenKey),
   };
 }

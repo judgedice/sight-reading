@@ -151,7 +151,7 @@ describe('03 §11 item 6 transposition property test', () => {
     const levels = new Set<number>();
     for (let i = 0; i < 10000; i++) {
       const { s, h } = randomRequest(rng, i);
-      const r = selectExcerptWith(m, s, h, cfg, rng, { doc: (id) => docs.get(id) });
+      const r = selectExcerptWith(m, s, h, cfg, rng);
       if ('error' in r) continue;
       served++;
       levels.add(r.levelServed);

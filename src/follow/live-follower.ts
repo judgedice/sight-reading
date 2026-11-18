@@ -53,16 +53,8 @@ import {
 } from '../rules/index.ts';
 import { classifyAgainst, LIVE_SKIP_COST, matchCost, pitchCost, scoreSecondsOf } from './cost.ts';
 import { DISPLACEMENT_WINDOW_NOTES, DisplacementDetector, type WindowNote } from './displacement.ts';
-import { ghostPitch, inferWrittenKey } from './ghost-spelling.ts';
+import { ghostPitch } from './ghost-spelling.ts';
 
-/** Options beyond the frozen `FollowConfig`. */
-export interface LiveFollowerOptions {
-  /** Analysis rate of the DSP pipeline, Hz, for confirmDelay (01 §9.3). Default: the nominal 16 kHz. */
-  analysisRate?: number;
-}
-
-/** Nominal analysis rate, Hz (01 §7.2): 48 and 16 kHz captures analyse at 16 kHz. */
-const NOMINAL_ANALYSIS_RATE = 16000;
 /** Analysis hop, samples (01 §5.6). */
 const HOP_SAMPLES = 128;
 /** confirmDelay = W/2 + 3 hops (01 §9.3). */
@@ -130,7 +122,7 @@ export class LiveFollower implements LiveFollowerInstance {
   private lastLevelT = -Infinity;
   private ended = false;
 
-  constructor(c: FollowConfig, opts: LiveFollowerOptions = {}) {
+  constructor(c: FollowConfig) {
     if (c.tolerances.length !== c.expected.length) throw new RangeError('one resolved tolerance per expected note');
     c.expected.forEach((e, i) => {
       if (e.idx !== i) throw new RangeError('expected notes must be indexed 0..N-1 in order');
@@ -141,11 +133,10 @@ export class LiveFollower implements LiveFollowerInstance {
     this.status = c.expected.map(() => 'pending');
     this.detector = new DisplacementDetector(c.expected, c.tolerances, c.bpm, c.beatsPerBar, c.instrument, c.cfg);
     this.drift = new VoiceDriftReference(c.cfg);
-    this.key = inferWrittenKey(c.expected);
+    this.key = c.writtenKey;
     this.beatSec = 60 / c.bpm;
     this.barSec = c.beatsPerBar * this.beatSec;
-    const rate = opts.analysisRate ?? NOMINAL_ANALYSIS_RATE;
-    this.confirmDelaySec = (c.instrument.detection.windowSamples / 2 + CONFIRM_HOPS * HOP_SAMPLES) / rate;
+    this.confirmDelaySec = (c.instrument.detection.windowSamples / 2 + CONFIRM_HOPS * HOP_SAMPLES) / c.analysisRate;
     this.attackMs = c.cfg.grading.intonation.attackExcludeMsByFamily[c.instrument.family];
     this.extraMinMs = c.cfg.grading.credit.extraMinDurMs;
     for (let i = 1; i < this.n; i++) {
@@ -341,7 +332,7 @@ export class LiveFollower implements LiveFollowerInstance {
     st.deltaMs = (st.s - e.onsetSec) * MS;
     this.setStatus(idx, 'active');
     out.push({ type: 'note-start', detectedId: st.note.id, scoreBeat: this.beats(st.s), provisionalConcertMidi: st.note.provisionalMidi, matchedExpected: idx, displaced: false });
-    const wrong = wrongPitchAtConfirm(c, true, this.c.cfg);
+    const wrong = wrongPitchAtConfirm(c, st.note.framesAgree, this.c.cfg);
     // Until the pitch is known, judge timing alone: a correct-pitch placeholder with no intonation grade.
     const facts = wrong ? c : { ...c, kind: 'correct' as const, p: 1 as const, octaveDisplaced: false, devCents: 0 };
     const v = noteVerdict({ deltaMs: st.deltaMs, pitch: facts, intonation: 'not-graded' }, tol);

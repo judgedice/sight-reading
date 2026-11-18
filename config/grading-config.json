@@ -1,6 +1,6 @@
 {
   "$schema": "../schemas/grading-config.schema.json",
-  "configVersion": "grading-2.0.0",
+  "configVersion": "grading-2.1.0",
   "timing": {
     "_source": "02 §4.2 (level bands, IOI caps, family floors; R23)",
     "levelBands": [

@@ -13,7 +13,7 @@ import { createScenarioSet, scenarioConfigs, type ScenarioRender } from '../test
 import { renderPerformance, type SynthNoteSpec, type VibratoSpec } from '../testkit/synth/index.ts';
 import { TIMBRE_IDS } from '../testkit/synth/timbres.ts';
 import { runOffline } from './pipeline.ts';
-import { segmenterOptions } from './segmenter.ts';
+import { Segmenter, segmenterOptions } from './segmenter.ts';
 
 const cfgs = scenarioConfigs();
 
@@ -36,6 +36,8 @@ function dspConfig(instrumentId: string, repeatHints: DspConfig['repeatHints'] =
     clicks: [],
     clickTemplate: null,
     repeatHints,
+    attackExcludeMs: cfgs.grading.intonation.attackExcludeMsByFamily[inst.family],
+    clickLeakDb: null,
   };
 }
 
@@ -274,14 +276,33 @@ describe('DetectedNote statistics (01 section 7.5)', () => {
     expect(note.altOctaveClarity).not.toBeNull();
   });
 
+  it('framesAgree: true when the confirming frames sit on one semitone, false for a scoop across a semitone edge', () => {
+    const opts = segmenterOptions(0.008, { windowSec: 0.064, clarityThreshold: 0.85, changeCents: 60, onsetProfile: 'tongued-wind', attackExcludeMs: 50 });
+    const firstOn = (midis: number[]): DetectedNote => {
+      const seg = new Segmenter(opts, [], []);
+      seg.startEnvelope(0.001, 0.002, 0, 16000);
+      const out: DspEvent[] = [];
+      midis.forEach((m, k) => out.push(...seg.pushFrame({ t: 0.5 + 0.008 * k, midi: m, raw: m, clarity: 0.95, rmsDb: -30, alt: null, inClick: false })));
+      const on = out.find((e) => e.type === 'note-on');
+      if (!on || on.type !== 'note-on') throw new Error('no note-on');
+      return on.note;
+    };
+    expect(firstOn([62.1, 61.9, 62.05, 62, 62, 62]).framesAgree).toBe(true);
+    // 62.45, 62.55 and 62.4 are within changeCents of each other (one stable onset) but round to 62, 63, 62.
+    expect(firstOn([62.45, 62.55, 62.4, 62.4, 62.4, 62.4]).framesAgree).toBe(false);
+    // On real audio a clean note's confirming frames agree.
+    const r = render('clarinet', [{ midi: 60, onsetSec: 0.3, durSec: 0.6 }], { vibrato: null });
+    expect(notesOf(runOffline(r.samples, r.sampleRate, dspConfig('clarinet-bb')).events).map((n) => n.framesAgree)).toEqual([true]);
+  });
+
   it('segmenterOptions converts seconds with the hop and sets profile parameters', () => {
-    const a = segmenterOptions(0.008, { windowSec: 0.064, clarityThreshold: 0.85, changeCents: 60, onsetProfile: 'tongued-wind' });
+    const a = segmenterOptions(0.008, { windowSec: 0.064, clarityThreshold: 0.85, changeCents: 60, onsetProfile: 'tongued-wind', attackExcludeMs: 50 });
     expect([a.onsetConfirmFrames, a.changeConfirmFrames, a.offsetFrames]).toEqual([3, 3, 8]);
     expect(a.attackExcludeSec).toBeCloseTo(0.05, 12);
-    const v = segmenterOptions(128 / 14700, { windowSec: 0.07, clarityThreshold: 0.8, changeCents: 80, onsetProfile: 'voice' });
+    const v = segmenterOptions(128 / 14700, { windowSec: 0.07, clarityThreshold: 0.8, changeCents: 80, onsetProfile: 'voice', attackExcludeMs: 80 });
     expect([v.onsetConfirmFrames, v.changeConfirmFrames, v.offsetFrames]).toEqual([3, 4, 7]);
     expect(v.fluxRouteFactor).toBeGreaterThan(a.fluxRouteFactor);
-    const p = segmenterOptions(0.008, { windowSec: 0.064, clarityThreshold: 0.8, changeCents: 40, onsetProfile: 'struck' });
+    const p = segmenterOptions(0.008, { windowSec: 0.064, clarityThreshold: 0.8, changeCents: 40, onsetProfile: 'struck', attackExcludeMs: 50 });
     expect(p.struck).toBe(true);
     expect(p.fluxRouteFactor).toBeLessThan(a.fluxRouteFactor);
   });

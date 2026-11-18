@@ -4,10 +4,11 @@
 import { describe, expect, it } from 'vitest';
 import { configs } from '../../../fixtures/follow/gen/io.ts';
 import { makeMeter } from '../../core/time.ts';
-import type { ClockSeconds, DetectedNote, ExpectedNote, GradeInput, Meter, NoteJudgment, PatternResult, SpelledPitch, Step } from '../../core/types.ts';
+import type { ClockSeconds, DetectedNote, ExpectedNote, GradeInput, KeySig, Meter, NoteJudgment, PatternResult, SpelledPitch, Step } from '../../core/types.ts';
 import { resolveTolerances } from '../../rules/index.ts';
 import { toMidi } from '../../theory/index.ts';
 import { grade } from '../grade.ts';
+import { selectTips } from '../../tips/index.ts';
 import { detectPatterns } from './index.ts';
 
 const cfg = configs();
@@ -41,6 +42,8 @@ interface Build {
   pickupBeats?: number;
   notes: NoteSpec[];
   play?: (i: number, e: ExpectedNote) => Play;
+  /** Written key signature (default C major). */
+  writtenKey?: KeySig;
   extra?: Partial<GradeInput>;
 }
 
@@ -123,7 +126,7 @@ function build(b: Build): GradeInput {
     const onset = T0 + e.onsetSec + dMs / 1000;
     detected.push({
       id, onset: onset as ClockSeconds, offset: (onset + e.durSec * 0.95) as ClockSeconds, provisionalMidi: playedConcert, midi: playedConcert + cents / 100, stableMedianCents: cents,
-      steadyMs, pitchSdCents: 3, clarity: 0.95, altOctaveClarity: null, onsetCause: 'from-silence',
+      steadyMs, pitchSdCents: 3, clarity: 0.95, altOctaveClarity: null, onsetCause: 'from-silence', framesAgree: true,
     });
     judgments.push({
       expectedIdx: i,
@@ -152,6 +155,7 @@ function build(b: Build): GradeInput {
     level,
     bpm,
     meter,
+    writtenKey: b.writtenKey ?? { fifths: 0, mode: 'major' },
     cfg,
     tuning: continuous ? { used: false, offsetCents: 0 } : null,
     voiceReference: instrument.relativePitch ? { finalOffsetCents: 0, offsetAtThirdCents: 0 } : null,
@@ -225,6 +229,7 @@ describe('E6 stopped or restarted', () => {
 
 describe('E12 missed key-signature notes', () => {
   // D major: F# and C# from the key signature in every bar
+  const D_MAJOR: KeySig = { fifths: 2, mode: 'major' };
   const dMajor = (bars: number): NoteSpec[] =>
     Array.from({ length: bars }, () => [
       { p: 'D5', dur: 1 },
@@ -234,7 +239,7 @@ describe('E12 missed key-signature notes', () => {
     ]).flat();
   it('fires when F# is played as F in several bars', () => {
     const notes = dMajor(4);
-    const ps = detectPatterns(build({ notes, play: (_i, e) => (e.writtenPitch.step === 'F' && e.bar <= 3 ? { written: 77 } : {}) }));
+    const ps = detectPatterns(build({ writtenKey: D_MAJOR, notes, play: (_i, e) => (e.writtenPitch.step === 'F' && e.bar <= 3 ? { written: 77 } : {}) }));
     const e12 = find(ps, 'E12');
     expect(e12.notes).toEqual([2, 6, 10]);
     expect(e12.bars).toEqual([1, 2, 3]);
@@ -244,21 +249,29 @@ describe('E12 missed key-signature notes', () => {
     const notes = dMajor(4);
     // bars 5 and 6: F naturals (carried from a cancelled bar, no own accidental) played as F#
     for (let bar = 0; bar < 2; bar++) notes.push({ p: 'F5', dur: 1 }, { p: 'E5', dur: 1 }, { p: 'F5', dur: 1 }, { p: 'E5', dur: 1 });
-    const ps = detectPatterns(build({ notes, play: (i, e) => (i >= 16 && e.writtenPitch.step === 'F' ? { written: 78 } : {}) }));
+    const ps = detectPatterns(build({ writtenKey: D_MAJOR, notes, play: (i, e) => (i >= 16 && e.writtenPitch.step === 'F' ? { written: 78 } : {}) }));
     expect(find(ps, 'E12').notes).toEqual([16, 18, 20, 22]);
   });
   it('does not fire under 30% of the key-signature notes (2 of 8)', () => {
-    const ps = detectPatterns(build({ notes: dMajor(4), play: (i) => (i === 2 || i === 6 ? { written: 77 } : {}) }));
+    const ps = detectPatterns(build({ writtenKey: D_MAJOR, notes: dMajor(4), play: (i) => (i === 2 || i === 6 ? { written: 77 } : {}) }));
     expect(ids(ps)).not.toContain('E12');
-    const ps2 = detectPatterns(build({ notes: dMajor(2), play: (i) => (i === 2 || i === 6 ? { written: 77 } : {}) }));
+    const ps2 = detectPatterns(build({ writtenKey: D_MAJOR, notes: dMajor(2), play: (i) => (i === 2 || i === 6 ? { written: 77 } : {}) }));
     expect(ids(ps2)).toContain('E12');
   });
   it('does not fire when the played semitone is unclear (more than 30 cents off)', () => {
-    const ps = detectPatterns(build({ notes: dMajor(2), play: (i) => (i === 2 || i === 6 ? { written: 77, cents: 40 } : {}) }));
+    const ps = detectPatterns(build({ writtenKey: D_MAJOR, notes: dMajor(2), play: (i) => (i === 2 || i === 6 ? { written: 77, cents: 40 } : {}) }));
     expect(ids(ps)).not.toContain('E12');
   });
+  it('reads the key signature from GradeInput.writtenKey, not from the notes (PLAN ruling 44)', () => {
+    // The same F naturals under a C major signature carry no sharp to forget or apply: nothing to slip.
+    const notes: NoteSpec[] = [];
+    for (let bar = 0; bar < 4; bar++) notes.push({ p: 'F5', dur: 1 }, { p: 'E5', dur: 1 }, { p: 'F5', dur: 1 }, { p: 'E5', dur: 1 });
+    const play = (_i: number, e: ExpectedNote): Play => (e.writtenPitch.step === 'F' ? { written: 78 } : {});
+    expect(ids(detectPatterns(build({ notes, play })))).not.toContain('E12');
+    expect(find(detectPatterns(build({ writtenKey: D_MAJOR, notes, play })), 'E12').notes).toEqual([0, 2, 4, 6, 8, 10, 12, 14]);
+  });
   it('does not fire for a wrong pitch that is not the key-signature slip', () => {
-    const ps = detectPatterns(build({ notes: dMajor(2), play: (i) => (i === 2 || i === 6 ? { written: 76 } : {}) }));
+    const ps = detectPatterns(build({ writtenKey: D_MAJOR, notes: dMajor(2), play: (i) => (i === 2 || i === 6 ? { written: 76 } : {}) }));
     expect(ids(ps)).not.toContain('E12');
   });
 });
@@ -290,6 +303,41 @@ describe('E13 missed written accidentals', () => {
     n[2] = { p: 'G#5', dur: 1, acc: true };
     const ps = detectPatterns(build({ notes: n, play: (i) => (i === 1 || i === 2 ? { written: 79 } : {}) }));
     expect(ids(ps)).not.toContain('E13');
+  });
+});
+
+describe('SX04: E12 and E13 report the bflat-involved condition (02 §6.4)', () => {
+  // Alto sax line with written B-flats carrying their own accidental, dropped to B natural in two bars.
+  const sax = (): NoteSpec[] => {
+    const n = quarters(4);
+    n[1] = { p: 'Bb4', dur: 1, acc: true };
+    n[9] = { p: 'Bb4', dur: 1, acc: true };
+    n[5] = { p: 'G#5', dur: 1, acc: true };
+    n[13] = { p: 'G#5', dur: 1, acc: true };
+    return n;
+  };
+  const tipsFor = (patterns: PatternResult[]): string[] =>
+    selectTips({ patterns, instrument: cfg.instrumentById['sax-alto']!, level: 4, recentTipIds: [], recentPrimaries: ['E13', 'E13'], catalog: cfg.tips }).map((t) => t.id);
+
+  it('a dropped B-flat accidental sets bflat-involved, and the tip selector then serves SX04', () => {
+    const ps = detectPatterns(build({ instrumentId: 'sax-alto', notes: sax(), play: (i) => (i === 1 || i === 9 ? { written: 71 } : {}) }));
+    const e13 = find(ps, 'E13');
+    expect(e13.notes).toEqual([1, 9]);
+    expect(e13.params).toEqual({ 'bflat-involved': 2 });
+    expect(tipsFor(ps)).toContain('SX04');
+  });
+
+  it('a dropped G-sharp sets bflat-involved to 0, and SX04 stays out', () => {
+    const ps = detectPatterns(build({ instrumentId: 'sax-alto', notes: sax(), play: (i) => (i === 5 || i === 13 ? { written: 79 } : {}) }));
+    expect(find(ps, 'E13').params).toEqual({ 'bflat-involved': 0 });
+    expect(tipsFor(ps)).not.toContain('SX04');
+  });
+
+  it('E12 counts a B-flat from the key signature played as B natural', () => {
+    const notes: NoteSpec[] = [];
+    for (let bar = 0; bar < 3; bar++) notes.push({ p: 'C5', dur: 1 }, { p: 'Bb4', dur: 1, keySig: true }, { p: 'A4', dur: 1 }, { p: 'G4', dur: 1 });
+    const ps = detectPatterns(build({ instrumentId: 'sax-alto', writtenKey: { fifths: -1, mode: 'major' }, notes, play: (_i, e) => (e.writtenPitch.step === 'B' ? { written: 71 } : {}) }));
+    expect(find(ps, 'E12').params).toEqual({ 'bflat-involved': 3 });
   });
 });
 

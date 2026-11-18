@@ -440,6 +440,11 @@ describe('manifest', () => {
       expect([e.corpus, e.license, e.composer]).toEqual([d.source.corpus, d.source.license, d.source.composer]);
       expect(e.tags).toEqual(d.tags);
       expect(e.flags).toEqual(d.flags);
+      // PLAN ruling 44: peak density and the spelled pitch-class counts (every note event, tie continuations too).
+      expect(e.peakNotesPerBeat).toBe(d.features.peakNotesPerBeat);
+      const spelling: Record<string, number> = {};
+      for (const n of notesOf(d)) spelling[`${n.pitch.step}${n.pitch.alter}`] = (spelling[`${n.pitch.step}${n.pitch.alter}`] ?? 0) + 1;
+      expect(e.spelling).toEqual(spelling);
     }
   });
 

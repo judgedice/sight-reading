@@ -229,6 +229,8 @@ export function detectedAt(p: Played, id: number, t: number, o: StreamOpts, fina
     clarity: p.clarity,
     altOctaveClarity: p.altOctaveClarity,
     onsetCause: 'from-silence',
+    // Synthetic confirming frames sit on the played semitone (01 §9.3 item 3).
+    framesAgree: true,
   };
 }
 

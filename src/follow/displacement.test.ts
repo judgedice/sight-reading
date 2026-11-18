@@ -7,7 +7,7 @@ import { buildStream, endOfTakeSec, perform, type Truth } from '../../fixtures/f
 import { configs } from '../../fixtures/follow/gen/io.ts';
 import { resolveTolerances } from '../rules/index.ts';
 import { createScenarioSet, GOLDEN_CASES, planGoldenDisplacement, planScenario, type ScenarioPlan } from '../testkit/scenarios/index.ts';
-import { runFollowStream } from '../testkit/predicates/index.ts';
+import { FIXTURE_ANALYSIS_RATE, runFollowStream } from '../testkit/predicates/index.ts';
 import { classifyAgainst, DisplacementDetector, LiveFollower, type WindowNote } from './index.ts';
 
 const T0 = 10;
@@ -36,6 +36,8 @@ function runPlan(plan: ScenarioPlan): PlanRun {
     instrument: b.inst,
     cfg,
     voiceReferenceCents: 0,
+    analysisRate: FIXTURE_ANALYSIS_RATE,
+    writtenKey: b.writtenKey,
   };
   const events = runFollowStream(stream, new LiveFollower(config));
   return { events, truth: new Map(played.map((p, k) => [k + 1, p.truth])), stream, config };

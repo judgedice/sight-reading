@@ -1,7 +1,8 @@
 /**
- * `prepareExcerpt` (01 §5.5, §6.3 step 5; 03 §7.4): apply the selection's transposition to the doc. Throws
- * `TranspositionError` instead of editing notes when the doc breaks a 03 §7.5 rule the manifest could not show
- * (spelling, or a tempo bound the manifest only estimates); `selectAndPrepare` handles that by selecting again.
+ * `prepareExcerpt` (01 §5.5, §6.3 step 5; 03 §7.4): apply the selection's transposition to the doc. The selector
+ * already decided the 03 §7.5 rules from the manifest (PLAN ruling 44); this re-checks them on the doc and throws
+ * `TranspositionError` instead of editing notes when the doc and its manifest entry disagree (`selectAndPrepare`
+ * then selects again without that excerpt).
  */
 import type { CorpusApi } from '../../core/api.ts';
 import type { DisplayedModification, PreparedEvent, PreparedMeasure } from '../../core/types.ts';

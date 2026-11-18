@@ -325,7 +325,7 @@ describe('tempo, bars, withdrawn, level and determinism', () => {
   });
 });
 
-describe('spelling with docs: enharmonic retry for a random key only (03 §7.5 rule 3)', () => {
+describe('spelling from the manifest: enharmonic retry for a random key only (03 §7.5 rule 3, PLAN ruling 44)', () => {
   // A minor lines with raised chromatic notes (C#, D#, F#, G#) at L7: sharp minor keys from 2 sharps up need double
   // sharps somewhere; D# minor may retry as E♭ minor, G# minor's enharmonic (A♭ minor, 7 flats) is not allowed at L7.
   const c = corpus(specs('am', 6, { level: 7, chromaticRate: 0.35, chromaticDirection: 'up' }).map((s) => ({ ...s, key: { fifths: 0, mode: 'minor' as const }, low: 64 })), 5);
@@ -333,7 +333,7 @@ describe('spelling with docs: enharmonic retry for a random key only (03 §7.5 r
     const rng = createRng(13);
     let retries = 0;
     for (let i = 0; i < 600; i++) {
-      const r = selectExcerptWith(c.m, settings({ level: 7 }), history({ playerLevel: 7 }), cfg, rng, { doc: (id) => c.docs.get(id) });
+      const r = selectExcerptWith(c.m, settings({ level: 7 }), history({ playerLevel: 7 }), cfg, rng);
       if ('error' in r) continue;
       const p = prepareExcerpt(c.docs.get(r.entry.id)!, r, cfg.instrumentById.flute!, cfg);
       for (const m of p.measures) for (const e of m.events) if (e.kind === 'note') expect(Math.abs(e.writtenPitch.alter)).toBeLessThan(2);
@@ -347,7 +347,7 @@ describe('spelling with docs: enharmonic retry for a random key only (03 §7.5 r
   it('a chosen key that would need a double sharp is rejected, never re-spelled', () => {
     const k: KeySig = { fifths: 6, mode: 'minor' };
     for (let s = 0; s < 50; s++) {
-      const r = selectExcerptWith(c.m, settings({ level: 7, writtenKey: k, seed: s }), history({ playerLevel: 7 }), cfg, createRng(1), { doc: (id) => c.docs.get(id) });
+      const r = selectExcerptWith(c.m, settings({ level: 7, writtenKey: k, seed: s }), history({ playerLevel: 7 }), cfg, createRng(1));
       if (!('error' in r)) {
         expect(r.writtenKey).toEqual(k);
         expect(() => prepareExcerpt(c.docs.get(r.entry.id)!, r, cfg.instrumentById.flute!, cfg)).not.toThrow();
@@ -361,7 +361,7 @@ describe('fixture corpus and selectAndPrepare', () => {
   const docs = new Map(corpusDocs().map((d) => [d.id, d]));
   const m = manifestOf(entries);
 
-  it('selectAndPrepare loads only what it needs and returns a prepared excerpt that satisfies 03 §11 item 6', async () => {
+  it('selectAndPrepare loads exactly the chosen doc and returns a prepared excerpt that satisfies 03 §11 item 6', async () => {
     for (const [instrumentId, level] of [['violin', 6], ['cello', 3], ['flute', 4], ['clarinet-bb', 5], ['piano-rh', 7]] as const) {
       const loads: string[] = [];
       const r = await selectAndPrepare(m, settings({ instrumentId, level }), history({ playerLevel: level }), cfg, createRng(level), async (id) => {
@@ -369,8 +369,8 @@ describe('fixture corpus and selectAndPrepare', () => {
         return docs.get(id)!;
       });
       if ('error' in r) throw new Error(`${instrumentId} L${level}: empty pool`);
-      expect(loads.length).toBeGreaterThanOrEqual(1);
-      expect(new Set(loads).size).toBe(loads.length);
+      // The manifest decides spelling and tempo exactly (PLAN ruling 44), so the first pick never has to be undone.
+      expect(loads).toEqual([r.doc.id]);
       const band = bandFor(cfg.instrumentById[instrumentId]!, levelDef(cfg, level));
       for (const ms of r.prepared.measures)
         for (const e of ms.events)
