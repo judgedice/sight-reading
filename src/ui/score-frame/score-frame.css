@@ -1,0 +1,140 @@
+/* ScoreFrame (04 sections 4.3, 4.4, 7.5; 05 section 7). Tokens only; geometry comes from the controller as
+   --sf-* custom properties (px values computed from the layout table, set inline). */
+
+.sf-frame {
+  position: relative;
+  box-sizing: border-box;
+  min-inline-size: 0;
+  background: var(--paper);
+  color: var(--ink);
+  padding-inline: var(--sai-left, 0) var(--sai-right, 0);
+  overflow: hidden;
+}
+
+/* Scan and review on phones: every system in reading order, scrolled (04 section 4.3). */
+.sf-frame[data-arrangement='all'] {
+  overflow-y: auto;
+  /* A classic scrollbar would narrow the frame and force a re-layout; scan and take must share one geometry. */
+  scrollbar-width: none;
+}
+
+.sf-frame[data-arrangement='all']::-webkit-scrollbar {
+  display: none;
+}
+
+.sf-stage {
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--sf-gutter, 0) var(--sf-score-w, auto);
+  align-items: start;
+  inline-size: max-content;
+  transform-origin: 0 0;
+}
+
+.sf-score {
+  grid-column: 2;
+  grid-row: 1;
+  min-inline-size: 0;
+}
+
+/* One fixed-height slot per system; a turn swaps a slot's content and nothing else moves. */
+.sf-score .sr-slot {
+  position: relative;
+  block-size: var(--sf-system-h);
+  overflow: hidden;
+}
+
+.sf-score .sr-slot > svg {
+  display: block;
+}
+
+/* ---- System numbers and the wrap bar (04 section 4.3 rule 5) ---- */
+.sf-gutter {
+  grid-column: 1;
+  grid-row: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.sf-line {
+  position: relative;
+  box-sizing: border-box;
+  block-size: var(--sf-system-h);
+}
+
+/* The number comes from data-line, so the frame has no text nodes. */
+.sf-line[data-line]::before {
+  content: attr(data-line);
+  position: absolute;
+  inset-block-start: var(--sf-caption-top);
+  inset-inline-start: 0;
+  inset-inline-end: var(--space-2);
+  transform: translateY(-50%);
+  font-family: var(--font-ui);
+  font-size: var(--type-caption-size);
+  line-height: var(--type-caption-line);
+  font-weight: var(--type-caption-weight);
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+  color: var(--text-muted);
+}
+
+/* The next system is not directly below the current one: a 3 px --playhead-next bar on the slot's left edge. */
+.sf-line[data-wrap='true']::after {
+  content: '';
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: 0;
+  inline-size: 0.1875rem;
+  background: var(--playhead-next);
+}
+
+/* ---- Crossfade layer: the outgoing system fades out over the incoming one ---- */
+.sf-fade {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: var(--sf-gutter, 0);
+  pointer-events: none;
+}
+
+.sf-fade > .sf-fade-out {
+  position: absolute;
+  inset-inline-start: 0;
+  background: var(--paper);
+}
+
+/* ---- During count-in and performing (04 section 4.4, 05 section 7 item 4) ---- */
+.sf-frame[data-frozen='true'] {
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  /* Not a scroll container at all during a take, even for script or focus scrolling (04 section 5.4). */
+  overflow: clip;
+}
+
+/* Taps on the score do nothing during a take. */
+.sf-frame[data-frozen='true'] .sf-stage {
+  pointer-events: none;
+}
+
+:root[data-score-frozen='true'],
+:root[data-score-frozen='true'] body {
+  overscroll-behavior: none;
+}
+
+/* Hidden probe that resolves the safe-area variables to px (controller readInsets). */
+.sf-inset-probe {
+  position: absolute;
+  visibility: hidden;
+  inline-size: 0;
+  block-size: 0;
+  padding-block: var(--sai-top, 0) var(--sai-bottom, 0);
+  padding-inline: 0;
+  overflow: hidden;
+}
+
+/* Held until the layout is drawn and Bravura can paint (ensureNotationFonts). */
+.sf-frame:not([data-ready='true']) .sf-stage {
+  visibility: hidden;
+}

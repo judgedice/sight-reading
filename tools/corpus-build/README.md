@@ -199,3 +199,28 @@ The procedure, the answer format and the two prompt variants are in `REVIEW.md`.
 length, pitch and spelling; verdicts are keyed by it), `outlierFlags`, `keyProfile`, `reviewRequired` (the R2 triggers),
 and on a pass the ExcerptDoc `review` block (`rules`, `llm` accepted or not-required, `llmVerdicts`, `promptVersion`).
 C9 emits only `status: pass` records of this stage and copies `review` and `contentHash`.
+
+## Emit (job C9, 03 sections 5.2 and 6.13; rulings 24, 25, 26, 44)
+
+`python -m corpus_build emit` (last stage of the default run; `corpus_build/emit.py`, `emit_checks.py`, `emit_report.py`, settings in
+`config/emit.yaml`) reads `build/review/candidates.jsonl` (status `pass`), the window blobs, `build/gate`, `build/extract` and the committed
+verdict cache, and writes:
+
+- `public/corpus/v1/`: `shard-L<level>-<n>.<hash>.json` (at most 64 excerpts, ordered by id within the level), `manifest.<hash>.json` (column
+  oriented, dictionary encoded, `stats.servedLevels` and `stats.fit`, spelling data and `peakNotesPerBeat` per row), `attributions.<hash>.json`,
+  `index.json` and `withdrawn.json` (both pretty printed, no-cache). Hashes are the first 10 hex characters of the file's sha256. Chunks and the
+  manifest are compact JSON with sorted keys, so a rerun is byte-identical.
+- `LICENSES/CORPUS-STATEMENT.txt` (always) and `LICENSES/CC0-1.0.txt` (copied from the OpenScore clone when the cache is present). The CC BY 4.0 text
+  `LICENSES/CC-BY-4.0.txt` is committed and not rewritten.
+- `build/report.md` (not shipped): counts per level and per launch instrument, review outcomes, the ruling 24 result, launch and report-only gates.
+
+Excerpt documents: `level` is the window's `effectiveLevel`; event ids are `e<n>` from 1 over every event in window order (the numbering C6 used
+for `extremes`); `slur` marks are the flattened outer span of the source slurs; the tempo range is the printed mark +/- 10%, else a tempo word's
+range, else 60 to 120 quarter bpm (scaled to the count unit for compound meters). Excerpt ids are
+`<composer>-<score file>-<role>[-mv<n>]-m[p]<first bar>-<last bar>[-aug2]`.
+
+Hard gates, all applied to the emitted documents and files: H-schema (every file against `schemas/*.schema.json`), H-licence, H-credits, H-rules
+(bar sums, H2, H3, H4, H6 and H11 re-derived from the documents), H-dedupe, H-review, H-budget (manifest 60 KB and chunk 128 KB gzip, 64
+excerpts), H-determinism (the stage builds twice and compares) and ruling 24 (at least 300 excerpts and a non-empty selection for every launch
+instrument at every served level). If one fails nothing is written to `public/corpus/` and the stage exits 1. If the corpus exceeds
+`size_limit_bytes` the stage trims the lowest-interest excerpts, the same share from every level. H-render and the TS selector check are C10.

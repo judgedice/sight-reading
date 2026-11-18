@@ -1,7 +1,7 @@
 """Command line: `python -m corpus_build [stage ...]`. Run from tools/corpus-build (or put it on PYTHONPATH).
 
 Stages: fetch, lock, verify, composers, gate, read, normalize, extract, windows, augment, features, filters, dedupe,
-review, plus the developer stages familiar, calibrate, review-export and review-ingest. With no stage, runs every stage
+review, emit, plus the developer stages familiar, calibrate, review-export and review-ingest. With no stage, runs every stage
 except lock, familiar, calibrate, review-export and review-ingest.
 `lock` rewrites sources.lock.yaml, `familiar` rewrites familiar.yaml and `calibrate` writes a fitted filters file to
 build/calibration/; none is part of the default run, because the default run must not change committed inputs. Later stages (C3a onward) register in STAGES.
@@ -22,6 +22,7 @@ from .familiar import write_familiar
 from .filter_stage import run_filters
 from .calibration import run_calibration
 from .dedupe import run_dedupe
+from .emit import EmitError, run_emit
 from .review import IngestError, run_review, run_review_export, run_review_ingest
 from .gate import run_gate
 from .pipeline import run_extract, run_normalize, run_read
@@ -233,6 +234,24 @@ def stage_review(ctx: Ctx) -> int:
     return 0
 
 
+def stage_emit(ctx: Ctx) -> int:
+    if not (ctx.build / "review" / "candidates.jsonl").exists():
+        print("emit: build/review/candidates.jsonl is missing. Run `review` first.", file=sys.stderr)
+        return 1
+    try:
+        r = run_emit(ctx.build, cache=ctx.cache)
+    except EmitError as e:
+        print(f"emit: {e}", file=sys.stderr)
+        return 1
+    print(f"emit: {r['excerpts']} excerpts in {r['chunks']} chunks, {r['bytes'] / 1e6:.2f} MB; served levels {r['servedLevels']}; gates {r['gates']}; deterministic {r['determinism']}")
+    for p in r["problems"][:20]:
+        print(f"emit: {p}", file=sys.stderr)
+    if r["emptyCells"]:
+        print(f"emit: empty launch cells {r['emptyCells']}", file=sys.stderr)
+    print(f"emit: report in {r['report']}")
+    return 0 if r["ok"] else 1
+
+
 def stage_review_export(ctx: Ctx) -> int:
     if not (ctx.build / "dedupe" / "candidates.jsonl").exists():
         print("review-export: build/dedupe/candidates.jsonl is missing. Run `dedupe` first.", file=sys.stderr)
@@ -276,10 +295,11 @@ STAGES: dict[str, Callable[[Ctx], int]] = {
     "calibrate": stage_calibrate,
     "dedupe": stage_dedupe,
     "review": stage_review,
+    "emit": stage_emit,
     "review-export": stage_review_export,
     "review-ingest": stage_review_ingest,
 }
-DEFAULT_RUN = ["fetch", "verify", "composers", "gate", "read", "normalize", "extract", "windows", "augment", "features", "filters", "dedupe", "review"]
+DEFAULT_RUN = ["fetch", "verify", "composers", "gate", "read", "normalize", "extract", "windows", "augment", "features", "filters", "dedupe", "review", "emit"]
 
 
 def main(argv: list[str] | None = None) -> int:

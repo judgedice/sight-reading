@@ -34,6 +34,7 @@ import jsonschema
 from .candidate import read_jsonl
 from .coverage import fitting_keys, flag_allowed, needs_review, pool_of, tempo_ok, _levels_json
 from .emit_checks import check_documents
+from .emit_report import render
 from .features import levels_config
 from .histogram import instruments
 from .paths import LICENSES_DIR, PUBLIC_CORPUS, REPO_ROOT, SHIPPED_SCHEMA_DIR, CONFIG_DIR, TOOL_DIR
@@ -737,3 +738,43 @@ def write_files(files: dict[str, bytes], out_dir: Path) -> None:
             p.unlink()
     for name, data in files.items():
         (out_dir / name).write_bytes(data)
+
+
+# ---------------------------------------------------------------------------------------------------- the stage
+
+
+GATE_PREFIXES = ["H-schema", "H-licence", "H-credits", "H-rules", "H-dedupe", "H-review", "H-budget"]
+
+
+def run_emit(build: Path, out_dir: Path = PUBLIC_CORPUS, licences_dir: Path = LICENSES_DIR, cache: Path | None = None, report_path: Path | None = None) -> dict[str, Any]:
+    """The emit stage. Builds twice (H-determinism), checks every gate, writes the corpus only if all pass, always writes
+    the report. Returns a summary; `ok` is False if any hard gate failed."""
+    inp = load_inputs(build)
+    em = build_corpus(inp)
+    em2 = build_corpus(inp, validate=False)
+    deterministic = em.files == em2.files
+    via = viability(em.docs, em.entries, em.stats, inp.cfg)
+    gates: dict[str, str] = {}
+    for g in GATE_PREFIXES:
+        bad = [p for p in em.problems if p.startswith(g + ":")]
+        gates[g] = "pass" if not bad else f"FAIL ({len(bad)})"
+    gates["H-viable"] = "pass" if via["ok"] else "FAIL"
+    gates["H-render"] = "not run here: C10 renders every excerpt in headless Chromium"
+    determinism = "pass (two builds are byte-identical)" if deterministic else "FAIL (two builds differ)"
+    ok = not em.problems and via["ok"] and deterministic
+    notes: list[str] = []
+    if ok:
+        write_files(em.files, out_dir)
+        notes += write_licences(inp, cache, licences_dir)
+    else:
+        notes.append("A hard gate failed: nothing was written to public/corpus/.")
+    notes += [
+        "Not checkable from the emitted documents, applied by the pipeline: H1 (phrase start), H5 and H12 sequences and beam groups (no beam data in the sources), H8 and H9 (source side).",
+        "Nested or overlapping source slurs are flattened to their outer span in `slur` marks (ExcerptDoc has one mark per note).",
+        "Modal excerpts carry `keyConcert.mode` 'minor' for dorian, phrygian, aeolian and locrian and 'major' for lydian and mixolydian (the third of the mode); `modal` names the mode and they are served only under a random key (R8).",
+    ]
+    report = render(em, inp, via, gates, determinism, notes)
+    rp = report_path or build / "report.md"
+    rp.parent.mkdir(parents=True, exist_ok=True)
+    rp.write_text(report + "\n", encoding="utf-8", newline="\n")
+    return {"ok": ok, "excerpts": len(em.docs), "chunks": len(em.index["chunks"]), "bytes": sum(len(b) for b in em.files.values()), "servedLevels": em.stats["servedLevels"], "problems": em.problems, "gates": gates, "determinism": deterministic, "viable": via["ok"], "emptyCells": via["emptyCells"], "trimmed": em.trimmed, "notes": notes, "report": str(rp)}

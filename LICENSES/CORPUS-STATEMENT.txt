@@ -1,0 +1,11 @@
+Contributions of this project to the score corpus
+=================================================
+
+The excerpts in public/corpus/v1/ are cut, normalized and annotated from OpenScore Lieder and OpenScore String
+Quartets, both released under CC0 1.0 Universal by their contributors. The cutting, the normalization, the
+level and feature annotations and the review records that this project adds are released under the same
+CC0 1.0 Universal dedication (https://creativecommons.org/publicdomain/zero/1.0/): to the extent possible under
+law, the authors of this project have waived all copyright and related or neighbouring rights to them.
+
+The underlying compositions are in the public domain: every composer included died before 1931 (PLAN ruling 28).
+Per-excerpt provenance (upstream repository, commit and path) is in each excerpt's `source` record.
