@@ -2,11 +2,14 @@
  * Level and instrument lookups the selector needs: tier band, clefs, written keys, tempo range, window class and
  * family groups (02 §1.3, §1.4, §2.3, §2.4, §2.6; 03 §7.2, §7.4 step 6). Reads only `Configs`.
  *
- * `src/instruments/` has no implementation yet, so `bandFor` and `clefsAt` are local here with the
- * `InstrumentsApi` signatures.
+ * `getInstrument`, `bandFor` and `clefsAt` come from `src/instruments/`; `bandFor` keeps the `LevelDef` argument the
+ * selector callers already use and delegates by level number.
  */
 import type { Clef, Configs, Family, Instrument, KeySig, LevelDef, Meter, WindowClassKey } from '../../core/types.ts';
 import { makeMeter } from '../../core/time.ts';
+import { bandFor as instrumentBand, clefsAt, getInstrument } from '../../instruments/index.ts';
+
+export { clefsAt, getInstrument };
 
 export function levelDef(cfg: Configs, level: number): LevelDef {
   const def = cfg.levelByNumber[level];
@@ -14,20 +17,9 @@ export function levelDef(cfg: Configs, level: number): LevelDef {
   return def;
 }
 
-export function getInstrument(cfg: Configs, id: string): Instrument {
-  const inst = cfg.instrumentById[id];
-  if (!inst) throw new RangeError(`unknown instrument ${id}`);
-  return inst;
-}
-
 /** Written MIDI band for the level, inclusive (02 §1.4). */
 export function bandFor(inst: Instrument, def: LevelDef): [number, number] {
-  return inst.tiers[def.tier];
-}
-
-/** Clefs allowed at the level, primary first (02 §1.3, §2.3). */
-export function clefsAt(inst: Instrument, level: number): Clef[] {
-  return inst.clefs.filter((c) => c.fromLevel <= level).map((c) => c.clef);
+  return instrumentBand(inst, def.level);
 }
 
 /** Bottom staff line as an absolute diatonic position (octave * 7 + letter index), E4 for treble. */
