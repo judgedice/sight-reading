@@ -1,0 +1,2505 @@
+{
+ "excerpts": [
+  {
+   "barRhythmLevel": [
+    1,
+    1,
+    1,
+    5,
+    1,
+    5,
+    1,
+    1,
+    1,
+    1
+   ],
+   "breathMaxGapBars": 6.5,
+   "cadenceEnd": "IAC",
+   "contentHash": "sha256:b9f9c9a7e8f09eaa022a0a49bdbbd88829fd87fc1a8454741a5d5953c32892ce",
+   "dedupeGroup": "fp-4eecd4ba",
+   "extremes": {
+    "highId": "e12",
+    "lowId": "e8"
+   },
+   "familiarity": 0,
+   "featureLevels": {
+    "chromatic": 4,
+    "density": 4,
+    "double": 1,
+    "interval": 1,
+    "leaps": 3,
+    "meter": 4,
+    "mode": 1,
+    "rhythm": 5,
+    "span": 1
+   },
+   "features": {
+    "accidentalsOutsideKey": 1,
+    "chromaticPer4BarsMax": 2,
+    "doubleAccidentals": 0,
+    "leapsPer4BarsMax": 5,
+    "maxLeapSemis": 9,
+    "minIoiTicks": 240,
+    "minRepeatIoiTicks": 240,
+    "minorAlterations": 0,
+    "noteCount": 24,
+    "notesPerBeat": 1.2,
+    "peakNotesPerBeat": 4,
+    "restRatio": 0.1,
+    "shortestDur": 240,
+    "spanSemis": 12,
+    "syncopationIndex": 0,
+    "tonicTriadLeapsOnly": true
+   },
+   "flags": [
+    "noBreath",
+    "leapy"
+   ],
+   "id": "arriaga-sq34038344-viola-mv4-m154-163",
+   "keyConcert": {
+    "fifths": 3,
+    "mode": "major"
+   },
+   "level": 5,
+   "levelConfidence": 1,
+   "measures": [
+    {
+     "events": [
+      {
+       "dur": 960,
+       "id": "e1",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 3,
+        "step": "A"
+       },
+       "slur": "start",
+       "tick": 0
+      },
+      {
+       "dur": 960,
+       "id": "e2",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 4,
+        "step": "D"
+       },
+       "tick": 960
+      }
+     ],
+     "index": 0,
+     "isPickup": false,
+     "startTick": 0
+    },
+    {
+     "events": [
+      {
+       "dur": 1920,
+       "id": "e3",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 3,
+        "step": "B"
+       },
+       "slur": "stop",
+       "tick": 1920
+      }
+     ],
+     "index": 1,
+     "isPickup": false,
+     "startTick": 1920
+    },
+    {
+     "events": [
+      {
+       "dur": 480,
+       "id": "e4",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 4,
+        "step": "D"
+       },
+       "slur": "start",
+       "tick": 3840
+      },
+      {
+       "dur": 480,
+       "id": "e5",
+       "kind": "note",
+       "pitch": {
+        "alter": 1,
+        "octave": 4,
+        "step": "C"
+       },
+       "tick": 4320
+      },
+      {
+       "dur": 480,
+       "id": "e6",
+       "kind": "note",
+       "pitch": {
+        "alter": 1,
+        "octave": 3,
+        "step": "B"
+       },
+       "tick": 4800
+      },
+      {
+       "dur": 480,
+       "id": "e7",
+       "kind": "note",
+       "pitch": {
+        "alter": 1,
+        "octave": 4,
+        "step": "C"
+       },
+       "slur": "stop",
+       "tick": 5280
+      }
+     ],
+     "index": 2,
+     "isPickup": false,
+     "startTick": 3840
+    },
+    {
+     "events": [
+      {
+       "dur": 960,
+       "id": "e8",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 3,
+        "step": "E"
+       },
+       "tick": 5760,
+       "tieStart": true
+      },
+      {
+       "dur": 240,
+       "id": "e9",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 3,
+        "step": "E"
+       },
+       "slur": "start",
+       "tick": 6720,
+       "tieStop": true
+      },
+      {
+       "dur": 240,
+       "id": "e10",
+       "kind": "note",
+       "pitch": {
+        "alter": 1,
+        "octave": 3,
+        "step": "G"
+       },
+       "tick": 6960
+      },
+      {
+       "dur": 240,
+       "id": "e11",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 3,
+        "step": "B"
+       },
+       "slur": "stop",
+       "tick": 7200
+      },
+      {
+       "artic": [
+        "staccato"
+       ],
+       "dur": 240,
+       "id": "e12",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 4,
+        "step": "E"
+       },
+       "tick": 7440
+      }
+     ],
+     "index": 3,
+     "isPickup": false,
+     "startTick": 5760
+    },
+    {
+     "events": [
+      {
+       "dur": 480,
+       "id": "e13",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 4,
+        "step": "D"
+       },
+       "slur": "start",
+       "tick": 7680
+      },
+      {
+       "dur": 480,
+       "id": "e14",
+       "kind": "note",
+       "pitch": {
+        "alter": 1,
+        "octave": 4,
+        "step": "C"
+       },
+       "tick": 8160
+      },
+      {
+       "dur": 480,
+       "id": "e15",
+       "kind": "note",
+       "pitch": {
+        "alter": 1,
+        "octave": 3,
+        "step": "B"
+       },
+       "tick": 8640
+      },
+      {
+       "dur": 480,
+       "id": "e16",
+       "kind": "note",
+       "pitch": {
+        "alter": 1,
+        "octave": 4,
+        "step": "C"
+       },
+       "slur": "stop",
+       "tick": 9120
+      }
+     ],
+     "index": 4,
+     "isPickup": false,
+     "startTick": 7680
+    },
+    {
+     "events": [
+      {
+       "dur": 960,
+       "id": "e17",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 3,
+        "step": "E"
+       },
+       "tick": 9600,
+       "tieStart": true
+      },
+      {
+       "dur": 240,
+       "id": "e18",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 3,
+        "step": "E"
+       },
+       "slur": "start",
+       "tick": 10560,
+       "tieStop": true
+      },
+      {
+       "dur": 240,
+       "id": "e19",
+       "kind": "note",
+       "pitch": {
+        "alter": 1,
+        "octave": 3,
+        "step": "G"
+       },
+       "tick": 10800
+      },
+      {
+       "dur": 240,
+       "id": "e20",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 3,
+        "step": "B"
+       },
+       "slur": "stop",
+       "tick": 11040
+      },
+      {
+       "artic": [
+        "staccato"
+       ],
+       "dur": 240,
+       "id": "e21",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 4,
+        "step": "E"
+       },
+       "tick": 11280
+      }
+     ],
+     "index": 5,
+     "isPickup": false,
+     "startTick": 9600
+    },
+    {
+     "events": [
+      {
+       "dur": 480,
+       "dynamic": "f",
+       "id": "e22",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 4,
+        "step": "E"
+       },
+       "tick": 11520
+      },
+      {
+       "dur": 480,
+       "id": "e23",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 3,
+        "step": "A"
+       },
+       "tick": 12000
+      },
+      {
+       "dur": 960,
+       "id": "e24",
+       "kind": "rest",
+       "tick": 12480
+      }
+     ],
+     "index": 6,
+     "isPickup": false,
+     "startTick": 11520
+    },
+    {
+     "events": [
+      {
+       "artic": [
+        "accent"
+       ],
+       "dur": 1920,
+       "id": "e25",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 3,
+        "step": "A"
+       },
+       "tick": 13440
+      }
+     ],
+     "index": 7,
+     "isPickup": false,
+     "startTick": 13440
+    },
+    {
+     "events": [
+      {
+       "artic": [
+        "accent"
+       ],
+       "dur": 1920,
+       "id": "e26",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 3,
+        "step": "A"
+       },
+       "tick": 15360
+      }
+     ],
+     "index": 8,
+     "isPickup": false,
+     "startTick": 15360
+    },
+    {
+     "events": [
+      {
+       "dur": 960,
+       "dynamic": "ff",
+       "id": "e27",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 3,
+        "step": "A"
+       },
+       "tick": 17280
+      },
+      {
+       "dur": 960,
+       "id": "e28",
+       "kind": "rest",
+       "tick": 18240
+      }
+     ],
+     "index": 9,
+     "isPickup": false,
+     "startTick": 17280
+    }
+   ],
+   "meter": {
+    "beatType": 2,
+    "beats": 2,
+    "countUnitTicks": 960,
+    "countsPerBar": 2
+   },
+   "modal": null,
+   "modifications": [
+    "excerpted"
+   ],
+   "phraseQuality": "complete-phrase",
+   "pickupTicks": 0,
+   "quality": {
+    "interest": 0.7838
+   },
+   "rangeConcert": {
+    "max": 64,
+    "min": 52
+   },
+   "review": {
+    "llm": "not-required",
+    "llmVerdicts": [],
+    "promptVersion": "none",
+    "rules": "p0e-fixture-1.0.0"
+   },
+   "rhythmCells": [
+    "EE",
+    "H",
+    "Hr",
+    "Q",
+    "W",
+    "tieBeat"
+   ],
+   "schemaVersion": 1,
+   "source": {
+    "composer": "Juan Crisóstomo de Arriaga",
+    "composerDates": "1806–1826",
+    "composerDeath": 1826,
+    "corpus": "openscore-quartets",
+    "encoder": "OpenScore String Quartets contributors",
+    "license": "CC0-1.0",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "movement": "Movement 4",
+    "originalInstrument": "viola",
+    "partName": "Viola",
+    "sourceMeasures": [
+     154,
+     163
+    ],
+    "sourceUrl": "https://github.com/OpenScore/StringQuartets",
+    "upstreamRef": "OpenScore/StringQuartets@2614b0b2:scores/Arriaga,_Juan_Crisóstomo_de/String_Quartet_No.2_in_A_major/sq34038344.mxl",
+    "work": "String Quartet No.2 in A major"
+   },
+   "tags": [
+    "accidentals",
+    "quartet",
+    "repeated-notes",
+    "rests",
+    "role:viola",
+    "slurred-run",
+    "source-clef:alto"
+   ],
+   "tempo": {
+    "maxBpm": 60,
+    "minBpm": 30
+   },
+   "work": "arriaga|sq34038344|mv4"
+  },
+  {
+   "barRhythmLevel": [
+    4,
+    4,
+    4,
+    4,
+    4,
+    5,
+    4,
+    4,
+    4,
+    4
+   ],
+   "breathMaxGapBars": 9.17,
+   "cadenceEnd": "IAC",
+   "contentHash": "sha256:f2c6f2dec01bd3ae70f4d324c86ac0371ab85d31c3826460939265d2e25ff0f8",
+   "dedupeGroup": "fp-f7978896",
+   "extremes": {
+    "highId": "e28",
+    "lowId": "e1"
+   },
+   "familiarity": 0,
+   "featureLevels": {
+    "chromatic": 1,
+    "density": 2,
+    "double": 1,
+    "interval": 2,
+    "leaps": 1,
+    "meter": 4,
+    "mode": 1,
+    "rhythm": 5,
+    "span": 5
+   },
+   "features": {
+    "accidentalsOutsideKey": 0,
+    "chromaticPer4BarsMax": 0,
+    "doubleAccidentals": 0,
+    "leapsPer4BarsMax": 2,
+    "maxLeapSemis": 7,
+    "minIoiTicks": 240,
+    "minRepeatIoiTicks": 240,
+    "minorAlterations": 0,
+    "noteCount": 28,
+    "notesPerBeat": 1.4,
+    "peakNotesPerBeat": 3,
+    "restRatio": 0.0833,
+    "shortestDur": 240,
+    "spanSemis": 19,
+    "syncopationIndex": 0,
+    "tonicTriadLeapsOnly": false
+   },
+   "flags": [
+    "noBreath"
+   ],
+   "id": "gouvy-sq10406164-cello-mv3-m1-10",
+   "keyConcert": {
+    "fifths": -3,
+    "mode": "major"
+   },
+   "level": 5,
+   "levelConfidence": 2,
+   "measures": [
+    {
+     "events": [
+      {
+       "dur": 1440,
+       "dynamic": "pp",
+       "hairpin": "cresc",
+       "id": "e1",
+       "kind": "note",
+       "pitch": {
+        "alter": -1,
+        "octave": 2,
+        "step": "E"
+       },
+       "tick": 0,
+       "tieStart": true
+      }
+     ],
+     "index": 0,
+     "isPickup": false,
+     "startTick": 0
+    },
+    {
+     "events": [
+      {
+       "dur": 480,
+       "hairpin": "end",
+       "id": "e2",
+       "kind": "note",
+       "pitch": {
+        "alter": -1,
+        "octave": 2,
+        "step": "E"
+       },
+       "slur": "start",
+       "tick": 1440,
+       "tieStop": true
+      },
+      {
+       "dur": 240,
+       "id": "e3",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 2,
+        "step": "G"
+       },
+       "tick": 1920
+      },
+      {
+       "dur": 480,
+       "id": "e4",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 2,
+        "step": "F"
+       },
+       "tick": 2160
+      },
+      {
+       "dur": 240,
+       "id": "e5",
+       "kind": "note",
+       "pitch": {
+        "alter": -1,
+        "octave": 2,
+        "step": "A"
+       },
+       "slur": "stop",
+       "tick": 2640
+      }
+     ],
+     "index": 1,
+     "isPickup": false,
+     "startTick": 1440
+    },
+    {
+     "events": [
+      {
+       "dur": 240,
+       "id": "e6",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 2,
+        "step": "G"
+       },
+       "slur": "start",
+       "tick": 2880
+      },
+      {
+       "dur": 240,
+       "id": "e7",
+       "kind": "note",
+       "pitch": {
+        "alter": -1,
+        "octave": 2,
+        "step": "E"
+       },
+       "tick": 3120
+      },
+      {
+       "dur": 240,
+       "id": "e8",
+       "kind": "note",
+       "pitch": {
+        "alter": -1,
+        "octave": 2,
+        "step": "B"
+       },
+       "slur": "stop",
+       "tick": 3360
+      },
+      {
+       "dur": 480,
+       "hairpin": "dim",
+       "id": "e9",
+       "kind": "note",
+       "pitch": {
+        "alter": -1,
+        "octave": 2,
+        "step": "B"
+       },
+       "slur": "start",
+       "tick": 3600
+      },
+      {
+       "dur": 240,
+       "id": "e10",
+       "kind": "note",
+       "pitch": {
+        "alter": -1,
+        "octave": 2,
+        "step": "A"
+       },
+       "slur": "stop",
+       "tick": 4080
+      }
+     ],
+     "index": 2,
+     "isPickup": false,
+     "startTick": 2880
+    },
+    {
+     "events": [
+      {
+       "dur": 720,
+       "hairpin": "end",
+       "id": "e11",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 2,
+        "step": "G"
+       },
+       "tick": 4320
+      },
+      {
+       "dur": 240,
+       "id": "e12",
+       "kind": "note",
+       "pitch": {
+        "alter": -1,
+        "octave": 2,
+        "step": "A"
+       },
+       "slur": "start",
+       "tick": 5040
+      },
+      {
+       "dur": 240,
+       "id": "e13",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 2,
+        "step": "G"
+       },
+       "tick": 5280
+      },
+      {
+       "dur": 240,
+       "id": "e14",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 2,
+        "step": "F"
+       },
+       "slur": "stop",
+       "tick": 5520
+      }
+     ],
+     "index": 3,
+     "isPickup": false,
+     "startTick": 4320
+    },
+    {
+     "events": [
+      {
+       "dur": 720,
+       "hairpin": "cresc",
+       "id": "e15",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 3,
+        "step": "C"
+       },
+       "slur": "start",
+       "tick": 5760
+      },
+      {
+       "dur": 720,
+       "id": "e16",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 3,
+        "step": "D"
+       },
+       "slur": "stop",
+       "tick": 6480
+      }
+     ],
+     "index": 4,
+     "isPickup": false,
+     "startTick": 5760
+    },
+    {
+     "events": [
+      {
+       "dur": 720,
+       "dynamic": "sfz",
+       "hairpin": "dim",
+       "id": "e17",
+       "kind": "note",
+       "pitch": {
+        "alter": -1,
+        "octave": 2,
+        "step": "B"
+       },
+       "slur": "start",
+       "tick": 7200,
+       "tieStart": true
+      },
+      {
+       "dur": 240,
+       "dynamic": "p",
+       "hairpin": "end",
+       "id": "e18",
+       "kind": "note",
+       "pitch": {
+        "alter": -1,
+        "octave": 2,
+        "step": "B"
+       },
+       "tick": 7920,
+       "tieStop": true
+      },
+      {
+       "dur": 240,
+       "id": "e19",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 3,
+        "step": "C"
+       },
+       "tick": 8160
+      },
+      {
+       "dur": 240,
+       "id": "e20",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 3,
+        "step": "D"
+       },
+       "slur": "stop",
+       "tick": 8400
+      }
+     ],
+     "index": 5,
+     "isPickup": false,
+     "startTick": 7200
+    },
+    {
+     "events": [
+      {
+       "dur": 1440,
+       "id": "e21",
+       "kind": "note",
+       "pitch": {
+        "alter": -1,
+        "octave": 3,
+        "step": "E"
+       },
+       "tick": 8640,
+       "tieStart": true
+      }
+     ],
+     "index": 6,
+     "isPickup": false,
+     "startTick": 8640
+    },
+    {
+     "events": [
+      {
+       "dur": 480,
+       "id": "e22",
+       "kind": "note",
+       "pitch": {
+        "alter": -1,
+        "octave": 3,
+        "step": "E"
+       },
+       "slur": "start",
+       "tick": 10080,
+       "tieStop": true
+      },
+      {
+       "dur": 240,
+       "id": "e23",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 3,
+        "step": "G"
+       },
+       "tick": 10560
+      },
+      {
+       "dur": 480,
+       "id": "e24",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 3,
+        "step": "F"
+       },
+       "tick": 10800
+      },
+      {
+       "dur": 240,
+       "id": "e25",
+       "kind": "note",
+       "pitch": {
+        "alter": -1,
+        "octave": 3,
+        "step": "A"
+       },
+       "slur": "stop",
+       "tick": 11280
+      }
+     ],
+     "index": 7,
+     "isPickup": false,
+     "startTick": 10080
+    },
+    {
+     "events": [
+      {
+       "dur": 240,
+       "id": "e26",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 3,
+        "step": "G"
+       },
+       "slur": "start",
+       "tick": 11520
+      },
+      {
+       "dur": 240,
+       "id": "e27",
+       "kind": "note",
+       "pitch": {
+        "alter": -1,
+        "octave": 3,
+        "step": "E"
+       },
+       "tick": 11760
+      },
+      {
+       "dur": 240,
+       "id": "e28",
+       "kind": "note",
+       "pitch": {
+        "alter": -1,
+        "octave": 3,
+        "step": "B"
+       },
+       "slur": "stop",
+       "tick": 12000
+      },
+      {
+       "dur": 480,
+       "id": "e29",
+       "kind": "note",
+       "pitch": {
+        "alter": -1,
+        "octave": 3,
+        "step": "B"
+       },
+       "tick": 12240
+      },
+      {
+       "dur": 240,
+       "id": "e30",
+       "kind": "note",
+       "pitch": {
+        "alter": -1,
+        "octave": 3,
+        "step": "A"
+       },
+       "tick": 12720
+      }
+     ],
+     "index": 8,
+     "isPickup": false,
+     "startTick": 11520
+    },
+    {
+     "events": [
+      {
+       "dur": 240,
+       "id": "e31",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 3,
+        "step": "G"
+       },
+       "tick": 12960
+      },
+      {
+       "dur": 240,
+       "id": "e32",
+       "kind": "rest",
+       "tick": 13200
+      },
+      {
+       "dur": 240,
+       "id": "e33",
+       "kind": "rest",
+       "tick": 13440
+      },
+      {
+       "dur": 480,
+       "id": "e34",
+       "kind": "rest",
+       "tick": 13680
+      },
+      {
+       "dur": 240,
+       "id": "e35",
+       "kind": "rest",
+       "tick": 14160
+      }
+     ],
+     "index": 9,
+     "isPickup": false,
+     "startTick": 12960
+    }
+   ],
+   "meter": {
+    "beatType": 8,
+    "beats": 6,
+    "countUnitTicks": 720,
+    "countsPerBar": 2
+   },
+   "modal": null,
+   "modifications": [
+    "excerpted"
+   ],
+   "phraseQuality": "complete-phrase",
+   "pickupTicks": 0,
+   "quality": {
+    "interest": 0.8261
+   },
+   "rangeConcert": {
+    "max": 58,
+    "min": 39
+   },
+   "review": {
+    "llm": "not-required",
+    "llmVerdicts": [],
+    "promptVersion": "none",
+    "rules": "p0e-fixture-1.0.0"
+   },
+   "rhythmCells": [
+    "C.EEE",
+    "C.Q",
+    "C.QE",
+    "C.Qr.",
+    "tieBar",
+    "tieBeat"
+   ],
+   "schemaVersion": 1,
+   "source": {
+    "catalog": "Op.16 No.1",
+    "composer": "Théodore Gouvy",
+    "composerDates": "1819–1898",
+    "composerDeath": 1898,
+    "corpus": "openscore-quartets",
+    "encoder": "OpenScore String Quartets contributors",
+    "license": "CC0-1.0",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "movement": "Movement 3",
+    "originalInstrument": "cello",
+    "partName": "Violoncello",
+    "sourceMeasures": [
+     1,
+     10
+    ],
+    "sourceUrl": "https://github.com/OpenScore/StringQuartets",
+    "upstreamRef": "OpenScore/StringQuartets@2614b0b2:scores/Gouvy,_Théodore/String_Quartet,_Op.16_No.1/sq10406164.mxl",
+    "work": "String Quartet, Op.16 No.1"
+   },
+   "tags": [
+    "quartet",
+    "rests",
+    "role:cello",
+    "slurred-run",
+    "source-clef:bass",
+    "tie-across-barline"
+   ],
+   "tempo": {
+    "maxBpm": 80,
+    "minBpm": 40
+   },
+   "work": "gouvy|sq10406164|mv3"
+  },
+  {
+   "barRhythmLevel": [
+    2,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "breathMaxGapBars": 4.67,
+   "cadenceEnd": "IAC",
+   "contentHash": "sha256:f212fa9dbd0997fef4222d1609381c8a618e7e8d7a9941612017db11b193b100",
+   "dedupeGroup": "fp-a1747398",
+   "extremes": {
+    "highId": "e6",
+    "lowId": "e13"
+   },
+   "familiarity": 0,
+   "featureLevels": {
+    "chromatic": 3,
+    "density": 1,
+    "double": 1,
+    "interval": 4,
+    "leaps": 1,
+    "meter": 1,
+    "mode": 1,
+    "rhythm": 2,
+    "span": 5
+   },
+   "features": {
+    "accidentalsOutsideKey": 1,
+    "chromaticPer4BarsMax": 1,
+    "doubleAccidentals": 0,
+    "leapsPer4BarsMax": 1,
+    "maxLeapSemis": 10,
+    "minIoiTicks": 480,
+    "minRepeatIoiTicks": null,
+    "minorAlterations": 0,
+    "noteCount": 13,
+    "notesPerBeat": 0.52,
+    "peakNotesPerBeat": 1,
+    "restRatio": 0.1667,
+    "shortestDur": 480,
+    "spanSemis": 19,
+    "syncopationIndex": 0,
+    "tonicTriadLeapsOnly": false
+   },
+   "flags": [
+    "noBreath"
+   ],
+   "id": "haydn-sq7123582-violin2-mv1-mp153-161",
+   "keyConcert": {
+    "fifths": -2,
+    "mode": "major"
+   },
+   "level": 5,
+   "levelConfidence": 1,
+   "measures": [
+    {
+     "events": [
+      {
+       "dur": 480,
+       "id": "e1",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 5,
+        "step": "D"
+       },
+       "tick": 0
+      }
+     ],
+     "index": 0,
+     "isPickup": true,
+     "startTick": 0
+    },
+    {
+     "events": [
+      {
+       "dur": 480,
+       "id": "e2",
+       "kind": "note",
+       "pitch": {
+        "alter": -1,
+        "octave": 5,
+        "step": "E"
+       },
+       "slur": "start",
+       "tick": 480
+      },
+      {
+       "dur": 480,
+       "id": "e3",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 5,
+        "step": "C"
+       },
+       "tick": 960
+      },
+      {
+       "dur": 480,
+       "id": "e4",
+       "kind": "note",
+       "pitch": {
+        "alter": -1,
+        "octave": 5,
+        "step": "E"
+       },
+       "slur": "stop",
+       "tick": 1440
+      }
+     ],
+     "index": 1,
+     "isPickup": false,
+     "startTick": 480
+    },
+    {
+     "events": [
+      {
+       "dur": 1440,
+       "id": "e5",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 5,
+        "step": "F"
+       },
+       "tick": 1920
+      }
+     ],
+     "index": 2,
+     "isPickup": false,
+     "startTick": 1920
+    },
+    {
+     "events": [
+      {
+       "dur": 480,
+       "id": "e6",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 5,
+        "step": "G"
+       },
+       "slur": "start",
+       "tick": 3360
+      },
+      {
+       "dur": 480,
+       "id": "e7",
+       "kind": "note",
+       "pitch": {
+        "alter": -1,
+        "octave": 5,
+        "step": "E"
+       },
+       "tick": 3840
+      },
+      {
+       "dur": 480,
+       "id": "e8",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 5,
+        "step": "G"
+       },
+       "slur": "stop",
+       "tick": 4320
+      }
+     ],
+     "index": 3,
+     "isPickup": false,
+     "startTick": 3360
+    },
+    {
+     "events": [
+      {
+       "dur": 1440,
+       "dynamic": "f",
+       "id": "e9",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 4,
+        "step": "A"
+       },
+       "tick": 4800
+      }
+     ],
+     "index": 4,
+     "isPickup": false,
+     "startTick": 4800
+    },
+    {
+     "events": [
+      {
+       "dur": 480,
+       "id": "e10",
+       "kind": "note",
+       "pitch": {
+        "alter": -1,
+        "octave": 4,
+        "step": "B"
+       },
+       "tick": 6240
+      },
+      {
+       "dur": 480,
+       "id": "e11",
+       "kind": "rest",
+       "tick": 6720
+      },
+      {
+       "dur": 480,
+       "id": "e12",
+       "kind": "rest",
+       "tick": 7200
+      }
+     ],
+     "index": 5,
+     "isPickup": false,
+     "startTick": 6240
+    },
+    {
+     "events": [
+      {
+       "dur": 1440,
+       "id": "e13",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 4,
+        "step": "C"
+       },
+       "tick": 7680
+      }
+     ],
+     "index": 6,
+     "isPickup": false,
+     "startTick": 7680
+    },
+    {
+     "events": [
+      {
+       "dur": 1440,
+       "id": "e14",
+       "kind": "note",
+       "pitch": {
+        "alter": -1,
+        "octave": 4,
+        "step": "D"
+       },
+       "tick": 9120
+      }
+     ],
+     "index": 7,
+     "isPickup": false,
+     "startTick": 9120
+    },
+    {
+     "events": [
+      {
+       "dur": 480,
+       "id": "e15",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 4,
+        "step": "D"
+       },
+       "tick": 10560
+      },
+      {
+       "dur": 480,
+       "id": "e16",
+       "kind": "rest",
+       "tick": 11040
+      },
+      {
+       "dur": 480,
+       "id": "e17",
+       "kind": "rest",
+       "tick": 11520
+      }
+     ],
+     "index": 8,
+     "isPickup": false,
+     "startTick": 10560
+    }
+   ],
+   "meter": {
+    "beatType": 4,
+    "beats": 3,
+    "countUnitTicks": 480,
+    "countsPerBar": 3
+   },
+   "modal": null,
+   "modifications": [
+    "excerpted"
+   ],
+   "phraseQuality": "phrase-pair",
+   "pickupTicks": 480,
+   "quality": {
+    "interest": 0.8699
+   },
+   "rangeConcert": {
+    "max": 79,
+    "min": 60
+   },
+   "review": {
+    "llm": "not-required",
+    "llmVerdicts": [],
+    "promptVersion": "none",
+    "rules": "p0e-fixture-1.0.0"
+   },
+   "rhythmCells": [
+    "H.",
+    "Q",
+    "Qr",
+    "pickup1"
+   ],
+   "schemaVersion": 1,
+   "source": {
+    "catalog": "Hob.III67",
+    "composer": "Joseph Haydn",
+    "composerDates": "1732–1809",
+    "composerDeath": 1809,
+    "corpus": "openscore-quartets",
+    "encoder": "OpenScore String Quartets contributors",
+    "license": "CC0-1.0",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "movement": "Movement 1",
+    "originalInstrument": "violin",
+    "partName": "Violin 2",
+    "sourceMeasures": [
+     153,
+     161
+    ],
+    "sourceUrl": "https://github.com/OpenScore/StringQuartets",
+    "upstreamRef": "OpenScore/StringQuartets@2614b0b2:scores/Haydn,_Joseph/String_Quartet_in_B-flat_major,_Hob.III67,_Op.64_No.3/sq7123582.mxl",
+    "work": "String Quartet in B-flat major, Hob.III67, Op.64 No.3"
+   },
+   "tags": [
+    "accidentals",
+    "pickup",
+    "quartet",
+    "rests",
+    "role:violin2",
+    "source-clef:treble"
+   ],
+   "tempo": {
+    "maxBpm": 120,
+    "minBpm": 60
+   },
+   "work": "haydn|sq7123582|mv1"
+  },
+  {
+   "barRhythmLevel": [
+    3,
+    1,
+    4,
+    5,
+    5,
+    2,
+    2,
+    1
+   ],
+   "breathMaxGapBars": 6,
+   "cadenceEnd": "PAC",
+   "contentHash": "sha256:3058e881c13a7844f2ba482ceb703484a66ece82efd30805d52b4a15e4eea0b5",
+   "dedupeGroup": "fp-e8d236e7",
+   "extremes": {
+    "highId": "e5",
+    "lowId": "e27"
+   },
+   "familiarity": 0,
+   "featureLevels": {
+    "chromatic": 5,
+    "density": 4,
+    "double": 1,
+    "interval": 2,
+    "leaps": 1,
+    "meter": 1,
+    "mode": 5,
+    "rhythm": 5,
+    "span": 3
+   },
+   "features": {
+    "accidentalsOutsideKey": 2,
+    "chromaticPer4BarsMax": 3,
+    "doubleAccidentals": 0,
+    "leapsPer4BarsMax": 2,
+    "maxLeapSemis": 6,
+    "minIoiTicks": 120,
+    "minRepeatIoiTicks": null,
+    "minorAlterations": 6,
+    "noteCount": 25,
+    "notesPerBeat": 1.5625,
+    "peakNotesPerBeat": 4,
+    "restRatio": 0.2188,
+    "shortestDur": 120,
+    "spanSemis": 14,
+    "syncopationIndex": 0,
+    "tonicTriadLeapsOnly": false
+   },
+   "flags": [],
+   "id": "reger-sq26401096-viola-mv4-m189-196",
+   "keyConcert": {
+    "fifths": 0,
+    "mode": "minor"
+   },
+   "level": 5,
+   "levelConfidence": 3,
+   "measures": [
+    {
+     "events": [
+      {
+       "artic": [
+        "staccato"
+       ],
+       "dur": 240,
+       "dynamic": "pp",
+       "hairpin": "end",
+       "id": "e1",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 4,
+        "step": "D"
+       },
+       "tick": 0
+      },
+      {
+       "dur": 240,
+       "id": "e2",
+       "kind": "rest",
+       "tick": 240
+      },
+      {
+       "dur": 480,
+       "id": "e3",
+       "kind": "rest",
+       "tick": 480
+      }
+     ],
+     "index": 0,
+     "isPickup": false,
+     "startTick": 0
+    },
+    {
+     "events": [
+      {
+       "dur": 480,
+       "id": "e4",
+       "kind": "rest",
+       "tick": 960
+      },
+      {
+       "dur": 480,
+       "hairpin": "dim",
+       "id": "e5",
+       "kind": "note",
+       "pitch": {
+        "alter": -1,
+        "octave": 4,
+        "step": "B"
+       },
+       "slur": "start",
+       "tick": 1440
+      }
+     ],
+     "index": 1,
+     "isPickup": false,
+     "startTick": 960
+    },
+    {
+     "events": [
+      {
+       "dur": 480,
+       "dynamic": "p",
+       "hairpin": "end",
+       "id": "e6",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 4,
+        "step": "A"
+       },
+       "slur": "stop",
+       "tick": 1920
+      },
+      {
+       "dur": 120,
+       "id": "e7",
+       "kind": "note",
+       "pitch": {
+        "alter": -1,
+        "octave": 4,
+        "step": "A"
+       },
+       "slur": "start",
+       "tick": 2400
+      },
+      {
+       "dur": 120,
+       "id": "e8",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 4,
+        "step": "G"
+       },
+       "slur": "stop",
+       "tick": 2520
+      },
+      {
+       "artic": [
+        "staccato"
+       ],
+       "dur": 120,
+       "id": "e9",
+       "kind": "note",
+       "pitch": {
+        "alter": 1,
+        "octave": 4,
+        "step": "F"
+       },
+       "tick": 2640
+      },
+      {
+       "artic": [
+        "staccato"
+       ],
+       "dur": 120,
+       "id": "e10",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 4,
+        "step": "G"
+       },
+       "tick": 2760
+      }
+     ],
+     "index": 2,
+     "isPickup": false,
+     "startTick": 1920
+    },
+    {
+     "events": [
+      {
+       "artic": [
+        "tenuto"
+       ],
+       "dur": 480,
+       "id": "e11",
+       "kind": "note",
+       "pitch": {
+        "alter": 1,
+        "octave": 4,
+        "step": "F"
+       },
+       "tick": 2880
+      },
+      {
+       "dur": 240,
+       "id": "e12",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 4,
+        "step": "F"
+       },
+       "slur": "start",
+       "tick": 3360
+      },
+      {
+       "dur": 120,
+       "id": "e13",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 4,
+        "step": "G"
+       },
+       "tick": 3600
+      },
+      {
+       "dur": 120,
+       "id": "e14",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 4,
+        "step": "A"
+       },
+       "slur": "stop",
+       "tick": 3720
+      }
+     ],
+     "index": 3,
+     "isPickup": false,
+     "startTick": 2880
+    },
+    {
+     "events": [
+      {
+       "dur": 240,
+       "id": "e15",
+       "kind": "note",
+       "pitch": {
+        "alter": -1,
+        "octave": 4,
+        "step": "B"
+       },
+       "slur": "start",
+       "tick": 3840
+      },
+      {
+       "dur": 120,
+       "id": "e16",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 4,
+        "step": "E"
+       },
+       "tick": 4080
+      },
+      {
+       "dur": 120,
+       "id": "e17",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 4,
+        "step": "F"
+       },
+       "slur": "stop",
+       "tick": 4200
+      },
+      {
+       "artic": [
+        "staccato"
+       ],
+       "dur": 240,
+       "id": "e18",
+       "kind": "note",
+       "pitch": {
+        "alter": 1,
+        "octave": 4,
+        "step": "F"
+       },
+       "slur": "start",
+       "tick": 4320
+      },
+      {
+       "artic": [
+        "staccato"
+       ],
+       "dur": 240,
+       "id": "e19",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 4,
+        "step": "G"
+       },
+       "slur": "stop",
+       "tick": 4560
+      }
+     ],
+     "index": 4,
+     "isPickup": false,
+     "startTick": 3840
+    },
+    {
+     "events": [
+      {
+       "artic": [
+        "staccato"
+       ],
+       "dur": 240,
+       "id": "e20",
+       "kind": "note",
+       "pitch": {
+        "alter": 1,
+        "octave": 4,
+        "step": "F"
+       },
+       "slur": "start",
+       "tick": 4800
+      },
+      {
+       "artic": [
+        "staccato"
+       ],
+       "dur": 240,
+       "id": "e21",
+       "kind": "note",
+       "pitch": {
+        "alter": 1,
+        "octave": 4,
+        "step": "C"
+       },
+       "slur": "stop",
+       "tick": 5040
+      },
+      {
+       "artic": [
+        "staccato"
+       ],
+       "dur": 240,
+       "hairpin": "dim",
+       "id": "e22",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 4,
+        "step": "D"
+       },
+       "slur": "start",
+       "tick": 5280
+      },
+      {
+       "artic": [
+        "staccato"
+       ],
+       "dur": 240,
+       "id": "e23",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 3,
+        "step": "B"
+       },
+       "slur": "stop",
+       "tick": 5520
+      }
+     ],
+     "index": 5,
+     "isPickup": false,
+     "startTick": 4800
+    },
+    {
+     "events": [
+      {
+       "artic": [
+        "staccato"
+       ],
+       "dur": 240,
+       "id": "e24",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 4,
+        "step": "C"
+       },
+       "slur": "start",
+       "tick": 5760
+      },
+      {
+       "artic": [
+        "staccato"
+       ],
+       "dur": 240,
+       "id": "e25",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 3,
+        "step": "A"
+       },
+       "slur": "stop",
+       "tick": 6000
+      },
+      {
+       "artic": [
+        "staccato"
+       ],
+       "dur": 240,
+       "id": "e26",
+       "kind": "note",
+       "pitch": {
+        "alter": -1,
+        "octave": 3,
+        "step": "B"
+       },
+       "slur": "start",
+       "tick": 6240
+      },
+      {
+       "artic": [
+        "staccato"
+       ],
+       "dur": 240,
+       "id": "e27",
+       "kind": "note",
+       "pitch": {
+        "alter": 1,
+        "octave": 3,
+        "step": "G"
+       },
+       "slur": "stop",
+       "tick": 6480
+      }
+     ],
+     "index": 6,
+     "isPickup": false,
+     "startTick": 5760
+    },
+    {
+     "events": [
+      {
+       "artic": [
+        "tenuto"
+       ],
+       "dur": 480,
+       "dynamic": "pp",
+       "hairpin": "end",
+       "id": "e28",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 3,
+        "step": "A"
+       },
+       "tick": 6720
+      },
+      {
+       "dur": 480,
+       "id": "e29",
+       "kind": "rest",
+       "tick": 7200
+      }
+     ],
+     "index": 7,
+     "isPickup": false,
+     "startTick": 6720
+    }
+   ],
+   "meter": {
+    "beatType": 4,
+    "beats": 2,
+    "countUnitTicks": 480,
+    "countsPerBar": 2
+   },
+   "modal": null,
+   "modifications": [
+    "excerpted"
+   ],
+   "phraseQuality": "complete-phrase",
+   "pickupTicks": 0,
+   "quality": {
+    "interest": 0.85
+   },
+   "rangeConcert": {
+    "max": 70,
+    "min": 56
+   },
+   "review": {
+    "llm": "not-required",
+    "llmVerdicts": [],
+    "promptVersion": "none",
+    "rules": "p0e-fixture-1.0.0"
+   },
+   "rhythmCells": [
+    "EE",
+    "ESS",
+    "Er",
+    "Q",
+    "Qr",
+    "SSSS"
+   ],
+   "schemaVersion": 1,
+   "source": {
+    "catalog": "Op.74",
+    "composer": "Max Reger",
+    "composerDates": "1873–1916",
+    "composerDeath": 1916,
+    "corpus": "openscore-quartets",
+    "encoder": "OpenScore String Quartets contributors",
+    "license": "CC0-1.0",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "movement": "Movement 4",
+    "originalInstrument": "viola",
+    "partName": "Viola",
+    "sourceMeasures": [
+     189,
+     196
+    ],
+    "sourceUrl": "https://github.com/OpenScore/StringQuartets",
+    "upstreamRef": "OpenScore/StringQuartets@2614b0b2:scores/Reger,_Max/String_Quartet_No.3,_Op.74/sq26401096.mxl",
+    "work": "String Quartet No.3, Op.74"
+   },
+   "tags": [
+    "accidentals",
+    "quartet",
+    "rests",
+    "role:viola",
+    "source-clef:alto"
+   ],
+   "tempo": {
+    "maxBpm": 120,
+    "minBpm": 60
+   },
+   "work": "reger|sq26401096|mv4"
+  },
+  {
+   "barRhythmLevel": [
+    3,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    3,
+    1,
+    1
+   ],
+   "breathMaxGapBars": 7.33,
+   "cadenceEnd": "IAC",
+   "contentHash": "sha256:15a213041d2c54013a39d9fb622bf5179fba941f177f680314063b668f769e01",
+   "dedupeGroup": "fp-1638437d",
+   "extremes": {
+    "highId": "e18",
+    "lowId": "e11"
+   },
+   "familiarity": 0,
+   "featureLevels": {
+    "chromatic": 5,
+    "density": 1,
+    "double": 1,
+    "interval": 4,
+    "leaps": 3,
+    "meter": 1,
+    "mode": 5,
+    "rhythm": 3,
+    "span": 5
+   },
+   "features": {
+    "accidentalsOutsideKey": 3,
+    "chromaticPer4BarsMax": 3,
+    "doubleAccidentals": 0,
+    "leapsPer4BarsMax": 5,
+    "maxLeapSemis": 9,
+    "minIoiTicks": 240,
+    "minRepeatIoiTicks": null,
+    "minorAlterations": 2,
+    "noteCount": 17,
+    "notesPerBeat": 0.5484,
+    "peakNotesPerBeat": 2,
+    "restRatio": 0.1333,
+    "shortestDur": 240,
+    "spanSemis": 21,
+    "syncopationIndex": 0,
+    "tonicTriadLeapsOnly": false
+   },
+   "flags": [
+    "noBreath",
+    "leapy"
+   ],
+   "id": "reger-sq26406961-viola-mv1-mp229-239",
+   "keyConcert": {
+    "fifths": 3,
+    "mode": "minor"
+   },
+   "level": 5,
+   "levelConfidence": 3,
+   "measures": [
+    {
+     "events": [
+      {
+       "dur": 240,
+       "dynamic": "pp",
+       "hairpin": "end",
+       "id": "e1",
+       "kind": "note",
+       "pitch": {
+        "alter": 1,
+        "octave": 3,
+        "step": "F"
+       },
+       "slur": "start",
+       "tick": 0
+      },
+      {
+       "dur": 240,
+       "id": "e2",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 3,
+        "step": "G"
+       },
+       "tick": 240
+      }
+     ],
+     "index": 0,
+     "isPickup": true,
+     "startTick": 0
+    },
+    {
+     "events": [
+      {
+       "dur": 960,
+       "id": "e3",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 4,
+        "step": "E"
+       },
+       "slur": "stop",
+       "tick": 480
+      },
+      {
+       "dur": 480,
+       "id": "e4",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 3,
+        "step": "A"
+       },
+       "slur": "start",
+       "tick": 1440
+      }
+     ],
+     "index": 1,
+     "isPickup": false,
+     "startTick": 480
+    },
+    {
+     "events": [
+      {
+       "dur": 960,
+       "id": "e5",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 3,
+        "step": "E"
+       },
+       "slur": "stop",
+       "tick": 1920
+      },
+      {
+       "dur": 480,
+       "id": "e6",
+       "kind": "note",
+       "pitch": {
+        "alter": -1,
+        "octave": 3,
+        "step": "B"
+       },
+       "slur": "start",
+       "tick": 2880
+      }
+     ],
+     "index": 2,
+     "isPickup": false,
+     "startTick": 1920
+    },
+    {
+     "events": [
+      {
+       "dur": 960,
+       "id": "e7",
+       "kind": "note",
+       "pitch": {
+        "alter": 1,
+        "octave": 3,
+        "step": "D"
+       },
+       "slur": "stop",
+       "tick": 3360
+      },
+      {
+       "dur": 480,
+       "hairpin": "cresc",
+       "id": "e8",
+       "kind": "note",
+       "pitch": {
+        "alter": 1,
+        "octave": 3,
+        "step": "F"
+       },
+       "slur": "start",
+       "tick": 4320
+      }
+     ],
+     "index": 3,
+     "isPickup": false,
+     "startTick": 3360
+    },
+    {
+     "events": [
+      {
+       "dur": 960,
+       "id": "e9",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 3,
+        "step": "D"
+       },
+       "slur": "stop",
+       "tick": 4800
+      },
+      {
+       "dur": 480,
+       "hairpin": "dim",
+       "id": "e10",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 3,
+        "step": "F"
+       },
+       "slur": "start",
+       "tick": 5760
+      }
+     ],
+     "index": 4,
+     "isPickup": false,
+     "startTick": 4800
+    },
+    {
+     "events": [
+      {
+       "dur": 960,
+       "id": "e11",
+       "kind": "note",
+       "pitch": {
+        "alter": 1,
+        "octave": 3,
+        "step": "C"
+       },
+       "slur": "stop",
+       "tick": 6240
+      },
+      {
+       "dur": 480,
+       "dynamic": "pp",
+       "hairpin": "end",
+       "id": "e12",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 3,
+        "step": "E"
+       },
+       "slur": "start",
+       "tick": 7200
+      }
+     ],
+     "index": 5,
+     "isPickup": false,
+     "startTick": 6240
+    },
+    {
+     "events": [
+      {
+       "dur": 1440,
+       "id": "e13",
+       "kind": "note",
+       "pitch": {
+        "alter": -1,
+        "octave": 3,
+        "step": "B"
+       },
+       "tick": 7680
+      }
+     ],
+     "index": 6,
+     "isPickup": false,
+     "startTick": 7680
+    },
+    {
+     "events": [
+      {
+       "dur": 480,
+       "id": "e14",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 3,
+        "step": "A"
+       },
+       "tick": 9120
+      },
+      {
+       "dur": 960,
+       "id": "e15",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 4,
+        "step": "C"
+       },
+       "slur": "stop",
+       "tick": 9600
+      }
+     ],
+     "index": 7,
+     "isPickup": false,
+     "startTick": 9120
+    },
+    {
+     "events": [
+      {
+       "dur": 480,
+       "id": "e16",
+       "kind": "rest",
+       "tick": 10560
+      },
+      {
+       "dur": 480,
+       "id": "e17",
+       "kind": "rest",
+       "tick": 11040
+      },
+      {
+       "dur": 480,
+       "hairpin": "cresc",
+       "id": "e18",
+       "kind": "note",
+       "pitch": {
+        "alter": 1,
+        "octave": 4,
+        "step": "A"
+       },
+       "tick": 11520,
+       "tieStart": true
+      }
+     ],
+     "index": 8,
+     "isPickup": false,
+     "startTick": 10560
+    },
+    {
+     "events": [
+      {
+       "dur": 1440,
+       "id": "e19",
+       "kind": "note",
+       "pitch": {
+        "alter": 1,
+        "octave": 4,
+        "step": "A"
+       },
+       "slur": "start",
+       "tick": 12000,
+       "tieStop": true
+      }
+     ],
+     "index": 9,
+     "isPickup": false,
+     "startTick": 12000
+    },
+    {
+     "events": [
+      {
+       "dur": 480,
+       "hairpin": "dim",
+       "id": "e20",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 4,
+        "step": "A"
+       },
+       "slur": "stop",
+       "tick": 13440
+      },
+      {
+       "dur": 480,
+       "id": "e21",
+       "kind": "rest",
+       "tick": 13920
+      },
+      {
+       "dur": 480,
+       "id": "e22",
+       "kind": "rest",
+       "tick": 14400
+      }
+     ],
+     "index": 10,
+     "isPickup": false,
+     "startTick": 13440
+    }
+   ],
+   "meter": {
+    "beatType": 4,
+    "beats": 3,
+    "countUnitTicks": 480,
+    "countsPerBar": 3
+   },
+   "modal": null,
+   "modifications": [
+    "excerpted"
+   ],
+   "phraseQuality": "complete-phrase",
+   "pickupTicks": 480,
+   "quality": {
+    "interest": 0.8694
+   },
+   "rangeConcert": {
+    "max": 70,
+    "min": 49
+   },
+   "review": {
+    "llm": "not-required",
+    "llmVerdicts": [],
+    "promptVersion": "none",
+    "rules": "p0e-fixture-1.0.0"
+   },
+   "rhythmCells": [
+    "EE",
+    "H",
+    "H.",
+    "Q",
+    "Qr",
+    "pickup",
+    "tieBar"
+   ],
+   "schemaVersion": 1,
+   "source": {
+    "catalog": "Op.121",
+    "composer": "Max Reger",
+    "composerDates": "1873–1916",
+    "composerDeath": 1916,
+    "corpus": "openscore-quartets",
+    "encoder": "OpenScore String Quartets contributors",
+    "license": "CC0-1.0",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "movement": "Movement 1",
+    "originalInstrument": "viola",
+    "partName": "Viola",
+    "sourceMeasures": [
+     229,
+     239
+    ],
+    "sourceUrl": "https://github.com/OpenScore/StringQuartets",
+    "upstreamRef": "OpenScore/StringQuartets@2614b0b2:scores/Reger,_Max/String_Quartet_No.5,_Op.121/sq26406961.mxl",
+    "work": "String Quartet No.5, Op.121"
+   },
+   "tags": [
+    "accidentals",
+    "pickup",
+    "quartet",
+    "rests",
+    "role:viola",
+    "source-clef:alto",
+    "tie-across-barline"
+   ],
+   "tempo": {
+    "maxBpm": 120,
+    "minBpm": 60
+   },
+   "work": "reger|sq26406961|mv1"
+  }
+ ],
+ "schemaVersion": 1,
+ "shard": "shard-L05-01"
+}

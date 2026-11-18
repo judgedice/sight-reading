@@ -1,0 +1,74 @@
+{
+ "schemaVersion": 1,
+ "id": "case03-late-by-tbad",
+ "case": 3,
+ "description": "Every onset late by exactly its tBad, durations held: Mayer, flute, L1, 80 bpm; every note is duration-graded except the last. Expected notes: fixture corpus mayer-sq7588853-violin1-mv4-m253-260 for flute at 80 bpm (P0e rules with the tempo changed, fixtures/follow/gen/expected.ts). The alignment is the reference follower's final alignment for the scripted performance (fixtures/follow/gen/).",
+ "excerptId": "mayer-sq7588853-violin1-mv4-m253-260",
+ "instrumentId": "flute",
+ "input": {
+  "expected": [
+   {"idx":0,"eventIds":["e1"],"bar":1,"beatInBar":1,"onsetBeat":0,"durBeats":1,"onsetSec":0,"durSec":0.75,"concertMidi":76,"writtenPitch":{"step":"E","alter":0,"octave":5},"ioiPrevSec":null,"ioiNextSec":0.75,"precededByRest":false,"followedByRest":false,"onsetKind":"articulated","artic":"normal","durationGraded":true,"keySigAltered":false,"explicitAccidental":false,"ledgerLines":0},
+   {"idx":1,"eventIds":["e2"],"bar":1,"beatInBar":2,"onsetBeat":1,"durBeats":1,"onsetSec":0.75,"durSec":0.75,"concertMidi":72,"writtenPitch":{"step":"C","alter":0,"octave":5},"ioiPrevSec":0.75,"ioiNextSec":0.75,"precededByRest":false,"followedByRest":false,"onsetKind":"slurred","artic":"normal","durationGraded":true,"keySigAltered":false,"explicitAccidental":false,"ledgerLines":0},
+   {"idx":2,"eventIds":["e3"],"bar":2,"beatInBar":1,"onsetBeat":2,"durBeats":1,"onsetSec":1.5,"durSec":0.75,"concertMidi":71,"writtenPitch":{"step":"B","alter":0,"octave":4},"ioiPrevSec":0.75,"ioiNextSec":0.75,"precededByRest":false,"followedByRest":false,"onsetKind":"slurred","artic":"normal","durationGraded":true,"keySigAltered":false,"explicitAccidental":false,"ledgerLines":0},
+   {"idx":3,"eventIds":["e4"],"bar":2,"beatInBar":2,"onsetBeat":3,"durBeats":1,"onsetSec":2.25,"durSec":0.75,"concertMidi":74,"writtenPitch":{"step":"D","alter":0,"octave":5},"ioiPrevSec":0.75,"ioiNextSec":0.75,"precededByRest":false,"followedByRest":false,"onsetKind":"slurred","artic":"normal","durationGraded":true,"keySigAltered":false,"explicitAccidental":false,"ledgerLines":0},
+   {"idx":4,"eventIds":["e5"],"bar":3,"beatInBar":1,"onsetBeat":4,"durBeats":2,"onsetSec":3,"durSec":1.5,"concertMidi":72,"writtenPitch":{"step":"C","alter":0,"octave":5},"ioiPrevSec":0.75,"ioiNextSec":1.5,"precededByRest":false,"followedByRest":false,"onsetKind":"articulated","artic":"normal","durationGraded":true,"keySigAltered":false,"explicitAccidental":false,"ledgerLines":0},
+   {"idx":5,"eventIds":["e6"],"bar":4,"beatInBar":1,"onsetBeat":6,"durBeats":2,"onsetSec":4.5,"durSec":1.5,"concertMidi":74,"writtenPitch":{"step":"D","alter":0,"octave":5},"ioiPrevSec":1.5,"ioiNextSec":1.5,"precededByRest":false,"followedByRest":false,"onsetKind":"slurred","artic":"normal","durationGraded":true,"keySigAltered":false,"explicitAccidental":false,"ledgerLines":0},
+   {"idx":6,"eventIds":["e7"],"bar":5,"beatInBar":1,"onsetBeat":8,"durBeats":1,"onsetSec":6,"durSec":0.75,"concertMidi":76,"writtenPitch":{"step":"E","alter":0,"octave":5},"ioiPrevSec":1.5,"ioiNextSec":0.75,"precededByRest":false,"followedByRest":false,"onsetKind":"articulated","artic":"normal","durationGraded":true,"keySigAltered":false,"explicitAccidental":false,"ledgerLines":0},
+   {"idx":7,"eventIds":["e8"],"bar":5,"beatInBar":2,"onsetBeat":9,"durBeats":1,"onsetSec":6.75,"durSec":0.75,"concertMidi":72,"writtenPitch":{"step":"C","alter":0,"octave":5},"ioiPrevSec":0.75,"ioiNextSec":0.75,"precededByRest":false,"followedByRest":false,"onsetKind":"slurred","artic":"normal","durationGraded":true,"keySigAltered":false,"explicitAccidental":false,"ledgerLines":0},
+   {"idx":8,"eventIds":["e9"],"bar":6,"beatInBar":1,"onsetBeat":10,"durBeats":1,"onsetSec":7.5,"durSec":0.75,"concertMidi":69,"writtenPitch":{"step":"A","alter":0,"octave":4},"ioiPrevSec":0.75,"ioiNextSec":0.75,"precededByRest":false,"followedByRest":false,"onsetKind":"slurred","artic":"normal","durationGraded":true,"keySigAltered":false,"explicitAccidental":false,"ledgerLines":0},
+   {"idx":9,"eventIds":["e10"],"bar":6,"beatInBar":2,"onsetBeat":11,"durBeats":1,"onsetSec":8.25,"durSec":0.75,"concertMidi":74,"writtenPitch":{"step":"D","alter":0,"octave":5},"ioiPrevSec":0.75,"ioiNextSec":0.75,"precededByRest":false,"followedByRest":false,"onsetKind":"slurred","artic":"normal","durationGraded":true,"keySigAltered":false,"explicitAccidental":false,"ledgerLines":0},
+   {"idx":10,"eventIds":["e11"],"bar":7,"beatInBar":1,"onsetBeat":12,"durBeats":1,"onsetSec":9,"durSec":0.75,"concertMidi":72,"writtenPitch":{"step":"C","alter":0,"octave":5},"ioiPrevSec":0.75,"ioiNextSec":0.75,"precededByRest":false,"followedByRest":false,"onsetKind":"articulated","artic":"normal","durationGraded":true,"keySigAltered":false,"explicitAccidental":false,"ledgerLines":0},
+   {"idx":11,"eventIds":["e12"],"bar":7,"beatInBar":2,"onsetBeat":13,"durBeats":1,"onsetSec":9.75,"durSec":0.75,"concertMidi":71,"writtenPitch":{"step":"B","alter":0,"octave":4},"ioiPrevSec":0.75,"ioiNextSec":0.75,"precededByRest":false,"followedByRest":false,"onsetKind":"slurred","artic":"normal","durationGraded":true,"keySigAltered":false,"explicitAccidental":false,"ledgerLines":0},
+   {"idx":12,"eventIds":["e13"],"bar":8,"beatInBar":1,"onsetBeat":14,"durBeats":1,"onsetSec":10.5,"durSec":0.75,"concertMidi":72,"writtenPitch":{"step":"C","alter":0,"octave":5},"ioiPrevSec":0.75,"ioiNextSec":null,"precededByRest":false,"followedByRest":true,"onsetKind":"slurred","artic":"normal","durationGraded":false,"keySigAltered":false,"explicitAccidental":false,"ledgerLines":0}
+  ],
+  "alignment": {
+   "judgments": [
+    {"expectedIdx":0,"status":"matched","detectedId":1,"timing":"late","timingErrorMs":225,"pitch":"in-tune","playedConcertMidi":76.01,"centsError":1,"octaveDisplaced":false,"duration":"ok","heldRatio":0.92,"credit":{"p":1,"n":1,"o":0,"d":1},"marginal":false,"rejudged":false},
+    {"expectedIdx":1,"status":"matched","detectedId":2,"timing":"late","timingErrorMs":225,"pitch":"in-tune","playedConcertMidi":71.98,"centsError":-2,"octaveDisplaced":false,"duration":"ok","heldRatio":1,"credit":{"p":1,"n":1,"o":0,"d":1},"marginal":false,"rejudged":false},
+    {"expectedIdx":2,"status":"matched","detectedId":3,"timing":"late","timingErrorMs":225,"pitch":"in-tune","playedConcertMidi":71.02,"centsError":2,"octaveDisplaced":false,"duration":"ok","heldRatio":1,"credit":{"p":1,"n":1,"o":0,"d":1},"marginal":false,"rejudged":false},
+    {"expectedIdx":3,"status":"matched","detectedId":4,"timing":"late","timingErrorMs":225,"pitch":"in-tune","playedConcertMidi":73.99,"centsError":-1,"octaveDisplaced":false,"duration":"ok","heldRatio":0.973333,"credit":{"p":1,"n":1,"o":0,"d":1},"marginal":false,"rejudged":false},
+    {"expectedIdx":4,"status":"matched","detectedId":5,"timing":"late","timingErrorMs":225,"pitch":"in-tune","playedConcertMidi":72,"centsError":0,"octaveDisplaced":false,"duration":"ok","heldRatio":0.92,"credit":{"p":1,"n":1,"o":0,"d":1},"marginal":false,"rejudged":false},
+    {"expectedIdx":5,"status":"matched","detectedId":6,"timing":"late","timingErrorMs":225,"pitch":"in-tune","playedConcertMidi":73.97,"centsError":-3,"octaveDisplaced":false,"duration":"ok","heldRatio":0.986667,"credit":{"p":1,"n":1,"o":0,"d":1},"marginal":false,"rejudged":false},
+    {"expectedIdx":6,"status":"matched","detectedId":7,"timing":"late","timingErrorMs":225,"pitch":"in-tune","playedConcertMidi":76.03,"centsError":3,"octaveDisplaced":false,"duration":"ok","heldRatio":0.92,"credit":{"p":1,"n":1,"o":0,"d":1},"marginal":false,"rejudged":false},
+    {"expectedIdx":7,"status":"matched","detectedId":8,"timing":"late","timingErrorMs":225,"pitch":"in-tune","playedConcertMidi":71.99,"centsError":-1,"octaveDisplaced":false,"duration":"ok","heldRatio":1,"credit":{"p":1,"n":1,"o":0,"d":1},"marginal":false,"rejudged":false},
+    {"expectedIdx":8,"status":"matched","detectedId":9,"timing":"late","timingErrorMs":225,"pitch":"in-tune","playedConcertMidi":69.01,"centsError":1,"octaveDisplaced":false,"duration":"ok","heldRatio":1,"credit":{"p":1,"n":1,"o":0,"d":1},"marginal":false,"rejudged":false},
+    {"expectedIdx":9,"status":"matched","detectedId":10,"timing":"late","timingErrorMs":225,"pitch":"in-tune","playedConcertMidi":73.98,"centsError":-2,"octaveDisplaced":false,"duration":"ok","heldRatio":0.973333,"credit":{"p":1,"n":1,"o":0,"d":1},"marginal":false,"rejudged":false},
+    {"expectedIdx":10,"status":"matched","detectedId":11,"timing":"late","timingErrorMs":225,"pitch":"in-tune","playedConcertMidi":72.02,"centsError":2,"octaveDisplaced":false,"duration":"ok","heldRatio":0.92,"credit":{"p":1,"n":1,"o":0,"d":1},"marginal":false,"rejudged":false},
+    {"expectedIdx":11,"status":"matched","detectedId":12,"timing":"late","timingErrorMs":225,"pitch":"in-tune","playedConcertMidi":70.99,"centsError":-1,"octaveDisplaced":false,"duration":"ok","heldRatio":1,"credit":{"p":1,"n":1,"o":0,"d":1},"marginal":false,"rejudged":false},
+    {"expectedIdx":12,"status":"matched","detectedId":13,"timing":"late","timingErrorMs":225,"pitch":"in-tune","playedConcertMidi":72,"centsError":0,"octaveDisplaced":false,"duration":"not-graded","heldRatio":1,"credit":{"p":1,"n":1,"o":0,"d":null},"marginal":false,"rejudged":false}
+   ],
+   "extras": [],
+   "displaced": []
+  },
+  "detected": [
+   {"id":1,"onset":10.255,"offset":10.945,"provisionalMidi":76.01,"midi":76.01,"stableMedianCents":1,"steadyMs":640,"pitchSdCents":3,"clarity":0.95,"altOctaveClarity":null,"onsetCause":"from-silence"},
+   {"id":2,"onset":11.005,"offset":11.755,"provisionalMidi":71.98,"midi":71.98,"stableMedianCents":-2,"steadyMs":700,"pitchSdCents":3,"clarity":0.95,"altOctaveClarity":null,"onsetCause":"from-silence"},
+   {"id":3,"onset":11.755,"offset":12.505,"provisionalMidi":71.02,"midi":71.02,"stableMedianCents":2,"steadyMs":700,"pitchSdCents":3,"clarity":0.95,"altOctaveClarity":null,"onsetCause":"pitch-change"},
+   {"id":4,"onset":12.505,"offset":13.235,"provisionalMidi":73.99,"midi":73.99,"stableMedianCents":-1,"steadyMs":680,"pitchSdCents":3,"clarity":0.95,"altOctaveClarity":null,"onsetCause":"pitch-change"},
+   {"id":5,"onset":13.255,"offset":14.635,"provisionalMidi":72,"midi":72,"stableMedianCents":0,"steadyMs":1330,"pitchSdCents":3,"clarity":0.95,"altOctaveClarity":null,"onsetCause":"from-silence"},
+   {"id":6,"onset":14.755,"offset":16.235,"provisionalMidi":73.97,"midi":73.97,"stableMedianCents":-3,"steadyMs":1430,"pitchSdCents":3,"clarity":0.95,"altOctaveClarity":null,"onsetCause":"from-silence"},
+   {"id":7,"onset":16.255,"offset":16.945,"provisionalMidi":76.03,"midi":76.03,"stableMedianCents":3,"steadyMs":640,"pitchSdCents":3,"clarity":0.95,"altOctaveClarity":null,"onsetCause":"from-silence"},
+   {"id":8,"onset":17.005,"offset":17.755,"provisionalMidi":71.99,"midi":71.99,"stableMedianCents":-1,"steadyMs":700,"pitchSdCents":3,"clarity":0.95,"altOctaveClarity":null,"onsetCause":"from-silence"},
+   {"id":9,"onset":17.755,"offset":18.505,"provisionalMidi":69.01,"midi":69.01,"stableMedianCents":1,"steadyMs":700,"pitchSdCents":3,"clarity":0.95,"altOctaveClarity":null,"onsetCause":"pitch-change"},
+   {"id":10,"onset":18.505,"offset":19.235,"provisionalMidi":73.98,"midi":73.98,"stableMedianCents":-2,"steadyMs":680,"pitchSdCents":3,"clarity":0.95,"altOctaveClarity":null,"onsetCause":"pitch-change"},
+   {"id":11,"onset":19.255,"offset":19.945,"provisionalMidi":72.02,"midi":72.02,"stableMedianCents":2,"steadyMs":640,"pitchSdCents":3,"clarity":0.95,"altOctaveClarity":null,"onsetCause":"from-silence"},
+   {"id":12,"onset":20.005,"offset":20.755,"provisionalMidi":70.99,"midi":70.99,"stableMedianCents":-1,"steadyMs":700,"pitchSdCents":3,"clarity":0.95,"altOctaveClarity":null,"onsetCause":"from-silence"},
+   {"id":13,"onset":20.755,"offset":21.505,"provisionalMidi":72,"midi":72,"stableMedianCents":0,"steadyMs":700,"pitchSdCents":3,"clarity":0.95,"altOctaveClarity":null,"onsetCause":"pitch-change"}
+  ],
+  "level": 1,
+  "bpm": 80,
+  "meter": {"beatType":4,"beats":2,"countUnitTicks":480,"countsPerBar":2},
+  "tuning": {"used":false,"offsetCents":0},
+  "voiceReference": null,
+  "signal": {"medianClarity":0.95,"clippingFrac":0},
+  "calibrationMeasured": true,
+  "ranking": {"mode":"ranked","seenBefore":false,"scanStrict":true,"familiarity":0,"skipLimitHit":false,"metronome":"audible","gateFailures":[]},
+  "xp": {"playerLevel":1,"randomized":{"key":false,"meter":false,"tempo":false},"streakDays":0,"dailyCountBefore":0,"repeatIndexToday":0,"placement":false}
+ },
+ "expect": [
+  {"path":"score.components.R","op":"approx","value":20,"tolerance":0.01,"note":"o = 0 at |Δ| = tBad, d = 1: R = 100 × (0.8 × 0 + 0.2 × 1) = 20 (02 §4.4, §4.9 case 3)"},
+  {"path":"score.diagnostics.counts.late","op":"eq","value":13,"note":"tBad 225 ms > tRed 150 ms: every note late (02 §4.8)"},
+  {"path":"score.diagnostics.counts.missed","op":"eq","value":0,"note":"tBad ≤ W (02 §4.1): still matched"},
+  {"path":"score.components.P","op":"eq","value":100}
+ ]
+}

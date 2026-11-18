@@ -41,7 +41,7 @@
         "entries"
       ],
       "additionalProperties": false,
-      "description": "`config/trumpet-valves.json`: written pitch to valve combination and partial, written F♯3 to C6 (02 §4.5, §10)."
+      "description": "`data/trumpet-valves.json`: written pitch to valve combination and partial, written F♯3 to C6 (02 §4.5, §10)."
     }
   }
 }

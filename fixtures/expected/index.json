@@ -1,0 +1,35 @@
+{
+ "excerpts": [
+  "arriaga-sq34038344-viola-mv4-m154-163",
+  "faure-sq7358708-cello-mv3-m67-74",
+  "gouvy-sq10406164-cello-mv3-m1-10",
+  "haydn-lc6472842-voice-mp117-127",
+  "mozart-sq35524196-violin1-mv2-mp16-28",
+  "reger-sq26401096-viola-mv4-m189-196"
+ ],
+ "files": [
+  "arriaga-sq34038344-viola-mv4-m154-163.flute.json",
+  "arriaga-sq34038344-viola-mv4-m154-163.clarinet-bb.json",
+  "arriaga-sq34038344-viola-mv4-m154-163.sax-alto.json",
+  "faure-sq7358708-cello-mv3-m67-74.flute.json",
+  "faure-sq7358708-cello-mv3-m67-74.clarinet-bb.json",
+  "faure-sq7358708-cello-mv3-m67-74.sax-alto.json",
+  "gouvy-sq10406164-cello-mv3-m1-10.flute.json",
+  "gouvy-sq10406164-cello-mv3-m1-10.clarinet-bb.json",
+  "gouvy-sq10406164-cello-mv3-m1-10.sax-alto.json",
+  "haydn-lc6472842-voice-mp117-127.flute.json",
+  "haydn-lc6472842-voice-mp117-127.clarinet-bb.json",
+  "haydn-lc6472842-voice-mp117-127.sax-alto.json",
+  "mozart-sq35524196-violin1-mv2-mp16-28.flute.json",
+  "mozart-sq35524196-violin1-mv2-mp16-28.clarinet-bb.json",
+  "mozart-sq35524196-violin1-mv2-mp16-28.sax-alto.json",
+  "reger-sq26401096-viola-mv4-m189-196.flute.json",
+  "reger-sq26401096-viola-mv4-m189-196.clarinet-bb.json",
+  "reger-sq26401096-viola-mv4-m189-196.sax-alto.json"
+ ],
+ "instruments": [
+  "flute",
+  "clarinet-bb",
+  "sax-alto"
+ ]
+}

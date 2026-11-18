@@ -1,0 +1,805 @@
+{
+ "bpm": 40,
+ "clef": "treble",
+ "excerptId": "gouvy-sq10406164-cello-mv3-m1-10",
+ "instrumentId": "flute",
+ "level": 5,
+ "notes": [
+  {
+   "artic": "normal",
+   "bar": 1,
+   "beatInBar": 1,
+   "concertMidi": 62,
+   "durBeats": 2.6666666666666665,
+   "durSec": 4,
+   "durationGraded": true,
+   "eventIds": [
+    "e1",
+    "e2"
+   ],
+   "explicitAccidental": false,
+   "followedByRest": false,
+   "idx": 0,
+   "ioiNextSec": 4,
+   "ioiPrevSec": null,
+   "keySigAltered": false,
+   "ledgerLines": 0,
+   "onsetBeat": 0,
+   "onsetKind": "articulated",
+   "onsetSec": 0,
+   "precededByRest": false,
+   "writtenPitch": {
+    "alter": 0,
+    "octave": 4,
+    "step": "D"
+   }
+  },
+  {
+   "artic": "normal",
+   "bar": 2,
+   "beatInBar": 1.6666666666666665,
+   "concertMidi": 66,
+   "durBeats": 0.3333333333333333,
+   "durSec": 0.5,
+   "durationGraded": false,
+   "eventIds": [
+    "e3"
+   ],
+   "explicitAccidental": false,
+   "followedByRest": false,
+   "idx": 1,
+   "ioiNextSec": 0.5,
+   "ioiPrevSec": 4,
+   "keySigAltered": true,
+   "ledgerLines": 0,
+   "onsetBeat": 2.6666666666666665,
+   "onsetKind": "slurred",
+   "onsetSec": 4,
+   "precededByRest": false,
+   "writtenPitch": {
+    "alter": 1,
+    "octave": 4,
+    "step": "F"
+   }
+  },
+  {
+   "artic": "normal",
+   "bar": 2,
+   "beatInBar": 2,
+   "concertMidi": 64,
+   "durBeats": 0.6666666666666666,
+   "durSec": 1,
+   "durationGraded": false,
+   "eventIds": [
+    "e4"
+   ],
+   "explicitAccidental": false,
+   "followedByRest": false,
+   "idx": 2,
+   "ioiNextSec": 1,
+   "ioiPrevSec": 0.5,
+   "keySigAltered": false,
+   "ledgerLines": 0,
+   "onsetBeat": 3,
+   "onsetKind": "slurred",
+   "onsetSec": 4.5,
+   "precededByRest": false,
+   "writtenPitch": {
+    "alter": 0,
+    "octave": 4,
+    "step": "E"
+   }
+  },
+  {
+   "artic": "normal",
+   "bar": 2,
+   "beatInBar": 2.666666666666667,
+   "concertMidi": 67,
+   "durBeats": 0.3333333333333333,
+   "durSec": 0.5,
+   "durationGraded": false,
+   "eventIds": [
+    "e5"
+   ],
+   "explicitAccidental": false,
+   "followedByRest": false,
+   "idx": 3,
+   "ioiNextSec": 0.5,
+   "ioiPrevSec": 1,
+   "keySigAltered": false,
+   "ledgerLines": 0,
+   "onsetBeat": 3.6666666666666665,
+   "onsetKind": "slurred",
+   "onsetSec": 5.5,
+   "precededByRest": false,
+   "writtenPitch": {
+    "alter": 0,
+    "octave": 4,
+    "step": "G"
+   }
+  },
+  {
+   "artic": "normal",
+   "bar": 3,
+   "beatInBar": 1,
+   "concertMidi": 66,
+   "durBeats": 0.3333333333333333,
+   "durSec": 0.5,
+   "durationGraded": false,
+   "eventIds": [
+    "e6"
+   ],
+   "explicitAccidental": false,
+   "followedByRest": false,
+   "idx": 4,
+   "ioiNextSec": 0.5,
+   "ioiPrevSec": 0.5,
+   "keySigAltered": true,
+   "ledgerLines": 0,
+   "onsetBeat": 4,
+   "onsetKind": "articulated",
+   "onsetSec": 6,
+   "precededByRest": false,
+   "writtenPitch": {
+    "alter": 1,
+    "octave": 4,
+    "step": "F"
+   }
+  },
+  {
+   "artic": "normal",
+   "bar": 3,
+   "beatInBar": 1.3333333333333333,
+   "concertMidi": 62,
+   "durBeats": 0.3333333333333333,
+   "durSec": 0.5,
+   "durationGraded": false,
+   "eventIds": [
+    "e7"
+   ],
+   "explicitAccidental": false,
+   "followedByRest": false,
+   "idx": 5,
+   "ioiNextSec": 0.5,
+   "ioiPrevSec": 0.5,
+   "keySigAltered": false,
+   "ledgerLines": 0,
+   "onsetBeat": 4.333333333333333,
+   "onsetKind": "slurred",
+   "onsetSec": 6.5,
+   "precededByRest": false,
+   "writtenPitch": {
+    "alter": 0,
+    "octave": 4,
+    "step": "D"
+   }
+  },
+  {
+   "artic": "normal",
+   "bar": 3,
+   "beatInBar": 1.6666666666666665,
+   "concertMidi": 69,
+   "durBeats": 0.3333333333333333,
+   "durSec": 0.5,
+   "durationGraded": false,
+   "eventIds": [
+    "e8"
+   ],
+   "explicitAccidental": false,
+   "followedByRest": false,
+   "idx": 6,
+   "ioiNextSec": 0.5,
+   "ioiPrevSec": 0.5,
+   "keySigAltered": false,
+   "ledgerLines": 0,
+   "onsetBeat": 4.666666666666667,
+   "onsetKind": "slurred",
+   "onsetSec": 7,
+   "precededByRest": false,
+   "writtenPitch": {
+    "alter": 0,
+    "octave": 4,
+    "step": "A"
+   }
+  },
+  {
+   "artic": "normal",
+   "bar": 3,
+   "beatInBar": 2,
+   "concertMidi": 69,
+   "durBeats": 0.6666666666666666,
+   "durSec": 1,
+   "durationGraded": false,
+   "eventIds": [
+    "e9"
+   ],
+   "explicitAccidental": false,
+   "followedByRest": false,
+   "idx": 7,
+   "ioiNextSec": 1,
+   "ioiPrevSec": 0.5,
+   "keySigAltered": false,
+   "ledgerLines": 0,
+   "onsetBeat": 5,
+   "onsetKind": "repeat",
+   "onsetSec": 7.5,
+   "precededByRest": false,
+   "writtenPitch": {
+    "alter": 0,
+    "octave": 4,
+    "step": "A"
+   }
+  },
+  {
+   "artic": "normal",
+   "bar": 3,
+   "beatInBar": 2.666666666666667,
+   "concertMidi": 67,
+   "durBeats": 0.3333333333333333,
+   "durSec": 0.5,
+   "durationGraded": false,
+   "eventIds": [
+    "e10"
+   ],
+   "explicitAccidental": false,
+   "followedByRest": false,
+   "idx": 8,
+   "ioiNextSec": 0.5,
+   "ioiPrevSec": 1,
+   "keySigAltered": false,
+   "ledgerLines": 0,
+   "onsetBeat": 5.666666666666667,
+   "onsetKind": "slurred",
+   "onsetSec": 8.5,
+   "precededByRest": false,
+   "writtenPitch": {
+    "alter": 0,
+    "octave": 4,
+    "step": "G"
+   }
+  },
+  {
+   "artic": "normal",
+   "bar": 4,
+   "beatInBar": 1,
+   "concertMidi": 66,
+   "durBeats": 1,
+   "durSec": 1.5,
+   "durationGraded": true,
+   "eventIds": [
+    "e11"
+   ],
+   "explicitAccidental": false,
+   "followedByRest": false,
+   "idx": 9,
+   "ioiNextSec": 1.5,
+   "ioiPrevSec": 0.5,
+   "keySigAltered": true,
+   "ledgerLines": 0,
+   "onsetBeat": 6,
+   "onsetKind": "articulated",
+   "onsetSec": 9,
+   "precededByRest": false,
+   "writtenPitch": {
+    "alter": 1,
+    "octave": 4,
+    "step": "F"
+   }
+  },
+  {
+   "artic": "normal",
+   "bar": 4,
+   "beatInBar": 2,
+   "concertMidi": 67,
+   "durBeats": 0.3333333333333333,
+   "durSec": 0.5,
+   "durationGraded": false,
+   "eventIds": [
+    "e12"
+   ],
+   "explicitAccidental": false,
+   "followedByRest": false,
+   "idx": 10,
+   "ioiNextSec": 0.5,
+   "ioiPrevSec": 1.5,
+   "keySigAltered": false,
+   "ledgerLines": 0,
+   "onsetBeat": 7,
+   "onsetKind": "articulated",
+   "onsetSec": 10.5,
+   "precededByRest": false,
+   "writtenPitch": {
+    "alter": 0,
+    "octave": 4,
+    "step": "G"
+   }
+  },
+  {
+   "artic": "normal",
+   "bar": 4,
+   "beatInBar": 2.333333333333333,
+   "concertMidi": 66,
+   "durBeats": 0.3333333333333333,
+   "durSec": 0.5,
+   "durationGraded": false,
+   "eventIds": [
+    "e13"
+   ],
+   "explicitAccidental": false,
+   "followedByRest": false,
+   "idx": 11,
+   "ioiNextSec": 0.5,
+   "ioiPrevSec": 0.5,
+   "keySigAltered": true,
+   "ledgerLines": 0,
+   "onsetBeat": 7.333333333333333,
+   "onsetKind": "slurred",
+   "onsetSec": 11,
+   "precededByRest": false,
+   "writtenPitch": {
+    "alter": 1,
+    "octave": 4,
+    "step": "F"
+   }
+  },
+  {
+   "artic": "normal",
+   "bar": 4,
+   "beatInBar": 2.666666666666667,
+   "concertMidi": 64,
+   "durBeats": 0.3333333333333333,
+   "durSec": 0.5,
+   "durationGraded": false,
+   "eventIds": [
+    "e14"
+   ],
+   "explicitAccidental": false,
+   "followedByRest": false,
+   "idx": 12,
+   "ioiNextSec": 0.5,
+   "ioiPrevSec": 0.5,
+   "keySigAltered": false,
+   "ledgerLines": 0,
+   "onsetBeat": 7.666666666666667,
+   "onsetKind": "slurred",
+   "onsetSec": 11.5,
+   "precededByRest": false,
+   "writtenPitch": {
+    "alter": 0,
+    "octave": 4,
+    "step": "E"
+   }
+  },
+  {
+   "artic": "normal",
+   "bar": 5,
+   "beatInBar": 1,
+   "concertMidi": 71,
+   "durBeats": 1,
+   "durSec": 1.5,
+   "durationGraded": true,
+   "eventIds": [
+    "e15"
+   ],
+   "explicitAccidental": false,
+   "followedByRest": false,
+   "idx": 13,
+   "ioiNextSec": 1.5,
+   "ioiPrevSec": 0.5,
+   "keySigAltered": false,
+   "ledgerLines": 0,
+   "onsetBeat": 8,
+   "onsetKind": "articulated",
+   "onsetSec": 12,
+   "precededByRest": false,
+   "writtenPitch": {
+    "alter": 0,
+    "octave": 4,
+    "step": "B"
+   }
+  },
+  {
+   "artic": "normal",
+   "bar": 5,
+   "beatInBar": 2,
+   "concertMidi": 73,
+   "durBeats": 1,
+   "durSec": 1.5,
+   "durationGraded": true,
+   "eventIds": [
+    "e16"
+   ],
+   "explicitAccidental": false,
+   "followedByRest": false,
+   "idx": 14,
+   "ioiNextSec": 1.5,
+   "ioiPrevSec": 1.5,
+   "keySigAltered": true,
+   "ledgerLines": 0,
+   "onsetBeat": 9,
+   "onsetKind": "slurred",
+   "onsetSec": 13.5,
+   "precededByRest": false,
+   "writtenPitch": {
+    "alter": 1,
+    "octave": 5,
+    "step": "C"
+   }
+  },
+  {
+   "artic": "normal",
+   "bar": 6,
+   "beatInBar": 1,
+   "concertMidi": 69,
+   "durBeats": 1.3333333333333333,
+   "durSec": 2,
+   "durationGraded": true,
+   "eventIds": [
+    "e17",
+    "e18"
+   ],
+   "explicitAccidental": false,
+   "followedByRest": false,
+   "idx": 15,
+   "ioiNextSec": 2,
+   "ioiPrevSec": 1.5,
+   "keySigAltered": false,
+   "ledgerLines": 0,
+   "onsetBeat": 10,
+   "onsetKind": "articulated",
+   "onsetSec": 15,
+   "precededByRest": false,
+   "writtenPitch": {
+    "alter": 0,
+    "octave": 4,
+    "step": "A"
+   }
+  },
+  {
+   "artic": "normal",
+   "bar": 6,
+   "beatInBar": 2.333333333333333,
+   "concertMidi": 71,
+   "durBeats": 0.3333333333333333,
+   "durSec": 0.5,
+   "durationGraded": false,
+   "eventIds": [
+    "e19"
+   ],
+   "explicitAccidental": false,
+   "followedByRest": false,
+   "idx": 16,
+   "ioiNextSec": 0.5,
+   "ioiPrevSec": 2,
+   "keySigAltered": false,
+   "ledgerLines": 0,
+   "onsetBeat": 11.333333333333334,
+   "onsetKind": "slurred",
+   "onsetSec": 17,
+   "precededByRest": false,
+   "writtenPitch": {
+    "alter": 0,
+    "octave": 4,
+    "step": "B"
+   }
+  },
+  {
+   "artic": "normal",
+   "bar": 6,
+   "beatInBar": 2.666666666666667,
+   "concertMidi": 73,
+   "durBeats": 0.3333333333333333,
+   "durSec": 0.5,
+   "durationGraded": false,
+   "eventIds": [
+    "e20"
+   ],
+   "explicitAccidental": false,
+   "followedByRest": false,
+   "idx": 17,
+   "ioiNextSec": 0.5,
+   "ioiPrevSec": 0.5,
+   "keySigAltered": true,
+   "ledgerLines": 0,
+   "onsetBeat": 11.666666666666666,
+   "onsetKind": "slurred",
+   "onsetSec": 17.5,
+   "precededByRest": false,
+   "writtenPitch": {
+    "alter": 1,
+    "octave": 5,
+    "step": "C"
+   }
+  },
+  {
+   "artic": "normal",
+   "bar": 7,
+   "beatInBar": 1,
+   "concertMidi": 74,
+   "durBeats": 2.6666666666666665,
+   "durSec": 4,
+   "durationGraded": true,
+   "eventIds": [
+    "e21",
+    "e22"
+   ],
+   "explicitAccidental": false,
+   "followedByRest": false,
+   "idx": 18,
+   "ioiNextSec": 4,
+   "ioiPrevSec": 0.5,
+   "keySigAltered": false,
+   "ledgerLines": 0,
+   "onsetBeat": 12,
+   "onsetKind": "articulated",
+   "onsetSec": 18,
+   "precededByRest": false,
+   "writtenPitch": {
+    "alter": 0,
+    "octave": 5,
+    "step": "D"
+   }
+  },
+  {
+   "artic": "normal",
+   "bar": 8,
+   "beatInBar": 1.6666666666666665,
+   "concertMidi": 78,
+   "durBeats": 0.3333333333333333,
+   "durSec": 0.5,
+   "durationGraded": false,
+   "eventIds": [
+    "e23"
+   ],
+   "explicitAccidental": false,
+   "followedByRest": false,
+   "idx": 19,
+   "ioiNextSec": 0.5,
+   "ioiPrevSec": 4,
+   "keySigAltered": true,
+   "ledgerLines": 0,
+   "onsetBeat": 14.666666666666666,
+   "onsetKind": "slurred",
+   "onsetSec": 22,
+   "precededByRest": false,
+   "writtenPitch": {
+    "alter": 1,
+    "octave": 5,
+    "step": "F"
+   }
+  },
+  {
+   "artic": "normal",
+   "bar": 8,
+   "beatInBar": 2,
+   "concertMidi": 76,
+   "durBeats": 0.6666666666666666,
+   "durSec": 1,
+   "durationGraded": false,
+   "eventIds": [
+    "e24"
+   ],
+   "explicitAccidental": false,
+   "followedByRest": false,
+   "idx": 20,
+   "ioiNextSec": 1,
+   "ioiPrevSec": 0.5,
+   "keySigAltered": false,
+   "ledgerLines": 0,
+   "onsetBeat": 15,
+   "onsetKind": "slurred",
+   "onsetSec": 22.5,
+   "precededByRest": false,
+   "writtenPitch": {
+    "alter": 0,
+    "octave": 5,
+    "step": "E"
+   }
+  },
+  {
+   "artic": "normal",
+   "bar": 8,
+   "beatInBar": 2.666666666666667,
+   "concertMidi": 79,
+   "durBeats": 0.3333333333333333,
+   "durSec": 0.5,
+   "durationGraded": false,
+   "eventIds": [
+    "e25"
+   ],
+   "explicitAccidental": false,
+   "followedByRest": false,
+   "idx": 21,
+   "ioiNextSec": 0.5,
+   "ioiPrevSec": 1,
+   "keySigAltered": false,
+   "ledgerLines": 0,
+   "onsetBeat": 15.666666666666666,
+   "onsetKind": "slurred",
+   "onsetSec": 23.5,
+   "precededByRest": false,
+   "writtenPitch": {
+    "alter": 0,
+    "octave": 5,
+    "step": "G"
+   }
+  },
+  {
+   "artic": "normal",
+   "bar": 9,
+   "beatInBar": 1,
+   "concertMidi": 78,
+   "durBeats": 0.3333333333333333,
+   "durSec": 0.5,
+   "durationGraded": false,
+   "eventIds": [
+    "e26"
+   ],
+   "explicitAccidental": false,
+   "followedByRest": false,
+   "idx": 22,
+   "ioiNextSec": 0.49999999999999645,
+   "ioiPrevSec": 0.5,
+   "keySigAltered": true,
+   "ledgerLines": 0,
+   "onsetBeat": 16,
+   "onsetKind": "articulated",
+   "onsetSec": 24,
+   "precededByRest": false,
+   "writtenPitch": {
+    "alter": 1,
+    "octave": 5,
+    "step": "F"
+   }
+  },
+  {
+   "artic": "normal",
+   "bar": 9,
+   "beatInBar": 1.3333333333333333,
+   "concertMidi": 74,
+   "durBeats": 0.3333333333333333,
+   "durSec": 0.5,
+   "durationGraded": false,
+   "eventIds": [
+    "e27"
+   ],
+   "explicitAccidental": false,
+   "followedByRest": false,
+   "idx": 23,
+   "ioiNextSec": 0.5000000000000071,
+   "ioiPrevSec": 0.49999999999999645,
+   "keySigAltered": false,
+   "ledgerLines": 0,
+   "onsetBeat": 16.333333333333332,
+   "onsetKind": "slurred",
+   "onsetSec": 24.499999999999996,
+   "precededByRest": false,
+   "writtenPitch": {
+    "alter": 0,
+    "octave": 5,
+    "step": "D"
+   }
+  },
+  {
+   "artic": "normal",
+   "bar": 9,
+   "beatInBar": 1.6666666666666665,
+   "concertMidi": 81,
+   "durBeats": 0.3333333333333333,
+   "durSec": 0.5,
+   "durationGraded": false,
+   "eventIds": [
+    "e28"
+   ],
+   "explicitAccidental": false,
+   "followedByRest": false,
+   "idx": 24,
+   "ioiNextSec": 0.49999999999999645,
+   "ioiPrevSec": 0.5000000000000071,
+   "keySigAltered": false,
+   "ledgerLines": 1,
+   "onsetBeat": 16.666666666666668,
+   "onsetKind": "slurred",
+   "onsetSec": 25.000000000000004,
+   "precededByRest": false,
+   "writtenPitch": {
+    "alter": 0,
+    "octave": 5,
+    "step": "A"
+   }
+  },
+  {
+   "artic": "normal",
+   "bar": 9,
+   "beatInBar": 2,
+   "concertMidi": 81,
+   "durBeats": 0.6666666666666666,
+   "durSec": 1,
+   "durationGraded": false,
+   "eventIds": [
+    "e29"
+   ],
+   "explicitAccidental": false,
+   "followedByRest": false,
+   "idx": 25,
+   "ioiNextSec": 1,
+   "ioiPrevSec": 0.49999999999999645,
+   "keySigAltered": false,
+   "ledgerLines": 1,
+   "onsetBeat": 17,
+   "onsetKind": "repeat",
+   "onsetSec": 25.5,
+   "precededByRest": false,
+   "writtenPitch": {
+    "alter": 0,
+    "octave": 5,
+    "step": "A"
+   }
+  },
+  {
+   "artic": "normal",
+   "bar": 9,
+   "beatInBar": 2.666666666666667,
+   "concertMidi": 79,
+   "durBeats": 0.3333333333333333,
+   "durSec": 0.5,
+   "durationGraded": false,
+   "eventIds": [
+    "e30"
+   ],
+   "explicitAccidental": false,
+   "followedByRest": false,
+   "idx": 26,
+   "ioiNextSec": 0.5,
+   "ioiPrevSec": 1,
+   "keySigAltered": false,
+   "ledgerLines": 0,
+   "onsetBeat": 17.666666666666668,
+   "onsetKind": "articulated",
+   "onsetSec": 26.5,
+   "precededByRest": false,
+   "writtenPitch": {
+    "alter": 0,
+    "octave": 5,
+    "step": "G"
+   }
+  },
+  {
+   "artic": "normal",
+   "bar": 10,
+   "beatInBar": 1,
+   "concertMidi": 78,
+   "durBeats": 0.3333333333333333,
+   "durSec": 0.5,
+   "durationGraded": false,
+   "eventIds": [
+    "e31"
+   ],
+   "explicitAccidental": false,
+   "followedByRest": true,
+   "idx": 27,
+   "ioiNextSec": null,
+   "ioiPrevSec": 0.5,
+   "keySigAltered": true,
+   "ledgerLines": 0,
+   "onsetBeat": 18,
+   "onsetKind": "articulated",
+   "onsetSec": 27,
+   "precededByRest": false,
+   "writtenPitch": {
+    "alter": 1,
+    "octave": 5,
+    "step": "F"
+   }
+  }
+ ],
+ "schemaVersion": 1,
+ "transposition": {
+  "chromatic": 23,
+  "diatonic": 13
+ },
+ "writtenKey": {
+  "fifths": 2,
+  "mode": "major"
+ }
+}

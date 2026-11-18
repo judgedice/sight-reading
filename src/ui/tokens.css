@@ -135,6 +135,22 @@
   }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-instant: 0ms;
+    --dur-fast: 0ms;
+    --dur-base: 0ms;
+    --dur-slow: 0ms;
+  }
+}
+
+:root[data-motion="reduced"] {
+  --dur-instant: 0ms;
+  --dur-fast: 0ms;
+  --dur-base: 0ms;
+  --dur-slow: 0ms;
+}
+
 :root, :root[data-theme="light"] {
   --bg: #F6F5F1;
   --surface: #FFFFFF;

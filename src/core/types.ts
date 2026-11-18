@@ -208,7 +208,7 @@ export interface Instrument {
   detection: DetectionParams;
 }
 
-/** `config/trumpet-valves.json`: written pitch to valve combination and partial, written F♯3 to C6 (02 §4.5, §10). */
+/** `data/trumpet-valves.json`: written pitch to valve combination and partial, written F♯3 to C6 (02 §4.5, §10). */
 export interface TrumpetValveTable {
   _source: string;
   entries: {

@@ -1,0 +1,343 @@
+{
+ "excerpts": [
+  {
+   "barRhythmLevel": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "breathMaxGapBars": 7.5,
+   "cadenceEnd": "PAC",
+   "contentHash": "sha256:0de9af92d87c6514f57d81221104b526e81be3a1dcdf869247e099de74b94873",
+   "dedupeGroup": "fp-2ef02235",
+   "extremes": {
+    "highId": "e1",
+    "lowId": "e9"
+   },
+   "familiarity": 0,
+   "featureLevels": {
+    "chromatic": 1,
+    "density": 1,
+    "double": 1,
+    "interval": 1,
+    "leaps": 1,
+    "meter": 1,
+    "mode": 1,
+    "rhythm": 1,
+    "span": 1
+   },
+   "features": {
+    "accidentalsOutsideKey": 0,
+    "chromaticPer4BarsMax": 0,
+    "doubleAccidentals": 0,
+    "leapsPer4BarsMax": 1,
+    "maxLeapSemis": 5,
+    "minIoiTicks": 480,
+    "minRepeatIoiTicks": null,
+    "minorAlterations": 0,
+    "noteCount": 13,
+    "notesPerBeat": 0.8125,
+    "peakNotesPerBeat": 1,
+    "restRatio": 0.0625,
+    "shortestDur": 480,
+    "spanSemis": 7,
+    "syncopationIndex": 0,
+    "tonicTriadLeapsOnly": false
+   },
+   "flags": [
+    "noBreath"
+   ],
+   "id": "mayer-sq7588853-violin1-mv4-m253-260",
+   "keyConcert": {
+    "fifths": 2,
+    "mode": "major"
+   },
+   "level": 1,
+   "levelConfidence": 9,
+   "measures": [
+    {
+     "events": [
+      {
+       "dur": 480,
+       "id": "e1",
+       "kind": "note",
+       "pitch": {
+        "alter": 1,
+        "octave": 5,
+        "step": "F"
+       },
+       "slur": "start",
+       "tick": 0
+      },
+      {
+       "dur": 480,
+       "id": "e2",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 5,
+        "step": "D"
+       },
+       "tick": 480
+      }
+     ],
+     "index": 0,
+     "isPickup": false,
+     "startTick": 0
+    },
+    {
+     "events": [
+      {
+       "dur": 480,
+       "id": "e3",
+       "kind": "note",
+       "pitch": {
+        "alter": 1,
+        "octave": 5,
+        "step": "C"
+       },
+       "tick": 960
+      },
+      {
+       "dur": 480,
+       "id": "e4",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 5,
+        "step": "E"
+       },
+       "slur": "stop",
+       "tick": 1440
+      }
+     ],
+     "index": 1,
+     "isPickup": false,
+     "startTick": 960
+    },
+    {
+     "events": [
+      {
+       "dur": 960,
+       "id": "e5",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 5,
+        "step": "D"
+       },
+       "slur": "start",
+       "tick": 1920
+      }
+     ],
+     "index": 2,
+     "isPickup": false,
+     "startTick": 1920
+    },
+    {
+     "events": [
+      {
+       "dur": 960,
+       "id": "e6",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 5,
+        "step": "E"
+       },
+       "slur": "stop",
+       "tick": 2880
+      }
+     ],
+     "index": 3,
+     "isPickup": false,
+     "startTick": 2880
+    },
+    {
+     "events": [
+      {
+       "dur": 480,
+       "id": "e7",
+       "kind": "note",
+       "pitch": {
+        "alter": 1,
+        "octave": 5,
+        "step": "F"
+       },
+       "slur": "start",
+       "tick": 3840
+      },
+      {
+       "dur": 480,
+       "id": "e8",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 5,
+        "step": "D"
+       },
+       "tick": 4320
+      }
+     ],
+     "index": 4,
+     "isPickup": false,
+     "startTick": 3840
+    },
+    {
+     "events": [
+      {
+       "dur": 480,
+       "id": "e9",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 4,
+        "step": "B"
+       },
+       "tick": 4800
+      },
+      {
+       "dur": 480,
+       "id": "e10",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 5,
+        "step": "E"
+       },
+       "slur": "stop",
+       "tick": 5280
+      }
+     ],
+     "index": 5,
+     "isPickup": false,
+     "startTick": 4800
+    },
+    {
+     "events": [
+      {
+       "dur": 480,
+       "id": "e11",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 5,
+        "step": "D"
+       },
+       "slur": "start",
+       "tick": 5760
+      },
+      {
+       "dur": 480,
+       "id": "e12",
+       "kind": "note",
+       "pitch": {
+        "alter": 1,
+        "octave": 5,
+        "step": "C"
+       },
+       "tick": 6240
+      }
+     ],
+     "index": 6,
+     "isPickup": false,
+     "startTick": 5760
+    },
+    {
+     "events": [
+      {
+       "dur": 480,
+       "id": "e13",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 5,
+        "step": "D"
+       },
+       "slur": "stop",
+       "tick": 6720
+      },
+      {
+       "dur": 480,
+       "id": "e14",
+       "kind": "rest",
+       "tick": 7200
+      }
+     ],
+     "index": 7,
+     "isPickup": false,
+     "startTick": 6720
+    }
+   ],
+   "meter": {
+    "beatType": 4,
+    "beats": 2,
+    "countUnitTicks": 480,
+    "countsPerBar": 2
+   },
+   "modal": null,
+   "modifications": [
+    "excerpted"
+   ],
+   "phraseQuality": "complete-phrase",
+   "pickupTicks": 0,
+   "quality": {
+    "interest": 0.6952
+   },
+   "rangeConcert": {
+    "max": 78,
+    "min": 71
+   },
+   "review": {
+    "llm": "not-required",
+    "llmVerdicts": [],
+    "promptVersion": "none",
+    "rules": "p0e-fixture-1.0.0"
+   },
+   "rhythmCells": [
+    "H",
+    "Q",
+    "Qr"
+   ],
+   "schemaVersion": 1,
+   "source": {
+    "composer": "Emilie Mayer",
+    "composerDates": "1812–1883",
+    "composerDeath": 1883,
+    "corpus": "openscore-quartets",
+    "encoder": "OpenScore String Quartets contributors",
+    "license": "CC0-1.0",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "movement": "Movement 4",
+    "originalInstrument": "violin",
+    "partName": "Violin 1",
+    "sourceMeasures": [
+     253,
+     260
+    ],
+    "sourceUrl": "https://github.com/OpenScore/StringQuartets",
+    "upstreamRef": "OpenScore/StringQuartets@2614b0b2:scores/Mayer,_Emilie/String_Quartet_in_D_Major/sq7588853.mxl",
+    "work": "String Quartet in D Major"
+   },
+   "tags": [
+    "quartet",
+    "rests",
+    "role:violin1",
+    "source-clef:treble"
+   ],
+   "tempo": {
+    "marking": "Allegro",
+    "maxBpm": 152,
+    "minBpm": 116
+   },
+   "work": "mayer|sq7588853|mv4"
+  }
+ ],
+ "schemaVersion": 1,
+ "shard": "shard-L01-01"
+}

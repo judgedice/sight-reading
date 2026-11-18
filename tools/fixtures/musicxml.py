@@ -11,6 +11,7 @@ Run with `python3 -I`; the module is imported by `scan.py` and `extract.py` from
 
 from __future__ import annotations
 
+import re
 import zipfile
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
@@ -58,7 +59,7 @@ class Event:
 class MeasureData:
     number: str  # printed number, e.g. "12" or "12a"
     index: int  # 0-based position in the part
-    movement: int  # 1-based, counted at final barlines
+    movement: int  # 1-based, counted where the printed bar number restarts
     implicit: bool
     beats: int
     beat_type: int
@@ -72,7 +73,7 @@ class MeasureData:
     final_barline: bool = False  # light-heavy or double barline at the end
     double_barline: bool = False
     tempo_words: list[str] = field(default_factory=list)
-    metronome: float | None = None  # quarter-note equivalent bpm
+    metronome: float | None = None  # printed metronome mark, quarter-note equivalent bpm (playback <sound tempo> is ignored)
     time_change: bool = False
     key_change: bool = False
 
@@ -249,18 +250,7 @@ def _parse_part(part: ET.Element) -> list[MeasureData]:
                             metronome = per * q
                         except ValueError:
                             pass
-                snd = el.find("sound")
-                if snd is not None and snd.get("tempo") and metronome is None:
-                    try:
-                        metronome = float(snd.get("tempo") or "")
-                    except ValueError:
-                        pass
             elif tag == "sound":
-                if el.get("tempo") and metronome is None:
-                    try:
-                        metronome = float(el.get("tempo") or "")
-                    except ValueError:
-                        pass
                 if any(el.get(a) for a in ("segno", "coda", "dacapo", "dalsegno", "fine", "tocoda")):
                     repeat_or_volta = True
             elif tag == "backup":
@@ -432,6 +422,16 @@ def _parse_part(part: ET.Element) -> list[MeasureData]:
         if len(events) == 1 and events[0].kind == "rest" and events[0].measure_rest:
             events[0].dur = md.bar_ticks()
         out.append(md)
-        if final_barline:
+    # Movements: a new movement starts where the printed bar number restarts (OpenScore numbers each movement
+    # from 1, or 0 for an anacrusis). Final barlines are not used: repeated sections inside a movement end in them.
+    movement = 1
+    prev_num: int | None = None
+    for md in out:
+        mnum = re.match(r"\d+", md.number)
+        num = int(mnum.group(0)) if mnum else None
+        if num is not None and prev_num is not None and num <= prev_num and not (num == prev_num and md.number != str(num)):
             movement += 1
+        md.movement = movement
+        if num is not None:
+            prev_num = num
     return out

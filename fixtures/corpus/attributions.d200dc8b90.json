@@ -1,0 +1,22 @@
+{
+ "collections": [
+  {
+   "corpus": "openscore-lieder",
+   "licenses": [
+    "CC0-1.0"
+   ],
+   "name": "OpenScore Lieder",
+   "url": "https://github.com/OpenScore/Lieder"
+  },
+  {
+   "corpus": "openscore-quartets",
+   "licenses": [
+    "CC0-1.0"
+   ],
+   "name": "OpenScore String Quartets",
+   "url": "https://github.com/OpenScore/StringQuartets"
+  }
+ ],
+ "items": [],
+ "schemaVersion": 1
+}

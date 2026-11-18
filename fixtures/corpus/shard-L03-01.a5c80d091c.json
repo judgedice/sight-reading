@@ -1,0 +1,1001 @@
+{
+ "excerpts": [
+  {
+   "barRhythmLevel": [
+    1,
+    3,
+    1,
+    2,
+    2,
+    1,
+    1,
+    1
+   ],
+   "breathMaxGapBars": 3.75,
+   "cadenceEnd": "IAC",
+   "contentHash": "sha256:862a056776fa4bfdd841572e3faf623bbf59fa9fb5f35d5b4608bdc369738b70",
+   "dedupeGroup": "fp-9a91ae7c",
+   "extremes": {
+    "highId": "e7",
+    "lowId": "e1"
+   },
+   "familiarity": 0,
+   "featureLevels": {
+    "chromatic": 1,
+    "density": 1,
+    "double": 1,
+    "interval": 1,
+    "leaps": 1,
+    "meter": 1,
+    "mode": 2,
+    "rhythm": 3,
+    "span": 3
+   },
+   "features": {
+    "accidentalsOutsideKey": 0,
+    "chromaticPer4BarsMax": 0,
+    "doubleAccidentals": 0,
+    "leapsPer4BarsMax": 2,
+    "maxLeapSemis": 7,
+    "minIoiTicks": 240,
+    "minRepeatIoiTicks": 240,
+    "minorAlterations": 1,
+    "noteCount": 23,
+    "notesPerBeat": 0.7188,
+    "peakNotesPerBeat": 2,
+    "restRatio": 0.0625,
+    "shortestDur": 240,
+    "spanSemis": 13,
+    "syncopationIndex": 0,
+    "tonicTriadLeapsOnly": true
+   },
+   "flags": [],
+   "id": "jaell-lc6157272-voice-m20-27",
+   "keyConcert": {
+    "fifths": 1,
+    "mode": "minor"
+   },
+   "level": 3,
+   "levelConfidence": 2,
+   "measures": [
+    {
+     "events": [
+      {
+       "dur": 480,
+       "hairpin": "cresc",
+       "id": "e1",
+       "kind": "note",
+       "pitch": {
+        "alter": 1,
+        "octave": 4,
+        "step": "D"
+       },
+       "tick": 0
+      },
+      {
+       "dur": 480,
+       "id": "e2",
+       "kind": "note",
+       "pitch": {
+        "alter": 1,
+        "octave": 4,
+        "step": "F"
+       },
+       "tick": 480
+      },
+      {
+       "dur": 480,
+       "id": "e3",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 4,
+        "step": "A"
+       },
+       "tick": 960
+      },
+      {
+       "dur": 480,
+       "id": "e4",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 5,
+        "step": "C"
+       },
+       "tick": 1440
+      }
+     ],
+     "index": 0,
+     "isPickup": false,
+     "startTick": 0
+    },
+    {
+     "events": [
+      {
+       "dur": 960,
+       "dynamic": "f",
+       "hairpin": "end",
+       "id": "e5",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 4,
+        "step": "B"
+       },
+       "tick": 1920
+      },
+      {
+       "dur": 480,
+       "id": "e6",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 4,
+        "step": "B"
+       },
+       "tick": 2880
+      },
+      {
+       "artic": [
+        "accent"
+       ],
+       "dur": 480,
+       "id": "e7",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 5,
+        "step": "E"
+       },
+       "tick": 3360,
+       "tieStart": true
+      }
+     ],
+     "index": 1,
+     "isPickup": false,
+     "startTick": 1920
+    },
+    {
+     "events": [
+      {
+       "dur": 960,
+       "id": "e8",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 5,
+        "step": "E"
+       },
+       "tick": 3840,
+       "tieStop": true
+      },
+      {
+       "dur": 480,
+       "id": "e9",
+       "kind": "rest",
+       "tick": 4800
+      },
+      {
+       "dur": 480,
+       "id": "e10",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 4,
+        "step": "E"
+       },
+       "tick": 5280
+      }
+     ],
+     "index": 2,
+     "isPickup": false,
+     "startTick": 3840
+    },
+    {
+     "events": [
+      {
+       "dur": 480,
+       "id": "e11",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 4,
+        "step": "G"
+       },
+       "tick": 5760
+      },
+      {
+       "dur": 240,
+       "id": "e12",
+       "kind": "note",
+       "pitch": {
+        "alter": 1,
+        "octave": 4,
+        "step": "F"
+       },
+       "tick": 6240
+      },
+      {
+       "dur": 240,
+       "id": "e13",
+       "kind": "note",
+       "pitch": {
+        "alter": 1,
+        "octave": 4,
+        "step": "F"
+       },
+       "tick": 6480
+      },
+      {
+       "dur": 480,
+       "id": "e14",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 4,
+        "step": "E"
+       },
+       "tick": 6720
+      },
+      {
+       "dur": 480,
+       "id": "e15",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 4,
+        "step": "E"
+       },
+       "tick": 7200
+      }
+     ],
+     "index": 3,
+     "isPickup": false,
+     "startTick": 5760
+    },
+    {
+     "events": [
+      {
+       "dur": 480,
+       "id": "e16",
+       "kind": "rest",
+       "tick": 7680
+      },
+      {
+       "dur": 480,
+       "id": "e17",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 4,
+        "step": "A"
+       },
+       "tick": 8160
+      },
+      {
+       "dur": 480,
+       "id": "e18",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 4,
+        "step": "A"
+       },
+       "tick": 8640
+      },
+      {
+       "dur": 240,
+       "id": "e19",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 4,
+        "step": "A"
+       },
+       "tick": 9120
+      },
+      {
+       "dur": 240,
+       "id": "e20",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 4,
+        "step": "A"
+       },
+       "tick": 9360
+      }
+     ],
+     "index": 4,
+     "isPickup": false,
+     "startTick": 7680
+    },
+    {
+     "events": [
+      {
+       "dur": 1920,
+       "id": "e21",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 5,
+        "step": "D"
+       },
+       "tick": 9600
+      }
+     ],
+     "index": 5,
+     "isPickup": false,
+     "startTick": 9600
+    },
+    {
+     "events": [
+      {
+       "dur": 480,
+       "id": "e22",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 4,
+        "step": "B"
+       },
+       "tick": 11520
+      },
+      {
+       "dur": 480,
+       "id": "e23",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 4,
+        "step": "A"
+       },
+       "tick": 12000
+      },
+      {
+       "dur": 480,
+       "id": "e24",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 4,
+        "step": "G"
+       },
+       "tick": 12480
+      },
+      {
+       "dur": 480,
+       "id": "e25",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 4,
+        "step": "B"
+       },
+       "tick": 12960
+      }
+     ],
+     "index": 6,
+     "isPickup": false,
+     "startTick": 11520
+    },
+    {
+     "events": [
+      {
+       "dur": 1920,
+       "id": "e26",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 4,
+        "step": "E"
+       },
+       "tick": 13440
+      }
+     ],
+     "index": 7,
+     "isPickup": false,
+     "startTick": 13440
+    }
+   ],
+   "meter": {
+    "beatType": 4,
+    "beats": 4,
+    "countUnitTicks": 480,
+    "countsPerBar": 4
+   },
+   "modal": null,
+   "modifications": [
+    "excerpted",
+    "lyrics-removed"
+   ],
+   "phraseQuality": "complete-phrase",
+   "pickupTicks": 0,
+   "quality": {
+    "interest": 0.6994
+   },
+   "rangeConcert": {
+    "max": 76,
+    "min": 63
+   },
+   "review": {
+    "llm": "not-required",
+    "llmVerdicts": [],
+    "promptVersion": "none",
+    "rules": "p0e-fixture-1.0.0"
+   },
+   "rhythmCells": [
+    "EE",
+    "H",
+    "Q",
+    "Qr",
+    "W",
+    "tieBar"
+   ],
+   "schemaVersion": 1,
+   "source": {
+    "composer": "Marie Jaëll",
+    "composerDates": "1846–1925",
+    "composerDeath": 1925,
+    "corpus": "openscore-lieder",
+    "encoder": "OpenScore Lieder contributors",
+    "license": "CC0-1.0",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "movement": "En ramant",
+    "originalInstrument": "voice",
+    "partName": "Chant Voice",
+    "sourceMeasures": [
+     20,
+     27
+    ],
+    "sourceUrl": "https://github.com/OpenScore/Lieder",
+    "upstreamRef": "OpenScore/Lieder@38c5db51:scores/Jaëll,_Marie/La_mer/5_En_ramant/lc6157272.mxl",
+    "work": "La mer"
+   },
+   "tags": [
+    "accidentals",
+    "lied",
+    "repeated-notes",
+    "rests",
+    "role:voice",
+    "source-clef:treble",
+    "tie-across-barline"
+   ],
+   "tempo": {
+    "marking": "Très animé",
+    "maxBpm": 140,
+    "minBpm": 108
+   },
+   "work": "jaell|lc6157272"
+  },
+  {
+   "barRhythmLevel": [
+    2,
+    2,
+    1,
+    1,
+    1,
+    2,
+    1,
+    2,
+    1
+   ],
+   "breathMaxGapBars": 3.67,
+   "cadenceEnd": "IAC",
+   "contentHash": "sha256:a4e13155e6ec8d193f5846a86177e1e774b7e3a445a5b137e37940e9bfeb109c",
+   "dedupeGroup": "fp-ad17e759",
+   "extremes": {
+    "highId": "e9",
+    "lowId": "e1"
+   },
+   "familiarity": 0,
+   "featureLevels": {
+    "chromatic": 3,
+    "density": 1,
+    "double": 1,
+    "interval": 1,
+    "leaps": 2,
+    "meter": 1,
+    "mode": 2,
+    "rhythm": 2,
+    "span": 1
+   },
+   "features": {
+    "accidentalsOutsideKey": 1,
+    "chromaticPer4BarsMax": 1,
+    "doubleAccidentals": 0,
+    "leapsPer4BarsMax": 4,
+    "maxLeapSemis": 12,
+    "minIoiTicks": 240,
+    "minRepeatIoiTicks": null,
+    "minorAlterations": 2,
+    "noteCount": 29,
+    "notesPerBeat": 1.16,
+    "peakNotesPerBeat": 2,
+    "restRatio": 0.125,
+    "shortestDur": 240,
+    "spanSemis": 12,
+    "syncopationIndex": 0,
+    "tonicTriadLeapsOnly": true
+   },
+   "flags": [],
+   "id": "mayer-sq8818128-cello-mv3-mp68-76",
+   "keyConcert": {
+    "fifths": -1,
+    "mode": "minor"
+   },
+   "level": 3,
+   "levelConfidence": 1,
+   "measures": [
+    {
+     "events": [
+      {
+       "dur": 480,
+       "dynamic": "f",
+       "id": "e1",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 2,
+        "step": "A"
+       },
+       "tick": 0
+      }
+     ],
+     "index": 0,
+     "isPickup": true,
+     "startTick": 0
+    },
+    {
+     "events": [
+      {
+       "dur": 240,
+       "id": "e2",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 3,
+        "step": "D"
+       },
+       "tick": 480
+      },
+      {
+       "dur": 240,
+       "id": "e3",
+       "kind": "note",
+       "pitch": {
+        "alter": 1,
+        "octave": 3,
+        "step": "C"
+       },
+       "tick": 720
+      },
+      {
+       "dur": 240,
+       "id": "e4",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 3,
+        "step": "D"
+       },
+       "tick": 960
+      },
+      {
+       "dur": 240,
+       "id": "e5",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 3,
+        "step": "E"
+       },
+       "tick": 1200
+      },
+      {
+       "dur": 240,
+       "id": "e6",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 3,
+        "step": "F"
+       },
+       "tick": 1440
+      },
+      {
+       "dur": 240,
+       "id": "e7",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 3,
+        "step": "D"
+       },
+       "tick": 1680
+      }
+     ],
+     "index": 1,
+     "isPickup": false,
+     "startTick": 480
+    },
+    {
+     "events": [
+      {
+       "dur": 480,
+       "id": "e8",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 3,
+        "step": "G"
+       },
+       "tick": 1920
+      },
+      {
+       "dur": 480,
+       "id": "e9",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 3,
+        "step": "A"
+       },
+       "tick": 2400
+      },
+      {
+       "dur": 480,
+       "id": "e10",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 3,
+        "step": "G"
+       },
+       "tick": 2880
+      }
+     ],
+     "index": 2,
+     "isPickup": false,
+     "startTick": 1920
+    },
+    {
+     "events": [
+      {
+       "dur": 480,
+       "id": "e11",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 3,
+        "step": "F"
+       },
+       "tick": 3360
+      },
+      {
+       "dur": 480,
+       "id": "e12",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 3,
+        "step": "G"
+       },
+       "tick": 3840
+      },
+      {
+       "dur": 480,
+       "id": "e13",
+       "kind": "note",
+       "pitch": {
+        "alter": 1,
+        "octave": 3,
+        "step": "G"
+       },
+       "tick": 4320
+      }
+     ],
+     "index": 3,
+     "isPickup": false,
+     "startTick": 3360
+    },
+    {
+     "events": [
+      {
+       "dur": 480,
+       "id": "e14",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 3,
+        "step": "A"
+       },
+       "tick": 4800
+      },
+      {
+       "dur": 480,
+       "id": "e15",
+       "kind": "rest",
+       "tick": 5280
+      },
+      {
+       "dur": 480,
+       "id": "e16",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 2,
+        "step": "A"
+       },
+       "tick": 5760
+      }
+     ],
+     "index": 4,
+     "isPickup": false,
+     "startTick": 4800
+    },
+    {
+     "events": [
+      {
+       "dur": 240,
+       "id": "e17",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 3,
+        "step": "D"
+       },
+       "tick": 6240
+      },
+      {
+       "dur": 240,
+       "id": "e18",
+       "kind": "note",
+       "pitch": {
+        "alter": 1,
+        "octave": 3,
+        "step": "C"
+       },
+       "tick": 6480
+      },
+      {
+       "dur": 240,
+       "id": "e19",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 3,
+        "step": "D"
+       },
+       "tick": 6720
+      },
+      {
+       "dur": 240,
+       "id": "e20",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 3,
+        "step": "E"
+       },
+       "tick": 6960
+      },
+      {
+       "dur": 240,
+       "id": "e21",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 3,
+        "step": "F"
+       },
+       "tick": 7200
+      },
+      {
+       "dur": 240,
+       "id": "e22",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 3,
+        "step": "D"
+       },
+       "tick": 7440
+      }
+     ],
+     "index": 5,
+     "isPickup": false,
+     "startTick": 6240
+    },
+    {
+     "events": [
+      {
+       "dur": 480,
+       "id": "e23",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 3,
+        "step": "G"
+       },
+       "tick": 7680
+      },
+      {
+       "dur": 480,
+       "id": "e24",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 3,
+        "step": "A"
+       },
+       "tick": 8160
+      },
+      {
+       "dur": 480,
+       "id": "e25",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 3,
+        "step": "G"
+       },
+       "tick": 8640
+      }
+     ],
+     "index": 6,
+     "isPickup": false,
+     "startTick": 7680
+    },
+    {
+     "events": [
+      {
+       "dur": 240,
+       "id": "e26",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 3,
+        "step": "F"
+       },
+       "tick": 9120
+      },
+      {
+       "dur": 240,
+       "id": "e27",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 3,
+        "step": "G"
+       },
+       "tick": 9360
+      },
+      {
+       "dur": 480,
+       "id": "e28",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 3,
+        "step": "A"
+       },
+       "tick": 9600
+      },
+      {
+       "dur": 480,
+       "id": "e29",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 2,
+        "step": "A"
+       },
+       "tick": 10080
+      }
+     ],
+     "index": 7,
+     "isPickup": false,
+     "startTick": 9120
+    },
+    {
+     "events": [
+      {
+       "dur": 480,
+       "id": "e30",
+       "kind": "note",
+       "pitch": {
+        "alter": 0,
+        "octave": 3,
+        "step": "D"
+       },
+       "tick": 10560
+      },
+      {
+       "dur": 480,
+       "id": "e31",
+       "kind": "rest",
+       "tick": 11040
+      },
+      {
+       "dur": 480,
+       "id": "e32",
+       "kind": "rest",
+       "tick": 11520
+      }
+     ],
+     "index": 8,
+     "isPickup": false,
+     "startTick": 10560
+    }
+   ],
+   "meter": {
+    "beatType": 4,
+    "beats": 3,
+    "countUnitTicks": 480,
+    "countsPerBar": 3
+   },
+   "modal": null,
+   "modifications": [
+    "excerpted"
+   ],
+   "phraseQuality": "period",
+   "pickupTicks": 480,
+   "quality": {
+    "interest": 0.8325
+   },
+   "rangeConcert": {
+    "max": 57,
+    "min": 45
+   },
+   "review": {
+    "llm": "not-required",
+    "llmVerdicts": [],
+    "promptVersion": "none",
+    "rules": "p0e-fixture-1.0.0"
+   },
+   "rhythmCells": [
+    "EE",
+    "Q",
+    "Qr",
+    "pickup1"
+   ],
+   "schemaVersion": 1,
+   "source": {
+    "composer": "Emilie Mayer",
+    "composerDates": "1812–1883",
+    "composerDeath": 1883,
+    "corpus": "openscore-quartets",
+    "encoder": "OpenScore String Quartets contributors",
+    "license": "CC0-1.0",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "movement": "Movement 3",
+    "originalInstrument": "cello",
+    "partName": "Violoncello",
+    "sourceMeasures": [
+     68,
+     76
+    ],
+    "sourceUrl": "https://github.com/OpenScore/StringQuartets",
+    "upstreamRef": "OpenScore/StringQuartets@2614b0b2:scores/Mayer,_Emilie/String_Quartet_in_A_Major/sq8818128.mxl",
+    "work": "String Quartet in A Major"
+   },
+   "tags": [
+    "accidentals",
+    "pickup",
+    "quartet",
+    "rests",
+    "role:cello",
+    "source-clef:bass"
+   ],
+   "tempo": {
+    "maxBpm": 120,
+    "minBpm": 60
+   },
+   "work": "mayer|sq8818128|mv3"
+  }
+ ],
+ "schemaVersion": 1,
+ "shard": "shard-L03-01"
+}

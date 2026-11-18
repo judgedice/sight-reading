@@ -57,6 +57,14 @@ Every tolerance and weight lives in `config/grading-config.json`. The follower, 
 32. The capture backlog void threshold is 120 ms of queued audio.
 33. An interruption void after the first note counts against the skip limit.
 
+## Rulings after wave 0 (R34 to R38)
+
+34. Stops, restarts, and skips must be detected by the follower itself. The final alignment's relabel pass turns runs of wrong-pitch matches, as well as runs of extras, into displaced segments when they match the score at another position. The fixtures in `fixtures/follow/` are the contract.
+35. Where the musician's acceptance case 4b and the architect's alignment disagree (a slipped note counted as missed or as a wrong pitch), tests assert only what both readings share, as the fixture does.
+36. A note-state event replaces every earlier mark for that note. When a provisional sharp or flat reverts, the follower sends the note's new state and the overlay removes the ghost. No ghost-removal event type is added.
+37. `notation/` keeps its local glyph id type, checked against `ui/glyph-ids.ts` in a test. No import from `notation/` to `ui/`.
+38. The two pressed-state colour pairs that miss 4.5:1 contrast are fixed by darkening or lightening `--surface-2-pressed` in `design/tokens.json` until both pass in both themes. The contrast test then covers them.
+
 ## What the owner should know
 
 - Early, late, and wrong-note marks appear within about 150 ms of the note. Sharp and flat marks appear about 260 to 350 ms after the note starts, because pitch needs roughly 100 ms of steady tone after the attack before it can be measured to the cent.

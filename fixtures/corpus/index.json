@@ -1,0 +1,64 @@
+{
+ "attributions": {
+  "bytes": 394,
+  "file": "attributions.d200dc8b90.json",
+  "hash": "sha256:d200dc8b9086ced9963a97a949250ff831e273157245ee850c6d1ac0e1d09664"
+ },
+ "chunks": [
+  {
+   "bytes": 6197,
+   "file": "shard-L01-01.19a4e31741.json",
+   "hash": "sha256:19a4e31741c786fc0395c7b37311b79611dc809c65a869a7b50daaf45dff1692",
+   "shard": "shard-L01-01"
+  },
+  {
+   "bytes": 17089,
+   "file": "shard-L02-01.25571b07c3.json",
+   "hash": "sha256:25571b07c3fc33c0a790773a8c2b0ee4ba67292ca4cda25919b7f69c08231b7f",
+   "shard": "shard-L02-01"
+  },
+  {
+   "bytes": 17662,
+   "file": "shard-L03-01.a5c80d091c.json",
+   "hash": "sha256:a5c80d091c1f6e70141c1dc1ac152a56f049218ef6741c55f6b6153812089f9b",
+   "shard": "shard-L03-01"
+  },
+  {
+   "bytes": 44451,
+   "file": "shard-L04-01.0d6f63e6ef.json",
+   "hash": "sha256:0d6f63e6ef21b8596d9add1dbfd8c6f2916e0b825e279d797b76459488a7c43e",
+   "shard": "shard-L04-01"
+  },
+  {
+   "bytes": 44840,
+   "file": "shard-L05-01.5a0f0c2b63.json",
+   "hash": "sha256:5a0f0c2b63aabec07d72893bdbcc96ce8b2c96e1a965c9ba56ec84dc256d8b33",
+   "shard": "shard-L05-01"
+  },
+  {
+   "bytes": 54816,
+   "file": "shard-L06-01.0f87ae9884.json",
+   "hash": "sha256:0f87ae98848c90d085db3fd3772ab95aaa6446ddc30d88b01f28ef6410b6c66a",
+   "shard": "shard-L06-01"
+  },
+  {
+   "bytes": 36911,
+   "file": "shard-L07-01.40017835d2.json",
+   "hash": "sha256:40017835d2bbdf7f869201f6f89af49bec41a508e75bd89abf956e54c822d9ab",
+   "shard": "shard-L07-01"
+  },
+  {
+   "bytes": 9581,
+   "file": "shard-L08-01.c6b2fb918a.json",
+   "hash": "sha256:c6b2fb918a236df593155509deca66d039d6c27ee27efd317e08dedebb4f1ca3",
+   "shard": "shard-L08-01"
+  }
+ ],
+ "corpusVersion": "fixture-p0e-1",
+ "manifest": {
+  "bytes": 25583,
+  "file": "manifest.3a2136cde3.json",
+  "hash": "sha256:3a2136cde33219fcc5c89b951b45a3bd0379dcb8eb658ce095b1b327525ff22a"
+ },
+ "schemaVersion": 1
+}

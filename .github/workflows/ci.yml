@@ -33,6 +33,9 @@ jobs:
         with: { node-version: 22, cache: pnpm }
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
+      # Generated artefacts must match their sources (01 section 14 items 6 and 15).
+      - run: pnpm schemas:check
+      - run: pnpm tokens:check
 
   unit:
     runs-on: ubuntu-latest
@@ -44,7 +47,19 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm test
 
-  # scenario (synthetic suite) and bare-runtime jobs are added by P18 and P12 once their suites exist.
+  # 01 section 13.3: pure packages bundled to one IIFE and run in a vm context with only ES2022 globals,
+  # byte-identical to Node. P12 and P10b append grade and follow scenarios to tools/bare-runtime/scenarios.ts.
+  bare-runtime:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test:bare
+
+  # The scenario (synthetic suite) job is added by P18 once its suite exists.
 
   build:
     runs-on: ubuntu-latest
@@ -75,7 +90,7 @@ jobs:
 
   deploy:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    needs: [lint, typecheck, unit, build, e2e]
+    needs: [lint, typecheck, unit, bare-runtime, build, e2e]
     runs-on: ubuntu-latest
     permissions:
       contents: read

@@ -1,3 +1,3 @@
 /* @lint-as src/app/x.css */
 /* expect: none */
-.a { color: var(--c); height: 100dvh; margin: 0; transition: opacity var(--motion-fast) var(--motion-ease); }
+.a { color: var(--c); height: 100dvh; margin: 0; transition: opacity var(--dur-fast) var(--ease-out); }

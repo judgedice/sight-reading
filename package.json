@@ -22,7 +22,11 @@
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test --project=chromium --project=chromium-audio",
     "test:e2e:webkit": "playwright test --project=webkit --project=webkit-iphone --project=webkit-ipad",
-    "schemas": "tsx tools/generate-schemas.ts"
+    "schemas": "tsx tools/generate-schemas.ts",
+    "schemas:check": "tsx tools/generate-schemas.ts --check",
+    "tokens": "tsx tools/generate-tokens.ts",
+    "tokens:check": "tsx tools/generate-tokens.ts --check",
+    "test:bare": "tsx tools/bare-runtime/run.ts"
   },
   "dependencies": {
     "idb": "8.0.4",

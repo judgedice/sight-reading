@@ -1,0 +1,3 @@
+/* @lint-as src/ui/x.css */
+/* expect: declaration-property-value-allowed-list */
+.a { animation: pulse var(--ease-in-out) infinite; }

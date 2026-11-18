@@ -1,0 +1,17 @@
+{
+ "_comment": "Source clones used by `build.py extract`. Both repositories are CC0 1.0 (03 §6.2).",
+ "sources": [
+  {
+   "commit": "38c5db510224d9facdc4b08d741fc788cfb58ea8",
+   "corpus": "openscore-lieder",
+   "licenseSha256": "sha256:a2010f343487d3f7618affe54f789f5487602331c0a8d03f49e9a7c547cf0499",
+   "repo": "OpenScore/Lieder"
+  },
+  {
+   "commit": "2614b0b2958dd1ce3f52e172a43e5f4d0e29570f",
+   "corpus": "openscore-quartets",
+   "licenseSha256": "sha256:a2010f343487d3f7618affe54f789f5487602331c0a8d03f49e9a7c547cf0499",
+   "repo": "OpenScore/StringQuartets"
+  }
+ ]
+}

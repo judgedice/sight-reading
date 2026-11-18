@@ -4,7 +4,8 @@
 import Ajv from 'ajv';
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import type { DifficultyFeatures, FeatureLevels, LevelDef, LevelsConfig, LevelTaggerGolden, MeasurementBudget, Mode } from '../../src/core/types.ts';
+import { makeMeter } from '../../src/core/time.ts';
+import type { DifficultyFeatures, FeatureLevels, LevelDef, LevelsConfig, LevelTaggerGolden, MeasurementBudget, Meter, Mode } from '../../src/core/types.ts';
 
 const readJson = <T>(rel: string): T => JSON.parse(readFileSync(new URL(`../../${rel}`, import.meta.url), 'utf8')) as T;
 
@@ -14,12 +15,13 @@ const budget = readJson<MeasurementBudget>('config/measurement-budget.json');
 
 const firstLevel = (pred: (l: LevelDef) => boolean): number => levels.find(pred)?.level ?? 10;
 
-/** Ticks of one metronome beat at TPQ 480 (02 conventions: dotted quarter in 6/8, 9/8, 12/8, 11/8; eighth in 3/8, 5/8, 7/8; half in x/2). */
+/**
+ * Ticks of one metronome beat at TPQ 480 (02 conventions: dotted quarter = 720 ticks in 6/8, 9/8, 12/8; eighth in
+ * 3/8, 5/8, 7/8 and other irregular x/8; half in x/2). Matches makeMeter in src/core/time.ts.
+ */
 function beatTicks(meter: string): number {
   const [num, den] = meter.split('/').map(Number) as [number, number];
-  if (den === 2) return 960;
-  if (den === 8) return num % 3 === 0 && num > 3 ? 1440 : num === 11 ? 1440 : 240;
-  return 480;
+  return makeMeter(num, den as Meter['beatType']).countUnitTicks;
 }
 
 function referenceTag(c: LevelTaggerGolden['cases'][number]): FeatureLevels {

@@ -77,6 +77,14 @@ export interface CoreTimeApi {
   /** Ticks from excerpt start → beats from bar 1 beat 1 (negative in the pickup). */
   ticksToBeats(t: Ticks, meter: Meter, pickupTicks: Ticks): Beats;
   beatsToScoreSeconds(b: Beats, bpm: number): ScoreSeconds;
+  /** Inverse of ticksToBeats (P0c addition, additive). */
+  beatsToTicks(b: Beats, meter: Meter, pickupTicks: Ticks): Ticks;
+  /** Inverse of beatsToScoreSeconds (P0c addition, additive). */
+  scoreSecondsToBeats(s: ScoreSeconds, bpm: number): Beats;
+  ticksToScoreSeconds(t: Ticks, meter: Meter, pickupTicks: Ticks, bpm: number): ScoreSeconds;
+  ticksPerBar(meter: Meter): Ticks;
+  /** Meter for a time signature; compound x/8 (6, 9, 12) counts dotted quarters (02 conventions). */
+  makeMeter(beats: number, beatType: Meter['beatType']): Meter;
 }
 
 /** `core/rng.ts` and `core/events.ts` (01 §14 item 3). */

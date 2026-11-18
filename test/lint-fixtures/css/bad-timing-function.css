@@ -1,0 +1,3 @@
+/* @lint-as src/ui/x.css */
+/* expect: declaration-property-value-allowed-list */
+.a { transition-timing-function: ease-in; }

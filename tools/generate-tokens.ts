@@ -136,6 +136,13 @@ export function generateTokens(rawSource: unknown): { css: string; ts: string } 
   const rules: string[] = [];
   rules.push(block(':root', base));
   rules.push(media('(pointer: coarse)', [block(':root', coarse)]));
+  // Reduced motion (04 section 7.3): every duration token is 0 under the media query or the
+  // in-app setting (data-motion="reduced" on the root). Stylelint requires every transition and
+  // animation to take its duration from a --dur-* token, so this is the reduced-motion gate
+  // (04 section 13.1 item 1). The 100 ms ghost opacity fade is owned by the overlay (visual-states.ts).
+  const reduced = Object.keys(asObj(motion.dur, 'motion.dur')).map((n) => decl(`dur-${n}`, '0ms'));
+  rules.push(media('(prefers-reduced-motion: reduce)', [block(':root', reduced)]));
+  rules.push(block(':root[data-motion="reduced"]', reduced));
   rules.push(block(':root, :root[data-theme="light"]', light));
   rules.push(block(':root[data-theme="dark"]', dark));
   rules.push(media('(prefers-color-scheme: dark)', [block(':root:not([data-theme="light"])', dark)]));
