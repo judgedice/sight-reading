@@ -25,7 +25,7 @@ from .augment import augment_part
 from .candidate import make_record, read_jsonl, write_jsonl
 from .partdata import blob_ref, load_blob, write_blob
 from .pipeline import _map, _write_json, default_workers
-from .windows import PartWindows, Candidate, build_window, lyric_flags, propose, window_key
+from .windows import Candidate, PartWindows, build_window, lyric_flags, propose, window_key
 
 SILVER_START_MIN = 0.85
 SILVER_END_MIN = 0.80

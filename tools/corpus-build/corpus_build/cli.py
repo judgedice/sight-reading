@@ -17,9 +17,9 @@ from .composers import ComposerIndex, build_composers, load_composers, write_com
 from .fetch import FetchError, fetch_records, fetch_source, load_lock, verify_lock, write_lock
 from .gate import run_gate
 from .pipeline import run_extract, run_normalize, run_read
-from .window_stage import run_augment, run_windows
 from .paths import COMPOSERS_YAML, build_root, cache_root
 from .sources import Source, load_sources
+from .window_stage import run_augment, run_windows
 
 
 class Ctx:

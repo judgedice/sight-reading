@@ -44,14 +44,14 @@ TEMPO_WORD_RE = re.compile(
     r"\b(grave|largo|larghetto|lento|adagio|andantino|andante|moderato|allegretto|allegro|vivace|presto|prestissimo|sehr langsam|langsam|"
     r"m[aä](ss|ß)ig|bewegt|lebhaft|schnell|rasch|lent|mod[ée]r[ée]|anim[ée]|vif|vite|tempo di|minuetto|menuetto|scherzo|innig|ruhig|getragen|"
     r"zart|feierlich|munter|frisch|heiter|tempo|mouvement|mosso|moto|comodo|maestoso|sostenuto|tranquillo)",
-    re.I,
+    re.IGNORECASE,
 )
 TEMPO_CHANGE_RE = re.compile(
     r"\b(rit|ritard|rall|accel|stringendo|allarg|a tempo|tempo i|tempo primo|langsamer|schneller|zurückhalten|zur[uü]ck|ritenuto|riten|"
     r"c[ée]dez|retenu|en pressant|pressez|ad lib|a piacere|colla voce|fermate|morendo|smorzando|calando|perdendosi|nach und nach|"
     r"allmählich|string|stretto|recit|slent|volont|largament|animato|"
     r"(più|piu|meno|plus|moins|un peu|poco)\s+(mosso|moto|lento|lent|allegro|vivo|vif|presto|adagio|largo|tranquillo|animato|anim|vite|mouvement|langsam|lebhaft))",
-    re.I,
+    re.IGNORECASE,
 )
 
 
@@ -155,13 +155,13 @@ def allowed_starts(facts: PartFacts, lyric: bool) -> list[Start]:
         anacrusis = mi - 1 == lo and pm["lengthTicks"] < pm["barTicks"]
         unit = _bar_unit(pm)
         tail = 0
+        best: Start | None = None  # the longest qualifying pickup: one pickup start per bar keeps window ids unique
         for j in range(len(pevs) - 1, -1, -1):
             e = pevs[j]
             if e["kind"] != "note":
                 break
             tail += e["dur"]
-            limit_ok = tail < pm["barTicks"] if anacrusis else tail <= 2 * unit
-            if not limit_ok:
+            if not (tail < pm["barTicks"] and (anacrusis or tail <= 2 * unit)):
                 break
             ci = facts.chain_at.get((mi - 1, j))
             if ci is None:
@@ -170,11 +170,13 @@ def allowed_starts(facts: PartFacts, lyric: bool) -> list[Start]:
             if (c.mi, c.ei) != (mi - 1, j) or c.broken_tie:
                 continue
             if anacrusis and c.rest_before >= 10**9:
-                out.append(Start(mi, mi - 1, j, c.idx, "anacrusis", tail))
+                best = Start(mi, mi - 1, j, c.idx, "anacrusis", tail)
                 continue
             kind = _start_signal(facts, c, lyric)
             if kind:
-                out.append(Start(mi, mi - 1, j, c.idx, kind, tail))
+                best = Start(mi, mi - 1, j, c.idx, kind, tail)
+        if best is not None:
+            out.append(best)
     return out
 
 
@@ -185,7 +187,6 @@ def allowed_end(facts: PartFacts, sections: list[Section], mi: int, lyric: bool)
     evs = m["events"]
     sec = section_of(sections, mi)
     unit = _bar_unit(m)
-    lo, hi = facts.movement_bounds[m["movement"]]
     cands = sorted({facts.chain_at[(mi, i)] for i, e in enumerate(evs) if e["kind"] == "note" and (mi, i) in facts.chain_at}, reverse=True)
     for ci in cands:
         c = facts.chains[ci]
@@ -312,17 +313,16 @@ def check_rules(facts: PartFacts, sections: list[Section], c: Candidate) -> tupl
         if m["lengthTicks"] != m["barTicks"]:
             return "incomplete-bar", f"bar {m['number']} holds {m['lengthTicks']} of {m['barTicks']} ticks"
     lm = ms[c.last]
-    lo, hi = facts.movement_bounds[mv]
+    hi = facts.movement_bounds[mv][1]
     if lm["lengthTicks"] > lm["barTicks"] or (lm["lengthTicks"] < lm["barTicks"] and not (c.last == hi or lm["finalBarline"])):
         return "incomplete-bar", f"last bar {lm['number']} holds {lm['lengthTicks']} of {lm['barTicks']} ticks"
+    start_edge = s.pickup_mi if s.pickup_mi is not None else c.first
     for mi in touched:
         marks = set(ms[mi]["marks"])
         if "ottava" in marks:
             return "ottava", f"bar {ms[mi]['number']}"
         bad = marks & BARRIER
-        if mi == s.pickup_mi:
-            bad -= ALLOWED_AT_START
-        elif mi == c.first and s.pickup_mi is None:
+        if mi == start_edge:
             bad -= ALLOWED_AT_START
         if mi == c.last:
             bad -= ALLOWED_AT_END
@@ -351,8 +351,7 @@ def check_rules(facts: PartFacts, sections: list[Section], c: Candidate) -> tupl
     cad = facts.chains[e.chain]
     for mi, ei, ev in kept:
         if ev.get("fermata"):
-            ch = facts.chain_at.get((mi, ei))
-            if ch == cad.idx or (mi == c.last and ei > cad.end_ei):
+            if facts.chain_at.get((mi, ei)) == cad.idx or (mi == c.last and ei > cad.end_ei):
                 continue
             return "interior-fermata", f"bar {ms[mi]['number']}"
     if kept and kept[0][2].get("tieStop"):
@@ -386,7 +385,7 @@ def check_rules(facts: PartFacts, sections: list[Section], c: Candidate) -> tupl
     return None
 
 
-def _offset_ticks(off: str | int | float) -> int:
+def _offset_ticks(off: str | float) -> int:
     from fractions import Fraction
 
     return int(Fraction(str(off)) * 480)
@@ -401,13 +400,19 @@ def _cut_tick(facts: PartFacts, c: Candidate) -> int:
 # ---------------------------------------------------------------- phrase quality and scoring
 
 def phrase_quality(c: Candidate, ends: dict[int, End | None]) -> str:
-    interior = [(mi, ends[mi]) for mi in range(c.first, c.last) if ends.get(mi) is not None and not ends[mi].mode_unknown]  # type: ignore[union-attr]
+    """03 section 6.7: complete-phrase with no interior allowed end; period with one interior HC or IAC within a bar of
+    the midpoint and a PAC at the end; phrase-pair otherwise."""
+    interior: list[tuple[int, End]] = []
+    for mi in range(c.first, c.last):
+        e = ends.get(mi)
+        if e is not None and not e.mode_unknown:
+            interior.append((mi, e))
     if not interior:
         return "complete-phrase"
     mid = c.bars / 2 - 1
     if len(interior) == 1 and c.end.cadence == "PAC":
         pos = interior[0][0] - c.first
-        if abs(pos - mid) <= 1 and interior[0][1].cadence in ("HC", "IAC"):  # type: ignore[union-attr]
+        if abs(pos - mid) <= 1 and interior[0][1].cadence in ("HC", "IAC"):
             return "period"
     return "phrase-pair"
 

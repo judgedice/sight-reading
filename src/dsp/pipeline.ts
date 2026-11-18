@@ -9,8 +9,12 @@
  * - Envelope value i is centred at `firstBlock.startT + (i + 0.5) * hop / analysisRate`; flux and pitch frames are
  *   stamped at their window centres. Blocks are assumed contiguous (a gap voids the take; it is reported as a
  *   `gap` event and analysis continues on the concatenated samples).
- * - Click gating and template subtraction (01 section 7.6 items 2, 3 and 5) are P4d's. This assembly marks frames
- *   in click windows (`inClickWindow`) and keeps flux inside click windows out of onset refinement (item 4).
+ * - Click handling (01 section 7.6, click.ts) runs only when `outputMode` is 'speakers'; in headphone modes
+ *   `clicks` and `clickTemplate` are ignored and the pipeline is the plain P4c assembly. On speakers with a
+ *   template, `ClickSubtractor` removes the fitted template from the low band before the envelope, flux and pitch
+ *   analysis (item 2; audio near a click is held back until its fit, at most about 22 ms). The segmenter marks frames
+ *   in click windows (`inClickWindow`), keeps flux inside them out of onset refinement (item 4), and applies the time
+ *   gate and leak floor there (items 3 and 5) with the per-click leak levels of the fits.
  */
 import type { Decimator } from '../core/api.ts';
 import type { CaptureBlock } from '../core/platform.ts';
@@ -18,6 +22,7 @@ import type { ClockSeconds, DspConfig, DspEvent, PitchFrame } from '../core/type
 import { PhaseDecimator, decimatorCreate as createDecimator } from './decimator.ts';
 import { EnvelopeFollower } from './envelope.ts';
 import { AdaptiveThreshold, FLUX_THRESHOLD_WINDOW_SEC, SpectralFlux } from './flux.ts';
+import { ClickSubtractor, clickHandlingActive, type ClickFit } from './click.ts';
 import { HiBandEnergy } from './hiband.ts';
 import { PitchAnalyzer, widenRange } from './pitch.ts';
 import { Segmenter, segmenterOptions, type SegmenterOptions } from './segmenter.ts';
@@ -50,6 +55,9 @@ export class DspPipeline {
   private sigLevel = -Infinity;
   private sigVoiced = false;
   private sigPeak = 0;
+  private readonly clickArrivals: number[];
+  private sub: ClickSubtractor | null = null;
+  private fitsSeen = 0;
   missingBlocks = 0;
 
   constructor(cfg: DspConfig, opts: DspPipelineOptions = {}) {
@@ -78,11 +86,18 @@ export class DspPipeline {
       ...opts.segmenter,
     };
     this.fluxThr = new AdaptiveThreshold(FLUX_THRESHOLD_WINDOW_SEC / (this.flux.hop / rate), this.segmenterOptions.fluxMadK);
+    // 01 section 7.6: all click handling is off in headphone modes.
+    this.clickArrivals = clickHandlingActive(cfg.outputMode) ? cfg.clicks.map((c) => c.arrival as number) : [];
     this.seg = new Segmenter(
       this.segmenterOptions,
       cfg.repeatHints.map((h) => ({ t: h.t as number, halfWidthSec: h.halfWidthSec })),
-      cfg.clicks.map((c) => c.arrival as number),
+      this.clickArrivals,
     );
+  }
+
+  /** Template fits so far (speakers with a template only). */
+  clickFits(): readonly ClickFit[] {
+    return this.sub ? this.sub.fits : [];
   }
 
   push(b: CaptureBlock): DspEvent[] {
@@ -100,14 +115,41 @@ export class DspPipeline {
     if (this.t0 === null) {
       this.t0 = b.startT as number;
       this.seg.startEnvelope(this.t0 + (0.5 * this.env.hop) / rate, this.env.hopSec, this.t0, rate);
+      const tpl = this.cfg.clickTemplate;
+      if (tpl && tpl.length > 0 && this.clickArrivals.length > 0) {
+        this.sub = new ClickSubtractor(tpl, this.clickArrivals, rate, this.t0, { leakWindowSec: this.cfg.windowSamples / rate });
+      }
     }
-    const t0 = this.t0;
-    const low = b.lowband;
-    const n = low.length;
-    for (let i = 0; i < n; i++) {
-      const a = Math.abs(low[i] as number);
+    const raw = b.lowband;
+    for (let i = 0; i < raw.length; i++) {
+      const a = Math.abs(raw[i] as number);
       if (a > this.sigPeak) this.sigPeak = a;
     }
+    if (this.sub) {
+      const startIdx = this.sub.released;
+      const low = this.sub.push(raw);
+      this.takeFits();
+      this.analyse(low, (this.t0 + startIdx / rate) as ClockSeconds, out);
+    } else {
+      this.analyse(raw, b.startT, out);
+    }
+    return out;
+  }
+
+  /** Hands new template fits to the segmenter (leak levels for the click windows). */
+  private takeFits(): void {
+    const fits = (this.sub as ClickSubtractor).fits;
+    for (; this.fitsSeen < fits.length; this.fitsSeen++) {
+      const f = fits[this.fitsSeen] as ClickFit;
+      this.seg.setClickLeak(f.arrival, f.leakEnvDb, f.leakFrameDb);
+    }
+  }
+
+  private analyse(low: Float32Array, startT: ClockSeconds, out: DspEvent[]): void {
+    const n = low.length;
+    if (n === 0) return;
+    const rate = this.cfg.analysisRate;
+    const t0 = this.t0 as number;
 
     this.seg.pushSamples(low, n);
     const need = this.env.maxValues(n);
@@ -121,7 +163,7 @@ export class DspPipeline {
       this.seg.pushFlux(t0 + centre / rate, value, thr);
     });
 
-    const ests = this.analyzer.push(low, b.startT, n);
+    const ests = this.analyzer.push(low, startT, n);
     for (let j = 0; j < ests.length; j++) {
       const e = ests[j] as (typeof ests)[number];
       const last = j === ests.length - 1;
@@ -148,11 +190,18 @@ export class DspPipeline {
         this.sigPeak = 0;
       }
     }
-    return out;
   }
 
   flush(t: ClockSeconds): DspEvent[] {
-    return this.seg.flush(t as number);
+    const out: DspEvent[] = [];
+    if (this.sub && this.t0 !== null) {
+      const startIdx = this.sub.released;
+      const low = this.sub.flush();
+      this.takeFits();
+      this.analyse(low, (this.t0 + startIdx / this.cfg.analysisRate) as ClockSeconds, out);
+    }
+    for (const ev of this.seg.flush(t as number)) out.push(ev);
+    return out;
   }
 
   frames(): PitchFrame[] {

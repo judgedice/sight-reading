@@ -30,6 +30,15 @@
  * - Adaptive noise gate: floor = 20th percentile of the envelope over the last 400 ms with no note or candidate
  *   sounding, outside click windows; gate = floor + 12 dB, never below -70 dBFS. Frames below the gate are unvoiced.
  *
+ * - Click windows (01 section 7.6, speakers only; the pipeline passes no arrivals in headphone modes), each
+ *   `[arrival - 5 ms, arrival + 35 ms]`:
+ *   - item 3, time gate: a re-articulation (dip or flux route) whose onset falls in a click window splits only once
+ *     `onsetConfirm` consecutive voiced frames from its onset on support it; an unvoiced frame first drops it;
+ *   - item 4: flux inside click windows takes no part in onset refinement or the flux route;
+ *   - item 5, leak floor: inside a window, a frame starts a note from silence only at
+ *     rmsDb >= max(gate, leakFrameDb + 6 dB), and an attack out of the floor must peak at leakEnvDb + 6 dB or more,
+ *     with the click's leak levels from its template fit (`setClickLeak`; without a fit only the gate applies).
+ *
  * Splits can be retroactive: a dip is recognised a few frames after its half-rise, so the frames already given to
  * the old note from the split time on are moved to the new note. The old note's note-on was already sent; its
  * note-off carries offset = the new onset.
@@ -142,6 +151,8 @@ const SMOOTH_MIN_SEC = 0.004;
 const SMOOTH_MAX_SEC = 0.02;
 /** Cumulative-energy ring: about 4 s at 16 kHz. */
 const CUM_RING = 1 << 16;
+/** Leak floor margin inside click windows (01 section 7.6 item 5). */
+export const CLICK_LEAK_MARGIN_DB = 6;
 
 const median = (xs: readonly number[]): number => {
   if (xs.length === 0) return NaN;
@@ -158,6 +169,10 @@ export class Segmenter {
   readonly o: SegmenterOptions;
   private readonly hints: readonly { t: number; halfWidthSec: number }[];
   private readonly clickWins: Float64Array; // [start0, end0, start1, end1, ...] sorted
+  private readonly clickArr: Float64Array; // arrivals, sorted (same order as clickWins)
+  /** Per click: leak levels from the template fit (NaN until set). */
+  private readonly leakEnv: Float64Array;
+  private readonly leakFrame: Float64Array;
   private readonly tol: number;
 
   // low-band cumulative energy (sample resolution) for smoothed envelopes
@@ -208,7 +223,7 @@ export class Segmenter {
   private cur: Note | null = null;
   private idleCand: Fr[] = [];
   private pitchCand: Fr[] = [];
-  private pending: { dip: Dip; flux: boolean } | null = null;
+  private pending: { dip: Dip; flux: boolean; support: number } | null = null;
   private silence = 0;
   private nextId = 1;
   private boundary = false;
@@ -223,6 +238,9 @@ export class Segmenter {
       this.clickWins[2 * i] = a - CLICK_WINDOW_BEFORE_SEC;
       this.clickWins[2 * i + 1] = a + CLICK_WINDOW_AFTER_SEC;
     });
+    this.clickArr = Float64Array.from(arr);
+    this.leakEnv = new Float64Array(arr.length).fill(NaN);
+    this.leakFrame = new Float64Array(arr.length).fill(NaN);
     this.tol = o.changeCents / 100;
     this.noiseRing = new Float64Array(256);
   }
@@ -250,6 +268,11 @@ export class Segmenter {
   }
 
   inClickWindow(t: number): boolean {
+    return this.clickWindowIndex(t) >= 0;
+  }
+
+  /** Index of the click window containing `t`, or -1. */
+  private clickWindowIndex(t: number): number {
     const w = this.clickWins;
     let lo = 0;
     let hi = w.length / 2 - 1;
@@ -257,9 +280,38 @@ export class Segmenter {
       const m = (lo + hi) >> 1;
       if ((w[2 * m + 1] as number) < t) lo = m + 1;
       else if ((w[2 * m] as number) > t) hi = m - 1;
-      else return true;
+      else return m;
     }
-    return false;
+    return -1;
+  }
+
+  /** Leak levels of the click arriving at `arrival` (from its template fit), dBFS (01 section 7.6 item 5). */
+  setClickLeak(arrival: number, envDb: number, frameDb: number): void {
+    const a = this.clickArr;
+    let lo = 0;
+    let hi = a.length - 1;
+    while (lo < hi) {
+      const m = (lo + hi) >> 1;
+      if ((a[m] as number) < arrival) lo = m + 1;
+      else hi = m;
+    }
+    if (a.length === 0 || Math.abs((a[lo] as number) - arrival) > 1e-6) return;
+    this.leakEnv[lo] = envDb;
+    this.leakFrame[lo] = frameDb;
+  }
+
+  /** Leak floor for frame rmsDb at `t`: max(gate, leakFrameDb + 6 dB) inside a click window, else the gate. */
+  private frameFloorDb(t: number): number {
+    const i = this.clickWindowIndex(t);
+    const leak = i >= 0 ? (this.leakFrame[i] as number) : NaN;
+    return Number.isFinite(leak) ? Math.max(this.gateDb, leak + CLICK_LEAK_MARGIN_DB) : this.gateDb;
+  }
+
+  /** Leak floor for an envelope peak at `t` (attacks out of the floor), dBFS; -Infinity outside click windows. */
+  private envFloorDb(t: number): number {
+    const i = this.clickWindowIndex(t);
+    const leak = i >= 0 ? (this.leakEnv[i] as number) : NaN;
+    return Number.isFinite(leak) ? leak + CLICK_LEAK_MARGIN_DB : -Infinity;
   }
 
   // ------------------------------------------------------------------------------- inputs
@@ -338,7 +390,7 @@ export class Segmenter {
 
   private stepIdle(f: Fr, out: DspEvent[]): void {
     this.dipCursor = this.dips.length;
-    if (!f.voiced) {
+    if (!f.voiced || (f.inClick && f.rmsDb < this.frameFloorDb(f.t))) {
       this.idleCand = [];
       return;
     }
@@ -357,6 +409,7 @@ export class Segmenter {
     cur.sinceUpdate++;
     if (!f.voiced) {
       this.pitchCand = [];
+      if (this.pending && f.t >= this.pending.dip.tOn && this.inClickWindow(this.pending.dip.tOn)) this.pending = null;
       // A frame with energy but an unclear pitch (two pitches in one window, a reverberant change) counts half
       // towards the offset: the note has not stopped sounding.
       this.silence += f.rmsDb >= this.gateDb && f.clarity >= AMBIGUOUS_CLARITY ? 0.5 : 1;
@@ -373,6 +426,13 @@ export class Segmenter {
     // frames of the new note so far move with it; a pitch that settles within the new note's first 60 ms re-pitches
     // it, see below).
     const p = this.pending;
+    if (p && f.t >= p.dip.tOn && this.inClickWindow(p.dip.tOn) && ++p.support < this.o.onsetConfirmFrames) {
+      // 7.6 item 3: inside a click window the split waits for pitch evidence; the frame stays with the note.
+      cur.frames.push(f);
+      cur.lastVoicedT = f.t;
+      this.maybeUpdate(cur, out);
+      return;
+    }
     if (p && f.t >= p.dip.tOn) {
       const moved = [...cur.frames.filter((x) => x.t >= p.dip.tOn), ...this.pitchCand.filter((x) => x.t >= p.dip.tOn), f];
       this.pending = null;
@@ -683,7 +743,7 @@ export class Segmenter {
       this.dipCursor++;
       if (d.tOn <= cur.onset + this.o.minNoteSec) continue;
       const v = this.detectable(d, cur);
-      if (v) this.pending = { dip: d, flux: v === 'flux' };
+      if (v) this.pending = { dip: d, flux: v === 'flux', support: 0 };
     }
   }
 
@@ -914,6 +974,7 @@ export class Segmenter {
     for (let k = iR; k <= to; k++) peak = Math.max(peak, this.smoothDb(k, len));
     const base = Math.max(clamp, this.smoothDb(iR, len));
     if (peak - base < FLOOR_ATTACK_RISE_DB) return null;
+    if (peak < this.envFloorDb(this.envT(iR))) return null;
     const t = this.attackOnset(iR, clamp);
     return t === null ? null : { t, riseT: this.envT(iR), peak };
   }

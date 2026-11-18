@@ -188,9 +188,7 @@ def _ties_into(measures: list[dict[str, Any]], cur: Chain, mi: int, ei: int, e: 
     """A tieStop continues the open chain only if the chain's last event carries tieStart, has the same pitch, and the
     two are adjacent (no rest between)."""
     last = measures[cur.end_mi]["events"][cur.end_ei]
-    if not last.get("tieStart") or last.get("midi") != e.get("midi") or cur.rest_after:
-        return False
-    return True
+    return bool(last.get("tieStart")) and last.get("midi") == e.get("midi") and not cur.rest_after
 
 
 # ---------------------------------------------------------------- LBDM (ranking only)

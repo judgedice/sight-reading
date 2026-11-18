@@ -27,7 +27,10 @@ PHRASE = [
 ]
 
 
-def song(body: list[Any], pre: str = "r:w", post: Any = bar("r:w", finalBarline=True), **kw: Any) -> dict[str, Any]:
+END = bar("r:w", finalBarline=True)
+
+
+def song(body: list[Any], pre: str = "r:w", post: Any = END, **kw: Any) -> dict[str, Any]:
     return part([pre, *body, post] if post is not None else [pre, *body], **kw)
 
 
@@ -346,7 +349,7 @@ def _cand(first: int, last: int, sc: float, pickup: bool = False) -> Candidate:
 
 def test_one_window_per_start_bar_and_at_most_half_overlap():
     cs = [_cand(1, 8, 1.0), _cand(1, 12, 0.9), _cand(5, 12, 0.8), _cand(3, 10, 0.95), _cand(9, 16, 0.5)]
-    kept, fb = select(cs)
+    kept, _ = select(cs)
     keys = [window_key(c) for c in kept]
     assert keys == ["1-8", "5-12", "9-16"]
     assert cs[1].reason == "start-measure-taken" and cs[3].reason == "overlap-limit"
@@ -368,7 +371,7 @@ def test_long_window_keeps_its_8_bar_fallback_with_the_same_start():
 
 def test_fallback_needs_the_same_start_option():
     cs = [_cand(1, 10, 1.2), _cand(1, 8, 1.0, pickup=True)]
-    kept, fb = select(cs)
+    _, fb = select(cs)
     assert fb == {} and cs[1].reason == "start-measure-taken"
 
 
