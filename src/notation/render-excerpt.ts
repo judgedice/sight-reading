@@ -20,7 +20,7 @@ import {
   SVGContext,
   Tuplet,
   Voice,
-} from 'vexflow/bravura';
+} from './font/vexflow-bravura.ts';
 import type { Articulation as ArticName, Clef, Dynamic, PreparedEvent, PreparedExcerpt, PreparedMeasure, RenderOptions } from '../core/types.ts';
 import { splitDuration, vexDuration, writtenTicks, isBeamable, type DurationPiece } from './durations.ts';
 import { distributeWidths, type MeasureAnchors } from './layout.ts';

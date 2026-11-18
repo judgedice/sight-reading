@@ -26,7 +26,8 @@
     "schemas:check": "tsx tools/generate-schemas.ts --check",
     "tokens": "tsx tools/generate-tokens.ts",
     "tokens:check": "tsx tools/generate-tokens.ts --check",
-    "test:bare": "tsx tools/bare-runtime/run.ts"
+    "test:bare": "tsx tools/bare-runtime/run.ts",
+    "size": "tsx tools/size-check.ts"
   },
   "dependencies": {
     "idb": "8.0.4",

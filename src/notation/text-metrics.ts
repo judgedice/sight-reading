@@ -6,7 +6,7 @@
 // e2e/notation/bravura-metrics.spec.ts). Layout is then identical in Node, jsdom and every browser, and render()
 // can run before the font face has loaded: the SVG <text> glyphs simply paint once it has.
 
-import { Element } from 'vexflow/bravura';
+import { Element } from './font/vexflow-bravura.ts';
 import { BRAVURA_METRICS, BRAVURA_METRICS_EM_PX } from './bravura-metrics.ts';
 
 /** [advance width, actualBoundingBoxLeft, actualBoundingBoxRight, ascent, descent], per 1 px of font size. */

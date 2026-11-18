@@ -3,11 +3,11 @@ import { describe, expect, it } from 'vitest';
 import { bundle, runBundled, runDirect } from './run.ts';
 
 describe('bare runtime', () => {
-  it('runs 20 scenarios in a vm context byte-identical to Node', async () => {
+  it('runs every scenario in a vm context byte-identical to Node', async () => {
     const code = await bundle();
     const bare = runBundled(code);
     expect(bare).toBe(await runDirect());
-    expect((JSON.parse(bare) as unknown[]).length).toBe(20);
+    expect((JSON.parse(bare) as unknown[]).length).toBeGreaterThanOrEqual(20);
   });
 
   it('the vm context really lacks host globals', () => {
