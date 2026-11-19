@@ -67,9 +67,10 @@ Before: design scores from `01-design-rating.md`, UX scores from `02-ux-rating.m
 2. ~~**Read-through on a phone shows about six of eight bars above the dock.**~~ Fixed: the read purpose drops the 20 px verdict lane (126 px a system at 9.5 px staff space), so four systems fit above the dock at 390 x 844. The one-time "New: hear the tempo..." note still takes about 70 px on the first visit, when three systems and part of the fourth show.
 3. ~~**Line numbers, not bar numbers.**~~ Fixed: with page turns the gutter shows the first bar of each line from the second line on, and the take toolbar says "Bars 3–10 of 12".
 4. ~~**Two smaller mismatches with the mockups.**~~ Fixed: Start (desktop Practice, which now also starts on Space), Show the music and Start playing draw "Space" as a keycap; the Practice instrument card reads "Voice · bass clef" with the "Your range / Tap a note to hear it" header; the onboarding difficulty step no longer repeats the instrument name and "Difficulty N" under the stepper.
-5. **Sound gate** for Woodblock and Beep (point 7), and no owner audition yet.
-6. **Manual checks open.** The owner's own walkthrough and the five-player legibility test at 1 m (`09-qa-report.md` sections 6 and 7) have not been run by people. The scripted walk proves each step exists and works; it does not prove he finds each step without help.
-7. Real-device audio: calibration, the click through laptop speakers and iOS Safari are untested on hardware.
+5. ~~**The read-through blamed the audio clock for every failure.**~~ Found by the owner on a Mac after this review and fixed: each session error now has its own text with a details line, Try again retries the failed step, and the cause found (audio closed while the page was hidden during the read-through) no longer fails the take. See "Post-redesign fixes" item 5 in `docs/BUILD-NOTES.md`.
+6. **Sound gate** for Woodblock and Beep (point 7), and no owner audition yet.
+7. **Manual checks open.** The owner's own walkthrough and the five-player legibility test at 1 m (`09-qa-report.md` sections 6 and 7) have not been run by people. The scripted walk proves each step exists and works; it does not prove he finds each step without help.
+8. Real-device audio: calibration, the click through laptop speakers and iOS Safari are untested on hardware.
 
 ## 6. Command status at the end of this review
 

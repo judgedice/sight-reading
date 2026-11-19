@@ -301,6 +301,9 @@ const seedOf = (s: string): number => {
   return h >>> 0;
 };
 
+/** A drop of the audio clock larger than this between polls means a new context, not jitter, seconds. */
+const CLOCK_RESET_SEC = 0.25;
+
 function micErrorCode(e: unknown): SessionErrorCode {
   const name = typeof e === 'object' && e !== null && 'name' in e ? String((e as { name: unknown }).name) : '';
   if (name === 'NotAllowedError' || name === 'SecurityError' || name === 'PermissionDeniedError') return 'mic-denied';
@@ -335,6 +338,13 @@ export class PracticeSession implements PracticeSessionInstance {
   private take: Take | null = null;
   private gen = 0;
   private route: AudioRouteInfo | null = null;
+  /** The unlock `ensureAudio` started and that has not settled yet; null on failure (the session already failed). */
+  private pendingUnlock: Promise<AudioRouteInfo | null> | null = null;
+  /** The settings of the last `prepare`, for `retry` after a failed prepare. */
+  private lastSettings: PracticeSettings | null = null;
+  private _lastError: SessionError | null = null;
+  /** The audio clock at the last poll, to notice a context that was reopened (its clock starts at 0). */
+  private lastPollClock: number | null = null;
   private pollHandle: unknown = null;
   private persistChain: Promise<void> = Promise.resolve();
   private finishing: Promise<AttemptRecord | null> | null = null;
@@ -411,6 +421,7 @@ export class PracticeSession implements PracticeSessionInstance {
 
   async prepare(s: PracticeSettings): Promise<PreparedExcerpt> {
     if (this.inTake()) throw new SessionError('unknown', 'prepare during a take');
+    this.lastSettings = s;
     this.setState('loading');
     try {
       const profile = await this.loadProfile(s.instrumentId);
@@ -463,7 +474,7 @@ export class PracticeSession implements PracticeSessionInstance {
       p = Promise.reject(e);
     }
     void this.platform.keepAwake(true).catch(() => undefined);
-    return p.then(
+    const done = p.then(
       (route) => {
         this.route = route;
         return route;
@@ -472,6 +483,45 @@ export class PracticeSession implements PracticeSessionInstance {
         throw this.fail(new SessionError(micErrorCode(e), e instanceof Error ? e.message : String(e), { cause: e }));
       },
     );
+    // A take started before the unlock settles (a permission prompt, a reopened context) waits for it.
+    const pending: Promise<AudioRouteInfo | null> = done.then(
+      (r) => r,
+      () => null,
+    );
+    this.pendingUnlock = pending;
+    void pending.then(() => {
+      if (this.pendingUnlock === pending) this.pendingUnlock = null;
+    });
+    return done;
+  }
+
+  /**
+   * The audio was closed between takes (the page was hidden, the player left Practice, results sat idle; 05 W2).
+   * The route is gone, so the next take needs `ensureAudio` from a gesture again (Start playing calls it).
+   */
+  audioClosed(): void {
+    if (this.inTake()) return;
+    this.route = null;
+    this.pendingUnlock = null;
+  }
+
+  /**
+   * Try again after an error: the step that failed runs again. A failed prepare prepares the same settings again; a
+   * take that failed to start goes back to the read-through (a ranked take whose time ran out starts again at once,
+   * so call `ensureAudio` from the same gesture first). Returns false when there is nothing to retry.
+   */
+  retry(): boolean {
+    if (this._state !== 'error') return false;
+    const c = this.current;
+    if (c) {
+      this.setState(c.revealed ? 'scanning' : 'covered');
+      if (c.revealed) this.startPolling();
+      return true;
+    }
+    const s = this.lastSettings;
+    if (!s) return false;
+    void this.prepare(s).catch(() => undefined);
+    return true;
   }
 
   revealScan(): void {
@@ -516,6 +566,7 @@ export class PracticeSession implements PracticeSessionInstance {
 
   private startScan(c: Current): void {
     c.scanStart = this.audio.now() as number;
+    this.lastPollClock = null;
     c.scanExpired = false;
     c.lastTick = null;
     this.setState('scanning');
@@ -549,9 +600,10 @@ export class PracticeSession implements PracticeSessionInstance {
     const s = c.settings;
     const plan = c.plan;
     const audio = this.audio;
-    // The backend is unlocked only by `ensureAudio` inside a gesture (05 W1, W4); never resume it from here.
-    const route = this.route;
-    if (!route) throw new SessionError('audio-setup', 'ensureAudio() must run in a gesture before the take');
+    // The backend is unlocked only by `ensureAudio` inside a gesture (05 W1, W4); never resume it from here. An unlock
+    // still in flight (Start playing calls ensureAudio first) is waited for.
+    const route = this.route ?? (this.pendingUnlock ? await this.pendingUnlock : null);
+    if (!route) throw new SessionError('audio-setup', 'audio is not open (the page was hidden, Practice was left, or it was never opened): ensureAudio() must run in a gesture before the take');
     const gen = ++this.gen;
     const listening = s.listening;
     const leadBase = this.opts.leadSec ?? 0.6;
@@ -1075,6 +1127,15 @@ export class PracticeSession implements PracticeSessionInstance {
     if (this.disposed) return;
     const now = this.audio.now() as number;
     const c = this.current;
+    // The audio clock starts again from 0 when the context is closed and reopened between takes (05 W2: the page was
+    // hidden during the read-through). Keep the reading time already spent, so the countdown neither jumps up nor
+    // freezes and a ranked take still starts by itself.
+    // Only clocks read during this read-through count (startScan forgets the last one).
+    if (this._state === 'scanning' && c && c.scanStart !== null) {
+      const last = this.lastPollClock;
+      if (last !== null && now < last - CLOCK_RESET_SEC) c.scanStart -= last - now;
+      this.lastPollClock = now;
+    } else this.lastPollClock = null;
     if (this._state === 'scanning' && c && c.scanStart !== null) {
       const remaining = c.scanSec - (now - c.scanStart);
       const tick = Math.max(0, Math.ceil(remaining - 1e-9));
@@ -1567,9 +1628,15 @@ export class PracticeSession implements PracticeSessionInstance {
     this.emit({ type: 'state', state: next, prev });
   }
 
+  /** The error behind the last `error` event, with its cause (the composition root logs it). */
+  get lastError(): SessionError | null {
+    return this._lastError;
+  }
+
   /** Moves to `error`, emits the error event and returns the error to throw. */
   private fail(e: unknown): unknown {
     const err = e instanceof SessionError ? e : new SessionError('unknown', e instanceof Error ? e.message : String(e), { cause: e });
+    this._lastError = err;
     this.stopPolling();
     this.emit({ type: 'error', code: err.code, detail: err.message });
     this.setState('error');

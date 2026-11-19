@@ -233,12 +233,15 @@ export class WebAudioBackend implements AudioBackend {
       this.teardownGraph();
     }
     this.installGlobalListeners();
-    if (!this.node) await this.buildGraph(ctx);
     const settings = this.track?.getSettings() ?? {};
     this.trackSampleRate = finite(settings.sampleRate) ? settings.sampleRate : null;
-    // W3 (1): a reported track rate that differs from the context rate recreates the context once.
-    if (this.trackSampleRate !== null && this.trackSampleRate !== (this.ctx as AudioContextLike).sampleRate && !this.contextRecreated) {
+    // W3 (1): a reported track rate that differs from the context rate recreates the context once. It is checked
+    // before the graph is built: some browsers refuse a MediaStreamSource whose rate differs from its context's (a Mac
+    // microphone at 44.1 kHz under a 48 kHz output, a Bluetooth headset at 16 or 24 kHz).
+    if (this.trackSampleRate !== null && this.trackSampleRate !== ctx.sampleRate && !this.contextRecreated) {
       await this.recreateContext(this.trackSampleRate);
+    } else if (!this.node) {
+      await this.buildGraph(ctx);
     }
     this.route = this.computeRoute();
     return this.route;

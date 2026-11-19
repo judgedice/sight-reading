@@ -26,6 +26,8 @@ export interface PracticeSessionPort {
   /** Cents; winds, brass, strings. */
   captureTuningNote(): Promise<number>;
   playVoiceReference(): Promise<void>;
+  /** Try again after an error: runs the failed step again (prepare, or back to the read-through). False: nothing to retry. */
+  retry?(): boolean;
   /** 04 section 4.4: a rotation during the count-in cancels and restarts it. Not on `PracticeSession` yet. */
   restartCountIn?(reason: 'rotation'): void;
 }

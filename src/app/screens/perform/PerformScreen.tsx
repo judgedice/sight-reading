@@ -161,7 +161,8 @@ export function PerformScreen(_props: ScreenProps) {
   // The take is the session's: follow its state.
   useEffect(() => {
     if (state === 'results') navigate('/practice/results', { replace: true });
-    else if (state === 'covered' || state === 'scanning') navigate('/practice/scan', { replace: true });
+    // A take that fails to start (or fails mid-way) shows its error, with Try again, on the read-through.
+    else if (state === 'covered' || state === 'scanning' || state === 'error') navigate('/practice/scan', { replace: true });
     else if (state === 'idle') navigate('/', { replace: true });
   }, [state, navigate]);
 

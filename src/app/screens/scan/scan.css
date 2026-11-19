@@ -453,6 +453,16 @@
   margin: 0;
 }
 
+/* The underlying message, small, so the player can report it. */
+.scan-error-detail {
+  margin: 0;
+  color: var(--text-muted);
+  font-family: var(--type-caption-family);
+  font-size: var(--type-caption-size);
+  line-height: var(--type-caption-line);
+  overflow-wrap: anywhere;
+}
+
 .scan-error-actions,
 .scan-dialog-actions {
   display: flex;

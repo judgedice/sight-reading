@@ -171,6 +171,24 @@ describe('unlock (W1, W2, W3)', () => {
     expect(world.gumCount).toBe(1);
   });
 
+  it('a 44.1 kHz microphone under a 48 kHz context: the source is only ever made on a 44.1 kHz context', async () => {
+    // Browsers that refuse a MediaStreamSource at another rate would fail the unlock if the graph were built first.
+    const { world, be } = setup({ contextRate: 48000, strictSourceRate: true, trackSettings: { sampleRate: 44100, echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
+    const route = await be.unlock();
+    expect(route.sampleRate).toBe(44100);
+    expect(world.sourceRates).toEqual([44100]);
+    const port = workerPort();
+    await startRunning(world, be, port.sink);
+    await world.advance(50);
+    expect(port.blocks.length).toBeGreaterThan(5);
+  });
+
+  it('a 16 kHz Bluetooth microphone recreates the context at 16 kHz', async () => {
+    const { world, be } = setup({ contextRate: 48000, strictSourceRate: true, trackSettings: { sampleRate: 16000 } });
+    expect((await be.unlock()).sampleRate).toBe(16000);
+    expect(world.calls.filter((c) => c.startsWith('createContext'))).toEqual(['createContext', 'createContext@16000']);
+  });
+
   it('does not recreate when the track reports no rate', async () => {
     const { world, be } = setup({ contextRate: 44100, trackSettings: {} });
     await be.unlock();

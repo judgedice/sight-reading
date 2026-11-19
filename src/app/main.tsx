@@ -156,7 +156,9 @@ export async function boot(root: Root): Promise<void> {
       firstNotePlayed: () => composed.session.view.getState().firstNoteHeard,
       // The session voids the take itself (backend interruptions and page visibility); the controller adds the
       // close-on-hide and idle policies (05 W2).
-      sink: { onVoid: () => undefined, onStaleCalibration: () => undefined },
+      // A close between takes drops the session's route, so the next take reopens audio from its gesture rather than
+      // scheduling on a closed context.
+      sink: { onVoid: () => undefined, onStaleCalibration: () => undefined, onAudioClosed: () => composed.session.audioClosed() },
     });
     interruption.start();
 

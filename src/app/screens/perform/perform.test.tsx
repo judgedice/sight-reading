@@ -59,6 +59,19 @@ const judgment = (idx: number): LiveJudgment =>
   ({ expectedIdx: idx, status: 'matched', timing: { verdict: 'late', deltaMs: 180 }, pitch: { verdict: 'ok', centsOff: 0 }, provisional: false }) as unknown as LiveJudgment;
 
 describe('Performance screen', () => {
+  it('a take that fails goes back to the read-through, which shows the error and Try again', async () => {
+    const h = harness();
+    await render(h);
+    act(() => {
+      h.view.setState({ error: { code: 'audio-setup', detail: 'x' } });
+      h.session.emitState('error');
+    });
+    await flush();
+    expect(h.location.hash).toBe('#/practice/scan');
+    expect(document.querySelector('[data-testid="screen-practice.scan"]')?.getAttribute('data-state')).toBe('error');
+    expect(document.body.textContent).toContain(copy('error.audioSetup'));
+  });
+
   it('renders the strip, the frozen frame and the count-in label; focus is on Stop', async () => {
     const h = harness();
     await render(h);

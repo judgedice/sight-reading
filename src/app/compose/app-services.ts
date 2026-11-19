@@ -206,6 +206,9 @@ export function composeApp(rt: AppRuntime): ComposedApp {
         const p = session.currentProfile;
         if (p) profile.replace(p);
         for (const ev of e.events) if (ev.type === 'level-up-auto' || ev.type === 'placement-step' || ev.type === 'placement-done') setPracticeLevel(ev.instrumentId, 'to' in ev ? ev.to : 'nextLevel' in ev ? ev.nextLevel : ev.level);
+      } else if (e.type === 'error') {
+        // The screen shows the code's message and the detail line; the console keeps the whole error and its cause.
+        console.error(`Session error (${e.code}): ${e.detail ?? ''}`, session.lastError ?? undefined, session.lastError?.cause ?? undefined);
       } else if (e.type === 'state') {
         rt.onSessionState?.(e.state);
         // A take ends with a route known and perhaps a calibration marked stale (05 W7, R31).

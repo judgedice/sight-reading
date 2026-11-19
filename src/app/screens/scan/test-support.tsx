@@ -72,6 +72,7 @@ export interface FakeSession {
   skip: Fn<'skip'>;
   captureTuningNote: Fn<'captureTuningNote'>;
   playVoiceReference: Fn<'playVoiceReference'>;
+  retry: Mock<() => boolean>;
 }
 
 export function fakeSession(prepared: PreparedExcerpt, mode: 'ranked' | 'practice' = 'ranked'): FakeSession {
@@ -96,6 +97,11 @@ export function fakeSession(prepared: PreparedExcerpt, mode: 'ranked' | 'practic
     skip: vi.fn(() => Promise.resolve()),
     captureTuningNote: vi.fn(() => Promise.resolve(-8)),
     playVoiceReference: vi.fn(() => Promise.resolve()),
+    retry: vi.fn(() => {
+      if (s.state !== 'error') return false;
+      s.emitState(s.pending.revealed ? 'scanning' : 'covered');
+      return true;
+    }),
   };
   return s as unknown as FakeSession;
 }

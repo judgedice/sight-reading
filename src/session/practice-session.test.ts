@@ -300,6 +300,95 @@ describe('full ranked flow on the fake backend', () => {
   }, 60_000);
 });
 
+describe('audio that is not open at Start playing (05 W1, W2)', () => {
+  it('Start playing right after the reveal waits for the unlock still in flight', async () => {
+    const h = await harness({ calibration: playAlong(40) });
+    await h.session.prepare(settings({ mode: 'practice' }));
+    // The read-through's gesture: ensureAudio starts the unlock; the take starts before it settles.
+    void h.session.ensureAudio();
+    h.session.revealScan();
+    await h.session.startTake();
+    expect(h.session.state).toBe('count-in');
+    expect(h.be.log.scheduledTakes).toHaveLength(1);
+    expect(h.session.view.getState().error).toBeNull();
+  });
+
+  it('audio closed between takes (page hidden): a take with no gesture fails as audio-setup, not unknown; Try again and a tap recover', async () => {
+    const h = await harness({ calibration: playAlong(40) });
+    await h.session.prepare(settings({ mode: 'practice' }));
+    await h.session.ensureAudio();
+    h.session.revealScan();
+    // The interruption controller closed the audio while the page was hidden (05 W2).
+    h.session.audioClosed();
+    await expect(h.session.startTake()).rejects.toMatchObject({ code: 'audio-setup' });
+    expect(h.session.state).toBe('error');
+    expect(h.session.view.getState().error).toMatchObject({ code: 'audio-setup' });
+    expect(h.session.view.getState().error?.detail).toMatch(/not open/);
+    expect(h.session.lastError?.code).toBe('audio-setup');
+    // Try again: back to the read-through with the same excerpt; Start playing reopens audio from its tap.
+    const excerpt = h.session.prepared!.excerptId;
+    expect(h.session.retry()).toBe(true);
+    expect(h.session.state).toBe('scanning');
+    expect(h.session.view.getState().error).toBeNull();
+    expect(h.session.prepared!.excerptId).toBe(excerpt);
+    void h.session.ensureAudio();
+    await h.session.startTake();
+    expect(h.session.state).toBe('count-in');
+    expect(h.be.log.scheduledTakes).toHaveLength(1);
+  });
+
+  it('a reopened context (clock back at 0) keeps the reading time spent: the ranked countdown runs on and auto-starts', async () => {
+    const h = await harness({ calibration: playAlong(40) });
+    const prepared = await h.session.prepare(settings());
+    await h.session.ensureAudio();
+    h.session.revealScan();
+    const scanSec = cfg.levelByNumber[prepared.levelServed]!.scanSec;
+    await drive(h, 10);
+    const ticks = (): number[] => h.events.filter((e) => e.type === 'scan-tick').map((e) => (e as { remainingSec: number }).remainingSec);
+    expect(ticks().at(-1)).toBe(scanSec - 10);
+    // The page was hidden: the context closed and a new one starts its clock at 0.
+    const before = ticks().length;
+    h.session.audioClosed();
+    (h.be as unknown as { clockSec: number }).clockSec = 0;
+    void h.session.ensureAudio();
+    await drive(h, 1.5);
+    const after = ticks().slice(before);
+    expect(after.length).toBeGreaterThan(0);
+    expect(Math.max(...after)).toBeLessThanOrEqual(scanSec - 10);
+    await driveTo(h, 'count-in', scanSec);
+    expect(h.session.view.getState().error).toBeNull();
+  });
+
+  it('a new read-through on a reopened context starts its countdown from the full time (no stale clock)', async () => {
+    const h = await harness({ calibration: playAlong(40) });
+    await h.session.prepare(settings());
+    await h.session.ensureAudio();
+    h.session.revealScan();
+    await drive(h, 5);
+    await h.session.skip();
+    // Practice was left and the audio closed: the next context's clock starts again at 0.
+    h.session.audioClosed();
+    (h.be as unknown as { clockSec: number }).clockSec = 0;
+    const next = await h.session.prepare(settings());
+    void h.session.ensureAudio();
+    h.session.revealScan();
+    await drive(h, 0.5);
+    expect(h.session.state).toBe('scanning');
+    const last = [...h.events].reverse().find((e) => e.type === 'scan-tick') as { remainingSec: number };
+    expect(last.remainingSec).toBe(cfg.levelByNumber[next.levelServed]!.scanSec);
+  });
+
+  it('Try again after a failed prepare prepares the same settings again', async () => {
+    const h = await harness({ calibration: playAlong(40) });
+    expect(h.session.retry()).toBe(false);
+    await expect(h.session.prepare(settings({ level: 10, meter: '7/8' }))).rejects.toMatchObject({ code: 'empty-pool' });
+    expect(h.session.state).toBe('error');
+    expect(h.session.retry()).toBe(true);
+    await drive(h, 0.2, () => h.session.state === 'error');
+    expect(h.session.view.getState().error).toMatchObject({ code: 'empty-pool' });
+  });
+});
+
 describe('compound meters on the dotted-beat difficulties (02 §2.4)', () => {
   it('a calibrated ranked 6/8 take at difficulty 4, served in dotted beats, stays ranked and earns full tempo XP', async () => {
     const h = await harness({ calibration: playAlong(40), shippedCorpus: true });

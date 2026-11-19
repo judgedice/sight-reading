@@ -153,6 +153,12 @@ export class FakeContext extends FakeTarget implements AudioContextLike {
   }
 
   createMediaStreamSource(stream: MediaStreamLike): AudioNodeLike {
+    this.world.sourceRates.push(this.sampleRate);
+    // Some browsers refuse a microphone whose rate differs from the context's (Firefox; Chrome on some devices).
+    const trackRate = stream.getAudioTracks()[0]?.getSettings().sampleRate;
+    if (this.world.strictSourceRate && typeof trackRate === 'number' && trackRate !== this.sampleRate) {
+      throw Object.assign(new Error('Connecting AudioNodes from AudioContexts with different sample-rate is currently not supported.'), { name: 'NotSupportedError' });
+    }
     const n = new FakeSourceNode(stream);
     this.sources.push(n);
     return n;
@@ -220,6 +226,8 @@ export interface WorldOptions {
   /** Input generator: returns channel data for `n` frames starting at context frame `frame`. */
   input?: (frame: number, n: number, rate: number) => Float32Array[];
   permission?: string;
+  /** `createMediaStreamSource` throws NotSupportedError when the track's rate differs from the context's. */
+  strictSourceRate?: boolean;
 }
 
 /** The fake world: contexts, devices, timers and a manual wall clock. */
@@ -228,6 +236,9 @@ export class FakeAudioWorld {
   readonly contexts: FakeContext[] = [];
   readonly tracks: FakeTrack[] = [];
   readonly contextRate: number;
+  readonly strictSourceRate: boolean;
+  /** Context rate at each `createMediaStreamSource`. */
+  readonly sourceRates: number[] = [];
   wallMs = 1000;
   gumCount = 0;
   readonly document = Object.assign(new FakeTarget(), { visibilityState: 'visible' }) as FakeTarget & { visibilityState: string };
@@ -242,6 +253,7 @@ export class FakeAudioWorld {
   constructor(opts: WorldOptions = {}) {
     this.opts = opts;
     this.contextRate = opts.contextRate ?? 48000;
+    this.strictSourceRate = opts.strictSourceRate ?? false;
     this.input = opts.input ?? ((_f, n) => [new Float32Array(n)]);
     this.audioSession = opts.audioSession ? { type: 'auto' } : undefined;
     if (this.audioSession) {

@@ -4,7 +4,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { ScoreFrameController } from '../../../ui/score-frame/index.ts';
 import { ScoreFrame } from '../../../ui/score-frame/index.ts';
-import { copy } from '../../../ui/copy/copy.ts';
+import { copy, type CopyKey } from '../../../ui/copy/copy.ts';
+import type { SessionErrorCode } from '../../../core/types.ts';
 import { Button } from '../../../ui/components/form/index.ts';
 import { BeatUnitText, ChecklistItem, ScanTimer } from '../../../ui/components/domain/index.ts';
 import { CoachMark, DOCK_QUERY, ListenConfirm, SoundButton, SoundsDock, SoundsGroup, useMediaQuery, type SoundsModel } from '../../../ui/components/sounds/index.ts';
@@ -40,6 +41,20 @@ import { PractiseWithoutListeningNotice } from '../states/States.tsx';
 import './scan.css';
 
 const NEVER: Readable<boolean> = { get: () => false, subscribe: () => () => undefined };
+
+/**
+ * What each session error says on the read-through. Honest per cause: a clock-rate problem never stops a take (it is
+ * a measurement gate that makes the take practice), so no session error claims one.
+ */
+export const SESSION_ERROR_TEXT: Record<SessionErrorCode, CopyKey> = {
+  'mic-denied': 'permission.denied.title',
+  'mic-not-found': 'permission.denied.title',
+  'corpus-load': 'error.corpus',
+  'audio-setup': 'error.audioSetup',
+  storage: 'error.storage',
+  'empty-pool': 'error.emptyPool',
+  unknown: 'error.unknown',
+};
 
 const isInteractive = (t: EventTarget | null): boolean =>
   t instanceof Element && t.closest('button, a, input, select, textarea, [role="checkbox"], [role="dialog"]') !== null;
@@ -397,6 +412,9 @@ export function ScanScreen(_props: ScreenProps) {
   }, [svc.session]);
 
   const startPlaying = useCallback(() => {
+    // Audio may have closed since the reveal (the page was hidden, 05 W2): reopen it inside this gesture; a live
+    // context is reused at once. The take waits for the unlock.
+    svc.session.ensureAudio().catch(() => undefined);
     svc.session.startTake().catch(() => undefined);
   }, [svc.session]);
 
@@ -477,15 +495,20 @@ export function ScanScreen(_props: ScreenProps) {
   const routeAttrs = { 'data-testid': 'screen-practice.scan', 'data-route-id': 'practice.scan' } as const;
 
   if (error) {
-    const corpus = error.code === 'corpus-load';
-    const key = error.code === 'mic-denied' || error.code === 'mic-not-found' ? 'permission.denied.title' : corpus ? 'error.corpus' : 'error.clockRate';
+    const retryable = error.code !== 'empty-pool';
+    const tryAgain = (): void => {
+      // The failed step runs again. A take that could not start reopens audio from this tap first (05 W1, W4).
+      if (svc.session.prepared && error.code !== 'corpus-load') svc.session.ensureAudio().catch(() => undefined);
+      if (svc.session.retry?.() !== true) navigate('/');
+    };
     return (
-      <section className="scan" {...routeAttrs} data-state="error">
+      <section className="scan" {...routeAttrs} data-state="error" data-error={error.code}>
         <div className="scan-error" role="alert">
-          <p className="scan-error-text">{copy(key)}</p>
+          <p className="scan-error-text">{copy(SESSION_ERROR_TEXT[error.code])}</p>
+          {error.detail ? <p className="scan-error-detail">{copy('error.details', { detail: error.detail })}</p> : null}
           <div className="scan-error-actions">
-            <Button label={copy('action.tryAgain')} variant="primary" onClick={() => (corpus ? window.location.reload() : navigate('/'))} />
-            <Button label={copy('action.backToPractice')} variant="secondary" onClick={() => navigate('/')} />
+            {retryable ? <Button label={copy('action.tryAgain')} variant="primary" onClick={tryAgain} /> : null}
+            <Button label={copy('action.backToPractice')} variant={retryable ? 'secondary' : 'primary'} onClick={() => navigate('/')} />
           </div>
         </div>
       </section>

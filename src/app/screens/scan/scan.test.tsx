@@ -8,6 +8,7 @@ import { markSoundsCoachSeen, resetSoundsCoach } from './coach.ts';
 import { creditLine } from './model.ts';
 import { firstNoteLabel, firstNoteOf } from './read-model.ts';
 import { PracticeApp, harness, testExcerpt, type Harness } from './test-support.tsx';
+import { SESSION_ERROR_TEXT } from './ScanScreen.tsx';
 import { PracticeFlowServicesProvider } from './services.ts';
 
 let m: Mounted | null = null;
@@ -106,6 +107,60 @@ describe('Cover', () => {
     expect(button(copy('action.tryAgain'))).toBeTruthy();
     click(button(copy('action.backToPractice')));
     expect(h.location.hash).toBe('#/');
+  });
+
+  it.each([
+    ['audio-setup', 'error.audioSetup'],
+    ['storage', 'error.storage'],
+    ['unknown', 'error.unknown'],
+    ['mic-denied', 'permission.denied.title'],
+  ] as const)('a %s error says so, never that the audio clock is wrong, with its details', (code, key) => {
+    const h = harness();
+    act(() => h.view.setState({ error: { code, detail: 'WebAudioBackend: call unlock() first' } }));
+    render(h);
+    const alert = $('[role="alert"]');
+    expect(alert.textContent).toContain(copy(key));
+    expect(alert.textContent).not.toContain(copy('error.clockRate'));
+    expect($('.scan-error-detail').textContent).toBe(copy('error.details', { detail: 'WebAudioBackend: call unlock() first' }));
+  });
+
+  it('every session error code has its own text and none is the clock-rate message', () => {
+    for (const k of Object.values(SESSION_ERROR_TEXT)) expect(k).not.toBe('error.clockRate');
+  });
+
+  it('empty pool: no Try again, Back to Practice only', () => {
+    const h = harness();
+    act(() => h.view.setState({ error: { code: 'empty-pool' } }));
+    render(h);
+    expect(document.body.textContent).toContain(copy('error.emptyPool'));
+    expect(document.querySelector('.scan-error-detail')).toBeNull();
+    expect(() => button(copy('action.tryAgain'))).toThrow();
+  });
+
+  it('Try again after a take could not start: reopens audio in the tap and retries the read-through, staying here', async () => {
+    const h = harness();
+    render(h);
+    await reveal(h);
+    act(() => {
+      h.session.emitState('error');
+      h.view.setState({ error: { code: 'audio-setup', detail: 'x' } });
+    });
+    const calls = h.session.ensureAudio.mock.calls.length;
+    click(button(copy('action.tryAgain')));
+    expect(h.session.ensureAudio).toHaveBeenCalledTimes(calls + 1);
+    expect(h.session.retry).toHaveBeenCalledTimes(1);
+    expect(h.location.hash).not.toBe('#/');
+    expect($('[data-testid="screen-practice.scan"]').getAttribute('data-state')).toBe('scanning');
+  });
+
+  it('Start playing reopens audio inside the tap before it starts the take', async () => {
+    const h = harness();
+    render(h);
+    await reveal(h);
+    const calls = h.session.ensureAudio.mock.calls.length;
+    click(button(copy('action.startPlaying')));
+    expect(h.session.ensureAudio).toHaveBeenCalledTimes(calls + 1);
+    expect(h.session.startTake).toHaveBeenCalledTimes(1);
   });
 
   it('Show the music is the first gesture: unlocks audio and reveals; Space does the same', async () => {
