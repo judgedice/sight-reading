@@ -6,7 +6,8 @@
 import { createElement, lazy, Suspense, type ComponentType, type ReactNode } from 'react';
 import type { AudioBackend, KeyValue, PlatformCapabilities, PlatformServices, WorkerLike, MessagePortLike } from '../../core/platform.ts';
 import type { AppSettings, AttemptRecord, AttributionsFile, Calibration, Configs, CorpusManifest, PlayerProfile, PracticeSettings, Rng } from '../../core/types.ts';
-import { PracticeSession, type PracticeSessionOptions } from '../../session/index.ts';
+import { PracticeSession, type PracticeSessionOptions, type RankedAvailability, type SoundPrefs } from '../../session/index.ts';
+import { metronomeSoundOf } from '../../core/click-sounds.ts';
 import { countEligible, prefetchNeighbours } from '../../corpus/index.ts';
 import { createProfile, postRevealSkipAllowed, respondToLevelOffer, setInstrumentLevel, startPlacement } from '../../grade/index.ts';
 import { ghostPitch } from '../../follow/index.ts';
@@ -23,6 +24,8 @@ import { createReviewRenderer } from '../screens/results/review/index.ts';
 import { resultsScreenOverrides, type ResultsServices } from '../screens/results/index.ts';
 import { practiceFlowScreenOverrides, type PracticeFlowServices } from '../screens/scan/index.ts';
 import type { SettingsServices } from '../screens/settings/context.ts';
+import type { SettingsSoundServices } from '../screens/settings/services.ts';
+import type { HistoryServices } from '../screens/history/services.ts';
 import { tipsScreenOverrides, type TipsServices } from '../screens/sheets/index.ts';
 import { classifyMicError, type MicBrowser } from '../screens/states/index.ts';
 import { createCalibrationServices, type CalibrationBackendExtras } from './calibration-services.ts';
@@ -80,7 +83,16 @@ export interface ComposedApp {
   /** The path to open at start-up: onboarding on a first run. */
   initialPath(currentPath: string): string | null;
   /** The screens' services, as bound into the table (tests and the dev tools read them). */
-  services: { home: HomeServices; onboarding: OnboardingServices; flow: PracticeFlowServices; results: ResultsServices; tips: TipsServices; calibration: CalibrationServices; settings: SettingsServices };
+  services: {
+    home: HomeServices;
+    onboarding: OnboardingServices;
+    flow: PracticeFlowServices;
+    results: ResultsServices;
+    tips: TipsServices;
+    calibration: CalibrationServices;
+    settings: SettingsServices & SettingsSoundServices;
+    history: HistoryServices;
+  };
   dispose(): void;
 }
 
@@ -102,7 +114,13 @@ export function composeApp(rt: AppRuntime): ComposedApp {
   const today = createValue<TodayStats>({ takes: 0, ranked: 0, xp: 0 });
   const sessionAttempts: AttemptRecord[] = [];
 
+  // Every "Hear it" sound reads the player's settings as they are now (Settings can change them between takes).
+  const soundPrefs = (): SoundPrefs => {
+    const p = settings.get().practice;
+    return { sound: metronomeSoundOf(p.clickTimbre), accent: p.accentFirstBeat ?? true, a4Hz: p.a4Hz, listening: p.listening };
+  };
   const sessionOptions: PracticeSessionOptions = {
+    soundPrefs,
     appVersion: rt.versions.app,
     coreVersion: rt.versions.core,
     appBuild: rt.versions.build,
@@ -126,6 +144,21 @@ export function composeApp(rt: AppRuntime): ComposedApp {
   };
   const refreshCalibrations = async (): Promise<void> => {
     hasCalibration.set((await repos.calibrations.all()).some((c) => c.method !== 'reported'));
+    await refreshAvailability();
+  };
+  // Ranked availability for Practice (05 §4.5, §5.8). Until the first check resolves, a listening player is not
+  // shown a calibration block (it would flash for calibrated players).
+  const availabilityNow = (block: RankedAvailability['block']): RankedAvailability => ({ available: block === null, block });
+  const rankedAvailability = createValue<RankedAvailability>(availabilityNow(settings.get().practice.listening ? null : 'mic'));
+  let availabilityGen = 0;
+  const refreshAvailability = async (): Promise<void> => {
+    const gen = ++availabilityGen;
+    const p = settings.get().practice;
+    const a = await session.rankedAvailability({ listening: p.listening, outputMode: p.outputMode });
+    if (gen !== availabilityGen) return;
+    // ?testClock=1 skips calibration (01 §13.4), as the calibrate banner does.
+    const next = rt.testClock && a.block === 'calibration' ? availabilityNow(null) : a;
+    if (!jsonEqual(next, rankedAvailability.get())) rankedAvailability.replace(next);
   };
   void refreshToday().catch(() => undefined);
   void refreshCalibrations().catch(() => undefined);
@@ -148,6 +181,16 @@ export function composeApp(rt: AppRuntime): ComposedApp {
   // Keep the profile, today and the attempt list current after every take (04 section 5.7).
   let sawCompleted = false;
   const unsubs: (() => void)[] = [];
+  let lastAvailabilityKey = '';
+  unsubs.push(
+    settings.subscribe(() => {
+      const p = settings.get().practice;
+      const key = `${p.listening}|${p.outputMode}`;
+      if (key === lastAvailabilityKey) return;
+      lastAvailabilityKey = key;
+      void refreshAvailability().catch(() => undefined);
+    }),
+  );
   unsubs.push(
     session.events.on((e) => {
       if (e.type === 'record') {
@@ -165,6 +208,8 @@ export function composeApp(rt: AppRuntime): ComposedApp {
         for (const ev of e.events) if (ev.type === 'level-up-auto' || ev.type === 'placement-step' || ev.type === 'placement-done') setPracticeLevel(ev.instrumentId, 'to' in ev ? ev.to : 'nextLevel' in ev ? ev.nextLevel : ev.level);
       } else if (e.type === 'state') {
         rt.onSessionState?.(e.state);
+        // A take ends with a route known and perhaps a calibration marked stale (05 W7, R31).
+        if (e.state === 'results' || e.state === 'covered') void refreshAvailability().catch(() => undefined);
         if (e.state === 'results') rt.keepAwake.enterResults();
         else if (e.prev === 'results') rt.keepAwake.leaveResults();
       }
@@ -194,7 +239,7 @@ export function composeApp(rt: AppRuntime): ComposedApp {
   const highContrast = (): boolean => settings.get().accessibility.highContrast;
 
   // ---- calibration ---------------------------------------------------------------------------------
-  const calibration: CalibrationServices = createCalibrationServices({
+  const calibrationBase: CalibrationServices = createCalibrationServices({
     audio: platform.audio,
     capabilities: rt.capabilities,
     configs: cfg,
@@ -211,6 +256,30 @@ export function composeApp(rt: AppRuntime): ComposedApp {
     download: (n, t) => rt.download(n, t),
     appBuild: rt.versions.build,
   });
+  const calibration: CalibrationServices = {
+    ...calibrationBase,
+    // "Hear the click" (designer's note 12): one bar of the chosen sound; the screen hides it while listening.
+    hearClick: () => session.previewSound(soundPrefs().sound),
+    stopSounds: () => session.stopSounds(),
+  };
+
+  // ---- shared sound services (05 §9) -------------------------------------------------------------
+  const sounds = session.sounds;
+  const stopSounds = (): void => session.stopSounds();
+  const playNote = (midi: number): Promise<void> => session.playNote(midi);
+  const requestMic = (): Promise<MicOutcome> => {
+    platform.audio.setInputEnabled?.(true);
+    let p: Promise<unknown>;
+    try {
+      p = platform.audio.unlock();
+    } catch (e) {
+      p = Promise.reject(e);
+    }
+    return p.then(
+      () => ({ ok: true }),
+      (e: unknown) => ({ ok: false, problem: classifyMicError(e) }),
+    );
+  };
 
   // ---- home ----------------------------------------------------------------------------------------
   const banners = derived<readonly HomeBanner[]>(
@@ -246,8 +315,25 @@ export function composeApp(rt: AppRuntime): ComposedApp {
     session: session.view,
     localDay: () => platform.localDay(),
     onStart(s) {
+      // "Start" stops any sound first (05 §9.3).
+      session.stopSounds();
       prepareNext(s);
       return false;
+    },
+    hearTempo: (bpm, beatsPerBar) => session.hearTempo(bpm, beatsPerBar),
+    playNote,
+    stopSounds,
+    sounds,
+    rankedAvailability,
+    turnOnMic() {
+      // Inside the click: the permission request must start in the gesture (05 W1).
+      const p = requestMic();
+      const s = settings.get();
+      if (!s.practice.listening) settings.set({ ...s, practice: { ...s.practice, listening: true } });
+      return p.then((r) => {
+        void refreshAvailability().catch(() => undefined);
+        return { ok: r.ok };
+      });
     },
   };
 
@@ -260,20 +346,10 @@ export function composeApp(rt: AppRuntime): ComposedApp {
     levelCount: cfg.levels.levels.length,
     levelDescription: (level) => cfg.levelByNumber[level]?.description ?? '',
     micBrowser: rt.micBrowser,
-    requestMic(): Promise<MicOutcome> {
-      platform.audio.setInputEnabled?.(true);
-      let p: Promise<unknown>;
-      try {
-        p = platform.audio.unlock();
-      } catch (e) {
-        p = Promise.reject(e);
-      }
-      return p.then(
-        () => ({ ok: true }),
-        (e: unknown) => ({ ok: false, problem: classifyMicError(e) }),
-      );
-    },
+    requestMic,
     calibration,
+    playNote,
+    stopSounds,
     async finish(r: OnboardingResult) {
       const now = platform.clockWall();
       let p = profile.get() ?? createProfile(platform.idGen(), r.displayName, now, r.instrumentId, cfg);
@@ -322,6 +398,12 @@ export function composeApp(rt: AppRuntime): ComposedApp {
     ...(rt.wakeLockFailed ? { wakeLockFailed: rt.wakeLockFailed } : {}),
     reducedMotion,
     highContrast,
+    hearTempo: () => session.hearTempo(),
+    listenFirst: () => session.listenFirst(),
+    hearKey: () => session.hearKey(),
+    hearStartingPitch: () => session.playVoiceReference(),
+    stopSounds,
+    sounds,
   };
 
   // ---- results and tips ----------------------------------------------------------------------------
@@ -367,6 +449,10 @@ export function composeApp(rt: AppRuntime): ComposedApp {
       },
     },
     renderReview: createReviewRenderer({ configs: cfg, session: session.view, settings, loadNotation, spell: ghostPitch }),
+    listen: (o) => session.listen(o),
+    hearBar: (from, to, o) => session.hearBar(from, to, o),
+    stopSounds,
+    sounds,
   };
   const tips: TipsServices = {
     configs: cfg,
@@ -381,10 +467,27 @@ export function composeApp(rt: AppRuntime): ComposedApp {
     onFinish() {
       rt.keepAwake.leavePractice();
     },
+    hearBar: (from, to) => session.hearBar(from, to),
+    stopSounds,
+    sounds,
+  };
+
+  // ---- history -------------------------------------------------------------------------------------
+  const history: HistoryServices = {
+    configs: cfg,
+    repos,
+    localDay: () => platform.localDay(),
+    profile,
+    loadAttributions,
+    preparedFor: (record) => session.preparedForRecord(record),
+    listen: (record, o) => session.listen({ ...o, record }),
+    hearBar: (record, from, to, o) => session.hearBar(from, to, { ...o, record }),
+    stopSounds,
+    sounds,
   };
 
   // ---- settings (lazy: export and import validation stay out of the initial chunk) -------------------
-  const settingsServices: SettingsServices = {
+  const settingsServices: SettingsServices & SettingsSoundServices = {
     configs: cfg,
     repos,
     kv,
@@ -414,6 +517,10 @@ export function composeApp(rt: AppRuntime): ComposedApp {
       changeProfile((p) => startPlacement(p, s.practice.instrumentId, cfg).profile);
     },
     ...(rt.rightsContact ? { rightsContact: rt.rightsContact } : {}),
+    previewSound: (sound) => session.previewSound(sound),
+    playClick: (sound) => session.playClick(sound),
+    stopSounds,
+    sounds,
   };
   // The export file records the app version (01 §11); export lives in this lazy chunk, so the version is set here.
   const LazySettings = lazy(() =>
@@ -439,8 +546,8 @@ export function composeApp(rt: AppRuntime): ComposedApp {
     ...practiceFlowScreenOverrides(flow),
     ...resultsScreenOverrides(results),
     ...tipsScreenOverrides(tips),
-    ...progressScreenOverrides({ configs: cfg, profile }),
-    ...historyScreenOverrides({ configs: cfg, repos, localDay: () => platform.localDay(), profile, loadAttributions }),
+    ...progressScreenOverrides({ configs: cfg, profile, playNote, stopSounds }),
+    ...historyScreenOverrides(history),
     ...creditsScreenOverrides({ configs: cfg, loadAttributions, ...(rt.rightsContact ? { rightsContact: rt.rightsContact } : {}) }),
     welcome: withProvider(OnboardingServicesProvider, onboarding, OnboardingScreen),
     calibrate: withProvider(CalibrationServicesProvider, calibration, CalibrationScreen),
@@ -455,7 +562,7 @@ export function composeApp(rt: AppRuntime): ComposedApp {
     table: createRouteTable(overrides),
     settings,
     session,
-    services: { home, onboarding, flow, results, tips, calibration, settings: settingsServices },
+    services: { home, onboarding, flow, results, tips, calibration, settings: settingsServices, history },
     initialPath(current) {
       if (!settings.get().onboardingDone) return current === '/welcome' ? null : '/welcome';
       // A reload lands outside a take: the practice routes need a prepared excerpt.

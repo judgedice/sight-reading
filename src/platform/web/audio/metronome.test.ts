@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { TakeSchedule } from '../../../core/platform.ts';
+import { renderClick as coreRenderClick } from '../../../core/click-sounds.ts';
+import { defaultAppSettings } from '../../../store/defaults.ts';
+import { normaliseSettings, readMetronomeSound } from '../../../store/settings-read.ts';
 import { clickBurst } from '../../../testkit/synth-min.ts';
-import { Metronome, planTakeClicks, renderClick, takeT0 } from './metronome.ts';
+import { CALIBRATION_ACCENT_DB, Metronome, planTakeClicks, renderClick, takeT0 } from './metronome.ts';
 import type { FakeBufferSource } from './testing/fake-web-audio.ts';
 import { FakeAudioWorld } from './testing/fake-web-audio.ts';
 
@@ -71,6 +74,12 @@ describe('planTakeClicks', () => {
       expect(c.accent).toBe(i % 4 === 0);
       expect(c.countIn).toBe(i < 4);
     });
+  });
+
+  it('honours TakeSchedule.accent: false gives no accented beat, absent means accents on', () => {
+    expect(planTakeClicks(take({ accent: false }), 20).every((c) => !c.accent)).toBe(true);
+    expect(planTakeClicks(take({ accent: true }), 20).filter((c) => c.accent)).toHaveLength(9);
+    expect(planTakeClicks(take(), 20).filter((c) => c.accent)).toHaveLength(9);
   });
 
   it('stops after the count-in in countInOnly mode and rounds partial beats up', () => {
@@ -143,5 +152,122 @@ describe('Metronome', () => {
       { t: 11.5, accent: true, timbre: 'tick' },
       { t: 12.2, accent: true, timbre: 'tick' },
     ]);
+  });
+});
+
+describe('Metronome with the player\'s sounds (06 §9)', () => {
+  const data = (s: FakeBufferSource): number[] => Array.from(s.buffer!.getChannelData(0));
+  const scaled = (x: Float32Array, g: number): number[] => {
+    const out = new Float32Array(x.length);
+    for (let i = 0; i < x.length; i++) out[i] = (x[i] as number) * g;
+    return Array.from(out);
+  };
+  const setup = (): { world: FakeAudioWorld; m: Metronome } => {
+    const world = new FakeAudioWorld();
+    const ctx = world.deps.createContext({ latencyHint: 'interactive' });
+    return { world, m: new Metronome(ctx, ctx.createGain()) };
+  };
+
+  it('renderClick is the core render', () => {
+    for (const sound of ['classic', 'woodblock', 'beep'] as const) expect(Array.from(renderClick(sound, true, 48000))).toEqual(Array.from(coreRenderClick(sound, true, 48000)));
+  });
+
+  for (const sound of ['classic', 'woodblock', 'beep'] as const) {
+    for (const mode of ['wired', 'bluetooth', 'speakers'] as const) {
+      const recipe = mode !== 'speakers';
+      it(`${sound} on ${mode}: beat one is the ${recipe ? 'accent' : 'offbeat'} recipe at +accentDb, the other beats the offbeat recipe at 0 dB`, () => {
+        const { world, m } = setup();
+        m.setOutputMode(mode);
+        expect(m.accentRecipeFor(sound)).toBe(recipe);
+        const { clicks } = m.scheduleTake(take({ timbre: sound, accentDb: 3, totalBeats: 8 }));
+        const srcs = world.ctx.bufferSources.filter((s) => s.startedAt !== null);
+        expect(srcs).toHaveLength(clicks.length);
+        const sr = world.ctx.sampleRate;
+        clicks.forEach((c, i) => {
+          const want = c.accent ? scaled(coreRenderClick(sound, recipe, sr), 0.5 * 10 ** (3 / 20)) : scaled(coreRenderClick(sound, false, sr), 0.5);
+          expect(data(srcs[i] as FakeBufferSource)).toEqual(want);
+        });
+        expect(clicks.filter((c) => c.accent)).toHaveLength(3);
+        expect(new Set(srcs.map((s) => s.buffer)).size).toBe(2);
+      });
+    }
+
+    it(`${sound}: with the accent off every beat is the offbeat recipe at 0 dB`, () => {
+      const { world, m } = setup();
+      m.scheduleTake(take({ timbre: sound, accentDb: 3, totalBeats: 8, accent: false }));
+      const srcs = world.ctx.bufferSources.filter((s) => s.startedAt !== null);
+      const want = scaled(coreRenderClick(sound, false, world.ctx.sampleRate), 0.5);
+      for (const s of srcs) expect(data(s)).toEqual(want);
+      expect(m.history.every((h) => !h.accent)).toBe(true);
+    });
+
+    it(`${sound}: calibration clicks are the offbeat recipe at +${CALIBRATION_ACCENT_DB} dB (the template is the plain click)`, () => {
+      const { world, m } = setup();
+      m.scheduleClicks([11, 11.6], sound);
+      const srcs = world.ctx.bufferSources;
+      const want = scaled(coreRenderClick(sound, false, world.ctx.sampleRate), 0.5 * 10 ** (CALIBRATION_ACCENT_DB / 20));
+      for (const s of srcs) expect(data(s)).toEqual(want);
+      expect(m.history).toEqual([
+        { t: 11, accent: true, timbre: sound },
+        { t: 11.6, accent: true, timbre: sound },
+      ]);
+    });
+  }
+
+  it('speakers is the default, and Tick and Wood keep their accent burst in every mode', () => {
+    const { m } = setup();
+    expect(m.accentRecipeFor('classic')).toBe(false);
+    for (const mode of ['speakers', 'wired'] as const) {
+      m.setOutputMode(mode);
+      expect(m.accentRecipeFor('tick')).toBe(true);
+      expect(m.accentRecipeFor('wood')).toBe(true);
+    }
+  });
+
+  it('Tick calibration clicks keep the Tick accent burst at +5 dB', () => {
+    const { world, m } = setup();
+    m.scheduleClicks([11], 'tick');
+    const want = scaled(coreRenderClick('tick', true, world.ctx.sampleRate), 0.5 * 10 ** (5 / 20));
+    expect(data(world.ctx.bufferSources[0] as FakeBufferSource)).toEqual(want);
+  });
+
+  it('playClicks (previews, lead-ins) in a headphone mode: accents use the accent recipe, the rest the offbeat recipe', () => {
+    const { world, m } = setup();
+    m.setOutputMode('wired');
+    m.playClicks([1, 1.5, 2, 2.5], 'beep', [true, false, false, false], 3);
+    const srcs = world.ctx.bufferSources;
+    expect(srcs.map((s) => s.startedAt)).toEqual([1, 1.5, 2, 2.5]);
+    const sr = world.ctx.sampleRate;
+    expect(data(srcs[0] as FakeBufferSource)).toEqual(scaled(coreRenderClick('beep', true, sr), 0.5 * 10 ** (3 / 20)));
+    for (const s of srcs.slice(1)) expect(data(s)).toEqual(scaled(coreRenderClick('beep', false, sr), 0.5));
+    m.cancel();
+    expect(m.pending()).toHaveLength(0);
+  });
+
+  it('caps a loud accent below full scale', () => {
+    const { world, m } = setup();
+    m.scheduleTake(take({ timbre: 'classic', accentDb: 12, totalBeats: 4 }));
+    const peak = Math.max(...data(world.ctx.bufferSources[0] as FakeBufferSource).map(Math.abs));
+    expect(peak).toBeCloseTo(0.99, 6);
+  });
+});
+
+describe('settings reader (08 decision 4)', () => {
+  it('a stored tick reads as classic, wood as woodblock; the default is classic', () => {
+    expect(defaultAppSettings().practice.clickTimbre).toBe('classic');
+    expect(readMetronomeSound('tick')).toBe('classic');
+    expect(readMetronomeSound('wood')).toBe('woodblock');
+    expect(readMetronomeSound('beep')).toBe('beep');
+    expect(readMetronomeSound(undefined)).toBe('classic');
+    expect(readMetronomeSound(42)).toBe('classic');
+    const stored = defaultAppSettings();
+    stored.practice.clickTimbre = 'tick';
+    const read = normaliseSettings(stored);
+    expect(read.practice.clickTimbre).toBe('classic');
+    expect(stored.practice.clickTimbre).toBe('tick');
+    stored.practice.clickTimbre = 'wood';
+    expect(normaliseSettings(stored).practice.clickTimbre).toBe('woodblock');
+    const fresh = defaultAppSettings();
+    expect(normaliseSettings(fresh)).toBe(fresh);
   });
 });

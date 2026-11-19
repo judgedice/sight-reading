@@ -2,7 +2,34 @@
 import type { SessionApi } from '../core/api.ts';
 import { PracticeSession } from './practice-session.ts';
 
-export { PracticeSession, SessionError, type PracticeSessionOptions, type SessionTimers } from './practice-session.ts';
+export {
+  PracticeSession,
+  SessionError,
+  listenedFirstReasons,
+  type ListenRequest,
+  type PracticeSessionOptions,
+  type SessionTimers,
+  type SoundPrefs,
+} from './practice-session.ts';
+export {
+  LISTEN,
+  barAt,
+  chordLengthSec,
+  keyChordTones,
+  listenSourceOf,
+  planBars,
+  planClickBar,
+  planListen,
+  type ChordTone,
+  type ListenBar,
+  type ListenClick,
+  type ListenFacts,
+  type ListenNote,
+  type ListenOptions,
+  type ListenPlan,
+  type ListenSource,
+} from './listen-plan.ts';
+export { SoundPlayer, idleSoundView, SOUND_FAILED_MS, type SoundCaption, type SoundKind, type SoundView } from './sounds.ts';
 export { createSessionStore, initialSessionView, reduceSessionView, type SessionStatus, type SessionView } from './view-store.ts';
 export {
   barOfBeat,

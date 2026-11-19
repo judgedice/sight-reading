@@ -12,6 +12,8 @@ import type { Readable } from '../screens/home/services.ts';
 /** Backend members beyond the frozen seam that calibration uses when present (WebAudioBackend has them). */
 export interface CalibrationBackendExtras {
   setOutputMode?(mode: AppSettings['practice']['outputMode']): void;
+  /** Calibration listens: an earlier output-only unlock (a sound preview) or practise without listening turned input off. */
+  setInputEnabled?(on: boolean): void;
   checkClockRate?(): Promise<{ ok: boolean; error: number; recreated: boolean }>;
 }
 
@@ -72,6 +74,7 @@ export function createCalibrationServices(d: CalibrationServicesDeps): Calibrati
     inputDevices: () => d.inputDevices(),
     unlock() {
       d.audio.setOutputMode?.(d.settings.get().practice.outputMode);
+      d.audio.setInputEnabled?.(true);
       unlocked = d.audio.unlock();
       return unlocked;
     },

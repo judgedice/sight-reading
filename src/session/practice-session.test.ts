@@ -23,7 +23,7 @@ import { DspWorkerCore } from '../platform/web/audio/dsp-worker-core.ts';
 import { FakeAudioBackend, type FakeBackendOptions } from '../testkit/fake-backend.ts';
 import { renderPerformance, type SynthNoteSpec } from '../testkit/synth/index.ts';
 import { MemoryKv, makeCalibration, memoryRepos } from '../store/test-data.ts';
-import { PracticeSession, initialSessionView, reduceSessionView, sessionApi, voiceReferenceTones } from './index.ts';
+import { PracticeSession, initialSessionView, reduceSessionView, sessionApi, voiceReferenceTones, type PracticeSessionOptions } from './index.ts';
 
 const cfg = configs();
 const RATE = 48000;
@@ -120,7 +120,7 @@ interface Harness {
 
 const playAlong = (rtlMs: number): Calibration => ({ ...makeCalibration(ROUTE), method: 'play-along', outputMode: 'wired', roundTripMs: rtlMs, spreadMs: 4, clicksDetected: 8, templates: {} });
 
-async function harness(o: { backend?: FakeBackendOptions; calibration?: Calibration | null; portMode?: boolean } = {}): Promise<Harness> {
+async function harness(o: { backend?: FakeBackendOptions; calibration?: Calibration | null; portMode?: boolean; options?: PracticeSessionOptions } = {}): Promise<Harness> {
   const be = new TestBackend({ sampleRate: RATE, route: { routeKey: ROUTE, outputMode: 'wired', reportedLatencySec: 0.02 }, ...o.backend });
   const kv = new MemoryKv();
   const repos = memoryRepos(kv);
@@ -146,7 +146,7 @@ async function harness(o: { backend?: FakeBackendOptions; calibration?: Calibrat
       workers.push(w);
       return w;
     } },
-    { pollMs: 'manual', rng: createRng(7), finishTimeoutMs: 2000, ...(o.portMode ? { createCaptureChannel: inProcessChannel } : {}) },
+    { pollMs: 'manual', rng: createRng(7), finishTimeoutMs: 2000, ...(o.portMode ? { createCaptureChannel: inProcessChannel } : {}), ...o.options },
   );
   const events: SessionEvent[] = [];
   const stateAt = new Map<SessionState, number>();
@@ -590,6 +590,226 @@ describe('speakers in port mode: the worker runs the recheck (R55)', () => {
     expect(rec.score!.rankedReasons).toEqual([]);
     expect(h.events.some((e) => e.type === 'recalibrate-prompt')).toBe(true);
   }, 90_000);
+});
+
+describe('Hear it (05 §9, 08 session package)', () => {
+  const SOUND_CALLS = new Set(['playNotes', 'playClicks', 'playTone']);
+
+  it('ranked Listen first: practice now, the countdown runs on without auto start, the attempt records listened-first', async () => {
+    const h = await harness({ calibration: playAlong(40) });
+    const prepared = await h.session.prepare(settings());
+    expect(h.session.view.getState().mode).toBe('ranked');
+    await h.session.ensureAudio();
+    h.session.revealScan();
+    await drive(h, 2);
+    const before = h.events.filter((e) => e.type === 'scan-tick').length;
+    await h.session.listenFirst();
+    // The take is practice at once; the chip reads the view.
+    expect(h.session.pending!.mode).toBe('practice');
+    expect(h.session.pending!.listenedFirst).toBe(true);
+    expect(h.session.view.getState()).toMatchObject({ mode: 'practice', listenedFirst: true });
+    // It plays: one bar of clicks, then the excerpt.
+    expect(h.be.log.clickPlays).toHaveLength(1);
+    expect(h.be.log.clickPlays[0]!.times).toHaveLength(prepared.meter.countsPerBar);
+    expect(h.be.log.notePlays).toHaveLength(1);
+    expect(h.session.sounds.getState().playing).toBe('listen');
+    // The countdown never pauses, and at 0 a practice take does not start by itself.
+    const scanSec = cfg.levelByNumber[prepared.levelServed]!.scanSec;
+    await drive(h, scanSec);
+    const ticks = h.events.filter((e) => e.type === 'scan-tick');
+    expect(ticks.length).toBeGreaterThan(before + 5);
+    expect(h.session.view.getState().scan).toEqual({ remainingSec: 0, expired: true });
+    expect(h.session.state).toBe('scanning');
+    expect(h.be.log.scheduledTakes).toHaveLength(0);
+
+    await h.session.startTake();
+    play(h, 0.04);
+    await driveTo(h, 'results', 60);
+    const rec = lastRecord(h);
+    expect(rec.settingsResolved.mode).toBe('practice');
+    expect(rec.score!.rankedReasons).toContain('listened-first');
+    expect(rec.score!.rankedReasons).not.toContain('practice-mode');
+    expect(rec.score!.ranked).toBe(false);
+  }, 60_000);
+
+  it('practice Listen first plays with no mode change', async () => {
+    const h = await harness();
+    await h.session.prepare(settings({ mode: 'practice' }));
+    await h.session.ensureAudio();
+    h.session.revealScan();
+    await h.session.listenFirst();
+    expect(h.session.pending).toMatchObject({ mode: 'practice', listenedFirst: false });
+    expect(h.session.view.getState()).toMatchObject({ mode: 'practice', listenedFirst: false });
+    expect(h.be.log.notePlays).toHaveLength(1);
+    expect(h.be.log.clickPlays).toHaveLength(1);
+  }, 30_000);
+
+  it('nothing but the metronome and the voice reference plays from scheduleTake to the end of the take', async () => {
+    const h = await harness({ options: { soundPrefs: () => ({ sound: 'woodblock', accent: false, a4Hz: 440, listening: false }) } });
+    await h.session.prepare(settings({ instrumentId: 'voice-alto', mode: 'practice', listening: false, accentFirstBeat: false }));
+    await h.session.ensureAudio();
+    h.session.revealScan();
+    await h.session.listen();
+    const listenAt = h.be.log.calls.length;
+    await h.session.startTake();
+    const calls = h.be.log.calls.map((c) => c.method);
+    // "Start playing" stops the sound first, then the voice reference plays (R7), then the take is scheduled.
+    const stopAt = calls.indexOf('stopSounds', listenAt);
+    const toneAt = calls.indexOf('playTone', listenAt);
+    const schedAt = calls.indexOf('scheduleTake');
+    expect(stopAt).toBeGreaterThan(-1);
+    expect(stopAt).toBeLessThan(toneAt);
+    expect(toneAt).toBeLessThan(schedAt);
+    expect(h.session.sounds.getState().playing).toBe('reference');
+    // The sound and accent settings reach the take's schedule.
+    expect(h.be.log.scheduledTakes[0]!.params).toMatchObject({ timbre: 'tick', accent: false });
+
+    // Every sound control is refused during the count-in and the take.
+    await drive(h, 0.2);
+    expect(['count-in', 'performing']).toContain(h.session.state);
+    await expect(h.session.listen()).rejects.toThrow(/during a take/);
+    await expect(h.session.hearTempo()).rejects.toThrow(/during a take/);
+    await expect(h.session.hearKey()).rejects.toThrow(/during a take/);
+    await expect(h.session.playNote(60)).rejects.toThrow(/during a take/);
+    await expect(h.session.previewSound('beep')).rejects.toThrow(/during a take/);
+    await expect(h.session.hearBar(1)).rejects.toThrow(/during a take/);
+    await expect(h.session.playVoiceReference()).rejects.toThrow(/during a take/);
+    await expect(h.session.listenFirst()).rejects.toThrow(/listenFirst/);
+    h.session.stopSounds();
+    await driveTo(h, 'performing', 10);
+    await expect(h.session.listen()).rejects.toThrow(/during a take/);
+    await driveTo(h, 'results', 60);
+    const end = h.be.log.calls.length;
+    const during = h.be.log.calls.slice(schedAt, end).map((c) => c.method);
+    expect(during.filter((m) => SOUND_CALLS.has(m))).toEqual([]);
+    // Listening after results is free.
+    await h.session.listen({ slower: true });
+    expect(h.be.log.notePlays).toHaveLength(2);
+  }, 60_000);
+
+  it('the ranked auto start stops a sound first, and Hear the tempo keeps the take ranked', async () => {
+    const h = await harness();
+    const prepared = await h.session.prepare(settings());
+    await h.session.ensureAudio();
+    h.session.revealScan();
+    await h.session.hearTempo();
+    expect(h.session.pending!.mode).toBe('ranked');
+    expect(h.be.log.clickPlays[0]!.times).toHaveLength(prepared.meter.countsPerBar);
+    const afterTempo = h.be.log.calls.length;
+    const scanSec = cfg.levelByNumber[prepared.levelServed]!.scanSec;
+    await driveTo(h, 'count-in', scanSec + 1);
+    for (let i = 0; i < 20 && h.be.log.scheduledTakes.length === 0; i++) await flush();
+    const calls = h.be.log.calls.slice(afterTempo).map((c) => c.method);
+    expect(calls.indexOf('stopSounds')).toBeGreaterThan(-1);
+    expect(calls.indexOf('stopSounds')).toBeLessThan(calls.indexOf('scheduleTake'));
+    expect(h.session.view.getState().mode).toBe('ranked');
+    h.session.dispose();
+  }, 30_000);
+
+  it('hearTempo with no excerpt: one bar at the set tempo with the chosen sound and accent setting', async () => {
+    let accent = true;
+    const h = await harness({ options: { soundPrefs: () => ({ sound: 'beep', accent, a4Hz: 440, listening: true }) } });
+    await h.session.hearTempo(72, 3);
+    const p = h.be.log.clickPlays[0]!;
+    expect(p.sound).toBe('beep');
+    expect(p.accents).toEqual([true, false, false]);
+    const t = p.times.map((x) => x as number);
+    expect(t[1]! - t[0]!).toBeCloseTo(60 / 72, 9);
+    expect(t[2]! - t[1]!).toBeCloseTo(60 / 72, 9);
+    expect(t[0]!).toBeGreaterThan(h.be.now() as number);
+    expect(h.session.sounds.getState()).toMatchObject({ playing: 'tempo', caption: { kind: 'tempo', bpm: 72 } });
+    accent = false;
+    await h.session.hearTempo(120, 4);
+    expect(h.be.log.clickPlays[1]!.accents).toEqual([false, false, false, false]);
+    // One sound at a time: each start stops the one before.
+    expect(h.be.log.stopSounds).toBe(2);
+    await expect(h.session.hearTempo()).rejects.toThrow(/needs a tempo/);
+  });
+
+  it('hearKey: a B♭ clarinet reading A major sounds G major, root at or below the first note', async () => {
+    const h = await harness();
+    let prepared;
+    for (const level of [3, 4, 2, 5, 6, 1]) {
+      try {
+        prepared = await h.session.prepare(settings({ instrumentId: 'clarinet-bb', level, mode: 'practice', writtenKey: { fifths: 3, mode: 'major' } }));
+        break;
+      } catch {
+        // No A major clarinet excerpt at this level in the fixture corpus; try the next.
+      }
+    }
+    expect(prepared, 'an A major clarinet excerpt in the fixture corpus').toBeDefined();
+    expect(prepared!.writtenKey).toEqual({ fifths: 3, mode: 'major' });
+    expect(prepared!.concertKey).toEqual({ fifths: 1, mode: 'major' });
+    await h.session.hearKey();
+    const first = h.session.plan!.expected[0]!.concertMidi;
+    const notes = h.be.log.notePlays[0]!.notes;
+    const midis = notes.map((n) => Math.round(69 + 12 * Math.log2(n.hz / 440)));
+    expect(((midis[0]! % 12) + 12) % 12).toBe(7); // G
+    expect(midis[1]! - midis[0]!).toBe(4);
+    expect(midis[2]! - midis[0]!).toBe(7);
+    expect(midis[0]!).toBeLessThanOrEqual(first);
+    expect(first - midis[0]!).toBeLessThan(12);
+    // The caption names the written key (designer's note 4).
+    expect(h.session.sounds.getState().caption).toEqual({ kind: 'key-chord', writtenKey: { fifths: 3, mode: 'major' }, concertKey: { fifths: 1, mode: 'major' } });
+  }, 30_000);
+
+  it('playNote, previewSound, hearBar and stopSounds', async () => {
+    const h = await harness();
+    await h.session.playNote(60);
+    expect(h.be.log.notePlays[0]!.notes).toEqual([{ hz: midiToFreq(60, 440), startSec: 0, durSec: 1 }]);
+    await h.session.previewSound('woodblock');
+    const pv = h.be.log.clickPlays[0]!;
+    expect(pv.sound).toBe('woodblock');
+    expect(pv.accents).toEqual([true, false, false, false]);
+    expect((pv.times[1]! as number) - (pv.times[0]! as number)).toBeCloseTo(60 / 90, 9);
+    expect(h.session.sounds.getState().playing).toBe('preview');
+    h.session.stopSounds();
+    expect(h.session.sounds.getState().playing).toBeNull();
+
+    const prepared = await h.session.prepare(settings({ mode: 'practice' }));
+    await h.session.hearBar(1);
+    const bar = h.be.log.notePlays.at(-1)!.notes;
+    const inBar1 = h.session.plan!.expected.filter((e) => e.bar === (prepared.pickupTicks > 0 ? 0 : 1) || e.bar === 1).length;
+    expect(bar.length).toBeGreaterThan(0);
+    expect(bar.length % 2).toBe(0);
+    expect(bar.length).toBeLessThanOrEqual(2 * inBar1);
+    expect(h.session.sounds.getState().playing).toBe('bar');
+  }, 30_000);
+
+  it('Listen for a stored attempt rebuilds its excerpt at the take tempo', async () => {
+    const h = await harness();
+    const prepared = await h.session.prepare(settings({ mode: 'practice', listening: false }));
+    await h.session.ensureAudio();
+    h.session.revealScan();
+    await h.session.startTake();
+    await driveTo(h, 'results', 60);
+    const rec = lastRecord(h);
+    const again = await h.session.preparedForRecord({ ...rec, id: 'another-attempt' });
+    expect(again).not.toBeNull();
+    expect(again!.measures).toEqual(prepared.measures);
+    expect(again!.writtenKey).toEqual(prepared.writtenKey);
+    await h.session.listen({ record: { ...rec, id: 'another-attempt' }, fromBar: 2, slower: true });
+    expect(h.session.sounds.getState()).toMatchObject({ playing: 'listen', fromBar: 2, slower: true, attemptId: 'another-attempt' });
+    const clicks = h.be.log.clickPlays.at(-1)!.times.map((t) => t as number);
+    expect(clicks[1]! - clicks[0]!).toBeCloseTo(60 / (rec.bpm * 0.75), 9);
+    // A withdrawn or unknown excerpt gives null, and Listen refuses.
+    expect(await h.session.preparedForRecord({ ...rec, id: 'x', excerptId: 'nope' })).toBeNull();
+    await expect(h.session.listen({ record: { ...rec, id: 'x', excerptId: 'nope' } })).rejects.toThrow(/not available/);
+  }, 60_000);
+
+  it('rankedAvailability: the calibration-unmeasured predicate plus the microphone', async () => {
+    const h = await harness({ calibration: playAlong(40) });
+    expect(await h.session.rankedAvailability({ routeKey: ROUTE, listening: true, outputMode: 'wired' })).toEqual({ available: true, block: null });
+    expect(await h.session.rankedAvailability({ routeKey: 'other', listening: true, outputMode: 'wired' })).toEqual({ available: false, block: 'calibration' });
+    expect(await h.session.rankedAvailability({ routeKey: ROUTE, listening: false, outputMode: 'wired' })).toEqual({ available: false, block: 'mic' });
+    // Before any unlock the route is unknown: a measured calibration for the chosen output mode counts.
+    expect(await h.session.rankedAvailability({ listening: true, outputMode: 'wired' })).toEqual({ available: true, block: null });
+    expect(await h.session.rankedAvailability({ listening: true, outputMode: 'speakers' })).toEqual({ available: false, block: 'calibration' });
+    await h.repos.calibrations.put({ ...playAlong(40), stale: true });
+    expect(await h.session.rankedAvailability({ routeKey: ROUTE, listening: true, outputMode: 'wired' })).toEqual({ available: false, block: 'calibration' });
+    const denied = await harness({ backend: { permission: 'denied' } });
+    expect(await denied.session.rankedAvailability({ routeKey: ROUTE, listening: true, outputMode: 'wired' })).toEqual({ available: false, block: 'mic' });
+  });
 });
 
 describe('view store reducer', () => {

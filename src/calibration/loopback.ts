@@ -6,7 +6,8 @@
  * `config/measurement-budget.json` `calibration.loopback`. Pure.
  */
 import type { Calibration, ClickTimbre, MeasurementBudget } from '../core/types.ts';
-import { buildClickTemplate } from '../dsp/click.ts';
+import { clickLengthSec } from '../core/click-sounds.ts';
+import { buildClickTemplate, CLICK_TEMPLATE_PRE_SEC, CLICK_TEMPLATE_SEC } from '../dsp/click.ts';
 import {
   calibrationClickShape,
   hiBandCandidates,
@@ -57,6 +58,19 @@ export interface LoopbackResult {
   templates: Calibration['templates'];
   /** Peak 2 ms low-band power of the selected timbre's template, dBFS; null when not accepted. */
   clickLeakDb: number | null;
+}
+
+/** Room tail kept after the end of a new sound's click in its template, seconds. */
+export const TEMPLATE_TAIL_SEC = 0.003;
+
+/**
+ * Low-band template length of a timbre, pre-roll included: Tick and Wood keep the dsp default (20 ms); the new
+ * sounds (30 to 60 ms) cover the whole click plus `TEMPLATE_TAIL_SEC`, since the take subtracts only what the
+ * template spans and a Woodblock tail left after 18 ms reads as a note onset (metronome-sounds.gate.test.ts).
+ */
+export function clickTemplateLengthSec(timbre: ClickTimbre): number {
+  if (timbre === 'tick' || timbre === 'wood') return CLICK_TEMPLATE_SEC;
+  return Math.max(CLICK_TEMPLATE_SEC, CLICK_TEMPLATE_PRE_SEC + clickLengthSec(timbre, false) + TEMPLATE_TAIL_SEC);
 }
 
 /** Peak 2 ms mean-square of a template, dB (the convention of `ClickFit.leakEnvDb`, src/dsp/click.ts). */
@@ -115,7 +129,7 @@ export function analyzeLoopback(rec: CaptureRecording, sched: LoopbackSchedule, 
     templates.tick = { rate, samples: Array.from(tick) };
     // Every other timbre (Wood, Classic, Woodblock, Beep) gets its own template from its clicks (06 §9.5).
     if (sched.templateTimbre !== 'tick' && extra.length) {
-      const own = buildClickTemplate(rec.lowband, rec.lowStartT, rate, extra);
+      const own = buildClickTemplate(rec.lowband, rec.lowStartT, rate, extra, { lengthSec: clickTemplateLengthSec(sched.templateTimbre) });
       templates[sched.templateTimbre] = { rate, samples: Array.from(own) };
     }
     const sel = templates[sched.templateTimbre];

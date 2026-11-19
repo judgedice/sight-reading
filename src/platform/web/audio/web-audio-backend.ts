@@ -39,7 +39,9 @@ import type {
 } from '../../../core/platform.ts';
 import budgetJson from '../../../../config/measurement-budget.json';
 import { browserAudioDeps, type AudioContextLike, type GainNodeLike, type TrackLike, type WebAudioDeps, type WorkletNodeLike, type MediaStreamLike, type AudioNodeLike } from './deps.ts';
-import { Metronome } from './metronome.ts';
+import type { ClickBuffer } from './metronome.ts';
+import { ListenVoiceCache, LISTEN_BUS_GAIN } from './listen-voice.ts';
+import { CALIBRATION_ACCENT_DB, Metronome } from './metronome.ts';
 import { CAPTURE_PROCESSOR_NAME, FRAMES_PER_BLOCK, type FromWorklet, type ToWorklet } from './protocol.ts';
 import { appliedProcessingOf, inputKindOf, routeKeyOf } from './route.ts';
 
@@ -129,11 +131,17 @@ export class WebAudioBackend implements AudioBackend {
   private srcNode: AudioNodeLike | null = null;
   private zeroGain: GainNodeLike | null = null;
   private clickBus: GainNodeLike | null = null;
-  /** Tone sources not yet ended, so `stopSounds` can cancel them. */
+  /** Tone and note sources not yet ended, so `stopSounds` can cancel them. */
   private readonly liveTones = new Set<{ stop(): void; disconnect(): void; onended: (() => void) | null }>();
-  /** Context time after which the running take has no more clicks (stopSounds keeps the metronome until then). */
+  /** Context time after which the running take has no more clicks; sounds are refused until then. */
   private takeEndsAt = 0;
+  /** The take's clicks. `stopSounds` never touches it. */
   private metronome: Metronome | null = null;
+  /** Previews, lead-ins and calibration clicks: their own scheduler, so `stopSounds` cannot cancel a take. */
+  private soundMetronome: Metronome | null = null;
+  /** The Listen voice's own gain, about -12 dBFS peak, feeding the click bus at unity (click volume is set per click, not on the bus). */
+  private listenBus: GainNodeLike | null = null;
+  private readonly listenVoice = new ListenVoiceCache();
   private stream: MediaStreamLike | null = null;
   private track: TrackLike | null = null;
   private route: AudioRouteInfo | null = null;
@@ -320,12 +328,20 @@ export class WebAudioBackend implements AudioBackend {
     this.srcNode = src;
     this.zeroGain = zero;
     this.clickBus = bus;
-    this.metronome = new Metronome(ctx, bus, this.opts.clickGain !== undefined ? { clickGain: this.opts.clickGain } : {});
+    const mo = this.opts.clickGain !== undefined ? { clickGain: this.opts.clickGain } : {};
+    this.metronome = new Metronome(ctx, bus, mo);
+    this.soundMetronome = new Metronome(ctx, bus, mo);
+    const lb = ctx.createGain();
+    lb.gain.value = LISTEN_BUS_GAIN;
+    lb.connect(bus);
+    this.listenBus = lb;
   }
 
   private teardownGraph(): void {
     this.metronome?.cancel();
-    for (const n of [this.srcNode, this.node, this.zeroGain, this.clickBus]) {
+    this.soundMetronome?.cancel();
+    this.stopTones();
+    for (const n of [this.srcNode, this.node, this.zeroGain, this.clickBus, this.listenBus]) {
       try {
         n?.disconnect();
       } catch {
@@ -337,7 +353,9 @@ export class WebAudioBackend implements AudioBackend {
     this.srcNode = null;
     this.zeroGain = null;
     this.clickBus = null;
+    this.listenBus = null;
     this.metronome = null;
+    this.soundMetronome = null;
   }
 
   /** Close the context and build a fresh one on the same stream (W3; at most once per backend). */
@@ -479,30 +497,42 @@ export class WebAudioBackend implements AudioBackend {
   }
 
   async playCalibrationClicks(times: ClockSeconds[], timbre: ClickTimbre): Promise<void> {
-    this.requireMetronome().scheduleClicks(times, timbre);
+    this.requireSoundMetronome().scheduleClicks(times, timbre);
   }
 
   async playTone(hz: number, durSec: number, at: ClockSeconds): Promise<void> {
+    this.requireIdle();
     this.startTone(hz, durSec, at, 0.5);
   }
 
-  /** Interface stub until `playback-engine` lands: one sine per note through the same bus as `playTone`. */
+  /** Listen (05 §9.2): the pre-rendered additive tone on the Listen bus. `opts.peak` scales the bus's -12 dBFS ceiling (0..1). */
   async playNotes(notes: readonly PlayNote[], opts: PlayNotesOptions): Promise<void> {
     const ctx = this.requireContext();
+    this.requireIdle();
     const origin = opts.at ?? (ctx.currentTime as ClockSeconds);
     const peak = Math.min(1, Math.max(0, opts.peak));
-    for (const n of notes) this.startTone(n.hz, n.durSec, (origin + n.startSec) as ClockSeconds, peak);
+    for (const n of notes) {
+      const data = this.listenVoice.get(n.hz, n.durSec, ctx.sampleRate, peak);
+      const real = ctx.createBuffer(1, data.length, ctx.sampleRate);
+      real.getChannelData(0).set(data);
+      this.startSource(real, this.listenBus as GainNodeLike, origin + n.startSec);
+    }
   }
 
-  /** Interface stub: built on the existing metronome (classic maps to tick, woodblock to wood, beep to tick). */
+  /** Previews and lead-ins through the metronome's click recipes, on a scheduler a take never shares. */
   async playClicks(times: ClockSeconds[], sound: MetronomeSound, accents: boolean[]): Promise<void> {
-    const m = this.requireMetronome();
-    const timbre: ClickTimbre = sound === 'woodblock' ? 'wood' : 'tick';
-    m.scheduleClicks(times.filter((_, i) => accents[i]), timbre, 5);
-    m.scheduleClicks(times.filter((_, i) => !accents[i]), timbre, 0);
+    const m = this.requireSoundMetronome();
+    this.requireIdle();
+    m.playClicks(times, sound, accents, CALIBRATION_ACCENT_DB);
   }
 
+  /** Stops every source from playNotes, playClicks, playTone and playCalibrationClicks at once; a running take is not touched. */
   stopSounds(): void {
+    this.stopTones();
+    this.soundMetronome?.cancel();
+  }
+
+  private stopTones(): void {
     for (const t of [...this.liveTones]) {
       t.onended = null;
       try {
@@ -513,8 +543,26 @@ export class WebAudioBackend implements AudioBackend {
       t.disconnect();
     }
     this.liveTones.clear();
-    // The metronome holds take and preview clicks together; leave it alone while a take is still sounding.
-    if (this.metronome && (this.ctx?.currentTime ?? 0) >= this.takeEndsAt) this.metronome.cancel();
+  }
+
+  /** Sounds never overlap a take: the microphone would hear them (05 §9.1). */
+  private requireIdle(): void {
+    const ctx = this.requireContext();
+    if (this.takeEndsAt > 0 && ctx.currentTime < this.takeEndsAt) throw new Error('WebAudioBackend: a take is scheduled; no sound may start');
+  }
+
+  private startSource(buf: ClickBuffer, out: GainNodeLike, at: number): void {
+    const ctx = this.requireContext();
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    src.connect(out);
+    const live = src as unknown as { stop(): void; disconnect(): void; onended: (() => void) | null };
+    this.liveTones.add(live);
+    src.onended = () => {
+      this.liveTones.delete(live);
+      src.disconnect();
+    };
+    src.start(at);
   }
 
   private startTone(hz: number, durSec: number, at: ClockSeconds, peak: number): void {
@@ -531,16 +579,7 @@ export class WebAudioBackend implements AudioBackend {
       else if (i >= n - fade) env = 0.5 - 0.5 * Math.cos((Math.PI * (n - 1 - i)) / fade);
       d[i] = peak * env * Math.sin(w * i);
     }
-    const src = ctx.createBufferSource();
-    src.buffer = buf;
-    src.connect(this.clickBus as GainNodeLike);
-    const live = src as unknown as { stop(): void; disconnect(): void; onended: (() => void) | null };
-    this.liveTones.add(live);
-    src.onended = () => {
-      this.liveTones.delete(live);
-      src.disconnect();
-    };
-    src.start(at);
+    this.startSource(buf, this.clickBus as GainNodeLike, at);
   }
 
   /** Clicks scheduled since unlock (diagnostics and tests). */
@@ -561,6 +600,11 @@ export class WebAudioBackend implements AudioBackend {
   private requireMetronome(): Metronome {
     this.requireContext();
     return this.metronome as Metronome;
+  }
+
+  private requireSoundMetronome(): Metronome {
+    this.requireContext();
+    return this.soundMetronome as Metronome;
   }
 
   // ---- capture (01 §7.2) -------------------------------------------------------------------------

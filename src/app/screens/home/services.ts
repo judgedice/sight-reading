@@ -5,7 +5,7 @@
  */
 import type { StoreApi } from 'zustand/vanilla';
 import type { AppSettings, Configs, PlayerProfile, PracticeSettings } from '../../../core/types.ts';
-import type { SessionView } from '../../../session/index.ts';
+import type { RankedAvailability, SessionView, SoundView } from '../../../session/index.ts';
 
 export interface Readable<T> {
   get(): T;
@@ -55,4 +55,22 @@ export interface HomeServices {
    * to the scan).
    */
   onStart?(settings: PracticeSettings): boolean | void;
+  /**
+   * "Hear the tempo" on the tempo row (05 §9.1, §9.5): one bar of the chosen metronome sound at `bpm`, downbeat
+   * accented if on. Call from the click (it unlocks audio). Absent: the button is not shown.
+   */
+  hearTempo?(bpm: number, beatsPerBar: number): Promise<void>;
+  /** A range-picture note button ("Hear C3"): that sounding MIDI note for 1 s. Call from the click. */
+  playNote?(concertMidi: number): Promise<void>;
+  /** Stops any sound at once (leaving the screen, pressing a playing button again). */
+  stopSounds?(): void;
+  /** What is sounding now (the playing state of the sound buttons). */
+  sounds?: StoreApi<SoundView>;
+  /**
+   * Can Ranked be chosen (05 §4.5, §5.8): the `calibration-unmeasured` gate predicate for the route plus the
+   * microphone. `block` names the visible reason: `mic` ("Turn on microphone") first, then `calibration`.
+   */
+  rankedAvailability?: Readable<RankedAvailability>;
+  /** "Turn on microphone": turns listening on and runs the permission request. Call from the click. */
+  turnOnMic?(): Promise<{ ok: boolean }>;
 }

@@ -3,7 +3,7 @@
 import type { MessagePortLike, PlatformCapabilities, WorkerMessage } from '../../src/core/platform.ts';
 import { CaptureRecording, analyzeLoopback, randomClickTimes } from '../../src/calibration/index.ts';
 import { createRng } from '../../src/core/rng.ts';
-import type { ClockSeconds } from '../../src/core/platform.ts';
+import type { ClickTimbre, ClockSeconds } from '../../src/core/platform.ts';
 import budgetJson from '../../config/measurement-budget.json';
 import { WebAudioBackend, browserAudioDeps } from '../../src/platform/web/audio/index.ts';
 import { createSyntheticCapture, syntheticCaptureFlag, type SyntheticCapture } from '../../src/platform/web/audio/synthetic-capture.ts';
@@ -88,10 +88,12 @@ async function contiguity(sec: number, mode: 'port' | 'relay'): Promise<{ blocks
 }
 
 /**
- * Loopback with the real calibration analysis (01 §7.8): play 10 Tick clicks through the backend, capture them
- * through the synthetic delay line, and let `analyzeLoopback` measure the round trip.
+ * Loopback with the real calibration analysis (01 §7.8): play 10 clicks through the backend, capture them through
+ * the synthetic delay line, and let `analyzeLoopback` measure the round trip. `sound` plays the clicks in that sound
+ * and finds them by its own arrival envelope (06 §9.5); `templateSound` adds the calibration's template clicks in
+ * that sound after the Tick clicks, as the calibration flow does, and reports the template it builds.
  */
-async function loopback(): Promise<{ rtlMs: number | null; madMs: number | null; found: number; scheduled: number; accepted: boolean; failure: string | null; lagsMs: (number | null)[] }> {
+async function loopback(o: { sound?: ClickTimbre; templateSound?: ClickTimbre } = {}): Promise<{ rtlMs: number | null; madMs: number | null; found: number; scheduled: number; accepted: boolean; failure: string | null; lagsMs: (number | null)[]; templates: Record<string, number> }> {
   const be = backend as WebAudioBackend;
   const rec = new CaptureRecording(be.audioInfo().contextSampleRate);
   await be.startCapture((m: WorkerMessage) => {
@@ -99,12 +101,23 @@ async function loopback(): Promise<{ rtlMs: number | null; madMs: number | null;
   });
   await sleep(300);
   const rng = createRng(0x10);
-  const times = randomClickTimes(be.now() + 0.6, budget.loopback.clicks, () => rng.next()) as ClockSeconds[];
-  await be.playCalibrationClicks(times, 'tick');
-  while (be.now() < (times[times.length - 1] as number) + 0.5) await sleep(50);
+  const sound = o.sound ?? 'tick';
+  const n = budget.loopback.clicks + (o.templateSound ? budget.loopback.templateClicks : 0);
+  const all = randomClickTimes(be.now() + 0.6, n, () => rng.next()) as ClockSeconds[];
+  const times = all.slice(0, budget.loopback.clicks);
+  const templateClicks = all.slice(budget.loopback.clicks);
+  await be.playCalibrationClicks(times, sound);
+  if (o.templateSound) await be.playCalibrationClicks(templateClicks, o.templateSound);
+  while (be.now() < (all[all.length - 1] as number) + 0.5) await sleep(50);
   be.stopCapture();
-  const r = analyzeLoopback(rec, { ticks: times, templateClicks: [], templateTimbre: 'tick', silence: { t0: times[0]! - 0.25, t1: times[0]! - 0.05 } }, budget);
-  return { rtlMs: r.rtlMs, madMs: r.madMs, found: r.clicksFound, scheduled: r.clicksScheduled, accepted: r.accepted, failure: r.failure, lagsMs: r.arrivals.map((a) => (a.lagSec === null ? null : a.lagSec * 1000)) };
+  const r = analyzeLoopback(
+    rec,
+    { ticks: times, templateClicks, templateTimbre: o.templateSound ?? sound, clickTimbre: sound, silence: { t0: times[0]! - 0.25, t1: times[0]! - 0.05 } },
+    budget,
+  );
+  const templates: Record<string, number> = {};
+  for (const [k, v] of Object.entries(r.templates)) if (v) templates[k] = v.samples.length;
+  return { rtlMs: r.rtlMs, madMs: r.madMs, found: r.clicksFound, scheduled: r.clicksScheduled, accepted: r.accepted, failure: r.failure, lagsMs: r.arrivals.map((a) => (a.lagSec === null ? null : a.lagSec * 1000)), templates };
 }
 
 /** IOS2 in the browser: a take is "performing", the page goes hidden, and the controller must void and release the mic. */

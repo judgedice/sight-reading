@@ -41,6 +41,10 @@ export interface OnboardingServices {
   calibration: CalibrationServices;
   /** Saves profile and settings (onboardingDone) and returns where to go: Scan with the placement chip, or Home. */
   finish(r: OnboardingResult): Promise<string>;
+  /** A range-picture note button in the picker: that sounding MIDI note for 1 s. Call from the click. */
+  playNote?(concertMidi: number): Promise<void>;
+  /** Stops any sound at once (leaving the step). */
+  stopSounds?(): void;
 }
 
 const Ctx = createContext<OnboardingServices | null>(null);

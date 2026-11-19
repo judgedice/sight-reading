@@ -70,6 +70,13 @@ export interface CalibrationServices {
   save(c: Calibration): Promise<void>;
   /** Offers the diagnostics text as a download. */
   exportDiagnostics(json: string): void;
+  /**
+   * "Hear the click" (05 §8.4, designer's note 12): one bar of the chosen metronome sound at ♩ = 90. Before Start and
+   * on the result only, never while listening. Call from the click.
+   */
+  hearClick?(): Promise<void>;
+  /** Stops the click preview at once (Start, leaving the screen). */
+  stopSounds?(): void;
 }
 
 const Ctx = createContext<CalibrationServices | null>(null);

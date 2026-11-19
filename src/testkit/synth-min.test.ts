@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { REF_NAMES, REF_SPECS, renderRefWavBytes } from './ref-wavs.ts';
+import { renderClick } from '../core/click-sounds.ts';
 import { clickBurst, renderMin } from './synth-min.ts';
 import { decodeWav } from './wav.ts';
 
@@ -108,6 +109,17 @@ describe('renderMin', () => {
     expect(diff(0.5, 0.52)).toBeGreaterThan(0);
     expect(diff(0.1, 0.49)).toBe(0);
     expect(diff(0.53, 0.95)).toBe(0);
+  });
+
+  it('renders the player\'s sounds with the metronome\'s own samples, whole 60 ms included', () => {
+    for (const sound of ['classic', 'woodblock', 'beep'] as const) {
+      for (const accent of [false, true]) expect(Array.from(clickBurst(sound, accent, SR))).toEqual(Array.from(renderClick(sound, accent, SR)));
+    }
+    const r = renderMin({ sampleRate: SR, notes: [], clicks: [{ t: 0.1, accent: true }], clickTimbre: 'classic', bleedDb: -10 });
+    expect(r.samples.length / SR).toBeGreaterThanOrEqual(0.1 + 0.06);
+    const burst = clickBurst('classic', true, SR);
+    const g = 10 ** (-12 / 20) * 10 ** (-10 / 20) * 10 ** (5 / 20);
+    for (let k = 0; k < burst.length; k += 97) expect(r.samples[Math.round(0.1 * SR) + k]).toBeCloseTo((burst[k] as number) * g, 6);
   });
 
   it('noise floor matches the requested RMS', () => {

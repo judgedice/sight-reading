@@ -12,7 +12,7 @@ const DESKTOP = { width: 1440, height: 900 };
 async function open(page: Page, query = '', size = DESKTOP): Promise<void> {
   await page.setViewportSize(size);
   await page.goto(`${STORY}?${query}`);
-  await page.waitForSelector('[data-story]');
+  await page.waitForSelector('[data-story]', { state: 'attached' });
   await page.evaluate(async () => {
     await document.fonts.ready;
   });
@@ -86,6 +86,7 @@ test('on a phone the confirm is a sheet: a scrim tap and a swipe down keep it ra
   await expect(sheet).toBeVisible();
   await expect(sheet.getByRole('button', { name: 'Keep it ranked' })).toBeFocused();
   await expect(sheet.locator('.ui-icon-button')).toBeHidden();
+  await page.waitForTimeout(600); // the sheet slides in
   const box = (await page.locator('[data-testid=sheet-grabber]').boundingBox())!;
   await page.mouse.move(box.x + box.width / 2, box.y + 4);
   await page.mouse.down();
@@ -135,7 +136,7 @@ test('the coach mark is inline: it pushes the sounds down and covers neither Sta
   const card = (await page.locator('[data-story="desktop"] .sd-group').boundingBox())!;
   expect(coach.y).toBeGreaterThanOrEqual(start.y + start.height);
   expect(card.y).toBeGreaterThanOrEqual(coach.y + coach.height);
-  expect(await page.locator('[data-testid=coach-mark]').evaluate((e) => getComputedStyle(e).position)).toBe('relative');
+  expect(await page.locator('[data-story="desktop"] [data-testid=coach-mark]').evaluate((e) => getComputedStyle(e).position)).toBe('relative');
 });
 
 const SCREENS: readonly [string, string, typeof DESKTOP, string?][] = [
@@ -158,6 +159,7 @@ test('screenshots, light and dark, desktop and phone', async ({ page }) => {
     for (const theme of ['light', 'dark']) {
       await open(page, `${query}&theme=${theme}`, size);
       if (extra === 'popover') await info(page).click();
+      await page.waitForTimeout(600); // overlays finish sliding in
       await page.screenshot({ path: join(SHOTS, `${name}-${size === PHONE ? 'phone' : 'desktop'}-${theme}.png`) });
     }
   }

@@ -8,4 +8,8 @@ import type { Readable } from '../home/services.ts';
 export interface ProgressServices {
   configs: Configs;
   profile: Readable<PlayerProfile | undefined>;
+  /** A range-picture note on the per-instrument card: that sounding MIDI note for 1 s. Call from the click. */
+  playNote?(concertMidi: number): Promise<void>;
+  /** Stops any sound at once (leaving the screen). */
+  stopSounds?(): void;
 }

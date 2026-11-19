@@ -1,5 +1,7 @@
 // IOS7 (05 §9): synthetic capture in a real browser. The worklet loads, blocks are contiguous by seq on the port path
 // and on the forced relay, and loopback measures injected delays of 25, 60 and 110 ms within 1 ms.
+// 06 §9.5: each metronome sound (Classic, Woodblock, Beep) is found by the loopback detector (at least 7 of 10,
+// MAD at most 3 ms) and calibrates with its own template after the Tick clicks.
 // IOS2 (05 §9): a dispatched visibilitychange mid-take yields a void and no live track within 2 s.
 import { expect, test, type Page } from '@playwright/test';
 import { openSyntheticPage } from './page.ts';
@@ -8,7 +10,7 @@ type Api = {
   make(o?: { delayMs?: number; toneHz?: number; forceRelay?: boolean; search?: string }): { flag: { delayMs: number } | null };
   waitUnlocked(): Promise<{ ok: boolean; error?: string }>;
   contiguity(sec: number, mode: 'port' | 'relay'): Promise<{ blocks: number; seqGaps: number; relay: boolean; droppedBlocks: number; tone: boolean }>;
-  loopback(): Promise<{ rtlMs: number | null; madMs: number | null; found: number; scheduled: number; accepted: boolean; failure: string | null; lagsMs: (number | null)[] }>;
+  loopback(o?: { sound?: string; templateSound?: string }): Promise<{ rtlMs: number | null; madMs: number | null; found: number; scheduled: number; accepted: boolean; failure: string | null; lagsMs: (number | null)[]; templates: Record<string, number> }>;
   interruptMidTake(): Promise<{ voids: { reason: string; burnExcerpt: boolean; countsAsSkip: boolean }[]; liveTracksAfterMs: number[]; closedMs: number | null }>;
   streams(): number;
 };
@@ -58,6 +60,32 @@ for (const d of [25, 60, 110]) {
     expect(r.accepted, String(r.failure)).toBe(true);
     expect(r.found).toBe(r.scheduled);
     expect(Math.abs((r.rtlMs as number) - d)).toBeLessThanOrEqual(1);
+  });
+}
+
+for (const sound of ['classic', 'woodblock', 'beep'] as const) {
+  for (const d of [25, 60, 110]) {
+    test(`${sound}: loopback finds its clicks at d = ${d} ms (>= 7 of 10, MAD <= 3 ms)`, async ({ page }) => {
+      await start(page, { delayMs: d, toneHz: 0 });
+      const r = await page.evaluate((s) => (window as unknown as { synthTest: Api }).synthTest.loopback({ sound: s }), sound);
+      report(`${sound} d=${d}: rtl ${r.rtlMs?.toFixed(2)} ms, mad ${r.madMs?.toFixed(2)} ms, ${r.found}/${r.scheduled} clicks found, accepted=${r.accepted}`);
+      expect(r.accepted, String(r.failure)).toBe(true);
+      expect(r.found).toBeGreaterThanOrEqual(7);
+      expect(r.madMs as number).toBeLessThanOrEqual(3);
+      expect(Math.abs((r.rtlMs as number) - d)).toBeLessThanOrEqual(1);
+    });
+  }
+
+  test(`${sound}: calibrates (10 Tick clicks, then its template clicks) with its own template`, async ({ page }) => {
+    await start(page, { delayMs: 60, toneHz: 0 });
+    const r = await page.evaluate((s) => (window as unknown as { synthTest: Api }).synthTest.loopback({ templateSound: s }), sound);
+    report(`${sound} calibration: rtl ${r.rtlMs?.toFixed(2)} ms, mad ${r.madMs?.toFixed(2)} ms, ${r.found}/${r.scheduled} found, templates ${JSON.stringify(r.templates)}`);
+    expect(r.accepted, String(r.failure)).toBe(true);
+    expect(r.found).toBeGreaterThanOrEqual(7);
+    expect(r.madMs as number).toBeLessThanOrEqual(3);
+    expect(Math.abs((r.rtlMs as number) - 60)).toBeLessThanOrEqual(1);
+    expect(r.templates[sound]).toBeGreaterThan(0);
+    expect(r.templates['tick']).toBeGreaterThan(0);
   });
 }
 

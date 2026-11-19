@@ -46,6 +46,13 @@ export interface SessionView {
   emptyPoolSuggestions: Partial<PracticeSettings>[] | null;
   /** Route key whose calibration the results screen should offer to redo (R31). */
   recalibrateRouteKey: string | null;
+  /**
+   * Mode of the excerpt on screen as it stands now (Try again and Listen first make it practice); null before an
+   * excerpt is prepared. The session sets it; no `SessionEvent` carries it.
+   */
+  mode: 'ranked' | 'practice' | null;
+  /** The player listened first in a ranked read-through, so this take is practice (`listened-first`, decision 7). */
+  listenedFirst: boolean;
 }
 
 export const initialSessionView = (): SessionView => ({
@@ -63,6 +70,8 @@ export const initialSessionView = (): SessionView => ({
   error: null,
   emptyPoolSuggestions: null,
   recalibrateRouteKey: null,
+  mode: null,
+  listenedFirst: false,
 });
 
 const STATUS_RANK: Record<SessionStatus['kind'], number> = { 'no-signal': 0, 'lost-place': 1, 'come-in-at': 2, 'restarting-count-in': 3 };

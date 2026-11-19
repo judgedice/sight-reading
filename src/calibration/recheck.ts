@@ -2,9 +2,9 @@
  * Per-take count-in recheck (01 §7.7, 05 "Per-take count-in recheck", R31). Speakers only. Pure.
  *
  * The worker measures RTL from the take's count-in clicks: Tick, Classic, Woodblock and Beep in the hi band (the
- * Tick layer, each with its own arrival envelope), Wood in the low band by template correlation. A new sound whose
- * hi band is not enough falls back to the low band with its stored template; after a sound change there is none yet
- * and the hi band alone decides. Accepted with at least `recheck.minClicks` found and MAD at most `recheck.maxMadMs`. Then:
+ * Tick layer, each with its own arrival envelope), Wood in the low band by template correlation. Classic or
+ * Woodblock whose hi band is not enough falls back to the low band with its stored template; after a sound change
+ * there is none yet and the hi band alone decides (as it always does for Beep). Accepted with at least `recheck.minClicks` found and MAD at most `recheck.maxMadMs`. Then:
  * - a fresh value more than `useFreshAboveMs` from the stored one is used for the take (`usedFresh`), which keeps
  *   the take ranked (R31);
  * - more than `staleAboveMs` marks the calibration stale and the results prompt recalibration;
@@ -50,6 +50,12 @@ export interface RecheckDetail extends RecheckResult {
   arrivals: ClickArrival[];
 }
 
+/**
+ * Sounds whose low band can time a click by template correlation when the hi band does not measure. Not Beep: its
+ * low band is a steady 2 kHz tone, whose correlation peaks every cycle (0.5 ms) and lands cycles off.
+ */
+const TEMPLATE_FALLBACK: ReadonlySet<ClickTimbre> = new Set<ClickTimbre>(['classic', 'woodblock']);
+
 /** Whether arrivals meet the recheck's acceptance (count and spread). */
 function measures(arrivals: readonly ClickArrival[], rc: CalibrationBudget['recheck']): boolean {
   const lagsMs = arrivals.filter((a) => a.lagSec !== null).map((a) => (a.lagSec as number) * 1000);
@@ -85,7 +91,7 @@ export function analyzeRecheck(rec: CaptureRecording, countIn: readonly CountInC
   if (o.timbre === 'wood') arrivals = low();
   else {
     arrivals = hi();
-    if (o.timbre !== 'tick' && o.template && o.template.length > 0 && !measures(arrivals, rc)) {
+    if (TEMPLATE_FALLBACK.has(o.timbre) && o.template && o.template.length > 0 && !measures(arrivals, rc)) {
       const viaTemplate = low();
       if (measures(viaTemplate, rc)) arrivals = viaTemplate;
     }

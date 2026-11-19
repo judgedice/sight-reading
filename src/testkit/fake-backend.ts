@@ -68,6 +68,19 @@ const synthTimbre = (t: ClickTimbre): 'tick' | 'wood' => (t === 'wood' || t === 
 
 const clock = (s: number): ClockSeconds => s as ClockSeconds;
 
+/** Backend methods recorded in call order (`log.calls`), so tests can check what ran between two calls. */
+export type FakeBackendMethod =
+  | 'unlock'
+  | 'scheduleTake'
+  | 'cancelTake'
+  | 'startCapture'
+  | 'stopCapture'
+  | 'playCalibrationClicks'
+  | 'playTone'
+  | 'playNotes'
+  | 'playClicks'
+  | 'stopSounds';
+
 interface ScriptedEvent { at: number; fire: () => void }
 
 export class FakeAudioBackend implements AudioBackend {
@@ -83,6 +96,8 @@ export class FakeAudioBackend implements AudioBackend {
     notePlays: [] as { notes: PlayNote[]; opts: PlayNotesOptions }[],
     clickPlays: [] as { times: ClockSeconds[]; sound: MetronomeSound; accents: boolean[] }[],
     stopSounds: 0,
+    /** Every call above in order, with the clock at the call. */
+    calls: [] as { method: FakeBackendMethod; at: number }[],
     captureStarts: 0,
     captureStops: 0,
     closed: false,
@@ -211,6 +226,7 @@ export class FakeAudioBackend implements AudioBackend {
 
   async unlock(): Promise<AudioRouteInfo> {
     this.log.unlocks++;
+    this.call('unlock');
     return this.route;
   }
 
@@ -227,6 +243,7 @@ export class FakeAudioBackend implements AudioBackend {
   }
 
   async scheduleTake(p: TakeSchedule): Promise<{ t0: ClockSeconds; clicks: ClickSpec[] }> {
+    this.call('scheduleTake');
     const beatSec = 60 / p.bpm;
     const first = this.clockSec + p.leadSec;
     let t0 = first + p.countInBeats * beatSec;
@@ -249,12 +266,14 @@ export class FakeAudioBackend implements AudioBackend {
 
   cancelTake(): void {
     this.log.cancelledTakes++;
+    this.call('cancelTake');
     this.pendingClicks = [];
     this.clickBuffers = [];
   }
 
   async startCapture(sink: MessagePortLike | ((m: WorkerMessage) => void)): Promise<void> {
     this.log.captureStarts++;
+    this.call('startCapture');
     this.sink = sink;
     this.capturing = true;
     this.captureOrigin = this.clockSec;
@@ -269,31 +288,37 @@ export class FakeAudioBackend implements AudioBackend {
 
   stopCapture(): void {
     if (this.capturing) this.log.captureStops++;
+    this.call('stopCapture');
     this.capturing = false;
     this.sink = null;
   }
 
   async playCalibrationClicks(times: ClockSeconds[], timbre: ClickTimbre): Promise<void> {
     this.log.calibrationClicks.push({ times: [...times], timbre });
+    this.call('playCalibrationClicks');
     for (const t of times) this.pendingClicks.push({ t, accent: true, timbre });
     this.mixClicks();
   }
 
   async playTone(hz: number, durSec: number, at: ClockSeconds): Promise<void> {
     this.log.tones.push({ hz, durSec, at });
+    this.call('playTone');
   }
 
   async playNotes(notes: readonly PlayNote[], opts: PlayNotesOptions): Promise<void> {
     this.log.notePlays.push({ notes: notes.map((n) => ({ ...n })), opts: { ...opts } });
+    this.call('playNotes');
   }
 
   async playClicks(times: ClockSeconds[], sound: MetronomeSound, accents: boolean[]): Promise<void> {
     this.log.clickPlays.push({ times: [...times], sound, accents: [...accents] });
+    this.call('playClicks');
   }
 
   /** Cancels everything scheduled by the play methods; a running take is untouched. */
   stopSounds(): void {
     this.log.stopSounds++;
+    this.call('stopSounds');
   }
 
   async measureClockRate(durSec: number): Promise<{ framesPerSec: number; expected: number }> {
@@ -321,6 +346,10 @@ export class FakeAudioBackend implements AudioBackend {
   }
 
   // ---- internals --------------------------------------------------------------------------------
+
+  private call(method: FakeBackendMethod): void {
+    this.log.calls.push({ method, at: this.clockSec });
+  }
 
   private addEvent(at: number, fire: () => void): void {
     this.events.push({ at, fire });

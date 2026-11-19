@@ -153,4 +153,63 @@ describe('composeApp', () => {
     expect((await rt.repos.profile.get())?.instruments['flute']?.level).toBe(4);
     app.dispose();
   });
+
+  it('wires the sound services: the chosen sound and accent, Practice availability, and one sound at a time', async () => {
+    const base = defaultAppSettings();
+    const rt = await runtime({ settings: { ...base, onboardingDone: true, practice: { ...base.practice, clickTimbre: 'beep', accentFirstBeat: false, mode: 'practice' } } });
+    const app = composeApp(rt);
+    const be = rt.platform.audio as FakeAudioBackend;
+    const s = app.services;
+    // Practice's tempo row, with no excerpt: one bar of Beep, no accent.
+    await s.home.hearTempo!(72, 4);
+    expect(be.log.clickPlays.at(-1)).toMatchObject({ sound: 'beep', accents: [false, false, false, false] });
+    expect(s.home.sounds!.getState().playing).toBe('tempo');
+    // A range note and a settings preview; each stops the one before.
+    await s.home.playNote!(48);
+    expect(be.log.notePlays.at(-1)!.notes[0]!.durSec).toBe(1);
+    await s.settings.previewSound!('woodblock');
+    expect(be.log.clickPlays.at(-1)!.sound).toBe('woodblock');
+    await s.calibration.hearClick!();
+    expect(be.log.clickPlays.at(-1)!.sound).toBe('beep');
+    expect(be.log.stopSounds).toBe(4);
+    s.settings.stopSounds!();
+    expect(s.settings.sounds!.getState().playing).toBeNull();
+    // A sound change in Settings reaches the next sound without a new session.
+    s.home.settings.set({ ...app.settings.get(), practice: { ...app.settings.get().practice, clickTimbre: 'woodblock', accentFirstBeat: true } });
+    await s.home.hearTempo!(60, 3);
+    expect(be.log.clickPlays.at(-1)).toMatchObject({ sound: 'woodblock', accents: [true, false, false] });
+
+    // No calibration yet: Ranked is blocked with "Calibrate now"; practise without listening blocks it for the microphone.
+    for (let i = 0; i < 10; i++) await flush();
+    expect(s.home.rankedAvailability!.get()).toEqual({ available: false, block: 'calibration' });
+    s.home.settings.set({ ...app.settings.get(), practice: { ...app.settings.get().practice, listening: false } });
+    for (let i = 0; i < 10; i++) await flush();
+    expect(s.home.rankedAvailability!.get()).toEqual({ available: false, block: 'mic' });
+    const r = await s.home.turnOnMic!();
+    expect(r.ok).toBe(true);
+    expect(app.settings.get().practice.listening).toBe(true);
+    for (let i = 0; i < 10; i++) await flush();
+    expect(s.home.rankedAvailability!.get().block).toBe('calibration');
+    app.dispose();
+  });
+
+  it('the read-through services play through the session: practice Listen first keeps the mode', async () => {
+    const base = defaultAppSettings();
+    const rt = await runtime({ settings: { ...base, onboardingDone: true, practice: { ...base.practice, level: 3, mode: 'practice' } } });
+    const app = composeApp(rt);
+    const be = rt.platform.audio as FakeAudioBackend;
+    app.services.home.onStart?.(app.settings.get().practice);
+    for (let i = 0; i < 50 && app.session.state !== 'covered'; i++) await flush();
+    await app.session.ensureAudio();
+    app.session.revealScan();
+    await app.services.flow.listenFirst!();
+    expect(be.log.notePlays).toHaveLength(1);
+    expect(app.services.flow.sounds!.getState().playing).toBe('listen');
+    expect(app.session.view.getState().mode).toBe('practice');
+    await app.services.flow.hearKey!();
+    expect(app.services.flow.sounds!.getState().playing).toBe('key');
+    app.services.flow.stopSounds!();
+    expect(app.services.flow.sounds!.getState().playing).toBeNull();
+    app.dispose();
+  });
 });

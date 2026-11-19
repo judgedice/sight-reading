@@ -6,7 +6,7 @@
 import { createContext, useContext } from 'react';
 import type { StoreApi } from 'zustand/vanilla';
 import type { AppSettings, AttemptRecord, AudioRouteInfo, Configs, Emitter, PreparedExcerpt, SessionEvent, SessionState } from '../../../core/types.ts';
-import type { SessionView } from '../../../session/index.ts';
+import type { SessionView, SoundView } from '../../../session/index.ts';
 import type { FrameNotation } from '../../../ui/score-frame/index.ts';
 import type { Readable } from '../home/services.ts';
 
@@ -16,7 +16,7 @@ export interface PracticeSessionPort {
   readonly state: SessionState;
   readonly prepared: PreparedExcerpt | null;
   /** Ranking facts of the excerpt on screen (scan chip, cover notice). */
-  readonly pending: { mode: 'ranked' | 'practice'; seenBefore: boolean; skipLimitHit: boolean; revealed: boolean; scanSec: number } | null;
+  readonly pending: { mode: 'ranked' | 'practice'; seenBefore: boolean; skipLimitHit: boolean; revealed: boolean; scanSec: number; listenedFirst?: boolean } | null;
   /** Call synchronously from the first gesture (Start scan). */
   ensureAudio(): Promise<AudioRouteInfo>;
   revealScan(): void;
@@ -44,6 +44,20 @@ export interface PracticeFlowServices {
   skipLimitReached?(): boolean;
   /** One bar of clicks at the take tempo ("Hear the tempo"). Absent: the button is not shown. */
   hearTempo?(): Promise<void>;
+  /**
+   * "Listen first" (05 §4.3, §9.4): in practice it plays at once; in ranked (after the screen's confirm) the take
+   * becomes practice now, `view.mode` turns 'practice', the countdown runs on without auto start, and the attempt
+   * records `listened-first`. Call from the click (it unlocks audio).
+   */
+  listenFirst?(): Promise<void>;
+  /** "Hear the key" (instruments, 05 §10): the concert home chord, root at or below the first note. Never changes the take. */
+  hearKey?(): Promise<void>;
+  /** "Hear starting pitch" (voice): the key chord, then the first note. Same as `session.playVoiceReference`. */
+  hearStartingPitch?(): Promise<void>;
+  /** Stops any sound at once ("Stop", leaving the screen). Never touches a take. */
+  stopSounds?(): void;
+  /** What is sounding now: the playing button, the live caption and the bar highlight (05 §8.8). */
+  sounds?: StoreApi<SoundView>;
   /** iOS only: true once the wake lock request failed, which shows the Auto-Lock hint. */
   wakeLockFailed?: Readable<boolean>;
   /** Input meter gate, dBFS (the no-signal gate). */

@@ -554,3 +554,110 @@ describe('route key stability', () => {
     expect(port.blocks.length).toBeGreaterThan(10);
   });
 });
+
+describe('Listen sounds (05 §9.2; playback-engine)', () => {
+  const note = (hz: number, startSec: number, durSec: number) => ({ hz, startSec, durSec });
+
+  it('playNotes schedules one source per note on its own bus at -12 dBFS, apart from the click bus', async () => {
+    const { world, be } = setup();
+    await be.unlock();
+    await be.playNotes([note(440, 0, 0.5), note(550, 0.5, 0.25)], { at: 3 as never, peak: 1 });
+    const srcs = world.ctx.bufferSources;
+    expect(srcs.map((s) => s.startedAt)).toEqual([3, 3.5]);
+    const bus = srcs[0]?.outs[0] as unknown as FakeGain;
+    expect(bus).not.toBe(be.clickOutput());
+    expect(srcs.every((s) => s.outs[0] === bus)).toBe(true);
+    expect(bus.gain.value).toBeCloseTo(10 ** (-12 / 20), 9);
+    expect(be.clickOutput()?.gain.value).toBe(1);
+    expect(srcs[0]?.buffer?.getChannelData(0).length).toBe(Math.ceil((0.5 + 0.06) * 48000));
+    const peak = Math.max(...(srcs[0]?.buffer?.getChannelData(0) ?? []).map(Math.abs));
+    expect(peak).toBeCloseTo(1, 5);
+  });
+
+  it('playClicks schedules clicks with accents on the click bus', async () => {
+    const { world, be } = setup();
+    await be.unlock();
+    await be.playClicks([1, 1.5, 2].map((t) => t as never), 'woodblock', [true, false, false]);
+    const srcs = world.ctx.bufferSources;
+    expect(srcs.map((s) => s.startedAt)).toEqual([1, 1.5, 2]);
+    expect(srcs.every((s) => s.outs[0] === (be.clickOutput() as unknown))).toBe(true);
+    const accentPeak = Math.max(...(srcs[0]?.buffer?.getChannelData(0) ?? []).map(Math.abs));
+    const plainPeak = Math.max(...(srcs[1]?.buffer?.getChannelData(0) ?? []).map(Math.abs));
+    expect(accentPeak).toBeGreaterThan(plainPeak);
+  });
+
+  it('stopSounds stops notes, clicks, tones and calibration clicks at once', async () => {
+    const { world, be } = setup();
+    await be.unlock();
+    await be.playNotes([note(440, 0, 1)], { at: 5 as never, peak: 1 });
+    await be.playClicks([5 as never], 'classic', [true]);
+    await be.playTone(440, 0.3, 5 as never);
+    await be.playCalibrationClicks([6 as never], 'tick');
+    be.stopSounds();
+    expect(world.ctx.bufferSources).toHaveLength(4);
+    expect(world.ctx.bufferSources.every((s) => s.stopped)).toBe(true);
+  });
+
+  it('stopSounds during a take leaves the take clicks', async () => {
+    const { world, be } = setup();
+    await be.unlock();
+    const { clicks } = await be.scheduleTake(takeParams());
+    const takeSrcs = world.ctx.bufferSources.slice();
+    expect(takeSrcs).toHaveLength(clicks.length);
+    be.stopSounds();
+    expect(takeSrcs.every((s) => !s.stopped)).toBe(true);
+    be.cancelTake();
+    expect(takeSrcs.every((s) => s.stopped)).toBe(true);
+  });
+
+  it('stopSounds before a take leaves a later take intact, and a preview then stops while the take plays', async () => {
+    const { world, be } = setup();
+    await be.unlock();
+    await be.playClicks([1 as never, 1.5 as never], 'classic', [true, false]);
+    const previews = world.ctx.bufferSources.slice();
+    await be.scheduleTake(takeParams());
+    const take = world.ctx.bufferSources.slice(previews.length);
+    be.stopSounds();
+    expect(previews.every((s) => s.stopped)).toBe(true);
+    expect(take.every((s) => !s.stopped)).toBe(true);
+  });
+
+  it('refuses playNotes, playClicks and playTone while a take is scheduled, and accepts them again after cancelTake', async () => {
+    const { world, be } = setup();
+    await be.unlock();
+    await be.scheduleTake(takeParams());
+    const n = world.ctx.bufferSources.length;
+    await expect(be.playNotes([note(440, 0, 0.5)], { peak: 1 })).rejects.toThrow(/take is scheduled/);
+    await expect(be.playClicks([9 as never], 'classic', [true])).rejects.toThrow(/take is scheduled/);
+    await expect(be.playTone(440, 0.2, 9 as never)).rejects.toThrow(/take is scheduled/);
+    expect(world.ctx.bufferSources).toHaveLength(n);
+    be.cancelTake();
+    await be.playNotes([note(440, 0, 0.5)], { peak: 1 });
+    expect(world.ctx.bufferSources).toHaveLength(n + 1);
+  });
+
+  it('accepts sounds once the take has ended on the audio clock', async () => {
+    const { world, be } = setup();
+    await be.unlock();
+    await be.scheduleTake(takeParams({ totalBeats: 2 }));
+    await world.advance(8000);
+    await be.playNotes([note(440, 0, 0.5)], { peak: 1 });
+  });
+
+  it('a played source that ends leaves nothing for stopSounds to stop', async () => {
+    const { world, be } = setup();
+    await be.unlock();
+    await be.playNotes([note(440, 0, 0.1)], { at: 1 as never, peak: 0.5 });
+    world.ctx.bufferSources[0]?.onended?.();
+    be.stopSounds();
+    expect(world.ctx.bufferSources[0]?.stopped).toBe(false);
+  });
+
+  it('reuses the rendered buffer data for the same pitch and length', async () => {
+    const { world, be } = setup();
+    await be.unlock();
+    await be.playNotes([note(440, 0, 0.2), note(440, 0.3, 0.2)], { at: 1 as never, peak: 1 });
+    const [a, b] = world.ctx.bufferSources.map((s) => s.buffer?.getChannelData(0) as Float32Array);
+    expect(Array.from(a ?? []).slice(1000, 1010)).toEqual(Array.from(b ?? []).slice(1000, 1010));
+  });
+});

@@ -207,5 +207,8 @@ describe('FakeAudioBackend schedule and scripts', () => {
     expect(be.log.stopSounds).toBe(1);
     expect(be.log.cancelledTakes).toBe(0);
     expect(be.log.scheduledTakes).toHaveLength(1);
+    // The ordered call log, with the clock at each call.
+    expect(be.log.calls.map((c) => c.method)).toEqual(['scheduleTake', 'playNotes', 'playClicks', 'stopSounds']);
+    expect(be.log.calls.every((c) => c.at === (be.now() as number))).toBe(true);
   });
 });

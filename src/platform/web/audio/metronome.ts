@@ -8,10 +8,19 @@
  *
  * Levels: a plain beat is the offbeat recipe at `clickGain`; an accented beat is the accent recipe at
  * `clickGain + accentDb`, capped at 0.99. With "Accent the first beat" off (`TakeSchedule.accent` false) every beat
- * is the offbeat recipe at 0 dB. Calibration clicks are all at `+accentDb` (5 dB by default); for the new sounds
- * they use the offbeat recipe, because the low-band template they build is the plain click's (src/dsp/click.ts).
+ * is the offbeat recipe at 0 dB.
+ *
+ * On speakers the accented beat of Classic, Woodblock and Beep is the offbeat recipe at `+accentDb` instead
+ * (`setOutputMode`): the take removes click bleed with one low-band template per sound (src/dsp/click.ts), and an
+ * accent recipe with a different body below 3 kHz leaves a residual that the onset detector reads as notes (with
+ * the accent recipe every sound fails the ship gate in metronome-sounds.gate.test.ts on accented beats; with the
+ * louder offbeat Classic passes). Headphone modes have no bleed and play the accent recipe. Tick and Wood are
+ * unchanged.
+ *
+ * Calibration clicks are all at `+accentDb` (5 dB by default); for the new sounds they use the offbeat recipe,
+ * because the low-band template they build is the plain click's (src/dsp/click.ts).
  */
-import type { ClickSpec, ClickTimbre, ClockSeconds, MetronomeSound, TakeSchedule } from '../../../core/platform.ts';
+import type { ClickSpec, ClickTimbre, ClockSeconds, MetronomeSound, OutputMode, TakeSchedule } from '../../../core/platform.ts';
 import { renderClick } from '../../../core/click-sounds.ts';
 
 export { renderClick };
@@ -90,6 +99,8 @@ export class Metronome {
   private readonly clickGain: number;
   private readonly cache = new Map<string, ClickBuffer>();
   private live = new Set<ScheduledClick>();
+  /** Accented beats of the new sounds use the offbeat recipe (speakers, the default) or the accent recipe. */
+  private accentRecipeOn = false;
   /** Every click scheduled since construction, in scheduling order (diagnostics and tests). */
   readonly history: { t: number; accent: boolean; timbre: ClickTimbre }[] = [];
 
@@ -99,10 +110,23 @@ export class Metronome {
     this.clickGain = opts.clickGain ?? 0.5;
   }
 
+  /**
+   * The player's declared output (01 §7.6): on speakers (the default) the new sounds accent by level only; in
+   * headphone modes with their accent recipe. Call when the output mode changes; takes scheduled after use it.
+   */
+  setOutputMode(mode: OutputMode): void {
+    this.accentRecipeOn = mode !== 'speakers';
+  }
+
+  /** Whether an accented beat of `timbre` plays the accent recipe (else the offbeat recipe at the accent level). */
+  accentRecipeFor(timbre: ClickTimbre): boolean {
+    return timbre === 'tick' || timbre === 'wood' || this.accentRecipeOn;
+  }
+
   /** Pre-render the buffers of a timbre so scheduling a take only creates source nodes. */
   prepare(timbre: ClickTimbre, accentDb: number): void {
     this.buffer(timbre, false, 0);
-    this.buffer(timbre, true, accentDb);
+    this.buffer(timbre, this.accentRecipeFor(timbre), accentDb);
   }
 
   /** Schedule every click of a take now (W9). Returns t0 and the click list. */
@@ -110,7 +134,8 @@ export class Metronome {
     const t0 = t0Override ?? takeT0(p, this.ctx.currentTime);
     const clicks = planTakeClicks(p, t0);
     this.prepare(p.timbre, p.accentDb);
-    for (const c of clicks) this.schedule(c.t, c.accent, p.timbre, c.accent, c.accent ? p.accentDb : 0);
+    const recipe = this.accentRecipeFor(p.timbre);
+    for (const c of clicks) this.schedule(c.t, c.accent, p.timbre, c.accent && recipe, c.accent ? p.accentDb : 0);
     return { t0: t0 as ClockSeconds, clicks };
   }
 
@@ -124,13 +149,14 @@ export class Metronome {
   }
 
   /**
-   * Previews and lead-ins (`AudioBackend.playClicks`): click i is the accent recipe at +`accentDb` when
-   * `accents[i]`, else the offbeat recipe at 0 dB.
+   * Previews and lead-ins (`AudioBackend.playClicks`): click i is accented at +`accentDb` when `accents[i]` (with the
+   * same recipe rule as a take, so a preview sounds like the take), else the offbeat recipe at 0 dB.
    */
   playClicks(times: readonly number[], sound: MetronomeSound, accents: readonly boolean[], accentDb: number): void {
+    const recipe = this.accentRecipeFor(sound);
     times.forEach((t, i) => {
       const a = accents[i] === true;
-      this.schedule(t, a, sound, a, a ? accentDb : 0);
+      this.schedule(t, a, sound, a && recipe, a ? accentDb : 0);
     });
   }
 

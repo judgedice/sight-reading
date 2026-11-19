@@ -5,7 +5,7 @@
 import type { ReactNode } from 'react';
 import type { StoreApi } from 'zustand/vanilla';
 import type { AppSettings, AttemptRecord, Configs, PlayerProfile, ProgressEvent } from '../../../core/types.ts';
-import type { SessionView } from '../../../session/index.ts';
+import type { ListenOptions, SessionView, SoundView } from '../../../session/index.ts';
 import type { Readable, Writable } from '../home/services.ts';
 
 export interface ResultsActions {
@@ -50,6 +50,17 @@ export interface ResultsServices {
   sessionAttempts?(): readonly AttemptRecord[];
   /** The player pressed Finish in the summary (Home follows). */
   onFinish?(): void;
+  /**
+   * Listen (05 §9.3): one bar of clicks, then the excerpt at the take's tempo, from `fromBar` (a tapped bar), at 75%
+   * with `slower`, with the clicks kept through with `clickAlong`. Call from the click.
+   */
+  listen?(o: ListenOptions): Promise<void>;
+  /** "Hear bar n" or "Hear bars n to m": one bar of clicks, then the bars twice. */
+  hearBar?(from: number, to?: number, o?: { slower?: boolean }): Promise<void>;
+  /** Stops any sound at once (Stop, leaving the screen). */
+  stopSounds?(): void;
+  /** What is sounding: "Playing bar n of m" and the bar highlight. */
+  sounds?: StoreApi<SoundView>;
 }
 
 export type { ProgressEvent };
