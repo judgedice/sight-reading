@@ -29,6 +29,7 @@ export interface FakeCal extends CalibrationServices {
   calls: string[];
   saved: Calibration[];
   exported: string[];
+  stops: number;
 }
 
 export function fakeServices(o: { caps?: Partial<PlatformCapabilities>; loopback?: LoopbackOutcome[]; playAlong?: PlayAlongOutcome[]; output?: AudioPrefs['outputMode'] } = {}): FakeCal {
@@ -39,6 +40,7 @@ export function fakeServices(o: { caps?: Partial<PlatformCapabilities>; loopback
     calls: [],
     saved: [],
     exported: [],
+    stops: 0,
     capabilities: { ...caps, ...o.caps },
     maxRtlMs: 120,
     loopbackSeconds: 8,
@@ -81,6 +83,12 @@ export function fakeServices(o: { caps?: Partial<PlatformCapabilities>; loopback
     },
     save: async (c) => {
       s.saved.push(c);
+    },
+    hearClick: async () => {
+      s.calls.push('hear');
+    },
+    stopSounds: () => {
+      s.stops += 1;
     },
     exportDiagnostics: (j) => {
       s.exported.push(j);

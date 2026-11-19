@@ -1,66 +1,99 @@
-/* Scan (04 section 5.3). Tokens only; rem and em, never px. */
+/* Cover and read-through (05 sections 8.7 and 8.8; 06 sections 6.8, 6.9 and 10). Tokens only; rem and em, never px. */
 .scan {
+  --cover-staff-space: 1.625rem;
+  --scan-side-width: 22.5rem;
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
   min-block-size: 0;
-  block-size: 100%;
+  color: var(--text);
 }
 
+/* ---- Toolbar: Home, summary, mode chip, overflow (05 section 8.8) ---- */
 .scan-toolbar {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-3);
-  min-block-size: 3.5rem;
+  gap: var(--space-4);
+  min-block-size: 4rem;
+  padding: 0 var(--space-5);
+  border-block-end: 0.0625rem solid var(--border);
+  background: var(--bg);
 }
 
-.scan-summary-block {
-  display: flex;
-  flex-direction: column;
-  flex: 1 1 12rem;
-  gap: var(--space-1);
-  min-inline-size: 0;
+.scan-toolbar-gap {
+  flex: 1 1 auto;
 }
 
-.scan-summary,
-.scan-timer-label {
+.scan-summary {
   margin: 0;
+  color: var(--text-muted);
+  font-size: var(--type-small-size);
+  line-height: var(--type-small-line);
+  font-weight: 500;
 }
 
-.scan-quiet-chip,
-.scan-source-line {
-  align-self: flex-start;
-  color: var(--text-muted);
+.scan-summary-bar {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.scan-summary-line {
+  margin: 0 var(--space-1) var(--space-2);
   font-size: var(--type-caption-size);
   line-height: var(--type-caption-line);
+  text-align: center;
 }
 
-.scan-source-line {
-  padding: 0;
-  border: 0;
-  background: none;
-  text-decoration: underline;
-  cursor: pointer;
-}
-
+/* 06 section 6.9: a 36 tall pill with a 26 ring and "Ranked · 0:24 to read". Practice: no ring. Never wraps. */
 .scan-chip {
-  padding: var(--space-1) var(--space-3);
-  border: 0.0625rem solid var(--border-strong);
-  border-radius: var(--radius-l);
-  font-size: var(--type-caption-size);
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-2);
+  box-sizing: border-box;
+  block-size: var(--mode-chip-height);
+  padding: 0 var(--space-4);
+  border: 0.0625rem solid var(--border);
+  border-radius: var(--radius-full);
+  background: var(--surface);
+  font-family: var(--type-label-family);
+  font-size: var(--type-label-size);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.scan-chip[data-ring='true'] {
+  padding-inline-start: var(--space-1);
+}
+
+.scan-chip .dom-scan-number {
+  display: none;
 }
 
 .scan-overflow {
   display: inline-flex;
+  flex: none;
   align-items: center;
   justify-content: center;
   min-inline-size: var(--target-min);
   min-block-size: var(--target-min);
   border: 0;
+  border-radius: var(--radius-full);
   background: none;
   color: var(--text);
   cursor: pointer;
+}
+
+.scan-overflow:hover {
+  background: var(--surface-2-hover);
+}
+
+.scan-overflow:focus-visible {
+  outline: 0.125rem solid var(--focus-ring);
+  outline-offset: 0.125rem;
 }
 
 .scan-menu {
@@ -74,6 +107,7 @@
   border: 0;
   background: none;
   color: var(--text);
+  font: inherit;
   text-align: start;
   cursor: pointer;
 }
@@ -82,120 +116,65 @@
   background: var(--surface-2-hover);
 }
 
-.scan-hint {
-  margin: 0;
-  color: var(--text-muted);
-  font-size: var(--type-caption-size);
-}
-
-.scan-body {
-  display: flex;
-  flex: 1 1 auto;
-  gap: var(--space-4);
-  min-block-size: 0;
-}
-
-.scan-score {
-  position: relative;
-  flex: 1 1 auto;
-  min-inline-size: 0;
-  min-block-size: 20rem;
-}
-
-.scan-score .sf-host {
-  block-size: 100%;
-}
-
-.scan-panel {
-  flex: 0 0 17.5rem;
-  overflow-y: auto;
-}
-
-.scan-stars-title {
-  margin: 0 0 var(--space-2);
-  font-size: var(--type-h3-size);
-}
-
-.scan-stars-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  margin: 0 0 var(--space-3);
-  padding: 0;
-  list-style: none;
-}
-
-.scan-stars-generated {
-  display: block;
-  margin-block-start: var(--space-1);
-  color: var(--text);
-}
-
-.scan-helpers {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-}
-
-.scan-tuning {
-  flex-basis: 100%;
-  margin: 0;
-  color: var(--text-muted);
-  font-size: var(--type-caption-size);
-}
-
-.scan-peek {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  inline-size: 100%;
-}
-
-.scan-highlight {
-  fill: var(--ink-accent-soft);
-  stroke: var(--ink-accent-soft);
-  stroke-width: 2;
-  pointer-events: none;
-}
-
-/* The paper cover over the score (04 section 5.3): facts only, never title or composer. */
+/* ---- Cover (05 section 8.7) ---- */
 .scan-cover {
-  position: absolute;
-  inset: 0;
-  z-index: var(--z-sticky);
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: var(--space-4);
-  padding: var(--space-5);
-  background: var(--paper);
-  color: var(--ink);
+  box-sizing: border-box;
+  inline-size: 100%;
+  max-inline-size: 40rem;
+  margin: 0 auto;
+  padding: var(--space-7) var(--space-5);
   text-align: center;
 }
 
-.scan-cover-facts {
+.scan-cover-staff {
   display: flex;
-  align-items: center;
-  gap: var(--space-4);
-  font-size: var(--type-h1-size);
-  line-height: var(--type-h1-line);
+  justify-content: center;
+  color: var(--ink);
 }
 
-.scan-cover-clef {
-  font-size: var(--type-display-size);
+.scan-cover-sig {
+  display: block;
+  inline-size: calc(var(--cover-staff-space) * var(--cover-sig-width));
+  block-size: auto;
+  fill: currentColor;
 }
 
-.scan-cover-text,
-.scan-cover-ranked p,
-.scan-cover-hint {
-  max-inline-size: 36rem;
-  margin: 0;
+.scan-cover-sig-lines {
+  stroke: var(--staff-line);
 }
 
-.scan-cover-hint {
+.scan-cover-sig-blank {
+  display: block;
+  inline-size: calc(var(--cover-staff-space) * 11.5);
+  block-size: calc(var(--cover-staff-space) * 8);
+}
+
+.scan-cover-summary {
+  margin: var(--space-5) 0 0;
+  font-size: var(--type-h3-size);
+  line-height: var(--type-h3-line);
+  font-weight: 600;
+}
+
+.scan-cover-loading {
   color: var(--text-muted);
-  font-size: var(--type-caption-size);
+  font-weight: 500;
+}
+
+.scan-cover-text {
+  max-inline-size: 29rem;
+  margin: var(--space-4) 0 0;
+  color: var(--text-muted);
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+}
+
+.scan-cover .ui-banner {
+  margin-block-start: var(--space-4);
+  text-align: start;
 }
 
 .scan-cover-ranked {
@@ -203,9 +182,278 @@
   flex-direction: column;
   align-items: center;
   gap: var(--space-2);
+  margin: var(--space-5) 0 0;
 }
 
-.scan-cover-actions,
+.scan-cover-ranked p {
+  max-inline-size: 37rem;
+  margin: 0;
+  font-size: var(--type-small-size);
+  line-height: var(--type-small-line);
+}
+
+.scan-cover-show {
+  margin-block-start: var(--space-5);
+}
+
+.scan-cover-skip {
+  margin-block-start: var(--space-2);
+}
+
+.scan-cover-hint {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--type-caption-size);
+  line-height: var(--type-caption-line);
+}
+
+/* ---- Read-through: score left, Start playing and the sounds right (06 section 10) ---- */
+.scan-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--scan-side-width);
+  gap: var(--space-7);
+  align-items: start;
+  box-sizing: border-box;
+  inline-size: 100%;
+  max-inline-size: 90rem;
+  margin: 0 auto;
+  padding: var(--space-5) calc(var(--space-6) + var(--space-2)) var(--space-7);
+}
+
+.scan-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-inline-size: 0;
+}
+
+.scan-paper {
+  position: relative;
+  min-block-size: 12rem;
+  border-radius: var(--radius-xl);
+  background: var(--paper);
+  box-shadow: var(--e2);
+  overflow: hidden;
+}
+
+.scan-read-hint {
+  margin: 0 var(--space-1);
+  color: var(--text-muted);
+  font-size: var(--type-small-size);
+  line-height: var(--type-small-line);
+}
+
+.scan-notes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+}
+
+.scan-quiet-chip,
+.scan-source-line {
+  color: var(--text-muted);
+  font-size: var(--type-caption-size);
+  line-height: var(--type-caption-line);
+}
+
+.scan-source-line {
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.scan-hint {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--type-caption-size);
+}
+
+.scan-side {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+}
+
+.scan-start {
+  inline-size: 100%;
+}
+
+.scan-side .sd-group-wrap {
+  margin-block-start: var(--space-3);
+}
+
+.scan-stars-card {
+  box-sizing: border-box;
+  margin-block-start: var(--space-4);
+  padding: var(--space-5) var(--space-5) var(--space-2);
+  border: 0.0625rem solid var(--border);
+  border-radius: var(--radius-l);
+  background: var(--surface);
+  box-shadow: var(--e1);
+}
+
+.scan-stars-card:empty {
+  display: none;
+}
+
+.scan-stars-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.scan-stars-title {
+  margin: 0;
+  font-family: var(--type-label-family);
+  font-size: var(--type-label-size);
+  line-height: var(--type-label-line);
+  font-weight: var(--type-label-weight);
+}
+
+.scan-stars-eyebrow {
+  margin-inline-start: auto;
+  color: var(--text-muted);
+  font-family: var(--type-eyebrow-family);
+  font-size: var(--type-eyebrow-size);
+  line-height: var(--type-eyebrow-line);
+  font-weight: var(--type-eyebrow-weight);
+  letter-spacing: var(--type-eyebrow-tracking);
+  text-transform: var(--type-eyebrow-transform);
+}
+
+.scan-stars-optional {
+  margin: 0 0 var(--space-2);
+  color: var(--text-muted);
+  font-size: var(--type-caption-size);
+  line-height: var(--type-caption-line);
+}
+
+.scan-stars-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.scan-stars-list > li + li {
+  border-block-start: 0.0625rem solid var(--border);
+}
+
+.scan-stars-list .dom-check-title {
+  font-weight: 600;
+}
+
+.scan-stars-letter {
+  margin-inline-end: var(--space-1);
+  color: var(--text-muted);
+  font-family: var(--font-display);
+  font-weight: 600;
+}
+
+.scan-highlight {
+  fill: var(--brass-wash);
+  stroke: var(--brass);
+  stroke-width: 1.5;
+  pointer-events: none;
+}
+
+/* ---- Phones and narrow windows: score, the "Before you play" peek tab and the dock (06 section 6.8) ---- */
+.scan[data-layout='dock'] .scan-toolbar {
+  padding: 0 var(--space-3);
+  gap: var(--space-2);
+}
+
+.scan[data-layout='dock'] .scan-summary-bar {
+  visibility: hidden;
+}
+
+.scan[data-layout='dock'] .scan-body {
+  display: block;
+  padding: var(--space-3) var(--space-3) 21rem;
+}
+
+.scan[data-layout='dock'] .scan-paper {
+  border-radius: var(--radius-l);
+}
+
+.scan-dock {
+  position: fixed;
+  inset-inline: 0;
+  inset-block-end: 0;
+  z-index: var(--z-sticky);
+}
+
+.scan-peek {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-sizing: border-box;
+  inline-size: calc(100% - 2 * var(--space-3));
+  min-block-size: var(--target-min);
+  margin: 0 var(--space-3);
+  padding: 0 var(--space-4);
+  border: 0.0625rem solid var(--border);
+  border-block-end: 0;
+  border-radius: var(--radius-m) var(--radius-m) 0 0;
+  background: var(--surface-2);
+  color: var(--text);
+  font-family: var(--type-label-family);
+  font-size: var(--type-label-size);
+  font-weight: var(--type-label-weight);
+  cursor: pointer;
+}
+
+.scan-peek:focus-visible {
+  outline: 0.125rem solid var(--focus-ring);
+  outline-offset: -0.125rem;
+}
+
+.scan-peek-chevron {
+  transform: rotate(180deg);
+}
+
+.scan-dock-inner {
+  box-sizing: border-box;
+  padding: var(--space-3) var(--space-3) calc(var(--space-5) + env(safe-area-inset-bottom, 0rem));
+  border-block-start: 0.0625rem solid var(--border);
+  background: var(--surface);
+  box-shadow: var(--e2);
+}
+
+.scan-dock-inner .sd-coach {
+  margin-block-start: 0;
+}
+
+.scan-dock-inner .scan-start {
+  margin-block-start: var(--space-3);
+}
+
+.scan-sheet-tuning {
+  margin-block-end: var(--space-4);
+}
+
+/* ---- Errors and dialogs ---- */
+.scan-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+  max-inline-size: 32rem;
+  margin: 0 auto;
+  padding: var(--space-8) var(--space-5);
+  text-align: center;
+}
+
+.scan-error-text {
+  margin: 0;
+}
+
+.scan-error-actions,
 .scan-dialog-actions {
   display: flex;
   flex-wrap: wrap;
@@ -231,4 +479,27 @@
 
 .scan-source-row dd {
   margin: 0;
+}
+
+@media (max-width: 39.9375rem) {
+  .scan {
+    --cover-staff-space: 1.25rem;
+  }
+
+  .scan-cover {
+    padding: var(--space-6) var(--space-4);
+  }
+
+  .scan-cover-summary {
+    font-size: var(--type-body-size);
+  }
+
+  .scan-cover-show {
+    inline-size: 100%;
+  }
+}
+
+/* The caption line takes room only while something sounds (the coach mark sits right under Start playing). */
+.scan .sd-live-cap:not([data-active]):not([data-failed]) {
+  display: none;
 }

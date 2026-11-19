@@ -4,18 +4,22 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { FollowerEvent, SessionEvent } from '../../../core/types.ts';
 import { visualStateFromJudgment } from '../../../notation/visual-states.ts';
-import { copy } from '../../../ui/copy/copy.ts';
-import { BeatDots, BeatUnitText, LevelMeter } from '../../../ui/components/domain/index.ts';
+import { copy, isCopyKey } from '../../../ui/copy/copy.ts';
+import { idleSoundView, type SoundView } from '../../../session/index.ts';
+import { createStore } from 'zustand/vanilla';
+import { BeatDots, BeatUnitText, meterZone } from '../../../ui/components/domain/index.ts';
 import { Button } from '../../../ui/components/form/index.ts';
-import { Modal, openOverlayCount } from '../../../ui/primitives/index.ts';
-import { ScoreFrame, type ScoreFrameController } from '../../../ui/score-frame/index.ts';
+import { Glyph, Modal, openOverlayCount } from '../../../ui/primitives/index.ts';
+import { CountInBand, ScoreFrame, type ScoreFrameController } from '../../../ui/score-frame/index.ts';
 import { lineRange } from '../../../ui/layout-table.ts';
 import { useNavigate } from '../../router.tsx';
 import type { ScreenProps } from '../../route-types.ts';
 import { barCount, meterString, sourceLine } from '../scan/model.ts';
-import { useReadable, useStoreSlice, useWindowInfo } from '../scan/hooks.ts';
+import { useReadable, useStoreSlice } from '../scan/hooks.ts';
 import { usePracticeFlowServices, type PracticeFlowServices } from '../scan/services.ts';
-import { barTempoText, beatGrouping, beatInBar, countInBeat, meterStep, statusMessage, stopVariant } from './model.ts';
+import { firstNoteLabel, firstNoteOf, highlightFor, tempoOf } from '../scan/read-model.ts';
+import { keyName } from '../setup/key-names.ts';
+import { MIC_BARS, barTempoText, beatGrouping, beatInBar, countInBeat, meterBars, pitchSteps, statusMessage, stopVariant, type PitchStep } from './model.ts';
 import { PractiseWithoutListeningNotice } from '../states/States.tsx';
 import './perform.css';
 
@@ -33,39 +37,103 @@ function useSessionEvents(svc: PracticeFlowServices, on: (e: SessionEvent) => vo
   useEffect(() => svc.session.events.on((e) => latest.current(e)), [svc.session]);
 }
 
-/** Beat dots, or the large count-in numbers: re-renders once per beat. */
+/** The strip's beat dots: re-render once per beat. Dots in the count-in and in the take (06 section 6.13). */
 function BeatIndicator({ svc, beatsPerBar, grouping, bpm }: { svc: PracticeFlowServices; beatsPerBar: number; grouping: number[] | undefined; bpm: number }) {
-  const [shown, setShown] = useState<{ beat: number | null; countIn: boolean }>({ beat: null, countIn: svc.session.state === 'count-in' });
-  const last = useRef(shown);
+  const [beat, setBeat] = useState<number | null>(null);
+  const last = useRef<number | null>(null);
   useSessionEvents(svc, (e) => {
     // Set state only when what the dots draw changes: a clock tick inside a beat costs nothing.
-    const set = (beat: number | null, countIn: boolean): void => {
-      if (last.current.beat === beat && last.current.countIn === countIn) return;
-      last.current = { beat, countIn };
-      setShown(last.current);
+    const set = (next: number | null): void => {
+      if (last.current === next) return;
+      last.current = next;
+      setBeat(next);
     };
-    if (e.type === 'count-in') set(countInBeat(e.beat, beatsPerBar), true);
-    else if (e.type === 'count-in-restart') set(null, true);
+    if (e.type === 'count-in') set(countInBeat(e.beat, beatsPerBar));
+    else if (e.type === 'count-in-restart') set(null);
     else if (e.type === 'follower' && e.event.type === 'clock') {
-      if (e.event.scoreBeat >= 0) set(beatInBar(e.event.scoreBeat, beatsPerBar), false);
-    } else if (e.type === 'state' && e.state === 'performing') set(last.current.beat, false);
+      if (e.event.scoreBeat >= 0) set(beatInBar(e.event.scoreBeat, beatsPerBar));
+    }
   });
-  return <BeatDots beatsPerBar={beatsPerBar} currentBeat={shown.beat} countIn={shown.countIn} bpm={bpm} {...(grouping ? { grouping } : {})} />;
+  return <BeatDots beatsPerBar={beatsPerBar} currentBeat={beat} bpm={bpm} {...(grouping ? { grouping } : {})} />;
 }
 
-/** The input meter: updates only when the drawn bar or zone changes. */
-function LiveMeter({ svc }: { svc: PracticeFlowServices }) {
+/** The label of the strip's meter. The catalogue key is `play.mic`; until it lands the strip says "Mic" itself. */
+const MIC_LABEL_KEY = 'play.mic';
+const micLabel = (): string => (isCopyKey(MIC_LABEL_KEY) ? copy(MIC_LABEL_KEY) : 'Mic');
+
+const MIC_BAR_HEIGHTS = [5, 9, 13, 16, 12, 7, 4] as const; // 06 section 6.13: seven bars, 3 px wide
+
+/** "Mic" with a 7-bar input meter: updates only when the lit bars, the zone or clipping change. */
+function MicMeter({ svc }: { svc: PracticeFlowServices }) {
   const gate = svc.inputGateDb ?? -50;
   const [m, setM] = useState({ db: -80, clipping: false });
   const last = useRef(m);
   useSessionEvents(svc, (e) => {
     if (e.type !== 'follower' || e.event.type !== 'level') return;
     const { levelDb, clipping } = e.event;
-    if (last.current.clipping === clipping && meterStep(last.current.db) === meterStep(levelDb)) return;
+    const zoneChanged = meterZone(last.current.db, gate, last.current.clipping) !== meterZone(levelDb, gate, clipping);
+    if (last.current.clipping === clipping && !zoneChanged && meterBars(last.current.db) === meterBars(levelDb)) return;
     last.current = { db: levelDb, clipping };
     setM(last.current);
   });
-  return <LevelMeter levelDb={m.db} gateDb={gate} clipping={m.clipping} />;
+  const lit = meterBars(m.db);
+  return (
+    <span className="perform-mic" data-zone={meterZone(m.db, gate, m.clipping)} aria-hidden="true">
+      <span className="perform-mic-label">{micLabel()}</span>
+      <span className="perform-mic-bars">
+        {MIC_BAR_HEIGHTS.slice(0, MIC_BARS).map((h, i) => (
+          <i key={i} data-lit={i < lit ? 'true' : undefined} style={{ blockSize: `${h / 16}rem` }} />
+        ))}
+      </span>
+      {m.clipping ? <span className="perform-mic-bang">{copy('play.meter.clip')}</span> : null}
+    </span>
+  );
+}
+
+const NO_SOUNDS = createStore<SoundView>()(() => idleSoundView());
+
+/** The count-in band's number, dots and "Bar 1 · ♩ = 72": re-renders once per click. */
+function CountBand({ svc, beats, caption, frameRef }: { svc: PracticeFlowServices; beats: number; caption: string; frameRef: { current: ScoreFrameController | null } }) {
+  const [beat, setBeat] = useState(0);
+  // The first digit gives the band its height; the frame re-measures it, so a short window shrinks the number to fit.
+  useEffect(() => frameRef.current?.refreshBand(), [beat, frameRef]);
+  useSessionEvents(svc, (e) => {
+    if (e.type === 'count-in') setBeat(countInBeat(e.beat, beats));
+    else if (e.type === 'count-in-restart') setBeat(0);
+  });
+  return <CountInBand beat={beat} beats={beats} caption={caption} />;
+}
+
+function StepMark({ step }: { step: PitchStep }) {
+  if (step === 'done') return <Glyph id="check-ui" size={16} />;
+  if (step === 'live')
+    return (
+      <span className="perform-eq" aria-hidden="true">
+        <i />
+        <i />
+        <i />
+      </span>
+    );
+  return null;
+}
+
+/** Voice, before the count-in (06 section 6.12): "Your starting pitch" over the key chord (done) and the live first note. */
+function StartingPitchBand({ chord, note, steps }: { chord: string; note: string; steps: { chord: PitchStep; note: PitchStep } }) {
+  return (
+    <div className="perform-pitch">
+      <p className="perform-pitch-title">{copy('countIn.reference')}</p>
+      <p className="perform-pitch-steps">
+        <span className="perform-pitch-step" data-step={steps.chord}>
+          <StepMark step={steps.chord} />
+          {chord}
+        </span>
+        <span className="perform-pitch-step" data-step={steps.note}>
+          <StepMark step={steps.note} />
+          {note}
+        </span>
+      </p>
+    </div>
+  );
 }
 
 export function PerformScreen(_props: ScreenProps) {
@@ -77,7 +145,9 @@ export function PerformScreen(_props: ScreenProps) {
   const status = useStoreSlice(svc.view, (v) => v.status);
   const firstNoteHeard = useStoreSlice(svc.view, (v) => v.firstNoteHeard);
   const settings = useReadable(svc.settings);
-  const { short } = useWindowInfo();
+  const sounds = svc.sounds ?? NO_SOUNDS;
+  const referencing = useStoreSlice(sounds, (v) => v.playing === 'reference');
+  const caption = useStoreSlice(sounds, (v) => v.caption);
 
   const frameRef = useRef<ScoreFrameController | null>(null);
   const queue = useRef<FollowerEvent[]>([]);
@@ -158,29 +228,41 @@ export function PerformScreen(_props: ScreenProps) {
   const totalBars = barCount(prepared);
   const variant = stopVariant(mode, listening, firstNoteHeard);
   const finishing = state === 'finishing';
+  const counting = state === 'count-in';
   const message = statusMessage({ state, status, bar, totalBars });
-  const quiet = status === null && state !== 'count-in';
   const source = sourceLine(prepared.source);
-  const centreText = finishing ? copy('results.scoring') : quiet || !short ? barTempoText(bar, meter, bpm) : message;
-  const announce = state === 'count-in' ? copy('a11y.countIn.announce') : finishing ? copy('a11y.take.finished') : '';
+  // Voice: the starting pitch plays first, in every mode (R7); its band and the strip say so until the clicks begin.
+  const pitchLive = counting && referencing && (caption?.kind === 'key-chord' || caption?.kind === 'first-note') && status === null;
+  const centreText = finishing ? copy('results.scoring') : pitchLive ? copy('action.hearReference.short') : message;
+  const announce = counting ? copy('a11y.countIn.announce') : finishing ? copy('a11y.take.finished') : '';
+  const first = firstNoteOf(prepared);
+  const highlight = highlightFor(prepared, pitchLive ? caption : null, null);
+  const tempo = tempoOf(prepared);
+  const band = !counting ? null : pitchLive ? (
+    <StartingPitchBand
+      chord={copy('reference.playing.chord', { key: keyName(prepared.writtenKey) })}
+      note={copy('reference.playing.first', { note: first ? firstNoteLabel(first.written, first.concertMidi) : '' })}
+      steps={pitchSteps(caption?.kind === 'first-note' ? 'first-note' : 'key-chord')}
+    />
+  ) : (
+    <CountBand svc={svc} beats={prepared.meter.countsPerBar} caption={barTempoText(1, meter, bpm)} frameRef={frameRef} />
+  );
 
   return (
     <section className="perform" data-testid="screen-practice.play" data-route-id="practice.play" data-state={state} data-mode={mode}>
       <header className="perform-toolbar">
         <div ref={stopRef} className="perform-stop">
-          <Button label={copy('play.stop')} variant="secondary" icon="stop" onClick={() => setConfirm(true)} disabled={finishing} />
+          <Button label={copy('play.stop')} variant="secondary" size="compact" icon="stop" onClick={() => setConfirm(true)} disabled={finishing} />
         </div>
         <div className="perform-centre">
           <BeatIndicator svc={svc} beatsPerBar={prepared.meter.countsPerBar} grouping={beatGrouping(prepared.meter.beats, prepared.meter.beatType, prepared.meter.countsPerBar)} bpm={bpm} />
-          <span className="perform-centre-text"><BeatUnitText text={centreText} /></span>
+          <span className="perform-centre-text">{centreText}</span>
+          <span className="perform-tempo"><BeatUnitText text={copy('tempo.marking', { unit: tempo.unit, bpm })} /></span>
           {finishing ? <span className="perform-indeterminate" aria-hidden="true" /> : null}
         </div>
         <div className="perform-right">
-          {listening ? <LiveMeter svc={svc} /> : null}
           {lines ? <span className="perform-lines">{copy('score.lines', { from: lines.first + 1, to: lines.last + 1, total: lines.total })}</span> : null}
-          <span className="perform-chip" data-mode={mode}>
-            {copy(mode === 'ranked' ? 'badge.ranked' : 'badge.practice')}
-          </span>
+          {listening ? <MicMeter svc={svc} /> : null}
         </div>
       </header>
       {listening ? null : <PractiseWithoutListeningNotice />}
@@ -191,6 +273,10 @@ export function PerformScreen(_props: ScreenProps) {
           excerpt={prepared}
           bpm={bpm}
           frozen={frozen}
+          purpose="take"
+          band={band}
+          highlightKey={highlight.key}
+          firstNoteName={highlight.firstNote}
           {...(svc.reducedMotion ? { reducedMotion: svc.reducedMotion } : {})}
           {...(svc.highContrast ? { highContrast: svc.highContrast } : {})}
           label={copy('score.summaryLabel', { bars: totalBars, key: '', meter, clef: prepared.clef, tempo: copy('tempo.marking', { unit: '♩', bpm }) })}
@@ -201,15 +287,7 @@ export function PerformScreen(_props: ScreenProps) {
           }}
         />
       </div>
-      {short ? (
-        source ? <p className="perform-source">{source}</p> : null
-      ) : (
-        <footer className="perform-status">
-          <span>{message}</span>
-          {source ? <span className="perform-source">{source}</span> : null}
-          <span><BeatUnitText text={copy('tempo.marking', { unit: '♩', bpm })} /></span>
-        </footer>
-      )}
+      {source ? <p className="perform-source">{source}</p> : null}
       <p className="ui-visually-hidden" role="status" aria-live="polite">
         {announce}
       </p>

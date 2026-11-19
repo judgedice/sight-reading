@@ -9,7 +9,8 @@ import * as notationModule from '../../../notation/index.ts';
 import { fixtureDoc } from '../../../notation/testing/corpus-node.ts';
 // eslint-disable-next-line boundaries/dependencies -- test data only (not shipped)
 import { loadConfigs } from '../../../rules/index.ts';
-import { createSessionStore, type SessionView } from '../../../session/index.ts';
+import { createSessionStore, idleSoundView, type SessionView, type SoundView } from '../../../session/index.ts';
+import { createStore } from 'zustand/vanilla';
 import { defaultAppSettings } from '../../../store/defaults.ts';
 import { bindNotation, type FrameNotation } from '../../../ui/score-frame/index.ts';
 import { ToastProvider } from '../../../ui/primitives/index.ts';
@@ -79,7 +80,7 @@ export function fakeSession(prepared: PreparedExcerpt, mode: 'ranked' | 'practic
     events,
     state: 'covered' as SessionState,
     prepared,
-    pending: { mode, seenBefore: false, skipLimitHit: false, revealed: false, scanSec: 30 },
+    pending: { mode, seenBefore: false, skipLimitHit: false, revealed: false, scanSec: 30, listenedFirst: false },
     emitState(next: SessionState) {
       const prev = s.state;
       s.state = next;
@@ -107,6 +108,12 @@ export interface Harness {
   location: LocationSource & { hash: string };
   practiceInstead: ReturnType<typeof vi.fn>;
   notation: { fonts: ReturnType<typeof vi.fn> };
+  /** What is sounding (the session's `sounds` store); the fakes below set it as the session would. */
+  sounds: StoreApi<SoundView>;
+  listenFirst: Mock<() => Promise<void>>;
+  hearKey: Mock<() => Promise<void>>;
+  hearStartingPitch: Mock<() => Promise<void>>;
+  stopSounds: Mock<() => void>;
 }
 
 export function harness(over: { mode?: 'ranked' | 'practice'; prepared?: PreparedExcerpt; settings?: AppSettings } = {}): Harness {
@@ -131,6 +138,24 @@ export function harness(over: { mode?: 'ranked' | 'practice'; prepared?: Prepare
       listeners.forEach((l) => l());
     },
   };
+  const sounds = createStore<SoundView>()(() => idleSoundView());
+  const play = (v: Partial<SoundView>): Promise<void> => {
+    sounds.setState({ ...idleSoundView(), ...v });
+    return Promise.resolve();
+  };
+  const chord = { kind: 'key-chord' as const, writtenKey: prepared.writtenKey, concertKey: prepared.concertKey };
+  // Ranked becomes practice at once and the view says so (08 decision 7); the countdown is the session's and runs on.
+  const listenFirst = vi.fn(() => {
+    if (session.pending.mode === 'ranked') {
+      session.pending.mode = 'practice';
+      session.pending.listenedFirst = true;
+      store.setState({ mode: 'practice', listenedFirst: true });
+    }
+    return play({ playing: 'listen', caption: { kind: 'lead-in', bpm: 100 } });
+  });
+  const hearKey = vi.fn(() => play({ playing: 'key', caption: chord }));
+  const hearStartingPitch = vi.fn(() => play({ playing: 'reference', caption: chord }));
+  const stopSounds = vi.fn(() => sounds.setState(idleSoundView()));
   const services: PracticeFlowServices = {
     configs: cfg,
     session: session as unknown as PracticeSessionPort,
@@ -138,9 +163,14 @@ export function harness(over: { mode?: 'ranked' | 'practice'; prepared?: Prepare
     loadNotation: () => Promise.resolve(notation),
     settings,
     practiceInstead,
-    hearTempo: vi.fn(() => Promise.resolve()),
+    hearTempo: vi.fn(() => play({ playing: 'tempo', caption: { kind: 'tempo', bpm: 100 } })),
+    listenFirst,
+    hearKey,
+    hearStartingPitch,
+    stopSounds,
+    sounds,
   };
-  return { services, session, view: store, settings, location, practiceInstead, notation: { fonts } };
+  return { services, session, view: store, settings, location, practiceInstead, notation: { fonts }, sounds, listenFirst, hearKey, hearStartingPitch, stopSounds };
 }
 
 function Current() {

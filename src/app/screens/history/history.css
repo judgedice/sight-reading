@@ -11,6 +11,7 @@
 
 .hist-title-page {
   margin: 0;
+  font-family: var(--type-h1-family);
   font-size: var(--type-h1-size);
   line-height: var(--type-h1-line);
   font-weight: var(--type-h1-weight);
@@ -118,9 +119,11 @@
   line-height: var(--type-small-line);
 }
 
-.hist-meta span + span::before {
-  content: '·';
-  margin-inline-end: var(--space-2);
+/* The summary line keeps its " · " in the text; it wraps rather than hiding the tempo. */
+.hist-line.hist-meta {
+  display: block;
+  white-space: normal;
+  overflow: visible;
 }
 
 .hist-side {
@@ -129,17 +132,6 @@
   flex-direction: column;
   align-items: flex-end;
   gap: var(--space-1);
-}
-
-.hist-chip {
-  padding-inline: var(--space-2);
-  border-radius: var(--radius-s);
-  border: 0.0625rem solid var(--border-strong);
-  font-size: var(--type-small-size);
-}
-
-.hist-chip[data-ranked='true'] {
-  border-color: var(--accent);
 }
 
 .hist-time {
@@ -160,18 +152,170 @@
   gap: var(--space-3);
 }
 
+.hist-back {
+  color: var(--text);
+  font-weight: var(--type-label-weight);
+}
+
+.hist-attempt-titles {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+/* A plain title: serif text, not a link. */
+.hist-attempt-title {
+  margin: 0;
+  font-family: var(--type-h1-family);
+  font-size: var(--type-h1-size);
+  line-height: var(--type-h1-line);
+  font-weight: var(--type-h1-weight);
+  overflow-wrap: anywhere;
+}
+
+.hist-attempt-composer,
+.hist-attempt-meta,
+.hist-attempt-when {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--type-small-size);
+  line-height: var(--type-small-line);
+}
+
+.hist-attempt-when {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-block-start: var(--space-1);
+  font-variant-numeric: tabular-nums;
+}
+
+.hist-score-card {
+  min-inline-size: 0;
+}
+
+/* Listen and Slower: the right end of the score toolbar. */
+.hist-listen {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-1);
+}
+
+.hist-listen-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+}
+
+.hist-from-bar {
+  margin: 0;
+  min-block-size: 1.5rem;
+  color: var(--text-muted);
+  font-size: var(--type-label-size);
+  line-height: var(--type-label-line);
+  font-weight: var(--type-label-weight);
+}
+
+.hist-score-bare .hist-listen {
+  align-items: flex-start;
+}
+
 .hist-credit {
   padding: 0;
   border: 0;
   background: none;
-  color: var(--text);
+  color: var(--text-muted);
   font: inherit;
+  font-size: var(--type-small-size);
   text-align: start;
   text-decoration: underline;
   text-decoration-color: var(--border-strong);
   cursor: pointer;
 }
 
-.hist-back {
-  color: var(--accent);
+.hist-credit:focus-visible {
+  outline: var(--focus-ring) solid 0.125rem;
+  outline-offset: 0.125rem;
+}
+
+/* ---- What the take scored ----------------------------------------------------------------------------------- */
+.hist-summary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  max-inline-size: 40rem;
+}
+
+.hist-grade-block {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.hist-grade-letter {
+  font-family: var(--type-grade-family);
+  font-size: var(--type-grade-size);
+  line-height: var(--type-grade-line);
+  font-weight: var(--type-grade-weight);
+  letter-spacing: var(--type-grade-tracking);
+}
+
+.hist-grade-score {
+  font-family: var(--type-display-family);
+  font-size: var(--type-display-size);
+  line-height: var(--type-display-line);
+  font-weight: var(--type-display-weight);
+  font-variant-numeric: tabular-nums;
+}
+
+.hist-grade-side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.hist-grade-line {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--type-small-size);
+  line-height: var(--type-small-line);
+}
+
+.hist-components {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.hist-diagnostics {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--text-muted);
+  font-size: var(--type-small-size);
+  line-height: var(--type-small-line);
+}
+
+.hist-counts,
+.hist-xp {
+  margin: 0;
+  font-size: var(--type-small-size);
+  line-height: var(--type-small-line);
+}
+
+.hist-counts {
+  color: var(--text-muted);
+}
+
+.hist-xp {
+  font-weight: var(--type-h3-weight);
+}
+
+.hist-actions {
+  display: flex;
+  gap: var(--space-3);
 }

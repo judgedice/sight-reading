@@ -1,6 +1,6 @@
 /** Microphone permission cases (04 section 9.2). Detection uses `getUserMedia` errors only. */
 import type { PlatformCapabilities } from '../../../core/platform.ts';
-import type { TextKey } from './text.ts';
+import type { CopyKey } from '../../../ui/copy/copy.ts';
 
 export type MicProblem = 'denied' | 'no-device' | 'busy' | 'insecure';
 
@@ -37,7 +37,7 @@ export function pickMicBrowser(caps: Pick<PlatformCapabilities, 'osFamily' | 'di
   return 'chrome';
 }
 
-const DENIED_STEPS: Record<MicBrowser, TextKey> = {
+const DENIED_STEPS: Record<MicBrowser, CopyKey> = {
   chrome: 'permission.denied.chrome',
   'safari-mac': 'permission.denied.safariMac',
   'ios-safari': 'permission.denied.iosSafari',
@@ -45,9 +45,9 @@ const DENIED_STEPS: Record<MicBrowser, TextKey> = {
   firefox: 'permission.denied.firefox',
 };
 
-export const deniedStepsKey = (b: MicBrowser): TextKey => DENIED_STEPS[b];
+export const deniedStepsKey = (b: MicBrowser): CopyKey => DENIED_STEPS[b];
 
 /** The body line of a non-denied case. */
-export function micProblemKey(p: Exclude<MicProblem, 'denied'>): TextKey {
+export function micProblemKey(p: Exclude<MicProblem, 'denied'>): CopyKey {
   return p === 'no-device' ? 'permission.noDevice' : p === 'busy' ? 'permission.busy' : 'permission.insecure';
 }

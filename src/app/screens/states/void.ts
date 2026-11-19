@@ -1,11 +1,11 @@
 /** Void cards (04 section 9.3) and practise without listening (R13, 04 section 9.2). */
 import type { PracticeSettings, VoidReason } from '../../../core/types.ts';
-import type { TextKey } from './text.ts';
+import type { CopyKey } from '../../../ui/copy/copy.ts';
 
 export type VoidAction = 'try-again' | 'check-microphone' | 'recalibrate';
 
 export interface VoidCopy {
-  key: TextKey;
+  key: CopyKey;
   actions: VoidAction[];
 }
 

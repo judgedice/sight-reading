@@ -3,6 +3,7 @@
  * (progression.json, levels), never from literals here.
  */
 import type { Configs, InstrumentProgress, PlayerProfile } from '../../../core/types.ts';
+import { instrumentName } from '../../../ui/copy/instrument-names.ts';
 import { patternDef } from '../results/model.ts';
 
 export type LadderState = 'achieved' | 'current' | 'future';
@@ -74,7 +75,7 @@ export interface InstrumentCard {
 export function instrumentCards(cfg: Configs, profile: PlayerProfile): InstrumentCard[] {
   const cards = Object.entries(profile.instruments).map(([id, p]) => ({
     id,
-    label: cfg.instrumentById[id]?.label ?? id,
+    label: cfg.instrumentById[id] ? instrumentName(cfg.instrumentById[id]) : id,
     level: p.level,
     attemptsRanked: p.attemptsRanked,
     squares: windowSquares(p, cfg),

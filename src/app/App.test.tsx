@@ -68,6 +68,73 @@ describe('App shell', () => {
     expect(document.activeElement).toBe(document.querySelector('main'));
   });
 
+  it('chrome per route: full, onboarding (brand only), loop (no bar, no tabs) and none', () => {
+    const chromeAt = (hash: string): { chrome: string | null; header: boolean; tabs: number; gear: boolean } => {
+      mounted?.unmount();
+      mounted = mount(<App location={fakeLocation(hash)} dev={false} />);
+      return {
+        chrome: document.querySelector('.app-shell')?.getAttribute('data-chrome') ?? null,
+        header: document.querySelector('header') !== null,
+        tabs: document.querySelectorAll('.app-tab').length,
+        gear: document.querySelector('.app-gear') !== null,
+      };
+    };
+    for (const hash of ['', '#/progress', '#/history', '#/settings', '#/credits', '#/calibrate']) {
+      expect(chromeAt(hash), hash).toEqual({ chrome: 'full', header: true, tabs: 3, gear: true });
+    }
+    // Onboarding: the brand and nothing else (Back belongs to the screen's steps).
+    expect(chromeAt('#/welcome')).toEqual({ chrome: 'onboarding', header: true, tabs: 0, gear: false });
+    expect(document.querySelector('.app-bar .app-brand')?.textContent).toBe(copy('app.name'));
+    expect(document.querySelector('.app-bar a')).toBeNull();
+    // The loop: no tabs, no settings gear, no app bar; the screen's toolbar carries Home.
+    for (const hash of ['#/practice/scan', '#/practice/results']) {
+      expect(chromeAt(hash), hash).toEqual({ chrome: 'loop', header: false, tabs: 0, gear: false });
+    }
+    expect(chromeAt('#/practice/play')).toEqual({ chrome: 'none', header: false, tabs: 0, gear: false });
+  });
+
+  it('the brand links to Practice on full chrome and the tabs carry an icon for the phone bar', () => {
+    mounted = mount(<App location={fakeLocation('#/progress')} dev={false} />);
+    expect(document.querySelector('a.app-brand')?.getAttribute('href')).toBe('#/');
+    expect(document.querySelectorAll('.app-tab svg')).toHaveLength(3);
+  });
+
+  it('wraps each screen in the change-motion container, keyed by route', () => {
+    const loc = fakeLocation('');
+    mounted = mount(<App location={loc} dev={false} />);
+    const first = document.querySelector('.app-screen');
+    expect(first?.querySelector('[data-testid=screen-home]')).not.toBeNull();
+    act(() => loc.navigate('/progress', false));
+    expect(document.querySelector('.app-screen')).not.toBe(first);
+  });
+
+  it('#/practice/tips goes to results when one is open', () => {
+    const loc = fakeLocation('#/practice/tips');
+    mounted = mount(<App location={loc} dev={false} resultOpen={() => true} />);
+    expect(document.querySelector('[data-route-id="practice.results"]')).not.toBeNull();
+    expect(loc.hash).toBe('#/practice/results');
+  });
+
+  it('#/practice/tips goes to Practice when no result is open, and never shows a tips screen', () => {
+    const loc = fakeLocation('#/practice/tips');
+    mounted = mount(<App location={loc} dev={false} />);
+    expect(document.querySelector('[data-route-id=home]')).not.toBeNull();
+    expect(document.querySelector('[data-route-id="practice.tips"]')).toBeNull();
+    expect(loc.hash).toBe('#/');
+    expect(document.querySelector('.app-tab[aria-current=page]')?.textContent).toBe(copy('nav.practice'));
+  });
+
+  it('Page not found keeps the app bar, tells the cause and links to Practice', () => {
+    mounted = mount(<App location={fakeLocation('#/zzz')} dev={false} />);
+    expect(document.querySelector('.app-bar')).not.toBeNull();
+    expect(text('h1')).toBe('Page not found');
+    expect(text('.err-screen-body')).toBe("There's nothing at this address.");
+    const link = document.querySelector('.not-found a');
+    expect(link?.textContent).toBe('Go to Practice');
+    expect(link?.getAttribute('href')).toBe('#/');
+    expect(document.title).toBe(`${copy('notFound.title')} | ${copy('app.name')}`);
+  });
+
   it('hides the app bar and tab bar during the take', () => {
     mounted = mount(<App location={fakeLocation('#/practice/play')} dev={false} />);
     expect(document.querySelector('header')).toBeNull();

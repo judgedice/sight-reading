@@ -6,7 +6,9 @@ import { Button, Select, Toggle } from '../../../ui/components/form/index.ts';
 import { EmptyState, GradeBadge } from '../../../ui/components/domain/index.ts';
 import { Link, useNavigate } from '../../router.tsx';
 import type { ScreenProps } from '../../route-types.ts';
-import { PAGE_SIZE, dayLabel, filterQuery, groupByDay, matchesFilter, parseFilter, rowDetail, timeLabel, type HistoryFilter, type RowDetail } from './model.ts';
+import { instrumentName } from '../../../ui/copy/instrument-names.ts';
+import { MetaLine } from './MetaLine.tsx';
+import { PAGE_SIZE, dayLabel, filterQuery, groupByDay, matchesFilter, parseFilter, rowDetail, servedMeter, timeLabel, type HistoryFilter, type RowDetail } from './model.ts';
 import type { HistoryServices } from './services.ts';
 import { text } from './text.ts';
 import './history.css';
@@ -32,7 +34,7 @@ interface Loaded {
   more: boolean;
 }
 
-function HistoryRow({ row, detail, instrumentName }: { row: AttemptSummary; detail: RowDetail | undefined; instrumentName: string }) {
+function HistoryRow({ row, detail, instrumentLabel }: { row: AttemptSummary; detail: RowDetail | undefined; instrumentLabel: string }) {
   const score = row.score === null ? null : Math.round(row.score);
   return (
     <li className="hist-item">
@@ -56,18 +58,10 @@ function HistoryRow({ row, detail, instrumentName }: { row: AttemptSummary; deta
           <span className="hist-line hist-composer" title={row.composer}>
             {row.composer}
           </span>
-          <span className="hist-line hist-meta">
-            <span>{instrumentName}</span>
-            <span>{copy('progress.instrumentLevel', { level: row.levelServed })}</span>
-            {detail ? <span>{detail.writtenKey}</span> : null}
-            {detail ? <span>{detail.meter}</span> : null}
-            {detail ? <span>{detail.tempo}</span> : null}
-          </span>
+          {detail ? <MetaLine className="hist-line hist-meta" instrument={instrumentLabel} levelServed={row.levelServed} detail={detail} /> : null}
         </span>
         <span className="hist-side">
-          <span className="hist-chip" data-ranked={row.ranked ? 'true' : 'false'}>
-            {row.ranked ? copy('badge.ranked') : copy('badge.practice')}
-          </span>
+          <GradeBadge kind={row.ranked ? 'ranked' : 'practice'} />
           <time className="hist-time" dateTime={row.createdAt}>
             {timeLabel(row.createdAt)}
           </time>
@@ -100,10 +94,16 @@ export function HistoryScreen(_props: ScreenProps) {
       .then(async (page) => {
         const rows = page.filter((r) => matchesFilter(r, filter));
         const records = await Promise.all(page.map((r) => services.repos.attempts.byId(r.id)));
+        // A take asked for a random meter keeps that request; the meter served comes from its excerpt.
+        const served = await Promise.all(
+          records.map((rec) =>
+            rec && servedMeter(rec) === null && services.preparedFor ? services.preparedFor(rec).catch(() => null) : Promise.resolve(null),
+          ),
+        );
         if (!live) return;
         const details: Record<string, RowDetail> = {};
         records.forEach((rec: AttemptRecord | undefined, i) => {
-          if (rec && page[i]) details[page[i].id] = rowDetail(rec);
+          if (rec && page[i]) details[page[i].id] = rowDetail(rec, served[i]);
         });
         setLoaded((prev) => {
           const base = pages === 0 || !prev ? [] : prev.rows;
@@ -127,7 +127,10 @@ export function HistoryScreen(_props: ScreenProps) {
     navigate(`/history${filterQuery(next)}`, { replace: true });
   };
 
-  const instrumentLabel = (id: string): string => services.configs.instrumentById[id]?.label ?? id;
+  const instrumentLabel = (id: string): string => {
+    const inst = services.configs.instrumentById[id];
+    return inst ? instrumentName(inst) : id;
+  };
   const groups = useMemo(() => groupByDay(loaded?.rows ?? []), [loaded]);
   const filtered = filter.instrumentId !== null || filter.rankedOnly;
   const instrumentOptions = useMemo(
@@ -173,7 +176,7 @@ export function HistoryScreen(_props: ScreenProps) {
           <h2 className="hist-day-heading">{dayLabel(g.day, today)}</h2>
           <ol className="hist-list">
             {g.rows.map((r) => (
-              <HistoryRow key={r.id} row={r} detail={loaded?.details[r.id]} instrumentName={instrumentLabel(r.instrumentId)} />
+              <HistoryRow key={r.id} row={r} detail={loaded?.details[r.id]} instrumentLabel={instrumentLabel(r.instrumentId)} />
             ))}
           </ol>
         </section>

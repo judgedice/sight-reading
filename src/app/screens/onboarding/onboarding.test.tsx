@@ -7,8 +7,7 @@ import { RouterProvider, type LocationSource } from '../../router.tsx';
 import { createRouteTable } from '../../routes.tsx';
 import { fakeServices, playAlongOk } from '../calibration/test-services.ts';
 import { initialOnboarding, onboardingReducer } from './flow.ts';
-import { groupInstruments, transpositionLine } from './instruments.ts';
-import { OnboardingScreen } from './OnboardingScreen.tsx';
+import { MIC_GRANTED_HOLD_MS, OnboardingScreen } from './OnboardingScreen.tsx';
 import { OnboardingServicesProvider, type MicOutcome, type OnboardingResult, type OnboardingServices } from './services.ts';
 import type { ScreenProps } from '../../route-types.ts';
 
@@ -29,6 +28,11 @@ const button = (name: string): HTMLButtonElement => {
   const b = [...document.querySelectorAll('button')].find((x) => x.textContent === name);
   if (!b) throw new Error(`no button ${name}; have ${[...document.querySelectorAll('button')].map((x) => x.textContent).join('|')}`);
   return b;
+};
+const settle = async (ms: number): Promise<void> => {
+  await act(async () => {
+    await new Promise((r) => setTimeout(r, ms));
+  });
 };
 const names = (): string[] => [...document.querySelectorAll('button')].map((b) => b.textContent ?? '');
 let clicks = 0;
@@ -87,6 +91,9 @@ describe('flow', () => {
     s = onboardingReducer(s, { type: 'back' });
     expect(s.step).toBe(3);
     s = onboardingReducer(s, { type: 'mic-granted' });
+    expect(s.step).toBe(3);
+    expect(s.mic).toBe('granted');
+    s = onboardingReducer(s, { type: 'mic-continue' });
     expect(s.step).toBe(4);
     s = onboardingReducer(s, { type: 'calibration-done', result: 'skipped' });
     expect(s.step).toBe(5);
@@ -99,28 +106,6 @@ describe('flow', () => {
     expect(s.step).toBe(3);
     expect(s.mic).toBe('denied');
     expect(onboardingReducer(initialOnboarding(), { type: 'mic-granted' }).step).toBe(1);
-  });
-});
-
-describe('instruments', () => {
-  it('launch instruments only by default, grouped Voice, Woodwinds, Brass, Strings, Keyboard', () => {
-    const g = groupInstruments(instruments, false);
-    expect(g.map((x) => x.group)).toEqual(['voice', 'woodwinds', 'brass', 'strings', 'keyboard']);
-    expect(g.flatMap((x) => x.items).every((i) => i.status === 'launch')).toBe(true);
-    expect(g[0]?.items.map((i) => i.id)).toEqual(['voice-soprano', 'voice-mezzo', 'voice-alto', 'voice-tenor', 'voice-baritone', 'voice-bass']);
-    expect(g.flatMap((x) => x.items)).toHaveLength(13);
-  });
-  it('beta toggle reveals beta instruments', () => {
-    const all = groupInstruments(instruments, true).flatMap((x) => x.items);
-    expect(all.length).toBe(instruments.length);
-    expect(all.some((i) => i.status === 'beta')).toBe(true);
-  });
-  it('transposition line for B-flat and E-flat instruments only', () => {
-    const by = (id: string) => instruments.find((i) => i.id === id) as (typeof instruments)[number];
-    expect(transpositionLine(by('clarinet-bb'))).toBe('B♭: sounds a major 2nd lower');
-    expect(transpositionLine(by('sax-alto'))).toBe('E♭: sounds a major 6th lower');
-    expect(transpositionLine(by('flute'))).toBeNull();
-    expect(transpositionLine(by('voice-tenor'))).toBeNull();
   });
 });
 
@@ -138,8 +123,10 @@ describe('OnboardingScreen', () => {
     clicks = 0;
     const { svc, requestMic, finished } = services();
     render(svc);
-    expect(document.body.textContent).toContain('Step 1 of 5');
+    expect(document.body.textContent).not.toContain('Step 1 of 5');
     expect(document.body.textContent).toContain('Read it. Play it. See how it went.');
+    expect(document.querySelector('input[type=text]')).toBeNull();
+    expect(document.activeElement?.textContent).toBe('Get started');
     await press('Get started');
     expect(document.body.textContent).toContain('Step 2 of 5');
     expect(requestMic).not.toHaveBeenCalled();
@@ -148,6 +135,9 @@ describe('OnboardingScreen', () => {
     expect(requestMic).not.toHaveBeenCalled();
     await press('Allow microphone');
     expect(requestMic).toHaveBeenCalledOnce();
+    expect(document.body.textContent).toContain('Microphone is on.');
+    expect(document.body.textContent).toContain('Step 3 of 5');
+    await settle(MIC_GRANTED_HOLD_MS + 50);
     expect(document.body.textContent).toContain('Step 4 of 5');
     await press('Skip');
     expect(document.body.textContent).toContain('Step 5 of 5');
@@ -158,27 +148,50 @@ describe('OnboardingScreen', () => {
     expect(nav).toHaveBeenCalledWith('/practice/scan?placement=1', true);
   });
 
-  it('instrument cards are a radio group with abbreviations and the transposition line', async () => {
+  it('instrument cards are one radio group with the range in text and the transposition line', async () => {
     const { svc, finished } = services();
     render(svc);
     await press('Get started');
-    const radios = [...document.querySelectorAll<HTMLInputElement>('input[type=radio]')];
+    const radios = [...document.querySelectorAll<HTMLElement>('[role=radio]')];
     expect(radios).toHaveLength(13);
-    expect(new Set(radios.map((r) => r.name)).size).toBe(1);
-    expect(radios.find((r) => r.value === 'flute')?.checked).toBe(true);
-    expect(document.body.textContent).toContain('A.Sx');
-    expect(document.body.textContent).toContain('B♭: sounds a major 2nd lower');
-    const clarinet = radios.find((r) => r.value === 'clarinet-bb') as HTMLInputElement;
+    expect(document.querySelectorAll('[role=radiogroup]')).toHaveLength(1);
+    expect(radios.find((r) => r.dataset.instrument === 'flute')?.getAttribute('aria-checked')).toBe('true');
+    expect(document.body.textContent).toContain('Sounds a major 2nd lower');
+    expect(document.body.textContent).toContain('Written an octave higher');
+    expect(document.querySelector('[data-testid="picked-range"]')?.textContent).toContain('Flute');
+    const clarinet = radios.find((r) => r.dataset.instrument === 'clarinet-bb') as HTMLElement;
     act(() => clarinet.click());
-    expect(clarinet.checked).toBe(true);
+    expect(clarinet.getAttribute('aria-checked')).toBe('true');
+    expect(document.querySelector('[data-testid="picked-range"]')?.textContent).toContain('Clarinet');
     await press('Continue');
     await press('Not now');
     expect(document.body.textContent).toContain('Step 5 of 5');
     await press("I'll choose");
-    expect(document.querySelector('[data-testid="ob-level-description"]')?.textContent).toBe('Level 2 description');
+    expect(document.querySelector('[data-testid="ob-level"]')?.textContent).toContain('Level 2 description');
     await press('Start practising');
     expect(finished[0]).toMatchObject({ instrumentId: 'clarinet-bb', micAllowed: false, calibration: null, level: { kind: 'level', level: 2 } });
     expect(nav).toHaveBeenCalledWith('/', true);
+  });
+
+  it('picks Baritone with the keyboard and finishes with voice-baritone', async () => {
+    const { svc, finished } = services();
+    svc.initial.instrumentId = 'voice-tenor';
+    render(svc);
+    await press('Get started');
+    const card = (id: string): HTMLElement => document.querySelector<HTMLElement>(`[data-instrument="${id}"]`) as HTMLElement;
+    act(() => card('voice-tenor').focus());
+    act(() => {
+      card('voice-tenor').dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true }));
+    });
+    expect(card('voice-baritone').getAttribute('aria-checked')).toBe('true');
+    expect(document.activeElement).toBe(card('voice-baritone'));
+    expect(card('voice-baritone').getAttribute('aria-label')).toBe('Baritone voice, range G2 to G4');
+    expect(document.querySelector('[data-testid="picked-range"]')?.textContent).toContain('Baritone voice');
+    await press('Continue');
+    await press('Not now');
+    await press("I'll choose");
+    await press('Start practising');
+    expect(finished[0]).toMatchObject({ instrumentId: 'voice-baritone' });
   });
 
   it('beta toggle shows beta cards with a badge', async () => {
@@ -187,7 +200,7 @@ describe('OnboardingScreen', () => {
     await press('Get started');
     const sw = document.querySelector<HTMLInputElement>('input[role=switch]') as HTMLInputElement;
     act(() => sw.click());
-    expect(document.querySelectorAll('input[type=radio]').length).toBe(instruments.length);
+    expect(document.querySelectorAll('[role=radio]').length).toBe(instruments.length);
     expect(document.body.textContent).toContain('less tested');
   });
 
@@ -201,27 +214,73 @@ describe('OnboardingScreen', () => {
     expect(names()).toContain('Try again');
     await press('Try again');
     expect(requestMic).toHaveBeenCalledTimes(2);
-    await press('Practise without listening');
+    await press('Continue without the microphone');
     expect(document.body.textContent).toContain('Step 5 of 5');
   });
 
-  it('Back returns to the previous step and a typed name is kept', async () => {
+  it.each([
+    ['no-device', "We can't find a microphone.", true],
+    ['busy', 'Another app is using the microphone.', true],
+    ['insecure', 'The microphone only works on a secure (https) page.', false],
+  ] as const)('a %s microphone shows its card with Continue without the microphone', async (problem, line, retry) => {
+    const { svc } = services({ mic: { ok: false, problem } });
+    render(svc);
+    await press('Get started');
+    await press('Continue');
+    await press('Allow microphone');
+    expect(document.querySelector(`[data-testid="mic-${problem}"]`)?.textContent).toContain(line);
+    expect(names().includes('Try again')).toBe(retry);
+    expect(names()).toContain('Continue without the microphone');
+  });
+
+  it('the microphone step says takes will not be graded under Not now', async () => {
+    const { svc } = services();
+    render(svc);
+    await press('Get started');
+    await press('Continue');
+    expect(document.body.textContent).toContain("You can still practise, but takes won't be graded.");
+  });
+
+  it('without the microphone, placement says it needs it and cannot be chosen; I\'ll choose is open', async () => {
     const { svc, finished } = services();
     render(svc);
-    const input = document.querySelector<HTMLInputElement>('input[type=text]') as HTMLInputElement;
-    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
-    act(() => {
-      setter?.call(input, 'Ada');
-      input.dispatchEvent(new Event('input', { bubbles: true }));
-    });
-    await press('Get started');
-    await press('Back');
-    expect(document.body.textContent).toContain('Step 1 of 5');
     await press('Get started');
     await press('Continue');
     await press('Not now');
+    expect(document.body.textContent).toContain('Needs the microphone.');
+    const placement = button('Find my difficulty (3 short excerpts, about 3 minutes)');
+    expect(placement.getAttribute('aria-disabled')).toBe('true');
     await press('Find my difficulty (3 short excerpts, about 3 minutes)');
-    expect(finished[0]?.displayName).toBe('Ada');
+    expect(finished).toHaveLength(0);
+    expect(document.querySelector('[data-testid="ob-level"] [role=group]')).not.toBeNull();
+    expect(document.querySelector('[data-testid="picked-range"]')).not.toBeNull();
+    expect(document.body.textContent).not.toContain('Follow my progress');
+  });
+
+  it('Back returns to the previous step; the name defaults and there is no name field', async () => {
+    const { svc, finished } = services();
+    render(svc);
+    await press('Get started');
+    await press('Back');
+    expect(document.body.textContent).toContain('Read it. Play it.');
+    await press('Get started');
+    await press('Continue');
+    await press('Not now');
+    await press("I'll choose");
+    await press('Start practising');
+    expect(finished[0]?.displayName).toBe('Player');
+  });
+
+  it('calibration is the step card itself and shows the skip hint under Skip', async () => {
+    const { svc } = services();
+    render(svc);
+    await press('Get started');
+    await press('Continue');
+    await press('Allow microphone');
+    await settle(MIC_GRANTED_HOLD_MS + 50);
+    const step = document.querySelector('[data-testid="ob-calibration"]') as HTMLElement;
+    expect(step.querySelectorAll('.ui-card')).toHaveLength(1);
+    expect(step.textContent).toContain('Without calibration, takes on this device are practice only.');
   });
 
   it('iOS with unreported latency: calibration step has no Skip control', async () => {
@@ -230,8 +289,10 @@ describe('OnboardingScreen', () => {
     await press('Get started');
     await press('Continue');
     await press('Allow microphone');
+    await settle(MIC_GRANTED_HOLD_MS + 50);
     expect(document.body.textContent).toContain('Step 4 of 5');
     expect(names()).not.toContain('Skip');
+    expect(document.body.textContent).not.toContain('Without calibration');
     expect(names()).toContain('Start');
   });
 
@@ -241,6 +302,7 @@ describe('OnboardingScreen', () => {
     await press('Get started');
     await press('Continue');
     await press('Allow microphone');
+    await settle(MIC_GRANTED_HOLD_MS + 50);
     await press('Start');
     await press('Continue');
     expect(document.body.textContent).toContain('Step 5 of 5');

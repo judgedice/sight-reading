@@ -6,6 +6,9 @@ import { click, mount, type Mounted } from '../../../ui/primitives/test-render.t
 import {
   CalibrationMissingBanner,
   ErrorCard,
+  ErrorKindScreen,
+  ErrorScreen,
+  MicDeniedScreen,
   HistoryEmpty,
   HistoryFilteredEmpty,
   MicOffBanner,
@@ -116,18 +119,12 @@ describe('void cards', () => {
 });
 
 describe('error and empty states', () => {
-  it('error cards carry their action', () => {
+  it('storage error cards carry their action', () => {
     const f = vi.fn();
-    current = mount(<ErrorCard kind="clock-rate" onPrimary={f} />);
-    expect(document.body.textContent).toContain("Your device's audio clock is running at the wrong speed, so timing can't be measured. Close other apps that play sound, then try again.");
-    click(buttonNamed('Reload'));
-    expect(f).toHaveBeenCalledOnce();
-    current.render(<ErrorCard kind="storage-loss" onPrimary={f} onSecondary={f} />);
+    current = mount(<ErrorCard kind="storage-loss" onPrimary={f} onSecondary={f} />);
     expect(buttons()).toEqual(['Import backup', 'Start fresh']);
-    current.render(<ErrorCard kind="no-worklet" onPrimary={f} />);
-    expect(buttons()).toEqual(['Practise without listening']);
-    current.render(<ErrorCard kind="corpus" onPrimary={f} />);
-    expect(buttons()).toEqual(['Retry']);
+    current.render(<ErrorCard kind="storage-blocked" onPrimary={f} />);
+    expect(buttons()).toEqual(['Export this take']);
   });
   it('empty states match 9.1', () => {
     const f = vi.fn();
@@ -170,5 +167,56 @@ describe('practise without listening (R13)', () => {
     expect(document.body.textContent).toContain('Not graded · no XP');
     expect(document.body.textContent).toContain('That was: Schubert · Op. 1');
     expect(document.body.textContent).not.toMatch(/Grade [A-F]/);
+  });
+});
+
+describe('full-screen errors (05 section 8.13)', () => {
+  const kinds = ['clock-rate', 'corpus', 'no-worklet'] as const;
+
+  it.each(kinds)('%s: heading, cause, and both actions fire', (kind) => {
+    const retry = vi.fn();
+    const back = vi.fn();
+    current = mount(<ErrorKindScreen kind={kind} onTryAgain={retry} onBackToPractice={back} />);
+    expect(document.querySelector('h1')?.textContent).toBeTruthy();
+    expect(document.querySelectorAll('p')).toHaveLength(1);
+    expect(buttons()).toEqual(['Try again', 'Back to Practice']);
+    click(buttonNamed('Try again'));
+    expect(retry).toHaveBeenCalledOnce();
+    expect(back).not.toHaveBeenCalled();
+    click(buttonNamed('Back to Practice'));
+    expect(back).toHaveBeenCalledOnce();
+  });
+
+  it('clock rate is titled Audio timing problem and gives the cause', () => {
+    current = mount(<ErrorKindScreen kind="clock-rate" onTryAgain={() => undefined} onBackToPractice={() => undefined} />);
+    expect(document.querySelector('h1')?.textContent).toBe('Audio timing problem');
+    expect(document.querySelector('p')?.textContent).toBe(
+      "Your device's audio clock is running at the wrong speed, so timing can't be measured. Close other apps that play sound, then try again.",
+    );
+    expect(document.body.textContent).not.toMatch(/reload/i);
+  });
+
+  it('puts focus on the heading so the problem is announced', () => {
+    current = mount(<ErrorKindScreen kind="corpus" onTryAgain={() => undefined} onBackToPractice={() => undefined} />);
+    expect(document.activeElement).toBe(document.querySelector('h1'));
+  });
+
+  it('microphone denied shows the heading, the browser steps, Try again and Practise without listening', () => {
+    const retry = vi.fn();
+    const practise = vi.fn();
+    current = mount(<MicDeniedScreen browser="safari-mac" onTryAgain={retry} onPractiseWithoutListening={practise} />);
+    expect(document.querySelector('h1')?.textContent).toBe("Microphone is blocked. The app can't hear you play.");
+    expect(document.body.textContent).toContain('Safari > Settings for This Website > Microphone > Allow.');
+    expect(buttons()).toEqual(['Try again', 'Practise without listening']);
+    click(buttonNamed('Try again'));
+    click(buttonNamed('Practise without listening'));
+    expect(retry).toHaveBeenCalledOnce();
+    expect(practise).toHaveBeenCalledOnce();
+  });
+
+  it('the first action is primary, the second secondary', () => {
+    current = mount(<ErrorScreen testId="x" heading="H" body="B" actions={[{ label: 'One', onClick: () => undefined, primary: true }, { label: 'Two', onClick: () => undefined }]} />);
+    expect(buttonNamed('One').className).toContain('ui-button-primary');
+    expect(buttonNamed('Two').className).toContain('ui-button-secondary');
   });
 });

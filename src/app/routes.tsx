@@ -1,4 +1,5 @@
 import type { CopyKey } from '../ui/copy/copy.ts';
+import type { GlyphId } from '../ui/glyph-ids.ts';
 import { SETTINGS_SECTIONS, type RouteId, type TabId } from './route-match.ts';
 import type { RouteDef, ScreenComponent } from './route-types.ts';
 import { DevComponentsScreen } from './screens/DevComponents.tsx';
@@ -7,12 +8,21 @@ import { NotFoundScreen, PlaceholderScreen } from './screens/Placeholder.tsx';
 type Spec = Omit<RouteDef, 'Screen'>;
 
 const specs: readonly Spec[] = [
-  { id: 'welcome', pattern: '/welcome', titleKey: 'welcome.headline', tab: null, chrome: 'full', devOnly: false },
+  { id: 'welcome', pattern: '/welcome', titleKey: 'welcome.headline', tab: null, chrome: 'onboarding', devOnly: false },
   { id: 'home', pattern: '/', titleKey: 'nav.practice', tab: 'practice', chrome: 'full', devOnly: false },
-  { id: 'practice.scan', pattern: '/practice/scan', titleKey: 'nav.practice', tab: 'practice', chrome: 'full', devOnly: false },
+  { id: 'practice.scan', pattern: '/practice/scan', titleKey: 'nav.practice', tab: 'practice', chrome: 'loop', devOnly: false },
   { id: 'practice.play', pattern: '/practice/play', titleKey: 'nav.practice', tab: 'practice', chrome: 'none', devOnly: false },
-  { id: 'practice.results', pattern: '/practice/results', titleKey: 'nav.practice', tab: 'practice', chrome: 'full', devOnly: false },
-  { id: 'practice.tips', pattern: '/practice/tips', titleKey: 'nav.practice', tab: 'practice', chrome: 'full', devOnly: false },
+  { id: 'practice.results', pattern: '/practice/results', titleKey: 'nav.practice', tab: 'practice', chrome: 'loop', devOnly: false },
+  {
+    id: 'practice.tips',
+    pattern: '/practice/tips',
+    titleKey: 'nav.practice',
+    tab: 'practice',
+    chrome: 'loop',
+    devOnly: false,
+    // Tips live inside results now (05 section 3.1, decision 13): back to the open result, else Practice.
+    redirect: ({ resultOpen }) => (resultOpen ? '/practice/results' : '/'),
+  },
   { id: 'progress', pattern: '/progress', titleKey: 'nav.progress', tab: 'progress', chrome: 'full', devOnly: false },
   { id: 'history', pattern: '/history', titleKey: 'nav.history', tab: 'history', chrome: 'full', devOnly: false },
   { id: 'history.attempt', pattern: '/history/:attemptId', titleKey: 'nav.history', tab: 'history', chrome: 'full', devOnly: false },
@@ -37,7 +47,7 @@ export const notFoundRoute: RouteDef = {
   id: 'not-found',
   pattern: '/*',
   titleKey: 'notFound.title',
-  tab: null,
+  tab: 'practice',
   chrome: 'full',
   devOnly: false,
   Screen: NotFoundScreen,
@@ -61,8 +71,8 @@ export function createRouteTable(overrides: ScreenOverrides = {}): readonly Rout
 export const routeTable: readonly RouteDef[] = createRouteTable();
 
 /** Routes that appear in the app bar tabs, in order. */
-export const TABS: readonly { id: TabId; path: string; labelKey: CopyKey }[] = [
-  { id: 'practice', path: '/', labelKey: 'nav.practice' },
-  { id: 'progress', path: '/progress', labelKey: 'nav.progress' },
-  { id: 'history', path: '/history', labelKey: 'nav.history' },
+export const TABS: readonly { id: TabId; path: string; labelKey: CopyKey; glyph: GlyphId }[] = [
+  { id: 'practice', path: '/', labelKey: 'nav.practice', glyph: 'practice' },
+  { id: 'progress', path: '/progress', labelKey: 'nav.progress', glyph: 'progress' },
+  { id: 'history', path: '/history', labelKey: 'nav.history', glyph: 'history' },
 ];

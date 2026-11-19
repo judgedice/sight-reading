@@ -3,7 +3,10 @@ import { Profiler } from 'react';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { FollowerEvent, GhostNote, LiveJudgment } from '../../../core/types.ts';
 import { defaultAppSettings } from '../../../store/defaults.ts';
+import { idleSoundView } from '../../../session/index.ts';
 import { copy } from '../../../ui/copy/copy.ts';
+import { firstNoteLabel, midiOf } from '../scan/read-model.ts';
+import { keyName } from '../setup/key-names.ts';
 import { act, click, key, mount, type Mounted } from '../../../ui/primitives/test-render.ts';
 import { PracticeFlowServicesProvider } from '../scan/services.ts';
 import { PracticeApp, harness, type Harness } from '../scan/test-support.tsx';
@@ -56,39 +59,94 @@ const judgment = (idx: number): LiveJudgment =>
   ({ expectedIdx: idx, status: 'matched', timing: { verdict: 'late', deltaMs: 180 }, pitch: { verdict: 'ok', centsOff: 0 }, provisional: false }) as unknown as LiveJudgment;
 
 describe('Performance screen', () => {
-  it('renders the toolbar, the frozen frame and the status line; focus is on Stop', async () => {
+  it('renders the strip, the frozen frame and the count-in label; focus is on Stop', async () => {
     const h = harness();
     await render(h);
     expect(document.activeElement).toBe(button(copy('play.stop')));
     expect($('.sf-host').getAttribute('data-frozen')).toBe('true');
     expect($('.sf-host').getAttribute('data-arrangement')).toBe('slots');
-    expect($('.perform-chip').textContent).toBe(copy('badge.ranked'));
-    expect($('.perform-status').textContent).toContain(copy('play.status.countIn'));
-    expect($('.perform-status').textContent).toContain('♩ = 100');
+    expect($('.perform').getAttribute('data-mode')).toBe('ranked');
+    expect($('.perform-centre-text').textContent).toBe(copy('play.status.countIn'));
+    expect($('.perform-tempo').textContent).toContain('♩ = 100');
+    expect($('.perform-mic-label').textContent).toBe('Mic');
+    expect($('.sf-host').getAttribute('data-purpose')).toBe('take');
     expect($('[role="status"].ui-visually-hidden').textContent).toBe(copy('a11y.countIn.announce'));
   });
 
-  it('count-in shows large numbers; the take shows dots; both follow the audible clock', async () => {
+  it('the count-in band shows the beat number above the score; the strip shows dots; the take shows dots only', async () => {
     const h = harness();
     await render(h);
-    for (let k = 1; k <= 4; k++) act(() => h.session.events.emit({ type: 'count-in', beat: k, of: 4, t: 0 as never }));
-    expect($('.dom-beats').getAttribute('data-count-in')).toBe('true');
-    expect($('.dom-beat-number[data-state="pulse"]').getAttribute('data-beat')).toBe('4');
+    expect($('.sf-host').hasAttribute('data-band')).toBe(true);
+    expect($('.sf-count-caption').textContent).toBe('Bar 1 · ♩ = 100');
+    for (let k = 1; k <= 4; k++) {
+      act(() => h.session.events.emit({ type: 'count-in', beat: k, of: 4, t: 0 as never }));
+      expect($('.sf-count-num').textContent).toBe(String(k));
+      expect($('.sf-count-dot[data-state="current"]').parentElement?.children[k - 1]).toBe($('.sf-count-dot[data-state="current"]'));
+      expect($('.perform-toolbar .dom-beat-dot[data-state="pulse"]').getAttribute('data-beat')).toBe(String(k));
+    }
+    expect($('.sf-count-dot[data-downbeat]')).toBeTruthy();
+    expect(document.querySelector('.dom-beat-number')).toBeNull();
     act(() => h.session.emitState('performing'));
+    expect($('.sf-host').hasAttribute('data-band')).toBe(false);
     follower(h, { type: 'clock', scoreBeat: 0.02 });
-    expect($('.dom-beats').getAttribute('data-count-in')).toBeNull();
     expect($('.dom-beat-dot[data-state="pulse"]').getAttribute('data-beat')).toBe('1');
     follower(h, { type: 'clock', scoreBeat: 2.4 });
     expect($('.dom-beat-dot[data-state="pulse"]').getAttribute('data-beat')).toBe('3');
   });
 
-  it('shows the bar and tempo in the toolbar and the bar in the status line', async () => {
+  it('restarting the count-in clears the number and the dots', async () => {
+    const h = harness();
+    await render(h);
+    act(() => h.session.events.emit({ type: 'count-in', beat: 2, of: 4, t: 0 as never }));
+    act(() => h.session.events.emit({ type: 'count-in-restart', reason: 'first-click-missing' }));
+    expect($('.sf-count-num').textContent).toBe('');
+    expect(document.querySelector('.perform-toolbar .dom-beat-dot[data-state="pulse"]')).toBeNull();
+  });
+
+  it('the count-in band sits in the top margin and never overlaps the first system', async () => {
+    const h = harness();
+    await render(h);
+    const band = $('.sf-band');
+    const frame = $('.sf-host');
+    expect(frame.hasAttribute('data-band')).toBe(true);
+    expect(band.parentElement).toBe(frame);
+    // The frame places the band's bottom edge above the first system's highest ink (ledger lines and stems included),
+    // so the band's box ends where the first system's box begins.
+    const bandBottom = parseFloat(band.style.getPropertyValue('--sf-band-bottom'));
+    expect(Number.isFinite(bandBottom)).toBe(true);
+    const slot = $('.sr-slot[data-system="0"]');
+    const stage = frame.querySelector<HTMLElement>('.sf-stage')!;
+    expect(bandBottom).toBeLessThanOrEqual(stage.offsetTop + slot.offsetTop + slot.offsetHeight);
+  });
+
+  it('voice: "Your starting pitch" band with the key chord, then the first note, live from the session sounds', async () => {
+    const h = harness();
+    await render(h);
+    const p = h.services.session.prepared!;
+    const note = p.measures.flatMap((m) => m.events).find((e) => e.kind === 'note') as { writtenPitch: Parameters<typeof midiOf>[0] };
+    const w = note.writtenPitch;
+    act(() => h.sounds.setState({ ...idleSoundView(), playing: 'reference', caption: { kind: 'key-chord', writtenKey: p.writtenKey, concertKey: p.concertKey } }));
+    expect($('.perform-pitch-title').textContent).toBe(copy('countIn.reference'));
+    expect($('.perform-centre-text').textContent).toBe(copy('action.hearReference.short'));
+    expect([...document.querySelectorAll('.perform-pitch-step')].map((x) => x.getAttribute('data-step'))).toEqual(['live', 'pending']);
+    expect($('.perform-pitch-step').textContent).toBe(copy('reference.playing.chord', { key: keyName(p.writtenKey) }));
+    expect(document.querySelector('.sf-count')).toBeNull();
+    act(() => h.sounds.setState({ ...idleSoundView(), playing: 'reference', caption: { kind: 'first-note', written: w, concertMidi: midiOf(w) } }));
+    expect([...document.querySelectorAll('.perform-pitch-step')].map((x) => x.getAttribute('data-step'))).toEqual(['done', 'live']);
+    expect($('.perform-pitch-step[data-step="live"]').textContent).toBe(copy('reference.playing.first', { note: firstNoteLabel(w, midiOf(w)) }));
+    // The reference ends: the clicks and the big number take over.
+    act(() => h.sounds.setState(idleSoundView()));
+    expect(document.querySelector('.perform-pitch')).toBeNull();
+    expect($('.sf-count')).toBeTruthy();
+  });
+
+  it('the strip says "Bar 3 of 8" with the tempo beside it', async () => {
     const h = harness();
     await render(h);
     act(() => h.session.emitState('performing'));
     follower(h, { type: 'clock', scoreBeat: 9 });
-    expect($('.perform-centre-text').textContent).toBe('Bar 3 · ♩ = 100');
-    expect($('.perform-status').textContent).toContain(copy('play.status.bar', { n: 3, total: 8 }));
+    expect($('.perform-centre-text').textContent).toBe(copy('play.status.bar', { n: 3, total: 8 }));
+    expect($('.perform-tempo').textContent).toContain('♩ = 100');
   });
 
   it('status messages: no-signal beats lost-place beats come-in-at', async () => {
@@ -96,11 +154,11 @@ describe('Performance screen', () => {
     await render(h);
     act(() => h.session.emitState('performing'));
     follower(h, { type: 'status', kind: 'come-in-at', bar: 5 });
-    expect($('.perform-status span').textContent).toBe(copy('play.status.comeIn', { n: 5 }));
+    expect($('.perform-centre-text').textContent).toBe(copy('play.status.comeIn', { n: 5 }));
     follower(h, { type: 'status', kind: 'lost-place' });
-    expect($('.perform-status span').textContent).toBe(copy('play.status.lostPlace'));
+    expect($('.perform-centre-text').textContent).toBe(copy('play.status.lostPlace'));
     follower(h, { type: 'status', kind: 'no-signal' });
-    expect($('.perform-status span').textContent).toBe(copy('play.status.noSignal'));
+    expect($('.perform-centre-text').textContent).toBe(copy('play.status.noSignal'));
   });
 
   it('marks notes and shows ghosts through the overlay without re-rendering the screen', async () => {
@@ -141,12 +199,14 @@ describe('Performance screen', () => {
     let commits = 0;
     await render(h, 'ranked', () => commits++);
     follower(h, { type: 'level', levelDb: -30, clipping: false });
-    expect($('.dom-meter').getAttribute('data-zone')).toBe('good');
+    expect($('.perform-mic').getAttribute('data-zone')).toBe('good');
+    expect(document.querySelectorAll('.perform-mic-bars i[data-lit="true"]')).toHaveLength(4);
     const before = commits;
     for (let i = 0; i < 50; i++) follower(h, { type: 'level', levelDb: -30.001, clipping: false });
     expect(commits).toBe(before);
     follower(h, { type: 'level', levelDb: -1, clipping: true });
-    expect($('.dom-meter').getAttribute('data-zone')).toBe('clipping');
+    expect($('.perform-mic').getAttribute('data-zone')).toBe('clipping');
+    expect($('.perform-mic-bang').textContent).toBe(copy('play.meter.clip'));
   });
 
   it('Stop opens the confirm; Keep playing leaves the take running (practice)', async () => {
@@ -226,24 +286,23 @@ describe('Performance screen', () => {
     expect($('.sf-host').querySelectorAll('.sr-ghost')).toHaveLength(0);
   });
 
-  it('a short viewport drops the status line and carries the message in the toolbar', async () => {
+  it('a short viewport keeps the message in the strip', async () => {
     const h = harness();
     Object.defineProperty(window, 'innerHeight', { value: 400, configurable: true });
     try {
       await render(h);
-      expect(document.querySelector('.perform-status')).toBeNull();
       expect($('.perform-centre-text').textContent).toBe(copy('play.status.countIn'));
     } finally {
       Object.defineProperty(window, 'innerHeight', { value: 768, configurable: true });
     }
   });
 
-  it('CC BY items show the source line in the status line', async () => {
+  it('CC BY items show the source line under the score', async () => {
     const h = harness();
     const e = h.services.session.prepared!;
     (e as { source: unknown }).source = { ...e.source, license: 'CC-BY-4.0', encoder: 'A. Encoder', corpus: 'openscore-lieder' };
     h.view.setState({ prepared: e }, false);
     await render(h);
-    expect($('.perform-status').textContent).toContain(copy('credit.source', { encoder: 'A. Encoder', corpus: 'openscore-lieder' }));
+    expect($('.perform-source').textContent).toContain(copy('credit.source', { encoder: 'A. Encoder', corpus: 'openscore-lieder' }));
   });
 });

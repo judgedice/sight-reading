@@ -79,3 +79,77 @@
   color: var(--text-muted);
   font-size: var(--type-small-size);
 }
+
+/* Full-screen errors and Page not found (05 section 8.13; error-clock and not-found mockups). */
+.err-screen {
+  box-sizing: border-box;
+  max-inline-size: 35rem;
+  margin-inline: auto;
+  padding-block: calc(var(--space-7) - var(--space-5)) var(--space-6);
+  text-align: start;
+}
+
+@media (min-width: 44em) {
+  .err-screen {
+    padding-block: calc(var(--space-9) - var(--space-5)) var(--space-6);
+    padding-inline: var(--space-5);
+  }
+}
+
+.err-screen-icon {
+  display: grid;
+  place-items: center;
+  inline-size: 3.5rem;
+  block-size: 3.5rem;
+  margin-block-end: 1.375rem;
+  border-radius: var(--radius-l);
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.err-screen-heading {
+  margin: 0;
+  font-family: var(--type-h1-family);
+  font-size: var(--type-h1-size);
+  line-height: var(--type-h1-line);
+  font-weight: var(--type-h1-weight);
+  letter-spacing: var(--type-h1-tracking);
+}
+
+.err-screen-heading:focus {
+  outline: none;
+}
+
+.err-screen-body {
+  margin: var(--space-3) 0 var(--space-5);
+  font-size: var(--type-body-size);
+  line-height: 1.55;
+  color: var(--text-muted);
+}
+
+.err-screen-steps {
+  margin: calc(-1 * var(--space-3)) 0 var(--space-5);
+  font-size: var(--type-small-size);
+  line-height: var(--type-small-line);
+  color: var(--text-muted);
+}
+
+.err-screen-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+@media (max-width: 43.6875rem) {
+  .err-screen-actions {
+    flex-direction: column;
+  }
+
+  .err-screen-actions .ui-button {
+    inline-size: 100%;
+  }
+}
+
+.not-found a {
+  text-decoration: none;
+}

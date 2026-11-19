@@ -4,7 +4,14 @@
  */
 import { copy, formatMessage, isCopyKey, type CopyKey, type CopyVars } from '../../../ui/copy/copy.ts';
 
-export const PENDING_COPY = {} as const;
+export const PENDING_COPY = {
+  'settings.audio.calibratedOn': 'Calibrated {when} on {output}. Your setup adds {ms} ms.',
+  'settings.audio.calibration': 'Calibration',
+  'settings.audio.calibratedToday': 'today',
+  'settings.audio.click.playShort': 'Play a bar',
+  'settings.audio.accent.hint': 'Beat one is higher and a little louder.',
+  'settings.audio.volumePercent': '{n}%',
+} as const;
 
 export type PendingKey = keyof typeof PENDING_COPY;
 export type SettingsTextKey = CopyKey | PendingKey;

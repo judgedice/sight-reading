@@ -11,14 +11,32 @@ export interface ShellProps {
   children: ReactNode;
 }
 
+/** Five staff lines with one brass notehead on the third space (06 section 7). */
+export function WordmarkMark({ size = 24 }: { size?: number }) {
+  return (
+    <svg className="app-brand-mark" width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <g stroke="var(--text)" strokeWidth="1.3" opacity="0.9">
+        <path d="M1.5 4.5h21M1.5 8.25h21M1.5 12h21M1.5 15.75h21M1.5 19.5h21" />
+      </g>
+      <ellipse cx="13" cy="10.1" rx="3.6" ry="2.6" transform="rotate(-22 13 10.1)" fill="var(--brass)" />
+    </svg>
+  );
+}
 
-/** App bar, tab bar, skip link and the main landmark (04 section 3.2). */
+/**
+ * The chrome around every screen (05 section 3.1):
+ * - `full`: wordmark, centre tabs (a bottom bar on phones) and the settings gear;
+ * - `onboarding`: the brand only; the welcome screen draws its own large one and steps 2 to 5 hold Back;
+ * - `loop`: no app bar and no tabs; the screen's own toolbar has Home at left;
+ * - `none`: nothing, for the take.
+ * Plus the skip link, the main landmark, the document title and the screen change motion.
+ */
 export function Shell({ showBetaBadge = false, children }: ShellProps) {
   const route = useRoute();
   const { def } = route;
   const mainRef = useRef<HTMLElement>(null);
   const firstRender = useRef(true);
-  const chromeless = def.chrome === 'none';
+  const chrome = def.chrome;
 
   // Document title follows the route.
   useEffect(() => {
@@ -36,8 +54,16 @@ export function Shell({ showBetaBadge = false, children }: ShellProps) {
     if (main && !main.contains(document.activeElement)) main.focus({ preventScroll: true });
   }, [route.path, def.id]);
 
+  const brand = (
+    <>
+      <WordmarkMark />
+      <span className="app-brand-name">{copy('app.name')}</span>
+      {showBetaBadge ? <span className="app-beta">{copy('app.beta')}</span> : null}
+    </>
+  );
+
   return (
-    <div className="app-shell" data-testid="app-placeholder" data-chrome={chromeless ? 'none' : 'full'}>
+    <div className="app-shell" data-testid="app-placeholder" data-chrome={chrome} data-route-id={def.id}>
       <GlyphSprite />
       {def.id === 'home' ? (
         <button
@@ -48,11 +74,10 @@ export function Shell({ showBetaBadge = false, children }: ShellProps) {
           {copy('nav.skipToStart')}
         </button>
       ) : null}
-      {chromeless ? null : (
+      {chrome === 'full' ? (
         <header className="app-bar">
           <Link to="/" className="app-brand">
-            <span>{copy('app.name')}</span>
-            {showBetaBadge ? <span className="app-beta">{copy('app.beta')}</span> : null}
+            {brand}
           </Link>
           <nav className="app-tabs" aria-label={copy('app.name')}>
             {TABS.map((tab) => (
@@ -62,7 +87,8 @@ export function Shell({ showBetaBadge = false, children }: ShellProps) {
                 className="app-tab"
                 {...(def.tab === tab.id ? { 'aria-current': 'page' as const } : {})}
               >
-                {copy(tab.labelKey)}
+                <Glyph id={tab.glyph} size={22} className="app-tab-icon" />
+                <span>{copy(tab.labelKey)}</span>
               </Link>
             ))}
           </nav>
@@ -75,9 +101,16 @@ export function Shell({ showBetaBadge = false, children }: ShellProps) {
             <Glyph id="settings" />
           </Link>
         </header>
-      )}
+      ) : null}
+      {chrome === 'onboarding' ? (
+        <header className="app-bar app-bar-brand">
+          <span className="app-brand">{brand}</span>
+        </header>
+      ) : null}
       <main ref={mainRef} id="main" className="app-main" tabIndex={-1}>
-        {children}
+        <div key={def.id} className="app-screen">
+          {children}
+        </div>
       </main>
     </div>
   );

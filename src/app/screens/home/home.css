@@ -1,113 +1,432 @@
-/* Home (04 section 5.2). Tokens only. */
+/* Practice (05 sections 5.2 and 8.6, 06 section 10, home mockups). Tokens only. */
 .home {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
-  max-width: 64rem;
-  margin: 0 auto;
-  padding-bottom: var(--space-6);
+  min-width: 0;
+  color: var(--text);
 }
 
 .home-title {
   margin: 0;
+  font-family: var(--type-h1-family);
+  font-size: var(--type-h1-size);
+  font-weight: var(--type-h1-weight);
+  line-height: var(--type-h1-line);
 }
 
-.home-layout {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
+.home-nb {
+  white-space: nowrap;
 }
 
-.home-side {
-  order: -1;
-}
-
-@media (min-width: 64em) {
-  .home-layout {
-    flex-direction: row;
-    align-items: flex-start;
-  }
-  .home-main {
-    flex: 1 1 auto;
-    min-width: 0;
-  }
-  .home-side {
-    order: 0;
-    flex: 0 0 18rem;
-  }
-}
-
-.home-today-title {
-  margin: 0 0 var(--space-2);
-  font-size: var(--type-body-size);
-}
-
-.home-today-line,
-.home-today-risk,
-.home-rank-text {
-  margin: 0 0 var(--space-2);
-}
-
-.home-rank-text {
+.home-muted {
   color: var(--text-muted);
+  font-weight: 500;
 }
+
+.home-card {
+  box-sizing: border-box;
+  min-width: 0;
+  border: 0.0625rem solid var(--border);
+  border-radius: var(--radius-l);
+  background: var(--surface);
+  box-shadow: var(--e1);
+}
+
+/* ---- Today ---------------------------------------------------------------------------------------------------- */
+
+.home-today-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 var(--space-2);
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--type-small-size);
+  font-weight: 500;
+}
+
+.home-today-icon {
+  color: var(--brass);
+}
+
+.home-today-part {
+  display: inline-flex;
+  gap: var(--space-2);
+}
+
+.home-today-dot {
+  color: var(--border-strong);
+}
+
+.home-today-risk {
+  margin: var(--space-1) 0 0;
+  color: var(--text-muted);
+  font-size: var(--type-caption-size);
+}
+
+/* ---- Rank ----------------------------------------------------------------------------------------------------- */
 
 .home-rank {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--space-4);
+}
+
+.home-rank-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.home-rank-text,
+.home-rank-gate {
+  margin: 0;
+  font-size: var(--type-small-size);
+}
+
+.home-rank-gate {
+  margin-top: var(--space-2);
+  color: var(--text-muted);
 }
 
 .home-rank-bar {
-  flex: 1 1 auto;
-  height: 0.5rem;
-  border-radius: var(--radius-s);
-  background: var(--surface-2);
+  height: 0.375rem;
+  margin-top: var(--space-2);
+  border-radius: var(--radius-full);
+  background: var(--track);
   overflow: hidden;
 }
 
 .home-rank-fill {
   height: 100%;
-  background: var(--accent);
+  border-radius: var(--radius-full);
+  background: var(--brass);
 }
 
-.home-empty-actions {
+/* ---- Empty, error --------------------------------------------------------------------------------------------- */
+
+.home-state {
+  display: flex;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-5);
+  border: 0.0625rem solid var(--border);
+  border-radius: var(--radius-l);
+  background: var(--surface);
+}
+
+.home-state-icon {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: var(--radius-m);
+  background: var(--surface-2);
+}
+
+.home-state-body {
+  min-width: 0;
+}
+
+.home-state-title {
+  margin: 0;
+  font-size: var(--type-h3-size);
+  font-weight: 600;
+}
+
+.home-state-text {
+  margin: var(--space-1) 0 0;
+  color: var(--text-muted);
+  font-size: var(--type-small-size);
+}
+
+.home-state-actions {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
-  justify-content: center;
+  margin-top: var(--space-3);
 }
 
-.home-start-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+/* ---- Wide: two columns from 1024 px --------------------------------------------------------------------------- */
+
+/* The page fills the window below the app bar: header line, notice, then the two cards (minimum 560). */
+/* A little wider than the app column, as the mockup's 1160 px page, centred on it. */
+.home-wide {
+  --home-width: min(72.5rem, calc(100vw - 2 * var(--page-margin)));
+  width: var(--home-width);
+  margin-left: min(0rem, calc((100% - var(--home-width)) / 2));
+  height: calc(100dvh - 3.5rem - 0.0625rem - 2 * var(--space-5));
   gap: var(--space-4);
 }
 
-.home-start {
-  min-width: 20rem;
-  max-width: 100%;
+.home-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-5);
 }
 
-@media (max-width: 47.99em) {
-  .home-start-bar {
-    position: sticky;
-    bottom: calc(var(--tabbar-height) + var(--sai-bottom) + var(--space-2));
-    flex-wrap: wrap;
-    background: var(--bg);
-    padding-top: var(--space-2);
-  }
-  .home-start {
-    flex: 1 1 100%;
-    min-width: 0;
-  }
+.home-today-inline .home-today-line {
+  font-size: var(--type-small-size);
 }
 
-.home-credits {
+.home-grid {
+  display: grid;
+  flex: 1;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  gap: var(--space-5);
+  min-height: 35rem;
+}
+
+.home-inst {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  padding: var(--space-5) var(--card-x-padding-lg);
+  overflow: auto;
+}
+
+.home-inst-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding-bottom: var(--space-5);
+  border-bottom: 0.0625rem solid var(--border);
+}
+
+.home-inst-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.home-inst-name {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-family: var(--type-h2-family);
+  font-size: var(--type-h2-size);
+  font-weight: var(--type-h2-weight);
+  line-height: var(--type-h2-line);
+}
+
+.home-inst-sub {
+  margin: var(--space-1) 0 0;
+  color: var(--text-muted);
+  font-size: var(--type-small-size);
+}
+
+.home-range {
+  padding-bottom: var(--space-5);
+  border-bottom: 0.0625rem solid var(--border);
+}
+
+.home-setup {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Difficulty, Key, Time, Tempo and Length scroll; the foot is outside the scroll area (designer's note 5). */
+.home-setup-scroll {
+  flex: 1;
+  min-height: 0;
+  padding: var(--space-5) var(--card-x-padding-lg) var(--space-2);
+  overflow: auto;
+}
+
+.home-setup-foot {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--card-x-padding-lg) var(--space-5);
+  border-top: 0.0625rem solid var(--border);
+  background: var(--surface);
+  box-shadow: var(--e2);
+}
+
+.home-start-line {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+}
+
+.home-start-line .su-xp-line {
+  margin: 0;
+  white-space: nowrap;
+}
+
+.home-start-line .home-start {
+  flex: 1;
+}
+
+/* ---- Narrow: summary and sheet below 1024 px ------------------------------------------------------------------ */
+
+.home-narrow {
+  gap: var(--space-4);
+}
+
+.home-narrow .home-title {
+  margin-top: var(--space-1);
+}
+
+.home-summary {
+  padding: var(--space-2);
+}
+
+.home-summary-inst {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  width: 100%;
+  min-height: var(--target-min);
+  padding: var(--space-3);
+  border: 0;
+  border-radius: var(--radius-m);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.home-summary-inst:hover,
+.home-chip:hover {
+  background: var(--surface-2-hover);
+}
+
+.home-summary-inst:active,
+.home-chip:active {
+  background: var(--surface-2-pressed);
+}
+
+.home-summary-inst:focus-visible,
+.home-chip:focus-visible {
+  outline: 0.125rem solid var(--focus-ring);
+  outline-offset: 0.125rem;
+}
+
+.home-summary-inst-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.home-summary-inst-name {
+  font-size: var(--type-h3-size);
+  font-weight: 600;
+}
+
+.home-summary-inst-range {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--text-muted);
+  font-size: var(--type-caption-size);
+}
+
+.home-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3) var(--space-3);
+}
+
+.home-chip {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  min-block-size: var(--target-min);
-  min-inline-size: var(--target-min);
+  gap: var(--space-2);
+  min-height: 3.25rem;
+  padding: 0 var(--space-2) 0 var(--space-3);
+  border: 0.0625rem solid var(--border);
+  border-radius: var(--radius-m);
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--type-body-size);
+  font-weight: 600;
+  line-height: 1.2;
+  text-align: left;
+  cursor: pointer;
+}
+
+.home-chip-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.home-chip-label {
+  color: var(--text-muted);
+  font-size: var(--type-eyebrow-size);
+  font-weight: 500;
+}
+
+.home-chip-value {
+  font-family: var(--font-ui);
+  white-space: nowrap;
+}
+
+.home-chip-chevron {
+  color: var(--text-muted);
+}
+
+.home-first-hint {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 var(--space-3) var(--space-3);
+  padding: var(--space-3);
+  border-radius: var(--radius-s);
+  background: var(--brass-wash);
+  font-size: var(--type-small-size);
+}
+
+.home-first-hint-icon {
+  flex: none;
+  color: var(--brass-ink);
+}
+
+.home-mode {
+  margin-top: var(--space-2);
+}
+
+.home-rank-card {
+  padding: var(--space-4) var(--space-5);
+}
+
+/* Start and the XP line dock above the tab bar; the page keeps its height free at the end (05 section 5.2). */
+.home-dock {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: var(--sai-bottom);
+  z-index: var(--z-sticky);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-2);
+  padding: var(--space-3) max(var(--page-margin), var(--sai-right)) var(--space-3) max(var(--page-margin), var(--sai-left));
+  background: linear-gradient(to top, var(--bg) 70%, transparent);
+}
+
+@media (max-width: 63.99em) and (orientation: portrait), (max-width: 35.49em) {
+  .home-dock {
+    bottom: calc(var(--tabbar-height) + var(--sai-bottom));
+  }
+}
+
+.home-dock .su-xp-line {
+  margin: 0;
+  text-align: center;
+}
+
+.home-dock .home-start {
+  width: 100%;
+}
+
+.home-rank .dom-rank svg {
+  width: 2.25rem;
+  height: 2.25rem;
 }

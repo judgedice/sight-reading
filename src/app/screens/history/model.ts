@@ -5,7 +5,7 @@
 import type { AttemptRecord, AttemptSummary } from '../../../core/types.ts';
 import { copy } from '../../../ui/copy/copy.ts';
 import { keyName } from '../setup/key-names.ts';
-import { text } from './text.ts';
+import { beatUnit } from '../setup/model.ts';
 
 /** Rows loaded per page. Beyond it the list grows by "Show more" (not virtualised; see the package report). */
 export const PAGE_SIZE = 100;
@@ -86,15 +86,47 @@ export function timeLabel(iso: string): string {
 
 export interface RowDetail {
   writtenKey: string;
-  meter: string;
+  /** The meter the excerpt was served in, "4/4"; null when it cannot be told (never "random"). */
+  meter: string | null;
+  /** "♩ = 71" with the beat unit of the served meter. */
   tempo: string;
 }
 
-/** Written key, meter and tempo from the full record. */
-export function rowDetail(record: AttemptRecord): RowDetail {
+/** The excerpt's meter as a string, for a prepared excerpt's `{ beats, beatType }`. */
+export function meterString(m: { beats: number; beatType: number }): string {
+  return `${m.beats}/${m.beatType}`;
+}
+
+/**
+ * The meter the take was served in (05 section 8.12: never "random"). The record keeps the settings as requested, so a
+ * random meter is told from the prepared excerpt; null when neither is known.
+ */
+export function servedMeter(record: Pick<AttemptRecord, 'settingsResolved'>, prepared?: { meter: { beats: number; beatType: number } } | null): string | null {
+  const asked = record.settingsResolved.meter;
+  if (typeof asked === 'string' && asked !== 'random' && /^\d+\/\d+$/.test(asked)) return asked;
+  return prepared ? meterString(prepared.meter) : null;
+}
+
+/** Written key, served meter and tempo from the full record. */
+export function rowDetail(record: AttemptRecord, prepared?: { meter: { beats: number; beatType: number } } | null): RowDetail {
+  const meter = servedMeter(record, prepared);
   return {
     writtenKey: keyName(record.writtenKey),
-    meter: record.settingsResolved.meter,
-    tempo: text('history.tempo', { bpm: record.bpm }),
+    meter,
+    tempo: copy('tempo.marking', { unit: beatUnit(meter ?? '4/4'), bpm: record.bpm }),
   };
+}
+
+/** The pieces of "Baritone voice · Difficulty 2 · C major · 4/4 · ♩ = 71", in order; a meter that is not known is left out. */
+export function metaParts(instrument: string, levelServed: number, detail: RowDetail): string[] {
+  return [instrument, copy('progress.instrumentLevel', { level: levelServed }), detail.writtenKey, ...(detail.meter ? [detail.meter] : []), detail.tempo];
+}
+
+/** The whole meta line as text. */
+export const metaLine = (parts: readonly string[]): string => parts.join(' \u00b7 ');
+
+/** The excerpt's plain title: the work, with the movement when there is one (the same title the history row has). */
+export function attemptTitle(record: Pick<AttemptRecord, 'credit'>): string {
+  const c = record.credit;
+  return c.movement ? `${c.work}: ${c.movement}` : c.work;
 }

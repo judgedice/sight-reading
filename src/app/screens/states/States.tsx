@@ -1,5 +1,5 @@
 import './states.css';
-import type { ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import type { VoidReason } from '../../../core/types.ts';
 import { Banner, Card } from '../../../ui/components/containers/index.ts';
 import { EmptyState } from '../../../ui/components/domain/index.ts';
@@ -104,43 +104,123 @@ export function VoidCard({ reason, onTryAgain, onCheckMicrophone, onRecalibrate 
   return <StateCard testId={`void-${reason}`} icon="alert-triangle" tone="caution" body={text(key)} actions={list} />;
 }
 
-export type ErrorKind = 'clock-rate' | 'corpus' | 'no-worklet' | 'storage-loss' | 'storage-blocked';
-
-const ERROR_BODY: Record<ErrorKind, TextKey> = {
-  'clock-rate': 'error.clockRate',
-  corpus: 'error.corpus',
-  'no-worklet': 'error.noAudioWorklet',
-  'storage-loss': 'banner.storageLoss',
-  'storage-blocked': 'error.storageBlocked',
-};
+export type ErrorKind = 'storage-loss' | 'storage-blocked';
 
 export interface ErrorCardProps {
   kind: ErrorKind;
-  /** clock-rate: Reload. corpus: Retry. storage-loss: Import backup. storage-blocked: Export this take. */
+  /** storage-loss: Import backup. storage-blocked: Export this take. */
   onPrimary?: () => void;
-  /** no-worklet: Practise without listening. storage-loss: Start fresh. */
+  /** storage-loss: Start fresh. */
   onSecondary?: () => void;
 }
 
-/** Full cards for the errors that stop a screen (reload, retry, import, export), each with its next step. */
+/** Cards for the storage errors, which do not stop the loop: each carries its next step. */
 export function ErrorCard({ kind, onPrimary, onSecondary }: ErrorCardProps) {
-  const primaryLabel: Record<ErrorKind, TextKey> = {
-    'clock-rate': 'action.reload',
-    corpus: 'action.retry',
-    'no-worklet': 'action.practiseWithoutListening',
-    'storage-loss': 'action.importBackup',
-    'storage-blocked': 'action.exportThisTake',
-  };
+  const lost = kind === 'storage-loss';
   const actions: StateAction[] = [];
-  if (onPrimary) actions.push({ label: text(primaryLabel[kind]), onClick: onPrimary, primary: true });
-  if (onSecondary && kind === 'storage-loss') actions.push({ label: text('action.startFresh'), onClick: onSecondary });
+  if (onPrimary) actions.push({ label: text(lost ? 'action.importBackup' : 'action.exportThisTake'), onClick: onPrimary, primary: true });
+  if (onSecondary && lost) actions.push({ label: text('action.startFresh'), onClick: onSecondary });
   return (
     <StateCard
       testId={`error-${kind}`}
-      icon={kind === 'storage-loss' || kind === 'storage-blocked' ? 'alert-triangle' : 'alert-octagon'}
-      tone={kind === 'storage-loss' || kind === 'storage-blocked' ? 'caution' : 'danger'}
-      body={text(ERROR_BODY[kind])}
+      icon="alert-triangle"
+      tone="caution"
+      body={text(lost ? 'banner.storageLoss' : 'error.storageBlocked')}
       actions={actions}
+    />
+  );
+}
+
+// ---- full-screen errors (05 section 8.13) ------------------------------------------------------
+
+export interface ErrorScreenProps {
+  /** Which glyph sits in the tile above the heading. */
+  icon?: GlyphId;
+  heading: string;
+  /** The cause, in one or two sentences. */
+  body: string;
+  /** Browser-specific steps under the cause (the denied screen). */
+  steps?: string;
+  actions: readonly StateAction[];
+  testId: string;
+}
+
+/**
+ * A screen that stops the loop: icon tile, heading, the cause and its actions (error-clock, not-found mockups). The
+ * heading takes focus on mount so a screen reader hears the problem first.
+ */
+export function ErrorScreen({ icon = 'caution', heading, body, steps, actions, testId }: ErrorScreenProps) {
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  useEffect(() => headingRef.current?.focus({ preventScroll: true }), []);
+  return (
+    <section className="err-screen" data-testid={testId} role="alert">
+      <span className="err-screen-icon" aria-hidden="true">
+        <Glyph id={icon} size={24} />
+      </span>
+      <h1 ref={headingRef} tabIndex={-1} className="err-screen-heading">
+        {heading}
+      </h1>
+      <p className="err-screen-body">{body}</p>
+      {steps ? <p className="err-screen-steps">{steps}</p> : null}
+      <div className="err-screen-actions">
+        {actions.map((a) => (
+          <Button key={a.label} label={a.label} size="hero" variant={a.primary ? 'primary' : 'secondary'} onClick={a.onClick} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+export type ErrorScreenKind = 'clock-rate' | 'corpus' | 'no-worklet';
+
+const SCREEN_ERRORS: Record<ErrorScreenKind, { heading: TextKey; body: TextKey }> = {
+  'clock-rate': { heading: 'error.clockRate.title', body: 'error.clockRate' },
+  corpus: { heading: 'error.corpus.title', body: 'error.corpus' },
+  'no-worklet': { heading: 'error.noAudioWorklet.title', body: 'error.noAudioWorklet' },
+};
+
+export interface ErrorKindScreenProps {
+  kind: ErrorScreenKind;
+  /** Re-runs the check or load that failed; on success the host returns the player to where they were. */
+  onTryAgain: () => void;
+  /** Leaves for `#/`. */
+  onBackToPractice: () => void;
+}
+
+/** The clock-rate, corpus and no-worklet errors: heading, cause, "Try again" and "Back to Practice". */
+export function ErrorKindScreen({ kind, onTryAgain, onBackToPractice }: ErrorKindScreenProps) {
+  const t = SCREEN_ERRORS[kind];
+  return (
+    <ErrorScreen
+      testId={`error-screen-${kind}`}
+      heading={text(t.heading)}
+      body={text(t.body)}
+      actions={[
+        { label: text('action.tryAgain'), onClick: onTryAgain, primary: true },
+        { label: text('action.backToPractice'), onClick: onBackToPractice },
+      ]}
+    />
+  );
+}
+
+export interface MicDeniedScreenProps {
+  browser?: MicBrowser;
+  onTryAgain: () => void;
+  onPractiseWithoutListening: () => void;
+}
+
+/** Microphone denied, from Start or Calibrate: the browser's steps, "Try again" and "Practise without listening". */
+export function MicDeniedScreen({ browser = 'chrome', onTryAgain, onPractiseWithoutListening }: MicDeniedScreenProps) {
+  return (
+    <ErrorScreen
+      testId="mic-denied-screen"
+      icon="mic"
+      heading={text('permission.denied.title')}
+      body={text(deniedStepsKey(browser))}
+      actions={[
+        { label: text('action.tryAgain'), onClick: onTryAgain, primary: true },
+        { label: text('action.practiseWithoutListening'), onClick: onPractiseWithoutListening },
+      ]}
     />
   );
 }

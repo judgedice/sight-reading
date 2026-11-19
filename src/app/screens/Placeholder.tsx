@@ -1,4 +1,7 @@
+import '../../ui/components/form/form.css';
 import { copy } from '../../ui/copy/copy.ts';
+import { Glyph } from '../../ui/primitives/index.ts';
+import './states/states.css';
 import { hashFromPath } from '../route-match.ts';
 import type { ScreenProps } from '../route-types.ts';
 
@@ -22,15 +25,23 @@ export function PlaceholderScreen({ route }: ScreenProps) {
   );
 }
 
-/** Shown for a path no route matches (a stale bookmark or a mistyped hash). */
+/**
+ * Shown for a path no route matches (a stale bookmark or a mistyped hash): the error layout with one action, a real
+ * link to Practice drawn as the hero button (not-found mockup).
+ */
 export function NotFoundScreen({ route }: ScreenProps) {
   return (
-    <section className="not-found" data-testid="screen-not-found" data-route-id={route.def.id}>
-      <h1>{copy('notFound.title')}</h1>
-      <p>{copy('notFound.body')}</p>
-      <p>
-        <a href={hashFromPath('/')}>{copy('notFound.action')}</a>
-      </p>
+    <section className="err-screen not-found" data-testid="screen-not-found" data-route-id={route.def.id}>
+      <span className="err-screen-icon" aria-hidden="true">
+        <Glyph id="home" size={24} />
+      </span>
+      <h1 className="err-screen-heading">{copy('notFound.title')}</h1>
+      <p className="err-screen-body">{copy('notFound.body')}</p>
+      <div className="err-screen-actions">
+        <a href={hashFromPath('/')} className="ui-button ui-button-primary ui-button-hero">
+          <span>{copy('notFound.action')}</span>
+        </a>
+      </div>
     </section>
   );
 }

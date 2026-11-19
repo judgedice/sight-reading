@@ -1,265 +1,195 @@
-import { useEffect, useMemo, useRef, type ReactNode } from 'react';
-import type { KeySig, OutputMode, PracticeSettings } from '../../../core/types.ts';
+import { useCallback, useId, useMemo, useRef, useState, type ReactNode } from 'react';
+import type { PracticeSettings } from '../../../core/types.ts';
 import { copy } from '../../../ui/copy/copy.ts';
-import { instrumentName } from '../../../ui/copy/instrument-names.ts';
-import { RandomChip, SegmentedControl, Select, Stepper, TempoSlider } from '../../../ui/components/form/index.ts';
-import type { SelectOption } from '../../../ui/components/form/index.ts';
-import { Glyph } from '../../../ui/primitives/Glyph.tsx';
-import { FAMILY_ORDER } from './families.ts';
-import { concertKey, keyName, keyValue, parseKeyValue } from './key-names.ts';
 import {
-  allowedKeys,
-  beatUnit,
-  effectiveLevel,
-  formatLevelList,
-  lengthChoices,
-  levelCounts,
-  levelDef,
-  listedInstruments,
-  meterChoices,
-  midTempo,
-  moreKeysFromLevel,
-  normalize,
-  randomBonusPercent,
-  stockOf,
-  tempoRange,
+  DifficultyControl,
+  FallbackNote,
+  KeyGrid,
+  LengthRow,
+  TempoRow,
+  TimeSegments,
+} from '../../../ui/components/setup/index.ts';
+import { firstClef } from '../../../instruments/range.ts';
+import {
+  applySetupChange,
+  isCompoundMeter,
+  setupModel,
+  type FallbackNote as FallbackNoteModel,
+  type FallbackRow,
   type SetupContext,
 } from './model.ts';
 import './setup.css';
 
-export interface SetupFormProps {
-  value: PracticeSettings;
-  onChange: (next: PracticeSettings) => void;
-  ctx: SetupContext;
+/** The rows of the setup, in order (05 section 5.2). Mode is not one of them: it sits in the foot or under the summary. */
+export type SetupRowId = 'difficulty' | 'key' | 'time' | 'tempo' | 'length';
+export const SETUP_ROWS: readonly SetupRowId[] = ['difficulty', 'key', 'time', 'tempo', 'length'];
+
+/** A fallback note with the change that caused it, so the same note caused twice shows (and is announced) afresh. */
+export interface StampedNote extends FallbackNoteModel {
+  stamp: number;
 }
 
-function Row({ label, children, chip, caption }: { label: string; children: ReactNode; chip?: ReactNode; caption?: ReactNode }) {
+let stampCounter = 0;
+/** Stamps fallback notes from `applySetupChange`. */
+export const stampNotes = (notes: readonly FallbackNoteModel[]): StampedNote[] => notes.map((n) => ({ ...n, stamp: ++stampCounter }));
+
+/** Holds the fallback notes of one screen: each row keeps its latest note until it expires (05 section 5.9). */
+export function useFallbackNotes(): {
+  notes: readonly StampedNote[];
+  push: (notes: readonly FallbackNoteModel[]) => void;
+  expire: (row: FallbackRow, stamp: number) => void;
+} {
+  const [notes, setNotes] = useState<readonly StampedNote[]>([]);
+  const push = useCallback((next: readonly FallbackNoteModel[]) => {
+    if (next.length === 0) return;
+    const stamped = stampNotes(next);
+    setNotes((cur) => [...cur.filter((n) => !stamped.some((s) => s.row === n.row)), ...stamped]);
+  }, []);
+  const expire = useCallback((row: FallbackRow, stamp: number) => {
+    setNotes((cur) => cur.filter((n) => !(n.row === row && n.stamp === stamp)));
+  }, []);
+  return { notes, push, expire };
+}
+
+export interface SetupFormProps {
+  /** Normalized settings. */
+  value: PracticeSettings;
+  /** Called with the normalized next settings and the fallback notes the change caused. */
+  onChange: (next: PracticeSettings, notes: FallbackNoteModel[]) => void;
+  ctx: SetupContext;
+  /** Fallback notes to show. When absent the form keeps its own. */
+  notes?: readonly StampedNote[] | undefined;
+  /** Called when a shown note's six seconds are over (only with `notes`). */
+  onNoteExpire?: ((row: FallbackRow, stamp: number) => void) | undefined;
+  /** "Hear the tempo": one bar at `bpm` with `beatsPerBar` beats (05 section 9.5). Hidden when absent. */
+  onHearTempo?: ((bpm: number, beatsPerBar: number) => void) | undefined;
+  className?: string | undefined;
+}
+
+/** Beats in a bar at the tempo's beat unit: compound meters count dotted beats (6/8 is 2). */
+export function beatsPerBar(meter: string | 'random'): number {
+  if (meter === 'random') return 4;
+  const beats = Number(meter.split('/')[0]);
+  if (!Number.isFinite(beats) || beats <= 0) return 4;
+  return isCompoundMeter(meter) ? Math.max(1, Math.round(beats / 3)) : beats;
+}
+
+function RowSlot({ id, children }: { id: SetupRowId; children: ReactNode }) {
   return (
-    <fieldset className="setup-row">
-      <legend className="setup-label">{label}</legend>
-      <div className="setup-control">{children}</div>
-      {chip ? <div className="setup-chip">{chip}</div> : null}
-      {caption ? <p className="setup-caption">{caption}</p> : null}
-    </fieldset>
+    <div className="setup-slot" data-setup-slot={id}>
+      {children}
+    </div>
   );
 }
-
-/** Select value of the Random entry of the Key row. */
-const RANDOM = 'random';
-
-const OUTPUTS: { value: OutputMode; label: () => string }[] = [
-  { value: 'speakers', label: () => copy('output.speakers') },
-  { value: 'wired', label: () => copy('output.wiredHeadphones') },
-  { value: 'bluetooth', label: () => copy('output.bluetooth') },
-];
 
 /**
- * The setup rows of 04 section 5.2. Every change goes through `normalize`, so a new level re-filters key, time and
- * length without dropping a still-valid choice. Numeric values behind a Random chip are remembered while mounted.
+ * The setup rows (05 sections 5.3 to 5.7): Difficulty, Key, Time, Tempo and Length, built from the shared setup
+ * controls and the setup model. Every change goes through `applySetupChange`, so a new difficulty or instrument
+ * re-filters the other rows and the rows that fell back to Any say so for six seconds, announced politely once.
+ * Used by the Practice screen's setup card and by `SetupSheet`.
  */
-export function SetupForm({ value, onChange, ctx }: SetupFormProps) {
-  const { cfg } = ctx;
-  const level = effectiveLevel(value, ctx);
-  const def = levelDef(cfg, level);
-  const inst = cfg.instrumentById[value.instrumentId]!;
+export function SetupForm({ value, onChange, ctx, notes, onNoteExpire, onHearTempo, className }: SetupFormProps) {
+  const own = useFallbackNotes();
+  const shown = notes ?? own.notes;
+  const expire = notes ? onNoteExpire : own.expire;
+  const model = useMemo(() => setupModel(value, ctx), [value, ctx]);
+  const clef = firstClef(model.instrument);
+  const liveId = useId();
+  const [announced, setAnnounced] = useState('');
+  const lastAnnounced = useRef('');
 
-  const counts = useMemo(() => levelCounts(ctx, value.instrumentId), [ctx, value.instrumentId]);
-  const meters = useMemo(() => meterChoices(ctx, value.instrumentId, level), [ctx, value.instrumentId, level]);
-  const keys = useMemo(() => allowedKeys(def), [def]);
-  const lengths = lengthChoices(def);
-  const range = tempoRange(cfg, def, value.meter);
+  const apply = (patch: Partial<PracticeSettings>): void => {
+    const { next, notes: caused } = applySetupChange(value, patch, ctx);
+    if (!notes) own.push(caused);
+    onChange(next, caused);
+  };
 
-  const memo = useRef<{ level: number; key: KeySig; meter: string; bpm: number }>({
-    level: ctx.playerLevel(value.instrumentId),
-    key: keys[0] ?? { fifths: 0, mode: 'major' },
-    meter: def.meters[0] ?? '4/4',
-    bpm: midTempo(range),
-  });
-  useEffect(() => {
-    if (value.level !== 'random') memo.current.level = value.level;
-    if (value.writtenKey !== 'random') memo.current.key = value.writtenKey;
-    if (value.meter !== 'random') memo.current.meter = value.meter;
-    if (value.bpm !== 'random') memo.current.bpm = value.bpm;
-  }, [value.level, value.writtenKey, value.meter, value.bpm]);
+  const batch = useRef<string[] | null>(null);
+  const announce = useCallback((text: string) => {
+    // Notes caused by one change are announced together, in row order.
+    if (batch.current) {
+      batch.current.push(text);
+      return;
+    }
+    batch.current = [text];
+    queueMicrotask(() => {
+      const joined = (batch.current ?? []).join(' ');
+      batch.current = null;
+      // Re-announce the same text by toggling a trailing space (live regions ignore unchanged text).
+      const next = lastAnnounced.current === joined ? `${joined} ` : joined;
+      lastAnnounced.current = next;
+      setAnnounced(next);
+    });
+  }, []);
 
-  const set = (patch: Partial<PracticeSettings>): void => onChange(normalize({ ...value, ...patch }, ctx));
-
-  const disabledLevels = LEVELS_WITH(counts, 0);
-  const stock = stockOf(counts[level] ?? 0);
-
-  const instrumentGroups = FAMILY_ORDER.map(({ family, label }) => ({
-    label,
-    items: listedInstruments(cfg, ctx.showBeta).filter((i) => i.family === family),
-  })).filter((g) => g.items.length > 0);
-
-  const keyOptions: SelectOption[] = keys.map((k) => ({
-    value: keyValue(k),
-    label:
-      inst.writtenMinusSounding.chromatic !== 0
-        ? copy('home.keyOption', { written: keyName(k), concert: keyName(concertKey(k, inst)) })
-        : copy('home.keyOption.plain', { written: keyName(k) }),
-  }));
-  const keyMore = moreKeysFromLevel(cfg, level);
-  const keyRandom = value.writtenKey === 'random';
-  const meterRandom = value.meter === 'random';
-  const bonus = value.mode === 'ranked' ? randomBonusPercent(cfg, value) : 0;
-  const random = copy('chip.random');
+  const fallback = (row: FallbackRow): ReactNode => {
+    const n = shown.find((x) => x.row === row);
+    return (
+      <FallbackNote
+        note={n ? n.note : null}
+        announce={announce}
+        {...(n ? { stamp: n.stamp } : {})}
+        {...(n && expire ? { onExpire: () => expire(row, n.stamp) } : {})}
+      />
+    );
+  };
 
   return (
-    <form className="setup" onSubmit={(e) => e.preventDefault()} aria-label={copy('nav.practice')}>
-      <Row label={copy('row.instrument')}>
-        <span className="ui-select-wrap">
-          <select
-            className="ui-select"
-            aria-label={copy('row.instrument')}
-            value={value.instrumentId}
-            onChange={(e) => set({ instrumentId: e.target.value })}
-          >
-            {instrumentGroups.map((g) => (
-              <optgroup key={g.label} label={g.label}>
-                {g.items.map((i) => (
-                  <option key={i.id} value={i.id}>
-                    {i.label}
-                  </option>
-                ))}
-              </optgroup>
-            ))}
-          </select>
-          <Glyph id="chevron-down" className="ui-select-chevron" />
-        </span>
-      </Row>
-
-      <Row
-        label={copy('row.level')}
-        chip={<RandomChip pressed={value.level === 'random'} onToggle={(on) => set({ level: on ? 'random' : memo.current.level })} />}
-        caption={
-          <>
-            <span className="setup-desc">{def.description}</span>
-            {stock !== 'ok' ? (
-              <span className="setup-stock" data-stock={stock}>
-                {stock === 'none'
-                  ? copy('home.levelNoMusic', { instrument: instrumentName(inst), levels: formatLevelList([level]) })
-                  : copy('home.levelFewMusic')}
-              </span>
-            ) : null}
-          </>
-        }
-      >
-        <Stepper
-          ariaLabel={copy('row.level')}
-          value={level}
-          min={1}
-          max={10}
-          disabledValues={disabledLevels}
-          formatValue={(n) => (value.level === 'random' ? random : String(n))}
-          onChange={(l) => set({ level: l })}
+    <div className={['setup', className].filter(Boolean).join(' ')} data-testid="setup-form">
+      <RowSlot id="difficulty">
+        <DifficultyControl row={model.difficulty} fallback={fallback('difficulty')} onChange={(level) => apply({ level })} />
+      </RowSlot>
+      <RowSlot id="key">
+        <KeyGrid
+          row={model.key}
+          clef={clef}
+          difficulty={model.level}
+          fallback={fallback('key')}
+          onChange={(writtenKey) => apply({ writtenKey })}
         />
-      </Row>
-
-      <Row
-        label={copy('row.key')}
-        chip={<RandomChip pressed={keyRandom} onToggle={(on) => set({ writtenKey: on ? 'random' : memo.current.key })} />}
-        caption={
-          keyRandom ? (
-            <span className="setup-desc">{copy('home.keyRandom', { max: def.writtenKeys.maxAccidentals })}</span>
-          ) : keyMore !== null ? (
-            <span className="setup-desc">{copy('home.keyFootnote', { n: keyMore })}</span>
-          ) : null
-        }
-      >
-        <Select
-          ariaLabel={copy('row.key')}
-          options={[{ value: RANDOM, label: random }, ...keyOptions]}
-          value={keyRandom ? RANDOM : keyValue(value.writtenKey as KeySig)}
-          {...(keyRandom ? { className: 'setup-is-random' } : {})}
-          onChange={(v) => {
-            if (v === RANDOM) {
-              set({ writtenKey: 'random' });
-              return;
-            }
-            const k = parseKeyValue(v);
-            if (k) set({ writtenKey: k });
-          }}
+      </RowSlot>
+      <RowSlot id="time">
+        <TimeSegments row={model.time} fallback={fallback('time')} onChange={(meter) => apply({ meter })} />
+      </RowSlot>
+      <RowSlot id="tempo">
+        <TempoRow
+          row={model.tempo}
+          value={value.bpm}
+          onChange={(bpm) => apply({ bpm })}
+          {...(onHearTempo ? { onHearTempo: (bpm: number) => onHearTempo(bpm, beatsPerBar(value.meter)) } : {})}
         />
-      </Row>
-
-      <Row
-        label={copy('row.time')}
-        chip={<RandomChip pressed={meterRandom} onToggle={(on) => set({ meter: on ? 'random' : memo.current.meter })} />}
-      >
-        <div className={meterRandom ? 'setup-is-random' : undefined}>
-          <SegmentedControl
-            ariaLabel={copy('row.time')}
-            value={meterRandom ? '' : value.meter}
-            options={meters.map((m) => ({
-              value: m.meter,
-              label: m.meter,
-              disabled: m.disabled,
-              ...(m.disabled ? { tooltip: copy('home.meterTooltip', { meter: m.meter }) } : {}),
-            }))}
-            onChange={(m) => set({ meter: m })}
-          />
-        </div>
-      </Row>
-
-      <Row
-        label={copy('row.tempo')}
-        chip={<RandomChip pressed={value.bpm === 'random'} onToggle={(on) => set({ bpm: on ? 'random' : memo.current.bpm })} />}
-      >
-        <TempoSlider
-          ariaLabel={copy('row.tempo')}
-          min={range.min}
-          max={range.max}
-          beatUnit={beatUnit(value.meter)}
-          value={value.bpm === 'random' ? Math.min(range.max, Math.max(range.min, memo.current.bpm)) : value.bpm}
-          onChange={(bpm) => set({ bpm })}
-        />
-      </Row>
-
-      <Row label={copy('row.length')}>
-        <SegmentedControl
-          ariaLabel={copy('row.length')}
-          value={value.bars === 'random' ? 'random' : String(value.bars)}
-          options={[
-            { value: 'random', label: random },
-            ...lengths.map((n) => ({ value: String(n), label: String(n) })),
-          ]}
-          onChange={(v) => set({ bars: v === 'random' ? 'random' : (Number(v) as 8 | 10 | 12) })}
-        />
-      </Row>
-
-      <Row label={copy('row.output')}>
-        <Select
-          ariaLabel={copy('row.output')}
-          value={value.outputMode}
-          options={OUTPUTS.map((o) => ({ value: o.value, label: o.label() }))}
-          onChange={(v) => set({ outputMode: v as OutputMode })}
-        />
-      </Row>
-
-      <Row label={copy('row.mode')}>
-        <SegmentedControl
-          ariaLabel={copy('row.mode')}
-          value={value.mode}
-          options={[
-            { value: 'ranked', label: copy('mode.ranked') },
-            { value: 'practice', label: copy('mode.practice') },
-          ]}
-          onChange={(m) => set({ mode: m })}
-        />
-      </Row>
-
-      {bonus > 0 ? (
-        <p className="setup-xp-hint" data-testid="xp-hint">
-          {copy('xp.randomHint', { percent: bonus })}
-        </p>
-      ) : null}
-    </form>
+      </RowSlot>
+      <RowSlot id="length">
+        <LengthRow row={model.length} fallback={fallback('length')} onChange={(bars) => apply({ bars })} />
+      </RowSlot>
+      <p id={liveId} className="setup-live" role="status" aria-live="polite">
+        {announced}
+      </p>
+    </div>
   );
 }
 
-function LEVELS_WITH(counts: Record<number, number>, n: number): number[] {
-  return Object.entries(counts)
-    .filter(([, c]) => c === n)
-    .map(([l]) => Number(l));
+/** The text a row's summary chip shows ("G major", "Any key", "♩ = 72"), from the same model the rows use. */
+export function rowValueText(row: SetupRowId, value: PracticeSettings, ctx: SetupContext): string {
+  const model = setupModel(value, ctx);
+  switch (row) {
+    case 'difficulty':
+      return String(model.level);
+    case 'key': {
+      if (value.writtenKey === 'random') return copy('setup.key.any');
+      const k = value.writtenKey;
+      const opt = model.key.groups.flatMap((g) => g.keys).find((o) => o.key.fifths === k.fifths && o.key.mode === k.mode);
+      return opt?.name ?? copy('setup.key.any');
+    }
+    case 'time':
+      return value.meter === 'random' ? copy('setup.time.any') : value.meter;
+    case 'tempo':
+      return value.bpm === 'random' ? copy('setup.length.any') : copy('tempo.marking', { unit: model.tempo.beatUnit, bpm: value.bpm });
+    case 'length':
+      return model.length.kind === 'only'
+        ? copy('setup.length.chip', { bars: model.length.bars })
+        : value.bars === 'random'
+          ? copy('setup.length.any')
+          : copy('setup.length.chip', { bars: value.bars });
+  }
 }

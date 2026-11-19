@@ -17,6 +17,8 @@ export interface AppProps {
   /** Test seam for the hash. */
   location?: LocationSource;
   showBetaBadge?: boolean;
+  /** True while a take's result is open; `#/practice/tips` goes to it (else to Practice). Defaults to none open. */
+  resultOpen?: () => boolean;
 }
 
 function Screen() {
@@ -37,10 +39,10 @@ function Providers({ showBetaBadge }: { showBetaBadge: boolean }) {
   );
 }
 
-export function App({ appearance, table = routeTable, dev, location, showBetaBadge = false }: AppProps) {
+export function App({ appearance, table = routeTable, dev, location, showBetaBadge = false, resultOpen }: AppProps) {
   return (
     <AppearanceProvider {...(appearance ? { settings: appearance } : {})}>
-      <RouterProvider table={table} {...(dev !== undefined ? { dev } : {})} {...(location ? { source: location } : {})}>
+      <RouterProvider table={table} {...(dev !== undefined ? { dev } : {})} {...(location ? { source: location } : {})} {...(resultOpen ? { resultOpen } : {})}>
         <Providers showBetaBadge={showBetaBadge} />
       </RouterProvider>
     </AppearanceProvider>

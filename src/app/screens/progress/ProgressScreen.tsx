@@ -1,7 +1,7 @@
 /** The progress route (04 section 5.7): rank header, rank ladder, instruments, streak, common slips. */
-import { createContext, useContext, useSyncExternalStore } from 'react';
+import { createContext, useContext, useId, useSyncExternalStore } from 'react';
 import { copy } from '../../../ui/copy/copy.ts';
-import { EmptyState, RankEmblem } from '../../../ui/components/domain/index.ts';
+import { DifficultyMeter, EmptyState, RankEmblem } from '../../../ui/components/domain/index.ts';
 import { Card } from '../../../ui/components/containers/index.ts';
 import { Glyph } from '../../../ui/primitives/index.ts';
 import { rankBar } from '../results/model.ts';
@@ -26,11 +26,20 @@ function useReadable<T>(r: { get(): T; subscribe(l: () => void): () => void }): 
 
 function InstrumentCardView({ card }: { card: InstrumentCard }) {
   const attemptsLabel = text('progress.attempts', { n: card.attemptsRanked });
+  const labelId = useId();
   return (
     <Card className="prog-instrument">
-      <h3 className="prog-instrument-name">{card.label}</h3>
-      <p className="prog-instrument-level">{copy('progress.instrumentLevel', { level: card.level })}</p>
-      <ol className="prog-window" aria-label={text('progress.window.label')}>
+      <div className="prog-instrument-head">
+        <h3 className="prog-instrument-name">{card.label}</h3>
+        <p className="prog-instrument-level">
+          {copy('progress.instrumentLevel', { level: card.level })}
+          <DifficultyMeter level={card.level} />
+        </p>
+      </div>
+      <p id={labelId} className="prog-window-label">
+        {text('progress.window.label')}
+      </p>
+      <ol className="prog-window" aria-labelledby={labelId}>
         {card.squares.map((sq, i) => {
           if (!sq) {
             return (
@@ -105,14 +114,20 @@ export function ProgressScreen(_props: ScreenProps) {
             <div
               className="prog-rank-bar"
               role="progressbar"
-              aria-label={rb.label}
+              aria-label={rb.needsLevel ? copy('rank.header', { n: rb.rank, total: rb.total }) : rb.label}
               aria-valuemin={0}
               aria-valuemax={100}
               aria-valuenow={Math.round(rb.fraction * 100)}
             >
               <span className="prog-rank-bar-fill" style={{ inlineSize: `${Math.round(rb.fraction * 100)}%` }} />
             </div>
-            <p className="prog-muted">{rb.label}</p>
+            <p className="prog-muted">{rb.needsLevel ? copy('rank.header', { n: rb.rank, total: rb.total }) : rb.label}</p>
+            {rb.needsLevel && rb.next ? (
+              <p className="prog-gate" data-testid="rank-gate">
+                <Glyph id="info" size={16} />
+                <span>{text('rank.bar.needsLevel', { level: rb.next.minLevel })}</span>
+              </p>
+            ) : null}
           </Card>
 
           <Card className="prog-streak">

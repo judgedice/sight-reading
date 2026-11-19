@@ -2,6 +2,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useSyncExternalStore,
   type AnchorHTMLAttributes,
@@ -58,6 +59,8 @@ export interface RouterProviderProps {
   /** Dev-only routes resolve only when true. Defaults to the build's DEV flag. */
   dev?: boolean;
   source?: LocationSource;
+  /** Asked when a route redirects on whether a result is open (the tips route). Defaults to none open. */
+  resultOpen?: () => boolean;
   children: ReactNode;
 }
 
@@ -67,13 +70,21 @@ function browserSource(): LocationSource {
   return defaultSource;
 }
 
-export function RouterProvider({ table, dev = import.meta.env.DEV, source, children }: RouterProviderProps) {
+export function RouterProvider({ table, dev = import.meta.env.DEV, source, resultOpen, children }: RouterProviderProps) {
   const src = source ?? browserSource();
   const hash = useSyncExternalStore(src.subscribe, src.getHash, () => '');
-  const route = useMemo<ResolvedRoute>(() => {
+  const { route, redirectTo } = useMemo(() => {
     const path = pathFromHash(hash);
-    return matchRoute(table, path, dev) ?? { def: notFoundRoute, path, params: {} };
-  }, [hash, table, dev]);
+    const matched = matchRoute(table, path, dev) ?? { def: notFoundRoute, path, params: {} };
+    const to = matched.def.redirect?.({ resultOpen: resultOpen?.() ?? false });
+    if (to === undefined) return { route: matched as ResolvedRoute, redirectTo: null };
+    // Resolve at once so the redirecting screen never renders; the effect below fixes the address bar.
+    const target = matchRoute(table, to, dev) ?? { def: notFoundRoute, path: to, params: {} };
+    return { route: target as ResolvedRoute, redirectTo: to };
+  }, [hash, table, dev, resultOpen]);
+  useEffect(() => {
+    if (redirectTo !== null) src.navigate(redirectTo, true);
+  }, [redirectTo, src]);
   const navigate = useCallback(
     (path: string, options?: { replace?: boolean }) => src.navigate(path, options?.replace ?? false),
     [src],

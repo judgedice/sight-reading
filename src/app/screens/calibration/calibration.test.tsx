@@ -86,7 +86,8 @@ describe('CalibrationCard', () => {
     const done = vi.fn();
     current = mount(wrap(<CalibrationCard services={svc} onDone={done} allowSkip />));
     expect(document.body.textContent).toContain('Stay quiet for about 8 seconds');
-    expect(names()).toEqual(['Start', 'Skip']);
+    expect(names()).toEqual(['Hear the click', 'Start', 'Skip']);
+    expect(document.body.textContent).toContain('Without calibration, takes on this device are practice only.');
     act(() => button('Start').click());
     // unlock was called synchronously from the click, before any await resolved.
     expect(svc.calls[0]).toBe('unlock');
@@ -153,10 +154,34 @@ describe('CalibrationCard', () => {
     current = mount(wrap(<CalibrationCard services={svc} onDone={() => undefined} allowSkip />));
     expect(document.body.textContent).toContain('iOS: beta');
     expect(document.body.textContent).toContain('On iPhone and iPad, takes earn XP only after this check.');
-    expect(names()).toEqual(['Start']);
+    expect(names()).toEqual(['Hear the click', 'Start']);
     await press('Start');
     await press('Try again');
     expect(names()).toContain('Use an estimate');
+  });
+  it('Hear the click shows before Start and on the result, is absent while listening, and locks the selects', async () => {
+    const svc = fakeServices();
+    let release: (v: ReturnType<typeof loopbackOk>) => void = () => undefined;
+    svc.runLoopback = () => new Promise((r) => (release = r));
+    current = mount(wrap(<CalibrationCard services={svc} onDone={() => undefined} />));
+    expect(names()).toContain('Hear the click');
+    await press('Hear the click');
+    expect(svc.calls).toContain('hear');
+    act(() => button('Start').click());
+    expect(svc.stops).toBeGreaterThan(0);
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    expect(names()).not.toContain('Hear the click');
+    expect(document.body.textContent).toContain('Device choice is locked while we listen.');
+    expect([...document.querySelectorAll('select')].every((x) => x.closest('[aria-disabled="true"]') !== null || x.disabled || x.getAttribute('aria-disabled') === 'true')).toBe(true);
+    expect(document.querySelectorAll('.cal-dot[data-current="true"]')).toHaveLength(1);
+    await act(async () => {
+      release(loopbackOk());
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    expect(names()).toContain('Hear the click');
+    expect(document.body.textContent).not.toContain('Device choice is locked');
   });
   it('Skip is available where allowed and is not shown while running', async () => {
     const svc = fakeServices();

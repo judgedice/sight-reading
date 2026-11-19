@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { copy } from '../../../ui/copy/copy.ts';
-import { barTempoText, beatGrouping, beatInBar, countInBeat, meterStep, statusMessage, stopVariant } from './model.ts';
+import { barTempoText, beatGrouping, beatInBar, countInBeat, meterBars, pitchSteps, statusMessage, stopVariant } from './model.ts';
 
 describe('performance model', () => {
   it('maps score beats and count-in clicks to a beat of the bar', () => {
@@ -44,11 +44,19 @@ describe('performance model', () => {
     expect(stopVariant('ranked', false, false)).toBe('ranked-after-note');
   });
 
-  it('quantises the meter to its 64 px', () => {
-    expect(meterStep(-60)).toBe(0);
-    expect(meterStep(0)).toBe(64);
-    expect(meterStep(-30)).toBe(32);
-    expect(meterStep(-30.1)).toBe(32);
-    expect(meterStep(-90)).toBe(0);
+  it('lights the strip meter bars from the level', () => {
+    expect(meterBars(-60)).toBe(0);
+    expect(meterBars(-90)).toBe(0);
+    expect(meterBars(Number.NEGATIVE_INFINITY)).toBe(0);
+    expect(meterBars(0)).toBe(7);
+    expect(meterBars(-30)).toBe(4);
+    expect(meterBars(-30.001)).toBe(4);
+    expect(meterBars(-55)).toBe(1);
+  });
+
+  it('marks the starting pitch steps from the live caption', () => {
+    expect(pitchSteps(null)).toEqual({ chord: 'pending', note: 'pending' });
+    expect(pitchSteps('key-chord')).toEqual({ chord: 'live', note: 'pending' });
+    expect(pitchSteps('first-note')).toEqual({ chord: 'done', note: 'live' });
   });
 });

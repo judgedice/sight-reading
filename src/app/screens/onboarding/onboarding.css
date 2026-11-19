@@ -1,27 +1,130 @@
-/* Onboarding (04 section 5.1). Tokens only; rem, never px. */
+/* Onboarding (05 sections 4.1 and 8.1 to 8.5). Tokens only; rem, never px. */
 
 .ob {
-  display: flex;
-  justify-content: center;
-  padding-block: var(--space-5);
-}
-
-.ob-card {
+  box-sizing: border-box;
   inline-size: 100%;
   max-inline-size: 35rem;
+  margin-inline: auto;
+  padding-block: var(--space-3) var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.ob[data-step='1'] {
+  max-inline-size: 45rem;
+  padding-block: var(--space-6) var(--space-7);
+}
+
+.ob[data-step='2'] {
+  max-inline-size: 80rem;
+}
+
+.ob[data-step='4'] {
+  max-inline-size: 40rem;
 }
 
 .ob-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-block-end: var(--space-4);
 }
 
 .ob-step {
   margin: 0;
   font-size: var(--type-small-size);
   color: var(--text-muted);
+}
+
+/* ---- Welcome ---- */
+
+.ob-welcome {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.ob-wordmark {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  font-family: var(--type-h2-family);
+  font-size: 1.5rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+
+.ob-wordmark svg {
+  display: block;
+}
+
+.ob-paper {
+  box-sizing: border-box;
+  inline-size: 100%;
+  margin-block: 2.75rem 2.5rem;
+  padding: 1.75rem 2.25rem 1.125rem;
+  border-radius: var(--radius-l);
+  background: var(--paper);
+  box-shadow: var(--paper-ring), var(--e2);
+}
+
+.ob-phrase {
+  display: block;
+  inline-size: 100%;
+  block-size: auto;
+  overflow: visible;
+}
+
+.ob .ob-display {
+  max-inline-size: 38.75rem;
+  margin: 0;
+  font-family: var(--type-display-family);
+  font-size: var(--type-display-size);
+  line-height: var(--type-display-line);
+  font-weight: var(--type-display-weight);
+  letter-spacing: var(--type-display-tracking);
+}
+
+.ob-lede {
+  max-inline-size: 32.5rem;
+  margin: var(--space-4) 0 var(--space-6);
+  font-size: var(--type-body-size);
+  line-height: 1.55;
+  color: var(--text-muted);
+}
+
+@media (min-width: 44rem) {
+  .ob .ob-display {
+    font-size: 3.25rem;
+  }
+
+  .ob-lede {
+    font-size: 1.125rem;
+  }
+}
+
+@media (max-width: 43.6875rem) {
+  .ob[data-step='1'] {
+    padding-block: var(--space-2) var(--space-6);
+  }
+
+  .ob-paper {
+    margin-block: 1.75rem;
+    padding: var(--space-4) 0.75rem 0.5rem;
+  }
+
+  .ob-welcome .ui-button {
+    inline-size: 100%;
+  }
+}
+
+/* ---- Cards, titles, text ---- */
+
+.ob-card {
+  inline-size: 100%;
+  box-sizing: border-box;
 }
 
 .ob-body {
@@ -32,55 +135,37 @@
 
 .ob-title {
   margin: 0;
+  font-family: var(--type-h1-family);
   font-size: var(--type-h1-size);
   line-height: var(--type-h1-line);
   font-weight: var(--type-h1-weight);
+  letter-spacing: var(--type-h1-tracking);
 }
 
-.ob-title:focus {
+.ob-title:focus,
+.ob-title:focus-visible,
+.ob-display:focus,
+.ob-display:focus-visible {
+  /* The heading takes focus when a step opens so assistive technology starts at the top. It is not operable. */
   outline: none;
-}
-
-.ob-title:focus-visible {
-  outline: 0.125rem solid var(--focus-ring);
-  outline-offset: 0.25rem;
 }
 
 .ob-text {
   margin: 0;
   font-size: var(--type-body-size);
   line-height: var(--type-body-line);
-}
-
-.ob-mic-glyph {
-  color: var(--accent);
-}
-
-.ob-name {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-}
-
-.ob-label {
-  font-size: var(--type-small-size);
   color: var(--text-muted);
 }
 
 .ob-hint {
-  font-size: var(--type-caption-size);
+  margin: 0;
+  font-size: var(--type-small-size);
+  line-height: var(--type-small-line);
   color: var(--text-muted);
 }
 
-.ob-input {
-  box-sizing: border-box;
-  min-block-size: var(--select-height);
-  padding-inline: var(--select-x-padding);
-  border: 0.0625rem solid var(--border-strong);
-  border-radius: var(--radius-m);
-  background: var(--surface);
-  color: var(--text);
-  font: inherit;
+.ob-mic-glyph {
+  color: var(--accent);
 }
 
 .ob-actions {
@@ -95,124 +180,142 @@
   align-items: stretch;
 }
 
-.ob-choose {
+.ob-actions-stack .ob-hint {
+  text-align: center;
+}
+
+.ob-granted {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* ---- Microphone problems: a tinted block inside the step's card, not a card of its own ---- */
+
+.ob-problem {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-  align-items: flex-start;
+  padding: var(--space-4);
+  border-radius: var(--radius-m);
+  background: var(--surface-2);
 }
 
-.ob-groups {
+.ob-problem-icon {
+  color: var(--danger);
+}
+
+.ob-problem-body {
+  margin: 0;
+  font-weight: 600;
+}
+
+.ob-problem-steps {
+  margin: 0;
+  font-size: var(--type-small-size);
+  line-height: var(--type-small-line);
+  color: var(--text-muted);
+}
+
+/* ---- Calibration: the calibration card is the step's card ---- */
+
+.ob-cal {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
 }
 
-.ob-family {
-  margin: 0;
-  padding: 0;
-  border: 0;
-  min-inline-size: 0;
+.ob-skip-hint {
+  text-align: center;
 }
 
-.ob-legend {
-  padding: 0;
-  margin-block-end: var(--space-2);
-  font-size: var(--type-small-size);
-  font-weight: 600;
-  color: var(--text-muted);
+/* ---- Difficulty ---- */
+
+.ob-card-level {
+  max-inline-size: 35rem;
 }
 
-/* 4 per row from the sm breakpoint, 2 on phones. */
-.ob-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
+.ob-choose {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  padding-block-start: var(--space-4);
+  border-block-start: 0.0625rem solid var(--border);
+}
+
+/* ---- Picker as the page ---- */
+
+.ob-pick {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.ob-pick-head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.ob-pick-switch {
+  margin-block-start: var(--space-5);
+}
+
+/* Narrow: the selection's picture and Continue are pinned to the bottom edge, as the phone sheet pins its panel. */
+.ob-pick-side {
+  position: sticky;
+  inset-block-end: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
   gap: var(--space-3);
+  margin-inline: calc(var(--page-margin) * -1);
+  padding: var(--space-3) var(--page-margin) max(var(--space-3), var(--sai-bottom, 0rem));
+  border-block-start: 0.0625rem solid var(--border);
+  background: var(--surface);
+  box-shadow: var(--e2);
 }
 
-@media (min-width: 40rem) {
-  .ob-grid {
-    grid-template-columns: repeat(4, 1fr);
+.ob-pick-side > .ui-button {
+  inline-size: 100%;
+}
+
+@media (min-width: 64rem) {
+  .ob-pick {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 27.5rem;
+    grid-template-areas:
+      'head side'
+      'grid side';
+    column-gap: var(--space-5);
+    align-items: start;
+  }
+
+  .ob-pick-head {
+    grid-area: head;
+  }
+
+  .ob-pick-grid {
+    grid-area: grid;
+  }
+
+  .ob-pick-side {
+    grid-area: side;
+    inset-block-start: var(--space-4);
+    inset-block-end: auto;
+    margin-inline: 0;
+    padding: var(--space-5);
+    border: 0.0625rem solid var(--border);
+    border-radius: var(--radius-l);
+    box-shadow: none;
+    background: var(--surface);
   }
 }
 
-.ob-instrument {
-  position: relative;
-  box-sizing: border-box;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-2);
-  min-block-size: var(--target-min);
-  padding: var(--space-3);
-  border: 0.0625rem solid var(--border);
-  border-radius: var(--radius-m);
-  background: var(--surface);
-  text-align: center;
-  cursor: pointer;
-}
-
-.ob-instrument[data-checked='true'] {
-  border-color: var(--accent);
-  box-shadow: inset 0 0 0 0.0625rem var(--accent);
-}
-
-.ob-instrument:focus-within {
-  outline: 0.125rem solid var(--focus-ring);
-  outline-offset: 0.125rem;
-}
-
-/* Visually hidden but focusable: the native radio keeps arrow-key behaviour. */
-.ob-radio {
-  position: absolute;
-  inline-size: 0.0625rem;
-  block-size: 0.0625rem;
-  margin: 0;
-  opacity: 0;
-}
-
-.ob-circle {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  inline-size: var(--instrument-circle);
-  block-size: var(--instrument-circle);
-  border-radius: 50%;
-  background: var(--ink-accent-soft);
-  color: var(--text);
-  font-size: var(--type-small-size);
-  font-weight: 600;
-}
-
-.ob-instrument-text {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-}
-
-.ob-instrument-name {
-  font-size: var(--type-small-size);
-  font-weight: 600;
-}
-
-.ob-instrument-sub {
-  font-size: var(--type-caption-size);
-  color: var(--text-muted);
-}
-
-.ob-badge {
-  margin-inline-start: var(--space-1);
-  padding-inline: var(--space-1);
-  border: 0.0625rem solid var(--border-strong);
-  border-radius: var(--radius-s);
-  font-size: var(--type-caption-size);
-  font-weight: 400;
-  color: var(--text-muted);
-}
-
-/* The headline takes focus when a step opens (focus management for assistive technology). It is not operable, so it
-   draws no focus ring; a ring on load made it look like a control. */
-.ob-title:focus,
-.ob-title:focus-visible {
-  outline: none;
+/* Without app chrome the shell adds no page margin, so the screen keeps its own. */
+.app-shell[data-chrome='none'] .ob {
+  padding-inline: max(var(--page-margin), var(--sai-left, 0rem));
 }

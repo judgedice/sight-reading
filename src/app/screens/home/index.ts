@@ -4,7 +4,7 @@ import { createElement } from 'react';
 import { HomeScreen, HomeServicesProvider } from './HomeScreen.tsx';
 import type { HomeServices } from './services.ts';
 
-export { HomeScreen, HomeServicesProvider } from './HomeScreen.tsx';
+export { HomeScreen, HomeServicesProvider, WIDE_QUERY } from './HomeScreen.tsx';
 export * from './services.ts';
 export * from './today.ts';
 

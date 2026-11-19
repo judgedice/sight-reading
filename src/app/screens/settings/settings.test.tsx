@@ -13,6 +13,8 @@ import { ToastProvider } from '../../../ui/primitives/index.ts';
 import { setNativeValue, q } from '../../../ui/components/form/test-helpers.ts';
 import { RouterProvider, useRoute, type LocationSource } from '../../router.tsx';
 import { createRouteTable } from '../../routes.tsx';
+import { createStore } from 'zustand/vanilla';
+import { idleSoundView, type SoundView } from '../../../session/index.ts';
 import { createSettingsScreen, type SettingsServices } from './index.ts';
 import { text } from './text.ts';
 import { sizeParts, normalizeDisplayName, patchSection } from './model.ts';
@@ -202,13 +204,13 @@ describe('SettingsScreen', () => {
     expect(q<HTMLInputElement>('#set-name').disabled).toBe(true);
   });
 
-  it('shows the latest calibration on the audio row and offers Calibrate', async () => {
+  it('shows the latest calibration on the sound card and offers Recalibrate', async () => {
     const h = harness();
     await h.repos.calibrations.put({ ...makeCalibration('route-a'), measuredAt: '2026-01-01T00:00:00.000Z', method: 'loopback' });
     await h.repos.calibrations.put({ ...makeCalibration('route-b'), measuredAt: '2026-03-05T00:00:00.000Z', method: 'play-along' });
     await render(h);
-    expect(document.body.textContent).toContain(text('settings.audio.calibrated', { date: '5 Mar 2026', method: text('settings.audio.method.play-along') }));
-    const calibrate = [...document.querySelectorAll('button')].find((b) => b.textContent === copy('action.calibrate'));
+    expect(document.body.textContent).toContain(text('settings.audio.calibratedOn', { when: '5 Mar 2026', output: copy('output.speakers'), ms: 80 }));
+    const calibrate = [...document.querySelectorAll('button')].find((b) => b.textContent === copy('action.recalibrate'));
     click(calibrate!);
     expect(h.src.navigated).toContain('/calibrate');
   });
@@ -302,6 +304,139 @@ describe('SettingsScreen', () => {
     expect(document.body.textContent).toContain(copy('error.importInvalid'));
     expect(h.reloaded).toHaveLength(0);
     expect(await h.repos.profile.get()).toBeDefined();
+  });
+});
+
+describe('Settings > Sound', () => {
+  const radios = (): HTMLInputElement[] => [...document.querySelectorAll<HTMLInputElement>('input[name="set-sound"]')];
+  const playButton = (sound: string): HTMLButtonElement => q<HTMLButtonElement>(`button[data-sound="${sound}"]`);
+
+  it('offers Classic, Woodblock and Beep, each with its hint, and Classic is the default', async () => {
+    const h = harness();
+    await render(h);
+    expect(radios().map((r) => r.value)).toEqual(['classic', 'woodblock', 'beep']);
+    for (const [id, name] of [['classic', 'Classic'], ['woodblock', 'Woodblock'], ['beep', 'Beep']] as const) {
+      expect(document.body.textContent).toContain(name);
+      expect(document.body.textContent).toContain(copy(`settings.audio.click.${id}.hint`));
+      expect(playButton(id).getAttribute('aria-label')).toBe(copy('settings.audio.click.play', { sound: name }));
+    }
+    expect(radios().find((r) => r.checked)?.value).toBe('classic');
+    expect(document.body.textContent).toContain(copy('settings.audio.click.keepsCalibration'));
+  });
+
+  it('shows Classic selected for a stored tick, and Woodblock for a stored wood', async () => {
+    const h = harness();
+    h.settings.set(patchSection(h.settings.value(), 'practice', { clickTimbre: 'tick' }));
+    await render(h);
+    expect(radios().find((r) => r.checked)?.value).toBe('classic');
+    m?.unmount();
+    m = null;
+    const w = harness();
+    w.settings.set(patchSection(w.settings.value(), 'practice', { clickTimbre: 'wood' }));
+    await render(w);
+    expect(radios().find((r) => r.checked)?.value).toBe('woodblock');
+  });
+
+  it('stores the chosen sound and keeps the other settings', async () => {
+    const h = harness();
+    await render(h);
+    for (const id of ['woodblock', 'beep', 'classic'] as const) {
+      click(radios().find((r) => r.value === id)!);
+      expect(h.settings.value().practice.clickTimbre).toBe(id);
+    }
+    expect(h.settings.value().practice.a4Hz).toBe(defaultAppSettings().practice.a4Hz);
+  });
+
+  it('previews each sound from its own button, one at a time, and shows Stop while it plays', async () => {
+    const sounds = createStore<SoundView>(idleSoundView);
+    const previews: string[] = [];
+    let stops = 0;
+    const h = harness({
+      sounds,
+      previewSound: async (sound) => {
+        previews.push(sound);
+        sounds.setState({ ...idleSoundView(), playing: 'preview', caption: { kind: 'preview', sound } });
+      },
+      stopSounds: () => {
+        stops += 1;
+        sounds.setState(idleSoundView());
+      },
+    });
+    await render(h);
+    for (const id of ['classic', 'woodblock', 'beep'] as const) {
+      click(playButton(id));
+      await flush();
+      expect(previews.at(-1)).toBe(id);
+      expect(playButton(id).textContent).toContain(copy('action.stop'));
+      expect(playButton(id).getAttribute('aria-label')).toBe(copy('action.stop'));
+      expect(document.body.textContent).toContain(copy('settings.audio.click.playing', { sound: copy(`settings.audio.click.${id}`) }));
+      // The others still offer their preview.
+      for (const other of ['classic', 'woodblock', 'beep'].filter((x) => x !== id)) {
+        expect(playButton(other).textContent).not.toContain(copy('action.stop'));
+      }
+      click(playButton(id));
+      await flush();
+      expect(playButton(id).textContent).not.toContain(copy('action.stop'));
+    }
+    expect(previews).toEqual(['classic', 'woodblock', 'beep']);
+    expect(stops).toBe(3);
+    // A preview does not change the chosen sound.
+    expect(h.settings.value().practice.clickTimbre).toBe(defaultAppSettings().practice.clickTimbre);
+  });
+
+  it('stops a preview that is sounding when the screen is left', async () => {
+    let stops = 0;
+    const h = harness({ stopSounds: () => void (stops += 1) });
+    await render(h);
+    m?.unmount();
+    m = null;
+    expect(stops).toBeGreaterThan(0);
+  });
+
+  it('switches the accent for the first beat, on by default', async () => {
+    const h = harness();
+    await render(h);
+    const accent = [...document.querySelectorAll<HTMLInputElement>('[role="switch"]')].find((el) => label(el.closest('label')).includes(copy('settings.audio.accent')))!;
+    expect(accent.checked).toBe(true);
+    click(accent);
+    expect(h.settings.value().practice.accentFirstBeat).toBe(false);
+    click(accent);
+    expect(h.settings.value().practice.accentFirstBeat).toBe(true);
+  });
+
+  it('plays one click of the chosen sound when the volume slider is released, not while it moves', async () => {
+    const clicks: string[] = [];
+    const h = harness({ playClick: async (sound) => void clicks.push(sound) });
+    h.settings.set(patchSection(h.settings.value(), 'practice', { clickTimbre: 'beep' }));
+    await render(h);
+    const range = q<HTMLInputElement>('#set-metronome-volume');
+    setNativeValue(range, '55', 'input');
+    setNativeValue(range, '60', 'input');
+    expect(clicks).toEqual([]);
+    expect(h.settings.value().audio.metronomeVolume).toBe(60);
+    act(() => range.dispatchEvent(new Event('pointerup', { bubbles: true })));
+    expect(clicks).toEqual(['beep']);
+    act(() => range.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowRight', bubbles: true })));
+    expect(clicks).toEqual(['beep', 'beep']);
+    expect(document.body.textContent).toContain('60%');
+  });
+
+  it('offers Calibrate before any calibration, and the tuning pitch with its hint', async () => {
+    const h = harness();
+    await render(h);
+    expect(document.body.textContent).toContain(copy('settings.audio.a4.hint'));
+    expect(document.body.textContent).toContain(text('settings.audio.notCalibrated'));
+    click([...document.querySelectorAll('button')].find((b) => b.textContent === copy('action.calibrate'))!);
+    expect(h.src.navigated).toContain('/calibrate');
+  });
+
+  it('keeps the Technical details disclosure closed, holding the build facts', async () => {
+    const h = harness();
+    await render(h);
+    const details = q<HTMLDetailsElement>('details.set-details');
+    expect(details.open).toBe(false);
+    expect(details.textContent).toContain(copy('settings.about.technical'));
+    expect(details.textContent).toContain('1.2.3');
   });
 });
 

@@ -1,79 +1,144 @@
-/* Setup rows (04 section 5.2). Tokens only. */
+/* Setup rows and the setup sheet (05 section 5.2, 06 sections 6 and 10). Tokens only. */
 .setup {
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
+  min-width: 0;
 }
 
-.setup-row {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  align-items: center;
-  gap: var(--space-2) var(--space-3);
-  margin: 0;
+/* Rows share one left edge, each set off by a hairline (home and setup-sheet mockups). */
+.setup-slot {
+  padding: var(--space-5) 0;
+  border-top: 0.0625rem solid var(--border);
+  scroll-margin-top: var(--space-3);
+}
+
+.setup-slot:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.setup-slot:last-of-type {
+  padding-bottom: var(--space-2);
+}
+
+.setup-live {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0.0625rem;
+  height: 0.0625rem;
+  margin: -0.0625rem;
   padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
   border: 0;
-  min-width: 0;
 }
 
-@media (min-width: 48em) {
-  .setup-row {
-    grid-template-columns: 7rem 1fr auto;
-  }
-}
+/* ---- Instrument tile -------------------------------------------------------------------------------------- */
 
-.setup-label {
-  grid-column: 1 / -1;
-  padding: 0;
-  font-weight: 600;
+.setup-tile {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: var(--radius-m);
+  background: var(--surface-2);
   color: var(--text);
 }
 
-@media (min-width: 48em) {
-  .setup-label {
-    grid-column: 1;
-    grid-row: 1;
-  }
-  .setup-control {
-    grid-column: 2;
-    grid-row: 1;
-  }
-  .setup-chip {
-    grid-column: 3;
-    grid-row: 1;
-  }
-  .setup-caption {
-    grid-column: 2 / -1;
-  }
+.setup-tile-small {
+  width: 2.75rem;
+  height: 2.75rem;
 }
 
-.setup-control {
-  min-width: 0;
+.setup-tile-clef {
+  font-family: var(--font-music);
+  font-size: 2rem;
+  line-height: 1;
+  transform: translateY(15%);
 }
 
-.setup-caption {
-  grid-column: 1 / -1;
+.setup-tile-small .setup-tile-clef {
+  font-size: 1.625rem;
+}
+
+/* ---- Setup sheet ------------------------------------------------------------------------------------------ */
+
+.setup-sheet {
   display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  margin: 0;
-  color: var(--text-muted);
+  flex-direction: column;
+  gap: var(--space-5);
+  min-width: 0;
 }
 
-.setup-stock {
+.setup-sheet-inst {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  width: 100%;
+  min-height: var(--target-min);
+  padding: var(--space-3) var(--space-4);
+  border: 0.0625rem solid var(--border);
+  border-radius: var(--radius-l);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.setup-sheet-inst:hover {
+  background: var(--surface-2-hover);
+}
+
+.setup-sheet-inst:active {
+  background: var(--surface-2-pressed);
+}
+
+.setup-sheet-inst:focus-visible {
+  outline: 0.125rem solid var(--focus-ring);
+  outline-offset: 0.125rem;
+}
+
+.setup-sheet-inst-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.setup-sheet-inst-name {
+  font-size: var(--type-h3-size);
   font-weight: 600;
 }
 
-.setup-stock[data-stock='none'] {
-  color: var(--text);
-}
-
-.setup-is-random,
-.setup-is-random select {
-  font-style: italic;
-}
-
-.setup-xp-hint {
-  margin: 0;
+.setup-sheet-inst-action {
   color: var(--text-muted);
+  font-size: var(--type-caption-size);
+}
+
+.setup-sheet-range {
+  padding-bottom: var(--space-5);
+  border-bottom: 0.0625rem solid var(--border);
+}
+
+.setup-in-sheet .setup-slot:first-child {
+  padding-top: 0;
+}
+
+/* The sheet's head (title and Done) stays in view while its rows scroll (setup-sheet-key mockup). */
+.ui-sheet:has(.setup-sheet) .ui-sheet-head {
+  position: sticky;
+  top: calc(-1 * var(--space-2));
+  z-index: 1;
+  margin: 0 calc(-1 * var(--sheet-x-padding));
+  padding: var(--space-2) var(--sheet-x-padding);
+  background: var(--surface);
+}
+
+.ui-sheet:has(.setup-sheet) .ui-sheet-body {
+  margin-top: var(--space-2);
 }

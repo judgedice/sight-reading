@@ -91,3 +91,30 @@ describe('buildPath', () => {
     expect(() => buildPath('/history/:attemptId')).toThrow();
   });
 });
+
+describe('route chrome and redirects', () => {
+  const def = (path: string) => matchRoute(routeTable, path, true)?.def;
+
+  it('assigns chrome per route (05 section 3.1)', () => {
+    expect(def('/welcome')?.chrome).toBe('onboarding');
+    expect(def('/practice/scan')?.chrome).toBe('loop');
+    expect(def('/practice/results')?.chrome).toBe('loop');
+    expect(def('/practice/play')?.chrome).toBe('none');
+    for (const p of ['/', '/progress', '/history', '/history/a', '/settings', '/settings/about', '/calibrate', '/credits']) {
+      expect(def(p)?.chrome, p).toBe('full');
+    }
+  });
+
+  it('only the tips route redirects: to results when open, else to Practice', () => {
+    const withRedirect = routeTable.filter((r) => r.redirect).map((r) => r.id);
+    expect(withRedirect).toEqual(['practice.tips']);
+    const tips = def('/practice/tips');
+    expect(tips?.redirect?.({ resultOpen: true })).toBe('/practice/results');
+    expect(tips?.redirect?.({ resultOpen: false })).toBe('/');
+  });
+
+  it('the redirect wins over a screen override for the tips route', () => {
+    const table = createRouteTable({ 'practice.tips': () => null });
+    expect(matchRoute(table, '/practice/tips', false)?.def.redirect).toBeTypeOf('function');
+  });
+});

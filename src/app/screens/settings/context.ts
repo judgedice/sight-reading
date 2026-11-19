@@ -3,6 +3,7 @@ import { createContext, useContext, useSyncExternalStore } from 'react';
 import type { KeyValue, StoreRepos } from '../../../core/platform.ts';
 import type { AppSettings, Configs, PlayerProfile } from '../../../core/types.ts';
 import type { Writable } from '../home/services.ts';
+import type { SettingsSoundServices } from './services.ts';
 
 export interface InputDevice {
   id: string;
@@ -18,7 +19,7 @@ export interface AboutInfo {
   iosBeta: boolean;
 }
 
-export interface SettingsServices {
+export interface SettingsServices extends SettingsSoundServices {
   configs: Configs;
   repos: StoreRepos;
   kv: KeyValue;

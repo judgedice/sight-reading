@@ -45,5 +45,19 @@ export function stopVariant(mode: 'ranked' | 'practice', listening: boolean, fir
   return listening && !firstNoteHeard ? 'ranked-before-note' : 'ranked-after-note';
 }
 
-/** Quantises a meter reading so a leaf only re-renders when the drawn bar would change (64 px wide). */
-export const meterStep = (levelDb: number, minDb = -60): number => Math.round(Math.min(1, Math.max(0, (levelDb - minDb) / -minDb)) * 64);
+/** Bars in the strip's input meter (06 section 6.13). */
+export const MIC_BARS = 7;
+
+/** Bars lit for a level: 0 below the floor, all of them at 0 dB. A leaf re-renders only when this changes. */
+export const meterBars = (levelDb: number, minDb = -60): number =>
+  Number.isFinite(levelDb) ? Math.ceil(Math.min(1, Math.max(0, (levelDb - minDb) / -minDb)) * MIC_BARS - 1e-9) || 0 : 0;
+
+/** What the strip's centre says while a voice take plays its starting pitch before the count-in. */
+export type PitchStep = 'pending' | 'live' | 'done';
+
+/** The two steps of the "Your starting pitch" band from the live caption kind (06 section 6.12). */
+export function pitchSteps(caption: 'key-chord' | 'first-note' | null): { chord: PitchStep; note: PitchStep } {
+  if (caption === 'key-chord') return { chord: 'live', note: 'pending' };
+  if (caption === 'first-note') return { chord: 'done', note: 'live' };
+  return { chord: 'pending', note: 'pending' };
+}

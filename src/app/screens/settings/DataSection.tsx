@@ -6,7 +6,7 @@ import { Button } from '../../../ui/components/form/index.ts';
 import { Modal, useToast } from '../../../ui/primitives/index.ts';
 import { deleteAllData, downloadText, exportBackupText, importBackupText, importErrorText, backupFileName } from './data-io.ts';
 import { DELETE_WORD, sizeParts } from './model.ts';
-import { Row, Section } from './Section.tsx';
+import { Group, Row, Section } from './Section.tsx';
 import { text } from './text.ts';
 import { useSettingsServices } from './context.ts';
 
@@ -100,12 +100,12 @@ export function DataSection() {
   return (
     <Section id="data" title={copy('settings.section.data')}>
       {error ? <Banner tone="danger" text={error} /> : null}
-
-      <Row label={copy('settings.data.export')}>
+      <Group>
+      <Row label={copy('settings.data.export')} inline>
         <Button label={copy('settings.data.export')} variant="secondary" icon="download" onClick={() => void exportData()} />
       </Row>
 
-      <Row label={copy('settings.data.import')}>
+      <Row label={copy('settings.data.import')} inline>
         <div className="set-actions">
           <Button label={copy('action.importBackup')} variant="secondary" icon="upload" onClick={() => fileInput.current?.click()} />
           <input
@@ -125,20 +125,21 @@ export function DataSection() {
       </Row>
 
       {sizeLabel !== null ? (
-        <Row label={copy('settings.data.storageUsed')}>
+        <Row label={copy('settings.data.storageUsed')} inline>
           <span>{sizeLabel}</span>
         </Row>
       ) : null}
 
       {s.downloadMusic ? (
-        <Row label={text('settings.data.offline')}>
+        <Row label={text('settings.data.offline')} inline>
           <Button label={copy('action.downloadMusic')} variant="secondary" loading={offlineBusy} onClick={() => void downloadMusic()} />
         </Row>
       ) : null}
 
-      <Row label={copy('settings.data.delete')}>
+      <Row label={copy('settings.data.delete')} inline>
         <Button label={copy('settings.data.delete')} variant="danger" icon="trash" onClick={() => setPending({ kind: 'delete' })} />
       </Row>
+      </Group>
 
       <Modal
         open={pending?.kind === 'import'}
