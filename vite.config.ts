@@ -24,12 +24,12 @@ function pwaHead(): Plugin {
         { tag: 'link', attrs: { rel: 'apple-touch-icon', href: './icons/apple-touch-icon.png' }, injectTo: 'head' },
         {
           tag: 'meta',
-          attrs: { name: 'theme-color', content: '#F6F5F1', media: '(prefers-color-scheme: light)' },
+          attrs: { name: 'theme-color', content: '#F4F1EA', media: '(prefers-color-scheme: light)' },
           injectTo: 'head',
         },
         {
           tag: 'meta',
-          attrs: { name: 'theme-color', content: '#121418', media: '(prefers-color-scheme: dark)' },
+          attrs: { name: 'theme-color', content: '#111113', media: '(prefers-color-scheme: dark)' },
           injectTo: 'head',
         },
         { tag: 'meta', attrs: { name: 'apple-mobile-web-app-capable', content: 'yes' }, injectTo: 'head' },

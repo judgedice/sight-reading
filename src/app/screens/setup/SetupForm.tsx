@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, type ReactNode } from 'react';
 import type { KeySig, OutputMode, PracticeSettings } from '../../../core/types.ts';
 import { copy } from '../../../ui/copy/copy.ts';
+import { instrumentName } from '../../../ui/copy/instrument-names.ts';
 import { RandomChip, SegmentedControl, Select, Stepper, TempoSlider } from '../../../ui/components/form/index.ts';
 import type { SelectOption } from '../../../ui/components/form/index.ts';
 import { Glyph } from '../../../ui/primitives/Glyph.tsx';
@@ -10,6 +11,7 @@ import {
   allowedKeys,
   beatUnit,
   effectiveLevel,
+  formatLevelList,
   lengthChoices,
   levelCounts,
   levelDef,
@@ -135,7 +137,9 @@ export function SetupForm({ value, onChange, ctx }: SetupFormProps) {
             <span className="setup-desc">{def.description}</span>
             {stock !== 'ok' ? (
               <span className="setup-stock" data-stock={stock}>
-                {copy(stock === 'none' ? 'home.levelNoMusic' : 'home.levelFewMusic')}
+                {stock === 'none'
+                  ? copy('home.levelNoMusic', { instrument: instrumentName(inst), levels: formatLevelList([level]) })
+                  : copy('home.levelFewMusic')}
               </span>
             ) : null}
           </>

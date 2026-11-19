@@ -313,7 +313,7 @@
   gap: var(--space-3);
   box-sizing: border-box;
   inline-size: 100%;
-  min-block-size: var(--component-bar-height);
+  min-block-size: var(--button-default-height);
   padding: 0;
   border: 0;
   background: transparent;

@@ -1,6 +1,6 @@
 /** Profile, Audio, Display, Practice and Accessibility (04 section 5.11). Changes apply at once. */
 import { useEffect, useState } from 'react';
-import type { Calibration, OutputMode } from '../../../core/types.ts';
+import type { Calibration, ClickTimbre, OutputMode } from '../../../core/types.ts';
 import { copy } from '../../../ui/copy/copy.ts';
 import { Button, SegmentedControl, Select, Stepper, Toggle } from '../../../ui/components/form/index.ts';
 import { useNavigate } from '../../router.tsx';
@@ -130,7 +130,7 @@ export function AudioSection() {
         </div>
       </Row>
       <Row label={copy('settings.audio.clickSound')}>
-        <SegmentedControl<'tick' | 'wood'>
+        <SegmentedControl<ClickTimbre>
           ariaLabel={copy('settings.audio.clickSound')}
           options={[
             { value: 'tick', label: copy('settings.audio.click.tick') },

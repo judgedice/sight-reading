@@ -42,7 +42,7 @@ export function ComponentBar({ label, value, explainer, detail, focus = false, u
       <button type="button" className="dom-cbar-row" aria-expanded={open} aria-controls={panelId} onClick={toggle}>
         <span className="dom-cbar-label" id={labelId}>
           {label}
-          {focus ? <span className="dom-cbar-focus">{copy('component.focus')}</span> : null}
+          {focus ? <span className="dom-cbar-focus">{copy('component.focus', { component: label })}</span> : null}
         </span>
         {value === null ? (
           <span className="dom-cbar-unavailable">{unavailableText ?? copy('component.inTune.notEnough')}</span>

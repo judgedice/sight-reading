@@ -214,6 +214,7 @@ describe('audio-env and ranked reasons (05 §5.2, R30)', () => {
         'measurement',
         'familiar',
         'skip-limit',
+        'listened-first',
       ].sort(),
     );
   });

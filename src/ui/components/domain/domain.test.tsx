@@ -168,7 +168,7 @@ describe('ComponentBar', () => {
     click(row);
     expect(panel.hidden).toBe(false);
     expect(row.getAttribute('aria-controls')).toBe(panel.id);
-    expect(c.querySelector('.dom-cbar-focus')?.textContent).toBe(copy('component.focus'));
+    expect(c.querySelector('.dom-cbar-focus')?.textContent).toBe(copy('component.focus', { component: 'Rhythm' }));
   });
   it('shows no bar and no number when the value is null', () => {
     const c = m(<ComponentBar label="In tune" value={null} explainer="x" />);

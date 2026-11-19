@@ -127,6 +127,7 @@ export default tseslint.config(
       'public/**',
       'schemas/**',
       'test/lint-fixtures/**', // negative fixtures: linted only by test/lint-fixtures/lint-fixtures.test.ts
+      'docs/redesign/mockups/_build/**', // design mockup tooling, not shipped code
     ],
   },
   js.configs.recommended,

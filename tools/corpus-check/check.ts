@@ -27,6 +27,7 @@ import type {
   SelectionHistory,
 } from '../../src/core/types.ts';
 import { loadExcerpt, loadManifest, prepareExcerpt, selectExcerptWith, countEligible } from '../../src/corpus/index.ts';
+import { METER_MIN_EXCERPTS, shownMeters } from '../../src/corpus/select/index.ts';
 import { allowedWrittenKeys, bandFor, levelDef } from '../../src/corpus/select/levels.ts';
 import { fitsInKey, shiftWindow, windowFits } from '../../src/corpus/transpose/fit.ts';
 import { launchInstruments } from '../../src/instruments/index.ts';
@@ -101,6 +102,9 @@ export function installDom(): void {
 
 /** Draws for an excerpt that only the L - 1 pool can serve: each draw takes it with p 0.2 (it is that pool's only member). */
 const BELOW_POOL_DRAWS = 64;
+
+/** Selector options for the single-entry manifests: every level meter counts as shown (see `shownInApp`). */
+const ALL_METERS = { meterMinExcerpts: 0 } as const;
 
 const mkSettings = (instrumentId: string, level: number): PracticeSettings => ({
   instrumentId,
@@ -240,6 +244,18 @@ export async function runCheck(opts: CheckOptions = {}): Promise<CheckReport> {
     }
   }
 
+  // The meters the setup screen shows per instrument and level, from the full manifest (05 section 5.5).
+  const shown = new Map<string, ReadonlySet<string>>();
+  const shownInApp = (instrumentId: string, level: number): ReadonlySet<string> => {
+    const k = `${instrumentId}|${level}`;
+    let out = shown.get(k);
+    if (!out) {
+      const counts = levelDef(cfg, level).meters.map((meter) => ({ meter, count: countEligible(m, instrumentId, level, meter, cfg) }));
+      shown.set(k, (out = new Set(shownMeters(counts, METER_MIN_EXCERPTS))));
+    }
+    return out;
+  };
+
   // Per excerpt: source, fit, render, fingerprint.
   const byFp = new Map<string, { id: string; group: string }[]>();
   let rendered = 0;
@@ -262,10 +278,14 @@ export async function runCheck(opts: CheckOptions = {}): Promise<CheckReport> {
     let done = false;
     const errors: string[] = [];
     // The excerpt is eligible at its own level, one above (as the L - 1 pool) and one below (as a stretch excerpt).
+    // "Any" time draws only from the meters the setup screen shows (redesign 05 section 5.5), and the screen counts
+    // the whole shipped manifest. The single-entry manifests below would undercount, so the shown set is taken from
+    // the full manifest, the excerpt is skipped where its meter is left out, and the draws below use no threshold.
     for (const inst of fitting) {
       for (const lv of [e.level, e.level + 1, e.level - 1]) {
         if (lv < 1 || lv > 10) continue;
-        let sel = selectExcerptWith(solo, { ...mkSettings(inst.id, lv), seed: 1 }, history(lv), cfg, createRng(1), {});
+        if (!shownInApp(inst.id, lv).has(e.meter)) continue;
+        let sel = selectExcerptWith(solo, { ...mkSettings(inst.id, lv), seed: 1 }, history(lv), cfg, createRng(1), ALL_METERS);
         if ('error' in sel && lv === e.level + 1) {
           // At L + 1 the excerpt sits in the L - 1 pool, which is never served alone (its share is capped at 20%), so
           // a single-entry manifest always refuses it. Serve it next to the real level-L + 1 excerpts and draw until
@@ -275,7 +295,7 @@ export async function runCheck(opts: CheckOptions = {}): Promise<CheckReport> {
           const without: CorpusManifest = { ...beside, entries: others };
           if (countEligible(beside, inst.id, lv, null, cfg) <= countEligible(without, inst.id, lv, null, cfg)) continue;
           for (let seed = 1; seed <= BELOW_POOL_DRAWS; seed++) {
-            const s2 = selectExcerptWith(beside, { ...mkSettings(inst.id, lv), seed }, history(lv), cfg, createRng(seed), {});
+            const s2 = selectExcerptWith(beside, { ...mkSettings(inst.id, lv), seed }, history(lv), cfg, createRng(seed), ALL_METERS);
             if ('error' in s2) break;
             if (s2.entry.id === e.id) {
               sel = s2;
