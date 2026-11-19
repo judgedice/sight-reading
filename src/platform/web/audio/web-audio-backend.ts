@@ -286,6 +286,9 @@ export class WebAudioBackend implements AudioBackend {
 
   private adoptContext(ctx: AudioContextLike): void {
     this.ctx = ctx;
+    // A take's end time is on the previous context's clock. A new context's clock starts again near zero, so keeping
+    // it would refuse every sound (previews, Listen) until the new clock caught up with a take that no longer exists.
+    this.takeEndsAt = 0;
     this.seenRunning = ctx.state === 'running';
     const onState = (): void => {
       if (ctx !== this.ctx || this.closing) return;

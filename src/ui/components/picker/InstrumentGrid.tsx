@@ -95,7 +95,7 @@ export function InstrumentGrid({
 
   const renderGroup = (g: PickerGroup, gridClass: string) => {
     const headingId = `${uid}-${g.id}`;
-    const spanStyle = { '--pk-span': flowSpan(g) } as CSSProperties;
+    const spanStyle = { '--pk-span': flowSpan(g), '--pk-span-mid': Math.min(3, flowSpan(g)) } as CSSProperties;
     return (
       <section key={g.id} className="pk-group" role="group" aria-labelledby={headingId} style={spanStyle}>
         <h3 id={headingId} className="pk-group-title">

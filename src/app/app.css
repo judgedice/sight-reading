@@ -228,7 +228,8 @@ body {
 }
 
 .app-shell[data-chrome='none'] .app-main,
-.app-shell[data-route-id='practice.scan'] .app-main {
+.app-shell[data-route-id='practice.scan'] .app-main,
+.app-shell[data-route-id='practice.results'] .app-main {
   max-width: none;
   padding: 0;
 }

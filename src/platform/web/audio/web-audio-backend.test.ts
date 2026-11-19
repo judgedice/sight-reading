@@ -636,6 +636,17 @@ describe('Listen sounds (05 §9.2; playback-engine)', () => {
     expect(world.ctx.bufferSources).toHaveLength(n + 1);
   });
 
+  it('accepts sounds on a new context after close, though the old take would still be running on the old clock', async () => {
+    const { world, be } = setup();
+    await be.unlock();
+    await be.scheduleTake(takeParams());
+    await be.close();
+    await be.unlock();
+    expect(world.contexts).toHaveLength(2);
+    await be.playNotes([note(440, 0, 0.5)], { peak: 1 });
+    await be.playClicks([0.5 as never], 'classic', [true]);
+  });
+
   it('accepts sounds once the take has ended on the audio clock', async () => {
     const { world, be } = setup();
     await be.unlock();

@@ -59,7 +59,23 @@
   grid-template-columns: repeat(var(--pk-span), minmax(0, 1fr));
 }
 
+/* Mid widths (the onboarding step beside its selection panel): three columns, so Brass shares a row with Strings and
+   no group is left as one card beside an empty half (Woodwinds 3; Brass 1 plus Strings 2; Keyboard 1). */
 @container (max-width: 40rem) {
+  .pk-grid-desktop .pk-flow {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .pk-grid-desktop .pk-flow > .pk-group {
+    grid-column: span var(--pk-span-mid);
+  }
+
+  .pk-cards-flow {
+    grid-template-columns: repeat(var(--pk-span-mid), minmax(0, 1fr));
+  }
+}
+
+@container (max-width: 30rem) {
   .pk-grid-desktop .pk-flow {
     grid-template-columns: minmax(0, 1fr);
   }

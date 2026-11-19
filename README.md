@@ -1,12 +1,14 @@
 # Sight-reading trainer
 
-A web app for practising sight-reading on a real instrument. You pick an instrument, a level, a key, a meter, a tempo and a length (any of them can be random). The app shows an 8 to 12 bar excerpt of real public-domain repertoire, gives you a short scan timer and a count-in, then listens through the microphone while a metronome plays.
+A web app for practising sight-reading on a real instrument. You pick an instrument (its range is drawn on a staff and a keyboard as you choose), a difficulty from 1 to 10, a key, a time signature, a tempo and a length (any of them can be left to chance). The app shows an 8 to 12 bar excerpt of real public-domain repertoire, gives you a short read-through and a count-in, then listens through the microphone while a metronome plays.
 
-Notes are judged as you play. A note that is early or late appears on the staff where you played it and the written note turns red. A wrong or out-of-tune note appears as a ghost note at the pitch you played, and the written note turns red. Each take gets a score from 0 to 100 and a letter grade, earns XP toward a rank, and is followed by at most two tips chosen from the mistakes you made.
+Before a take you can hear the tempo (one bar of clicks), hear the key chord (instruments) or the key chord and your first note (voices, "Hear starting pitch"), and listen to the whole excerpt. Nothing plays during a take. Listening to the excerpt first makes that take practice: in Ranked mode the app asks before it plays, the toolbar changes to Practice at once, and the results say "You listened first, so this one is practice." After the results, Listen plays the written music again with the bar highlighted, at the take's tempo or slower. The metronome has three sounds (Classic, Woodblock, Beep), each with a preview in Settings > Sound.
+
+Notes are judged as you play. A note that is early or late appears on the staff where you played it and the written note turns red. A wrong or out-of-tune note appears as a ghost note at the pitch you played, and the written note turns red. Each take gets a score from 0 to 100 and a letter grade, earns XP toward a rank, and the results show at most two tips ("One thing to try") chosen from the mistakes you made.
 
 Everything runs in the browser. There is no server, no account and no stored audio. Progress, history and settings live in the browser's storage and can be exported to a file and imported again.
 
-Eight instruments are the launch set and are covered by the accuracy gates: flute, B♭ clarinet, alto saxophone, B♭ trumpet, violin, cello, voice and piano (single line). Sixteen more ship as data with a beta label.
+Eight instrument families are the launch set and are covered by the accuracy gates: flute, B♭ clarinet, alto saxophone, B♭ trumpet, violin, cello, voice (soprano, mezzo-soprano, alto, tenor, baritone and bass) and piano (single line). Sixteen more ship as data with a beta label, behind "Show more instruments (less tested)".
 
 The specification is in `docs/spec/`. `docs/PLAN.md` holds the rulings that override it, and `docs/BUILD-NOTES.md` records what each work package did and what it left open.
 
@@ -62,8 +64,9 @@ pnpm exec playwright test -c e2e/ios/playwright.ios.config.ts
 pnpm exec playwright test -c e2e/synthetic/playwright.synthetic.config.ts
 pnpm exec playwright test -c src/platform/web/sw/playwright.pwa.config.ts   # offline and subpath
 pnpm exec playwright test -c e2e/design/playwright.design.config.ts         # axe, tap targets, motion
+pnpm exec playwright test -c e2e/setup/playwright.setup.config.ts           # Practice setup rows, sheet and fallbacks
 pnpm exec playwright test -c e2e/a11y/playwright.a11y.config.ts             # accessibility walk, keyboard, owner walkthrough
-pnpm exec playwright test -c e2e/tour/playwright.tour.config.ts             # screen tour, writes docs/screenshots/
+pnpm exec playwright test -c e2e/tour/playwright.tour.config.ts             # screen tour and the owner's walk, write docs/screenshots/
 ```
 
 WebKit projects are added to these configs only when `IOS_WEBKIT=1` is set and WebKit is installed (`pnpm exec playwright install webkit`). `pnpm test:e2e:webkit` sets the variable for the root suite.
@@ -114,10 +117,11 @@ The service worker caches the app shell and every corpus file it has fetched, so
 - Reverberant rooms are a known limit, and voice is labelled beta outside quiet, dry rooms.
 - Sharp and flat marks appear about 260 to 350 ms after a note starts. Notes shorter than about 150 ms are judged by semitone only.
 - Instruments below about 70 Hz (tuba, double bass, baritone sax) are beta, because laptop and phone microphones roll off there.
-- Levels 1, 2 and 9 have fewer than 30 excerpts each (7, 7 and 18) and are marked unserved. The CC0 sources are art songs and string quartets, which are thin on beginner material. Practice at those levels draws on a very small pool, mostly borrowed from the neighbouring levels.
+- Difficulties 1, 2 and 9 have fewer than 30 excerpts each (7, 7 and 18) and are marked unserved. The CC0 sources are art songs and string quartets, which are thin on beginner material. Practice at those difficulties draws on a very small pool, mostly borrowed from the neighbouring levels.
 - iOS Safari is beta. WebKit has not been run in this build's own environment, and nothing has been tested on a physical phone.
 - Calibration has been exercised on synthetic loopback and play-along only, not on real devices. A take without a measured calibration is practice (unranked).
-- Not in v1: Web MIDI, polyphony, listen-back, swing, accounts and sync, and a native iOS app.
+- Not in v1: Web MIDI, polyphony, playback of your own take (Listen plays the written music, never your recording), swing, accounts and sync, and a native iOS app.
+- At difficulties 4 and 5, compound meters (6/8) are served at 40 to 66 dotted beats a minute, but the ranked check compares that tempo with the difficulty's quarter-note range, so such a take comes back as practice ("The tempo was below this difficulty's range"). The fix belongs in `src/grade/ranked.ts` (and the XP tempo factor in `src/grade/xp.ts`), which the redesign was not allowed to touch. See `docs/redesign/09-final-review.md`.
 
 ## Layout
 

@@ -28,8 +28,12 @@ interface Placement {
   arrow: number;
 }
 
-/** Margin kept between the popover and the viewport edge, in CSS px of layout (not styling). */
-const EDGE = 8;
+/**
+ * Margin kept between the popover and the viewport edge, in CSS px of layout (not styling). 16 keeps a popover near
+ * the right edge (the reference info on the read-through) off the window frame, as the mockups draw it, and still
+ * leaves a 358 px popover room on a 390 px phone.
+ */
+const EDGE = 16;
 /** Gap between anchor and popover: room for the 12 px arrow. */
 const GAP = 10;
 
