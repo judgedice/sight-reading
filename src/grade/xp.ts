@@ -1,5 +1,6 @@
 /** XP for one attempt (02 §5.4). `grade/` returns the factor list; the UI shows every factor that is not 1.00. */
 import type { GradeInput, XpBreakdown } from '../core/types.ts';
+import { levelTempo } from '../rules/level-tempo.ts';
 
 export function computeXp(input: GradeInput, score: number, status: 'ok' | 'incomplete', ranked: boolean): XpBreakdown {
   const x = input.cfg.progression.xp;
@@ -7,7 +8,9 @@ export function computeXp(input: GradeInput, score: number, status: 'ok' | 'inco
   const def = input.cfg.levelByNumber[level];
   if (!def) throw new Error(`grade: unknown level ${level}`);
   const base = x.basePerLevel * level + x.baseOffset;
-  const mid = (def.tempo.minBpm + def.tempo.maxBpm) / 2;
+  // The mid tempo is in the take's beat unit: compound meters on the dotted-beat levels use the dotted range (02 §2.4).
+  const range = levelTempo(input.cfg, def, input.meter);
+  const mid = (range.minBpm + range.maxBpm) / 2;
   const randomCount = Number(ctx.randomized.key) + Number(ctx.randomized.meter) + Number(ctx.randomized.tempo);
   const factors: { id: string; value: number }[] = [
     { id: 'q', value: score < x.qMinScore ? 0 : score / 100 },

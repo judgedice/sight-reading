@@ -15,6 +15,7 @@ export {
   type FramePurpose,
   type FrozenResize,
   type ScoreFrameOptions,
+  type SlotBars,
 } from './controller.ts';
 export {
   bindNotation,

@@ -225,11 +225,6 @@ export function planSwaps(systemCount: number, slots: number, systemDurationsMs:
   return { turns: true, initialSlots, swaps, wrapMarker };
 }
 
-/** Toolbar line indicator "Lines 2–6 of 6" for the systems currently in the slots (1-based, inclusive). */
-export function lineRange(slotSystems: readonly number[]): { first: number; last: number } {
-  return { first: Math.min(...slotSystems) + 1, last: Math.max(...slotSystems) + 1 };
-}
-
 export interface LayoutPlan {
   row: LayoutRow;
   spPx: number;

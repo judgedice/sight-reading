@@ -10,6 +10,7 @@ import { resolveTolerances } from './resolve-tolerances.ts';
 import { VoiceDriftReference } from './voice-drift.ts';
 
 export { checkFloors } from './floor-check.ts';
+export { isCompound, levelTempo } from './level-tempo.ts';
 export { ConfigError, loadConfigs } from './load-configs.ts';
 export { classifyPitch, pitchCreditPolicy, type PitchClass, type PitchClassification } from './pitch-policy.ts';
 export {

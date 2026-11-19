@@ -31,7 +31,7 @@ type Rig = {
   renders(): number;
   viewRenders(): number;
 };
-type Info = { systemCount: number; plan: { slots: number; row: { id: string }; systemHeightPx: number }; pages: { turns: boolean } };
+type Info = { systemCount: number; plan: { slots: number; row: { id: string }; systemHeightPx: number; barsPerSystem: number[] }; pages: { turns: boolean } };
 
 async function mount(page: Page, bars: number, insets: { top: number; bottom: number }, bpm = 120): Promise<{ info: Info; renders: number }> {
   await openFramePage(page);
@@ -150,6 +150,7 @@ for (const c of PHONE_CASES) {
     expect(info.systemCount).toBe(c.systems);
     expect(info.plan.slots).toBe(c.slots);
     expect(info.pages.turns).toBe(true);
+    const firstBars = info.plan.barsPerSystem.map((_, i) => 1 + info.plan.barsPerSystem.slice(0, i).reduce((a, b) => a + b, 0));
     await rigCall(page, (rig) => rig.setFrozen(true));
 
     for (const st of c.steps) {
@@ -158,8 +159,9 @@ for (const c of PHONE_CASES) {
       await page.waitForTimeout(220); // let the 160 ms crossfade finish before measuring
       const s = await screen(page);
       expect(s.slots.map((x) => x.system)).toEqual(st.slots);
-      // System numbers whenever pages turn (1-based, one per slot, in the left margin).
-      expect(s.lines.map((l) => l.number)).toEqual(st.slots.map((x) => String(x + 1)));
+      // Whenever pages turn, each line is numbered with its first bar (one per slot, in the left margin), from the
+      // second line on: the first line starts the piece and has none, as in the mockups.
+      expect(s.lines.map((l) => l.number)).toEqual(st.slots.map((x) => (x === 0 ? null : String(firstBars[x]))));
       if ('wrap' in st) {
         expect(s.lines.map((l) => l.wrap)).toEqual(st.slots.map((_, i) => i === st.wrap));
         expect(s.lines[st.wrap!]!.wrapWidth).toBeCloseTo(3, 1);
@@ -267,7 +269,7 @@ test('phone portrait scan: natural-order scroll of every system; count-in resets
   await rigCall(page, (rig) => rig.setArrangement('all'));
   let s = await screen(page);
   expect(s.slots.map((x) => x.system)).toEqual([0, 1, 2, 3, 4, 5]);
-  expect(s.lines.map((l) => l.number)).toEqual(['1', '2', '3', '4', '5', '6']);
+  expect(s.lines.map((l) => l.number)).toEqual([null, '3', '5', '7', '9', '11']);
   expect(s.docScrolls).toBe(false); // the frame scrolls, not the page
   const renders = await rigCall(page, (rig) => rig.renders());
   await rigCall(page, (rig) => {

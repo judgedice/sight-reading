@@ -239,7 +239,7 @@ function Cover({ prepared, mode, totalSec, listening, onShow, onSkip, onPractice
           <Button label={copy('action.practiceInstead')} variant="secondary" size="compact" onClick={onPracticeInstead} />
         </div>
       ) : null}
-      <Button className="scan-cover-show" label={copy('action.startScan')} variant="primary" size="hero" kbd="Space" disabled={loading} onClick={onShow} data-autofocus />
+      <Button className="scan-cover-show" label={copy('action.startScan')} variant="primary" size="hero" kbd={copy('shortcuts.spaceKey')} disabled={loading} onClick={onShow} data-autofocus />
       <Button className="scan-cover-skip" label={copy('action.skip')} variant="quiet" disabled={loading} onClick={onSkip} />
       <p className="scan-cover-hint">{copy('scan.skipFreeHint')}</p>
       <p className="ui-visually-hidden">{copy('a11y.screenReader.headphones')}</p>
@@ -259,7 +259,7 @@ interface SideProps {
 function DesktopSide({ sounds, coach, onCoachDismiss, onStart, stars }: SideProps & { stars: ReactNode }) {
   return (
     <aside className="scan-side" aria-label={copy('scan.sounds.title')}>
-      <Button data-start-playing className="scan-start" label={copy('action.startPlaying')} variant="primary" size="hero" kbd="Space" onClick={onStart} />
+      <Button data-start-playing className="scan-start" label={copy('action.startPlaying')} variant="primary" size="hero" kbd={copy('shortcuts.spaceKey')} onClick={onStart} />
       <SoundsGroup
         model={sounds.model}
         onPress={sounds.press}

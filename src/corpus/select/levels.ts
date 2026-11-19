@@ -8,6 +8,7 @@
 import type { Clef, Configs, Family, Instrument, KeySig, LevelDef, Meter, WindowClassKey } from '../../core/types.ts';
 import { makeMeter } from '../../core/time.ts';
 import { bandFor as instrumentBand, clefsAt, getInstrument } from '../../instruments/index.ts';
+import { isCompound, levelTempo } from '../../rules/level-tempo.ts';
 
 export { clefsAt, getInstrument };
 
@@ -57,17 +58,8 @@ export function parseMeter(meter: string): Meter {
   return makeMeter(beats, beatType as Meter['beatType']);
 }
 
-/** Compound x/8 meters counted in dotted quarters (02 conventions, `makeMeter`). */
-export function isCompound(meter: Meter): boolean {
-  return meter.countsPerBar !== meter.beats;
-}
-
-/** The level's tempo range; compound meters at `compound.dottedBeatLevels` use the dotted-beat range (02 §2.4). */
-export function levelTempo(cfg: Configs, def: LevelDef, meter: Meter): { minBpm: number; maxBpm: number } {
-  const [from, to] = cfg.levels.compound.dottedBeatLevels;
-  if (isCompound(meter) && def.level >= from && def.level <= to) return { ...cfg.levels.compound.dottedBpm };
-  return { ...def.tempo };
-}
+/** Compound meters and the level's tempo range for a meter (02 §2.4) live in `rules/` so `grade/` reads the same rule. */
+export { isCompound, levelTempo };
 
 export function windowClass(inst: Instrument): WindowClassKey {
   return String(inst.detection.windowSamples) as WindowClassKey;

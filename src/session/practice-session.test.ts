@@ -35,6 +35,13 @@ const assets: PlatformServices['assets'] = {
 };
 let manifestP: Promise<CorpusManifest> | null = null;
 const manifest = (): Promise<CorpusManifest> => (manifestP ??= loadManifest(assets));
+/** The shipped corpus (public/corpus/v1), for flows the fixture corpus has no excerpt for. */
+const SHIPPED_DIR = new URL('../../public/corpus/v1/', import.meta.url);
+const shippedAssets: PlatformServices['assets'] = {
+  getJson: <T,>(rel: string) => Promise.resolve(JSON.parse(readFileSync(new URL(rel.slice(rel.lastIndexOf('/') + 1), SHIPPED_DIR), 'utf8')) as T),
+};
+let shippedP: Promise<CorpusManifest> | null = null;
+const shippedManifest = (): Promise<CorpusManifest> => (shippedP ??= loadManifest(shippedAssets));
 const ajv = addFormats(new Ajv({ strict: false, allErrors: true }));
 const validAttempt = ajv.compile(attemptSchema);
 const validProfile = ajv.compile(profileSchema);
@@ -120,7 +127,7 @@ interface Harness {
 
 const playAlong = (rtlMs: number): Calibration => ({ ...makeCalibration(ROUTE), method: 'play-along', outputMode: 'wired', roundTripMs: rtlMs, spreadMs: 4, clicksDetected: 8, templates: {} });
 
-async function harness(o: { backend?: FakeBackendOptions; calibration?: Calibration | null; portMode?: boolean; options?: PracticeSessionOptions } = {}): Promise<Harness> {
+async function harness(o: { backend?: FakeBackendOptions; calibration?: Calibration | null; portMode?: boolean; options?: PracticeSessionOptions; shippedCorpus?: boolean } = {}): Promise<Harness> {
   const be = new TestBackend({ sampleRate: RATE, route: { routeKey: ROUTE, outputMode: 'wired', reportedLatencySec: 0.02 }, ...o.backend });
   const kv = new MemoryKv();
   const repos = memoryRepos(kv);
@@ -136,12 +143,12 @@ async function harness(o: { backend?: FakeBackendOptions; calibration?: Calibrat
     clockWall: () => new Date((wall += 1000)).toISOString(),
     localDay: () => DAY,
     idGen: () => `00000000-0000-4000-8000-${String(++ids).padStart(12, '0')}`,
-    assets,
+    assets: o.shippedCorpus ? shippedAssets : assets,
     lifecycle: { onVisibility: (cb) => vis.on(cb) },
   };
   const workers: NodeWorker[] = [];
   const session = new PracticeSession(
-    { platform, configs: cfg, manifest: await manifest(), workerFactory: () => {
+    { platform, configs: cfg, manifest: await (o.shippedCorpus ? shippedManifest() : manifest()), workerFactory: () => {
       const w = new NodeWorker();
       workers.push(w);
       return w;
@@ -291,6 +298,37 @@ describe('full ranked flow on the fake backend', () => {
     expect(h.workers).toHaveLength(1);
     expect(h.workers[0]!.terminated).toBe(true);
   }, 60_000);
+});
+
+describe('compound meters on the dotted-beat difficulties (02 §2.4)', () => {
+  it('a calibrated ranked 6/8 take at difficulty 4, served in dotted beats, stays ranked and earns full tempo XP', async () => {
+    const h = await harness({ calibration: playAlong(40), shippedCorpus: true });
+    const level = cfg.levels.compound.dottedBeatLevels[0];
+    const dotted = cfg.levels.compound.dottedBpm;
+    // Below the difficulty's quarter-note minimum (66 x 0.9), inside the dotted-beat range the app serves 6/8 in.
+    const bpm = 50;
+    expect(bpm).toBeLessThan(cfg.levelByNumber[level]!.tempo.minBpm * cfg.grading.ranked.minTempoFracOfLevelMin);
+    expect(bpm).toBeGreaterThanOrEqual(dotted.minBpm);
+    const prepared = await h.session.prepare(settings({ level, meter: '6/8', bpm }));
+    expect(prepared.levelServed).toBe(level);
+    expect(prepared.meter).toMatchObject({ beats: 6, beatType: 8, countsPerBar: 2 });
+    expect(prepared.selection.settings.bpm).toBe(bpm);
+
+    await h.session.ensureAudio();
+    h.session.revealScan();
+    await driveTo(h, 'count-in', cfg.levelByNumber[level]!.scanSec + 1);
+    for (let i = 0; i < 20 && h.be.log.scheduledTakes.length === 0; i++) await flush();
+    play(h, 0.04);
+    await driveTo(h, 'results', 120);
+    const rec = lastRecord(h);
+    const score = rec.score!;
+    expect(score.rankedReasons).not.toContain('tempo-below-90pct');
+    expect(score.rankedReasons, `score ${score.score} reasons ${score.rankedReasons}`).toEqual([]);
+    expect(score.ranked).toBe(true);
+    // m_tempo is the take's tempo over the dotted mid tempo, not the quarter-note mid (which would clamp it to 0.75).
+    const mTempo = score.xp.factors.find((f) => f.id === 'm_tempo')!.value;
+    expect(mTempo).toBeCloseTo(bpm / ((dotted.minBpm + dotted.maxBpm) / 2), 9);
+  }, 120_000);
 });
 
 describe('practice', () => {

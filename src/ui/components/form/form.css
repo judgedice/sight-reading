@@ -112,9 +112,17 @@
   font-size: 1.0625rem;
 }
 
+/* The key hint drawn as a keycap (06 mockups: "Start  [Space]"): a hairline box in the button's own colour. */
 .ui-button-kbd {
-  margin-inline-start: var(--space-1);
-  font: inherit;
+  display: inline-flex;
+  align-items: center;
+  margin-inline-start: var(--space-2);
+  padding: 0.0625rem var(--space-1);
+  border: 0.0625rem solid currentColor;
+  border-radius: var(--radius-xs);
+  font-family: var(--type-caption-family);
+  font-size: var(--type-caption-size);
+  line-height: var(--type-caption-line);
   font-weight: 500;
   /* 06 6.1 says 60%; on the dark theme's light primary (and its hover and pressed fills) 60% falls under 4.5:1. */
   opacity: 0.72;

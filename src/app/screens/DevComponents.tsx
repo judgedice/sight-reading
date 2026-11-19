@@ -116,7 +116,7 @@ function ButtonsGallery() {
         <Button variant="danger" label={DEV.danger} />
       </div>
       <div className="app-dev-cluster">
-        <Button variant="primary" size="hero" label={DEV.hero} icon="play" kbd="Space" />
+        <Button variant="primary" size="hero" label={DEV.hero} icon="play" kbd={copy('shortcuts.spaceKey')} />
       </div>
     </section>
   );

@@ -8,6 +8,7 @@ import type { GradeFixture, GradeInput, NoteJudgment } from '../core/types.ts';
 import { resolveTolerances } from '../rules/index.ts';
 import { checkPredicates, formatFailures, gradeSubject } from '../testkit/predicates/index.ts';
 import { grade } from './grade.ts';
+import { makeMeter } from '../core/time.ts';
 import { computeXp } from './xp.ts';
 
 const cfg = configs();
@@ -150,6 +151,37 @@ describe('ranked reasons (02 §5.2)', () => {
   it('lists every failing condition', () => {
     const s = grade(withRanking({ mode: 'practice', seenBefore: true, skipLimitHit: true }));
     expect(s.rankedReasons).toEqual(['practice-mode', 'seen-before', 'skip-limit']);
+  });
+});
+
+describe('compound meters are judged in dotted beats (02 §2.4)', () => {
+  const base = inputOf(fixtures.find((f) => f.id === 'case01-perfect-flute-l4')!);
+  const sixEight = makeMeter(6, 8);
+  const dotted = cfg.levels.compound.dottedBpm;
+  const [from, to] = cfg.levels.compound.dottedBeatLevels;
+  const at = (level: number, bpm: number, meter = sixEight): GradeInput => ({ ...base, level, bpm, meter, xp: { ...base.xp, playerLevel: level } });
+  const mTempo = (input: GradeInput): number => computeXp(input, 100, 'ok', true).factors.find((x) => x.id === 'm_tempo')!.value;
+
+  it.each([from, to])('a 6/8 take at difficulty %i at the slowest served dotted tempo stays ranked', (level) => {
+    const s = grade(at(level, dotted.minBpm));
+    expect(s.rankedReasons).not.toContain('tempo-below-90pct');
+    expect(s.ranked).toBe(true);
+  });
+  it.each([from, to])('a 6/8 take at difficulty %i below 90%% of the dotted minimum is practice', (level) => {
+    const s = grade(at(level, Math.floor(dotted.minBpm * cfg.grading.ranked.minTempoFracOfLevelMin) - 1));
+    expect(s.rankedReasons).toContain('tempo-below-90pct');
+  });
+  it('the XP tempo factor is 1 at the dotted mid tempo on the dotted-beat difficulties', () => {
+    expect(mTempo(at(from, (dotted.minBpm + dotted.maxBpm) / 2))).toBeCloseTo(1, 9);
+    expect(mTempo(at(to, dotted.minBpm))).toBeCloseTo(dotted.minBpm / ((dotted.minBpm + dotted.maxBpm) / 2), 9);
+  });
+  it('outside the dotted-beat difficulties, and in simple meters, the level range applies as before', () => {
+    const l6 = cfg.levelByNumber[to + 1]!.tempo;
+    expect(grade(at(to + 1, dotted.minBpm)).rankedReasons).toContain('tempo-below-90pct');
+    expect(mTempo(at(to + 1, (l6.minBpm + l6.maxBpm) / 2))).toBeCloseTo(1, 9);
+    const l4 = cfg.levelByNumber[from]!.tempo;
+    expect(grade(at(from, dotted.minBpm, makeMeter(3, 4))).rankedReasons).toContain('tempo-below-90pct');
+    expect(mTempo(at(from, (l4.minBpm + l4.maxBpm) / 2, makeMeter(3, 4)))).toBeCloseTo(1, 9);
   });
 });
 

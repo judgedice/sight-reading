@@ -11,7 +11,6 @@ import { BeatDots, BeatUnitText, meterZone } from '../../../ui/components/domain
 import { Button } from '../../../ui/components/form/index.ts';
 import { Glyph, Modal, openOverlayCount } from '../../../ui/primitives/index.ts';
 import { CountInBand, ScoreFrame, type ScoreFrameController } from '../../../ui/score-frame/index.ts';
-import { lineRange } from '../../../ui/layout-table.ts';
 import { useNavigate } from '../../router.tsx';
 import type { ScreenProps } from '../../route-types.ts';
 import { barCount, meterString, sourceLine } from '../scan/model.ts';
@@ -153,7 +152,7 @@ export function PerformScreen(_props: ScreenProps) {
   const stopRef = useRef<HTMLDivElement>(null);
   const [frozen, setFrozen] = useState(false);
   const [confirm, setConfirm] = useState(false);
-  const [lines, setLines] = useState<{ first: number; last: number; total: number } | null>(null);
+  const [bars, setBars] = useState<{ first: number; last: number; total: number } | null>(null);
 
   const liveMode = settings.display.liveFeedback === 'full' ? 'live' : 'blind';
   const mode = svc.session.pending?.mode ?? 'ranked';
@@ -260,7 +259,7 @@ export function PerformScreen(_props: ScreenProps) {
           {finishing ? <span className="perform-indeterminate" aria-hidden="true" /> : null}
         </div>
         <div className="perform-right">
-          {lines ? <span className="perform-lines">{copy('score.lines', { from: lines.first + 1, to: lines.last + 1, total: lines.total })}</span> : null}
+          {bars ? <span className="perform-lines">{copy('score.bars', { from: bars.first, to: bars.last, total: bars.total })}</span> : null}
           {listening ? <MicMeter svc={svc} /> : null}
         </div>
       </header>
@@ -280,7 +279,7 @@ export function PerformScreen(_props: ScreenProps) {
           {...(svc.highContrast ? { highContrast: svc.highContrast } : {})}
           label={copy('score.summaryLabel', { bars: totalBars, key: '', meter, clef: prepared.clef, tempo: copy('tempo.marking', { unit: '♩', bpm }) })}
           onLayout={onLayout}
-          onSlotsChange={(slots, total) => setLines(total > slots.length ? { ...lineRange(slots), total } : null)}
+          onSlotsChange={(slots, total, range) => setBars(total > slots.length ? range : null)}
           onFrozenResize={(r) => {
             if (r.orientationChanged && svc.session.state === 'count-in') svc.session.restartCountIn?.('rotation');
           }}

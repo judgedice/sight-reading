@@ -9,6 +9,7 @@ import { PICKER_GROUPS, type PickerResult } from '../../../ui/components/picker/
 import { RangePicture } from '../../../ui/components/range/index.ts';
 import { ModeControl, XpLine, type RankedBlock } from '../../../ui/components/setup/index.ts';
 import { Glyph } from '../../../ui/primitives/Glyph.tsx';
+import { openOverlayCount } from '../../../ui/primitives/index.ts';
 import { useNavigate } from '../../router.tsx';
 import type { ScreenProps } from '../../route-types.ts';
 import { START_BUTTON_ID } from '../Placeholder.tsx';
@@ -252,6 +253,11 @@ function StateCard({
 // ---- Screen ----------------------------------------------------------------------------------------------------
 
 /** Practice: see and change the setup, know whether the take will count, start (05 sections 5 and 8.6). */
+/** Space belongs to a focused control (a button, a field, a radio) before it starts a take. */
+const isControl = (t: EventTarget | null): boolean =>
+  t instanceof Element &&
+  t.closest('button, a, input, select, textarea, [contenteditable], [role="button"], [role="checkbox"], [role="radio"], [role="switch"], [role="slider"], [role="spinbutton"], [role="option"], [role="dialog"]') !== null;
+
 export function HomeScreen(_props: ScreenProps) {
   const services = useServices();
   const navigate = useNavigate();
@@ -338,6 +344,19 @@ export function HomeScreen(_props: ScreenProps) {
     navigate('/practice/scan');
   };
 
+  // Space starts on desktop, as the keycap on Start says (06 mockup); never from a control or an open sheet.
+  useEffect(() => {
+    if (!wide) return undefined;
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key !== ' ' || e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey || e.repeat) return;
+      if (isControl(e.target) || openOverlayCount() > 0) return;
+      e.preventDefault();
+      start();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  });
+
   const hearNote = services.playNote ? (midi: number): void => void services.playNote?.(midi).catch(() => undefined) : undefined;
   const hearTempo = services.hearTempo
     ? (bpm: number, beats: number): void => void services.hearTempo?.(bpm, beats).catch(() => undefined)
@@ -419,6 +438,7 @@ export function HomeScreen(_props: ScreenProps) {
       aria-describedby={empty ? EMPTY_REASON_ID : undefined}
       onClick={start}
       className="home-start"
+      {...(wide ? { kbd: copy('shortcuts.spaceKey') } : {})}
     />
   );
   const modeControl = (

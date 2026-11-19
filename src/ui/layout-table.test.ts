@@ -3,7 +3,6 @@ import {
   barsPerSystem,
   breakpointFor,
   LAYOUT_ROWS,
-  lineRange,
   planLayout,
   planSwaps,
   resolveSlots,
@@ -166,8 +165,5 @@ describe('planSwaps: worked cases of 4.3 (12 bars)', () => {
     const q = planSwaps(6, 4, dur(6));
     // Entering 3: slot 1 -> 5. System 4 (slot 4) is followed by 5 (slot 1): wrap.
     expect(q.wrapMarker[3]).toBe(true);
-  });
-  it('lineRange', () => {
-    expect(lineRange([5, 1, 2, 3, 4])).toEqual({ first: 2, last: 6 });
   });
 });

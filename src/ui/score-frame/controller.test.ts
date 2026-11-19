@@ -17,7 +17,7 @@ beforeAll(() => {
 });
 
 const hosts: HTMLElement[] = [];
-function frame(opts: { reducedMotion?: boolean; onSlotsChange?: (s: number[], n: number) => void } = {}) {
+function frame(opts: { reducedMotion?: boolean; onSlotsChange?: (s: number[], n: number, bars: { first: number; last: number; total: number }) => void } = {}) {
   const host = document.createElement('div');
   document.body.appendChild(host);
   hosts.push(host);
@@ -59,7 +59,8 @@ describe('slots and page turns (04 §4.3 worked cases)', () => {
     expect(info.scoreWidthPx).toBe(390 - GUTTER_PX);
     expect(host.querySelectorAll('svg.sr-system')).toHaveLength(6);
     expect(domSlots(host)).toEqual([0, 1, 2, 3, 4]);
-    expect(lines(host)).toEqual(['1', '2', '3', '4', '5']);
+    // The bar number of each line's first bar (2 bars a line), from the second line on (06 mockups).
+    expect(lines(host)).toEqual([null, '3', '5', '7', '9']);
 
     const renders = c.view.renderCount;
     c.freeze({ width: 390, height: 763 });
@@ -69,7 +70,7 @@ describe('slots and page turns (04 §4.3 worked cases)', () => {
     c.setPlayhead(16.8); // + 400 ms at 120 bpm
     expect(c.slotSystems()).toEqual([5, 1, 2, 3, 4]);
     expect(domSlots(host)).toEqual([5, 1, 2, 3, 4]);
-    expect(lines(host)).toEqual(['6', '2', '3', '4', '5']);
+    expect(lines(host)).toEqual(['11', '3', '5', '7', '9']);
     c.setPlayhead(47);
     expect(c.slotSystems()).toEqual([5, 1, 2, 3, 4]);
     expect(c.view.renderCount).toBe(renders);
@@ -78,7 +79,13 @@ describe('slots and page turns (04 §4.3 worked cases)', () => {
   it('390×660 tab, 12 bars: v = 4, two swaps, the wrap bar marks the slot of the next line', () => {
     const p = barsExcerpt(doc, 12);
     const changes: number[][] = [];
-    const { host, c } = frame({ onSlotsChange: (s) => changes.push(s) });
+    const bars: { first: number; last: number; total: number }[] = [];
+    const { host, c } = frame({
+      onSlotsChange: (s, _n, b) => {
+        changes.push(s);
+        bars.push(b);
+      },
+    });
     const info = lay(c, p, PHONE_TAB);
     expect(info.plan.slots).toBe(4);
     c.freeze({ width: 390, height: 626 });
@@ -96,6 +103,12 @@ describe('slots and page turns (04 §4.3 worked cases)', () => {
       [0, 1, 2, 3],
       [4, 1, 2, 3],
       [4, 5, 2, 3],
+    ]);
+    // The toolbar's "Bars x–y of z": displayed bar numbers, not line numbers.
+    expect(bars).toEqual([
+      { first: 1, last: 8, total: 12 },
+      { first: 3, last: 10, total: 12 },
+      { first: 5, last: 12, total: 12 },
     ]);
   });
 
@@ -151,7 +164,7 @@ describe('slots and page turns (04 §4.3 worked cases)', () => {
     const own = [...host.children, ...host.querySelectorAll('.sf-stage, .sf-gutter, .sf-gutter *, .sf-fade, .sf-fade *')];
     const textNodes = own.flatMap((e) => [...e.childNodes].filter((n) => n.nodeType === Node.TEXT_NODE));
     expect(textNodes).toHaveLength(0);
-    expect(lines(host)).toEqual(['5', '6', '3', '4']);
+    expect(lines(host)).toEqual(['9', '11', '5', '7']);
   });
 });
 
@@ -163,7 +176,7 @@ describe('arrangement: natural-order scroll for scan and review on phones', () =
     c.setArrangement('all');
     expect(host.getAttribute('data-arrangement')).toBe('all');
     expect(domSlots(host)).toEqual([0, 1, 2, 3, 4, 5]);
-    expect(lines(host)).toEqual(['1', '2', '3', '4', '5', '6']);
+    expect(lines(host)).toEqual([null, '3', '5', '7', '9', '11']);
     c.setPlayhead(30);
     expect(c.slotSystems()).toEqual([0, 1, 2, 3, 4, 5]);
     expect(wraps(host).some(Boolean)).toBe(false);

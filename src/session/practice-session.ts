@@ -1495,7 +1495,7 @@ export class PracticeSession implements PracticeSessionInstance {
     };
 
     // ---- progression (02 §5) and persistence (01 §11) -----------------------------------------------
-    const applied = applyAttemptOnDay(profile, record, cfg, today);
+    const applied = applyAttemptOnDay(profile, record, cfg, today, c.prepared.meter);
     this.profile = applied.profile;
     const events: ProgressEvent[] = applied.events;
     await this.persistChain;

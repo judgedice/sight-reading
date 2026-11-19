@@ -15,6 +15,7 @@ import {
   type FrameLayoutInfo,
   type FramePurpose,
   type FrozenResize,
+  type SlotBars,
 } from './controller.ts';
 import { documentAppearance, type FrameNotation, type FrameViewOptions } from './notation-binding.ts';
 import './score-frame.css';
@@ -41,7 +42,8 @@ export interface ScoreFrameProps {
   ref?: Ref<ScoreFrameController | null>;
   /** After each layout (reveal, or a re-layout outside a take). */
   onLayout?: (info: FrameLayoutInfo, frame: ScoreFrameController) => void;
-  onSlotsChange?: (slotSystems: number[], systemCount: number) => void;
+  /** The systems in the slots changed; `bars` is the displayed bar range they cover (toolbar "Bars 3–10 of 12"). */
+  onSlotsChange?: (slotSystems: number[], systemCount: number, bars: SlotBars) => void;
   /** A resize while frozen; the frame has already scaled. `orientationChanged` lets the screen cancel a count-in. */
   onFrozenResize?: (r: FrozenResize) => void;
   onError?: (e: unknown) => void;
@@ -119,7 +121,7 @@ export function ScoreFrame(props: ScoreFrameProps) {
         };
         ctl = new ScoreFrameController(host, n, {
           appearance,
-          onSlotsChange: (s, total) => live.current.onSlotsChange?.(s, total),
+          onSlotsChange: (s, total, bars) => live.current.onSlotsChange?.(s, total, bars),
         });
         setNotation(n);
         setFrame(ctl);

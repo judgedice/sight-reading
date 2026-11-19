@@ -59,7 +59,7 @@ function Story() {
           <p className="story-note">{DEV.paper}</p>
         </section>
         <aside className="story-aside">
-          <Button className="story-start" variant="primary" size="hero" label={copy('action.startPlaying')} kbd="Space" />
+          <Button className="story-start" variant="primary" size="hero" label={copy('action.startPlaying')} kbd={copy('shortcuts.spaceKey')} />
           <SoundsGroup coach={coach ? <CoachMark onDismiss={() => setCoach(false)} /> : undefined} model={model} onPress={press} caption={caption} captionFailed={params.get('caption') === 'failed'} headerNote={DEV.quiet} />
         </aside>
       </main>

@@ -1,14 +1,15 @@
 /** Ranked eligibility (02 §5.2): maps `RankingInput` and the calibration flag to `RankedReason`s, in the table's order. */
-import type { Configs, GradeInput, RankedReason } from '../core/types.ts';
+import type { Configs, GradeInput, Meter, RankedReason } from '../core/types.ts';
+import { levelTempo } from '../rules/level-tempo.ts';
 
 export function rankedReasons(input: GradeInput): RankedReason[] {
-  const { ranking, cfg, level, bpm, calibrationMeasured } = input;
+  const { ranking, cfg, level, bpm, meter, calibrationMeasured } = input;
   const r = cfg.grading.ranked;
   const out: RankedReason[] = [];
   if (ranking.mode !== 'ranked') out.push('practice-mode');
   if (ranking.seenBefore) out.push('seen-before');
   if (!ranking.scanStrict) out.push('scan-extended');
-  if (bpm < r.minTempoFracOfLevelMin * levelMinBpm(cfg, level)) out.push('tempo-below-90pct');
+  if (bpm < r.minTempoFracOfLevelMin * levelMinBpm(cfg, level, meter)) out.push('tempo-below-90pct');
   const calibrationFailed = !calibrationMeasured || ranking.gateFailures.includes('calibration-unmeasured');
   if (calibrationFailed) out.push('calibration');
   if (ranking.gateFailures.some((g) => g !== 'calibration-unmeasured')) out.push('measurement');
@@ -17,8 +18,9 @@ export function rankedReasons(input: GradeInput): RankedReason[] {
   return out;
 }
 
-function levelMinBpm(cfg: Configs, level: number): number {
+/** The level's minimum tempo in the take's own beat unit: dotted beats for compound meters where 02 §2.4 counts them so. */
+function levelMinBpm(cfg: Configs, level: number, meter: Meter): number {
   const def = cfg.levelByNumber[level];
   if (!def) throw new Error(`grade: unknown level ${level}`);
-  return def.tempo.minBpm;
+  return levelTempo(cfg, def, meter).minBpm;
 }

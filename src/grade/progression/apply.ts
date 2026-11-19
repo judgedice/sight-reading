@@ -6,7 +6,9 @@
  * no day argument, so it uses the attempt's UTC date. The session should call `applyAttemptOnDay` with the local day.
  */
 import type { GradeApi } from '../../core/api.ts';
-import type { AttemptRecord, Configs, InstrumentProgress, LevelWindowEntry, PlayerProfile, ProgressEvent } from '../../core/types.ts';
+import { makeMeter } from '../../core/time.ts';
+import type { AttemptRecord, Configs, InstrumentProgress, LevelWindowEntry, Meter, PlayerProfile, ProgressEvent } from '../../core/types.ts';
+import { levelTempo } from '../../rules/level-tempo.ts';
 import { dayDiff } from './days.ts';
 import { maxLevel, newInstrumentProgress, setInstrumentLevel } from './profile.ts';
 import { maxLevelOf, rankFor } from './rank.ts';
@@ -17,7 +19,11 @@ const PRIMARY_MIN_LOST = 3;
 
 export const applyAttempt: GradeApi['applyAttempt'] = (p, a, cfg) => applyAttemptOnDay(p, a, cfg, a.createdAt.slice(0, 10));
 
-export function applyAttemptOnDay(p: PlayerProfile, a: AttemptRecord, cfg: Configs, day: string): { profile: PlayerProfile; events: ProgressEvent[] } {
+/**
+ * `meter` is the meter the excerpt was served in. The record keeps the settings as requested, so the session passes it;
+ * without it a requested meter is used, and a random one falls back to the level's own range.
+ */
+export function applyAttemptOnDay(p: PlayerProfile, a: AttemptRecord, cfg: Configs, day: string, meter?: Meter): { profile: PlayerProfile; events: ProgressEvent[] } {
   const events: ProgressEvent[] = [];
   let next: PlayerProfile = { ...p, seenGroups: { ...p.seenGroups } };
   // Revealed means seen, whatever happened after (02 §5.3). Voids and practise-without-listening included.
@@ -84,7 +90,7 @@ export function applyAttemptOnDay(p: PlayerProfile, a: AttemptRecord, cfg: Confi
       }
     }
     next.instruments = { ...next.instruments, [a.instrumentId]: inst };
-    if (score.ranked && !a.placement) next = updateWindow(next, a, score.score, cfg, events);
+    if (score.ranked && !a.placement) next = updateWindow(next, a, score.score, cfg, events, meter ?? requestedMeter(a));
   }
 
   // ---- rank (never down) -------------------------------------------------------------------
@@ -121,7 +127,16 @@ function placementStep(inst: InstrumentProgress, a: AttemptRecord, score: number
 }
 
 /** Level window, offer, auto level-up and level-down suggestion (02 §5.6) after a ranked, non-placement attempt. */
-function updateWindow(p: PlayerProfile, a: AttemptRecord, score: number, cfg: Configs, events: ProgressEvent[]): PlayerProfile {
+/** The requested meter as a `Meter`, or null when it was random or cannot be read. */
+function requestedMeter(a: AttemptRecord): Meter | null {
+  const m = a.settingsResolved.meter;
+  if (m === 'random') return null;
+  const [beats, type] = m.split('/').map(Number);
+  if (!beats || !(type === 2 || type === 4 || type === 8 || type === 16)) return null;
+  return makeMeter(beats, type);
+}
+
+function updateWindow(p: PlayerProfile, a: AttemptRecord, score: number, cfg: Configs, events: ProgressEvent[], meter: Meter | null): PlayerProfile {
   const w = cfg.progression.levelWindow;
   const id = a.instrumentId;
   let inst = p.instruments[id]!;
@@ -130,7 +145,9 @@ function updateWindow(p: PlayerProfile, a: AttemptRecord, score: number, cfg: Co
   const counts = a.levelServed === level || (a.stretch && a.levelServed === level + 1);
   if (!counts) return p;
   const def = cfg.levelByNumber[level];
-  const mid = def ? (def.tempo.minBpm + def.tempo.maxBpm) / 2 : Infinity;
+  // Mid tempo in the take's beat unit: compound meters on the dotted-beat levels use the dotted range (02 §2.4).
+  const range = def ? (meter ? levelTempo(cfg, def, meter) : def.tempo) : null;
+  const mid = range ? (range.minBpm + range.maxBpm) / 2 : Infinity;
   const atMid = a.bpm >= mid;
   const entry: LevelWindowEntry = { attemptId: a.id, score, atMidTempo: atMid };
   const window = [...inst.window, entry].slice(-w.size);

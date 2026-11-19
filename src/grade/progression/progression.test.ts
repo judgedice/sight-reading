@@ -1,6 +1,7 @@
 // G6 and G7 acceptance: XP worked examples, rank ladder, level window rules, placement, ranked gates (02 §5).
 import { describe, expect, it } from 'vitest';
 import { configs } from '../../../fixtures/follow/gen/io.ts';
+import { makeMeter } from '../../core/time.ts';
 import type { AttemptRecord, GateId, GradeInput, PlayerProfile, ProgressEvent } from '../../core/types.ts';
 import { makeAttempt, makeCalibration, makeProfile, makeScore } from '../../store/test-data.ts';
 import { computeXp } from '../xp.ts';
@@ -63,12 +64,12 @@ describe('XP', () => {
     const p = base({ streak: { days: 6, lastDay: '2026-03-01' }, instruments: { flute: { ...makeProfile().instruments.flute!, level: 5 } } });
     const xp = xpInputFor(p, { instrumentId: 'flute', excerptId: 'e', randomized: { key: true, meter: false, tempo: false }, placement: false }, '2026-03-01');
     expect(xp).toMatchObject({ playerLevel: 5, streakDays: 6, dailyCountBefore: 0, repeatIndexToday: 0 });
-    const input = { cfg, level: 5, bpm: mid(5), xp, ranking: { metronome: 'audible' } } as unknown as GradeInput;
+    const input = { cfg, level: 5, bpm: mid(5), meter: makeMeter(4, 4), xp, ranking: { metronome: 'audible' } } as unknown as GradeInput;
     expect(computeXp(input, 85, 'ok', true).total).toBe(35);
   });
   it('farming is worthless: L5 player at L1, S100 earns 3', () => {
     const xp = { playerLevel: 5, randomized: { key: false, meter: false, tempo: false }, streakDays: 0, dailyCountBefore: 0, repeatIndexToday: 0, placement: false };
-    const input = { cfg, level: 1, bpm: mid(1), xp, ranking: { metronome: 'audible' } } as unknown as GradeInput;
+    const input = { cfg, level: 1, bpm: mid(1), meter: makeMeter(4, 4), xp, ranking: { metronome: 'audible' } } as unknown as GradeInput;
     expect(computeXp(input, 100, 'ok', true).total).toBe(3);
   });
   it('xpInputFor tracks the daily cap, repeats and a broken streak', () => {
@@ -134,6 +135,23 @@ describe('level window, offers and auto level-up (02 §5.6)', () => {
     const slow = mid(2) - 5;
     const { events } = run(fresh(), [90, 90, 90, 90, 90].map((s, i) => att(i + 1, s, { bpm: slow })));
     expect(of(events, 'level-up-offer')).toHaveLength(0);
+  });
+  it('a compound take on a dotted-beat difficulty is at mid tempo against the dotted range (02 §2.4)', () => {
+    const [level] = cfg.levels.compound.dottedBeatLevels;
+    const d = cfg.levels.compound.dottedBpm;
+    const dottedMid = Math.ceil((d.minBpm + d.maxBpm) / 2);
+    const at4 = setInstrumentLevel(base(), 'flute', level, cfg);
+    const sixEight = (i: number, meter: string): AttemptRecord => {
+      const a = att(i, 90, { levelServed: level, bpm: dottedMid });
+      return { ...a, settingsResolved: { ...a.settingsResolved, level, meter } };
+    };
+    // The served meter passed by the session, with the meter requested as random.
+    const served = applyAttemptOnDay(at4, sixEight(1, 'random'), cfg, '2026-03-01', makeMeter(6, 8));
+    expect(served.profile.instruments.flute!.window).toEqual([expect.objectContaining({ atMidTempo: true })]);
+    // The requested meter when the session does not pass one.
+    expect(applyAttempt(at4, sixEight(2, '6/8'), cfg).profile.instruments.flute!.window[0]!.atMidTempo).toBe(true);
+    // A simple meter at the same tempo is below the level's quarter-note mid.
+    expect(applyAttempt(at4, sixEight(3, '3/4'), cfg).profile.instruments.flute!.window[0]!.atMidTempo).toBe(false);
   });
   it('accepting moves up and resets the window; declining suppresses for 5 ranked attempts', () => {
     const ok = run(fresh(), [90, 90, 90, 90, 90].map((s, i) => att(i + 1, s)));

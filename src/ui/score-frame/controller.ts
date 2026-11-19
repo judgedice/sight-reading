@@ -5,7 +5,7 @@
 
 import type { ScoreView } from '../../core/api.ts';
 import type { Beats, GhostNote, NoteVisualState, OverlayMode, PreparedExcerpt, ScoreLayout } from '../../core/types.ts';
-import { CROSSFADE_MS, MAX_SLOTS, planLayout, planSwaps, systemHeightPx, type Insets, type LayoutPlan, type PagePlan } from '../layout-table.ts';
+import { CROSSFADE_MS, LANE_PX, MAX_SLOTS, planLayout, planSwaps, systemHeightPx, type Insets, type LayoutPlan, type PagePlan } from '../layout-table.ts';
 import { breakpoints, score, tokens } from '../tokens.ts';
 import { documentAppearance, type FrameNotation, type FrameScoreView, type FrameViewOptions } from './notation-binding.ts';
 import {
@@ -50,13 +50,22 @@ export function purposeGeometry(purpose: FramePurpose, viewportWidth: number): {
   return { spPx: sp, marginBlock: block!, marginInline: inline! };
 }
 
+/**
+ * Height of one system slot for a purpose. The take and the review keep the 20 px verdict lane under each staff;
+ * the read-through never marks a note, so its slots drop the lane and the systems sit closer (the system SVG keeps
+ * its own height and the slot clips the empty lane).
+ */
+export function purposeSystemHeightPx(purpose: FramePurpose, spPx: number): number {
+  return systemHeightPx(spPx) - (purpose === 'read' ? LANE_PX : 0);
+}
+
 /** The layout table's plan with the purpose's staff space, stepped down only as far as the bars need to fit the width. */
 export function purposePlan(base: LayoutPlan, purpose: FramePurpose, viewportWidth: number, widthPx: number, heightPx: number): LayoutPlan {
   const g = purposeGeometry(purpose, viewportWidth);
   const maxBars = Math.max(1, ...base.barsPerSystem);
   const fit = widthPx / (maxBars * PURPOSE_MIN_BAR_SP + SYSTEM_EXTRA_SP);
   const spPx = Math.max(base.row.spMinPx, Math.floor(Math.min(g.spPx, fit) * 100) / 100);
-  const sysH = systemHeightPx(spPx);
+  const sysH = purposeSystemHeightPx(purpose, spPx);
   const slots = heightPx > 0 ? Math.min(MAX_SLOTS, Math.max(1, Math.floor(heightPx / sysH))) : base.slots;
   return { ...base, spPx, systemHeightPx: sysH, slots, renderOptions: { ...base.renderOptions, spPx } };
 }
@@ -99,10 +108,20 @@ export interface FrozenResize {
   orientationChanged: boolean;
 }
 
+/** Displayed bar numbers (pickup = 0): the first and last bar in the slots, and the excerpt's last bar. */
+export interface SlotBars {
+  first: number;
+  last: number;
+  total: number;
+}
+
 export interface ScoreFrameOptions {
   appearance?: Partial<FrameViewOptions>;
-  /** Called whenever the systems in the slots change (toolbar "Lines 2–6 of 6", 04 §4.3 rule 6). */
-  onSlotsChange?: (slotSystems: number[], systemCount: number) => void;
+  /**
+   * Called whenever the systems in the slots change (04 §4.3 rule 6). `bars` is the displayed bar range those systems
+   * cover and the excerpt's last bar number (toolbar "Bars 3–10 of 12").
+   */
+  onSlotsChange?: (slotSystems: number[], systemCount: number, bars: SlotBars) => void;
 }
 
 interface Laid {
@@ -147,7 +166,7 @@ export class ScoreFrameController implements Omit<ScoreView<HTMLElement>, 'rende
   private readonly score: HTMLElement;
   private readonly fade: HTMLElement;
   private readonly appearance: FrameViewOptions;
-  private readonly onSlotsChange: ((slotSystems: number[], systemCount: number) => void) | undefined;
+  private readonly onSlotsChange: ((slotSystems: number[], systemCount: number, bars: SlotBars) => void) | undefined;
   private laid: Laid | null = null;
   private mode: Arrangement = 'slots';
   private playhead: Beats | null = null;
@@ -658,7 +677,16 @@ export class ScoreFrameController implements Omit<ScoreView<HTMLElement>, 'rende
       clones.forEach((c, k) => c && this.crossfade(changed[k]!, c));
     }
     this.renderGutter(next);
-    if (!same) this.onSlotsChange?.(next.slice(), l.info.systemCount);
+    if (!same) this.onSlotsChange?.(next.slice(), l.info.systemCount, this.slotBars(next));
+  }
+
+  /** Displayed bar range of the systems in the slots. */
+  private slotBars(slotSystems: readonly number[]): SlotBars {
+    const l = this.laid!;
+    const systems = l.info.layout.systems;
+    const firsts = slotSystems.map((s) => systems[s]?.firstBar ?? 0);
+    const lasts = slotSystems.map((s) => systems[s]?.lastBar ?? 0);
+    return { first: Math.min(...firsts), last: Math.max(...lasts), total: l.excerpt.measures.at(-1)?.displayBar ?? 0 };
   }
 
   private renderGutter(slotSystems: readonly number[]): void {
@@ -677,7 +705,10 @@ export class ScoreFrameController implements Omit<ScoreView<HTMLElement>, 'rende
     slotSystems.forEach((s, i) => {
       const cell = this.gutter.children[i] as HTMLElement;
       // The number is drawn by CSS from data-line, so the frame holds no text node during a take (04 §6.7 item 4).
-      if (show) cell.setAttribute('data-line', String(s + 1));
+      // It is the line's first bar, as engraved music numbers its systems; the first line, which starts the piece,
+      // has none (the mockups). A line number such as "2" would read as bar 2.
+      const bar = l.info.layout.systems[s]?.firstBar;
+      if (show && s > 0 && bar !== undefined) cell.setAttribute('data-line', String(bar));
       else cell.removeAttribute('data-line');
       cell.setAttribute('data-system', String(s));
       if (wrap === i) cell.setAttribute('data-wrap', 'true');

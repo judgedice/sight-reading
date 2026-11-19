@@ -55,6 +55,22 @@ describe('staff space and margins from tokens', () => {
     expect(c2.layout(p, { ...PHONE, purpose: 'take' }, notation.tickablesPerBar(p)).plan.barsPerSystem).toEqual([2, 2, 2, 2]);
   });
 
+  it('the read-through drops the verdict lane: 4 phone systems fit where the take keeps its lane', () => {
+    const p = barsExcerpt(doc, 8);
+    const sp = score['staff-space'].readPhone;
+    const { host, c } = frame();
+    const read = c.layout(p, { ...PHONE, purpose: 'read', heightPx: 4 * (12 * sp + 12) }, notation.tickablesPerBar(p));
+    // 12 staff spaces and the 12 px gap; no 20 px lane (9.5 sp: 126 px a system, not 146).
+    expect(read.plan.systemHeightPx).toBe(12 * sp + 12);
+    expect(read.plan.slots).toBe(4);
+    expect(host.querySelector<HTMLElement>('.sf-stage')!.style.getPropertyValue('--sf-system-h')).toBe(`${12 * sp + 12}px`);
+    const { c: c2 } = frame();
+    const take = c2.layout(p, { ...PHONE, purpose: 'take' }, notation.tickablesPerBar(p));
+    expect(take.plan.systemHeightPx).toBe(12 * take.plan.spPx + 20 + 12);
+    const { c: c3 } = frame();
+    expect(c3.layout(p, { ...PHONE, purpose: 'review' }, notation.tickablesPerBar(p)).plan.systemHeightPx).toBe(12 * score['staff-space'].reviewPhone + 20 + 12);
+  });
+
   it('page margins come from the score tokens', () => {
     expect(purposeGeometry('take', 1440)).toMatchObject({ marginBlock: score['page-margin'].desktop[0], marginInline: score['page-margin'].desktop[1] });
     expect(purposeGeometry('take', 390)).toMatchObject({ marginBlock: score['page-margin'].phone[0], marginInline: score['page-margin'].phone[1] });
