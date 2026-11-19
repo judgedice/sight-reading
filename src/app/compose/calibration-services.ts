@@ -1,12 +1,27 @@
 /**
  * The calibrate route's services (src/app/screens/calibration/services.ts) built on the calibration package (01 §7.8,
  * P14). `app/` may not import `calibration/`; this composition helper adapts `runLoopbackCalibration`,
- * `runPlayAlongCalibration` and `runSelfTest` to the screen's outcome shapes (01 §4.2 composition root).
+ * `runPlayAlongCalibration`, `runSelfTest` and `calibrationPlan` to the screen's shapes (01 §4.2 composition root).
+ *
+ * A run is one flow: the clock-rate check (silent), the calibration, then the audio self-test on the same route,
+ * reusing the calibration's loopback and clock-rate result so nothing is played or measured twice.
  */
 import type { AudioBackend, PlatformCapabilities } from '../../core/platform.ts';
 import type { AppSettings, Calibration, Configs, Rng } from '../../core/types.ts';
-import { exportDiagnostics, runLoopbackCalibration, runPlayAlongCalibration, runSelfTest, type CalibrationDeps } from '../../calibration/index.ts';
-import type { CalibrationServices, SelfTestItemId } from '../screens/calibration/services.ts';
+import {
+  calibrationPlan,
+  exportDiagnostics,
+  runClockRateCheck,
+  runLoopbackCalibration,
+  runPlayAlongCalibration,
+  runSelfTest,
+  type CalibrationDeps,
+  type CalibrationProgress,
+  type ClockRateResult,
+  type LoopbackRun,
+  type SelfTestResult,
+} from '../../calibration/index.ts';
+import type { CalibrationServices, SelfTestItemId, SelfTestOutcome } from '../screens/calibration/services.ts';
 import type { Readable } from '../screens/home/services.ts';
 
 /** Backend members beyond the frozen seam that calibration uses when present (WebAudioBackend has them). */
@@ -46,10 +61,34 @@ export function createCalibrationServices(d: CalibrationServicesDeps): Calibrati
   };
   let unlocked: ReturnType<AudioBackend['unlock']> | null = null;
   const route = async () => (unlocked ? unlocked : (unlocked = d.audio.unlock()));
-  const clockRate = async (): Promise<number | null> => {
+  /** The backend's own clock-rate check (WebAudioBackend), once per run; null where the backend has none or it threw. */
+  const clockRate = async (): Promise<ClockRateResult | null> => {
     if (typeof d.audio.checkClockRate !== 'function') return null;
     try {
-      return (await d.audio.checkClockRate()).error;
+      return await runClockRateCheck(d.audio, budget);
+    } catch {
+      return null;
+    }
+  };
+  const outcome = (res: SelfTestResult): SelfTestOutcome => ({
+    passed: res.passed,
+    items: res.items.map((i) => ({ id: i.id as SelfTestItemId, status: i.status, reason: typeof i.detail['reason'] === 'string' ? i.detail['reason'] : null })),
+    diagnosticsJson: exportDiagnostics(res.diagnostics),
+  });
+  /** The audio check after a run, on the same route; it never fails the calibration (R16). */
+  const checks = async (r: Awaited<ReturnType<AudioBackend['unlock']>>, clock: ClockRateResult | null, loopback: LoopbackRun | null, progress: CalibrationProgress): Promise<SelfTestOutcome | null> => {
+    try {
+      const res = await runSelfTest(deps, {
+        route: r,
+        capabilities: d.capabilities,
+        timbre: d.settings.get().practice.clickTimbre,
+        recheckAgreeMs: d.configs.grading.ranked.recheckAgreeMs,
+        appBuild: d.appBuild,
+        progress,
+        ...(clock ? { clock } : {}),
+        ...(loopback ? { loopback } : {}),
+      });
+      return outcome(res);
     } catch {
       return null;
     }
@@ -57,9 +96,7 @@ export function createCalibrationServices(d: CalibrationServicesDeps): Calibrati
   return {
     capabilities: d.capabilities,
     maxRtlMs: d.configs.grading.ranked.maxRtlMs,
-    loopbackSeconds: 8,
-    loopbackClicks: budget.loopback.clicks,
-    playAlongClicks: budget.playAlong.clicks,
+    plan: (mode) => calibrationPlan(budget, mode),
     prefs: () => ({ outputMode: d.settings.get().practice.outputMode, inputDeviceId: d.settings.get().audio.inputDeviceId }),
     async setPrefs(p) {
       const s = d.settings.get();
@@ -80,7 +117,9 @@ export function createCalibrationServices(d: CalibrationServicesDeps): Calibrati
     },
     async runLoopback(o) {
       const r = await route();
-      const run = await runLoopbackCalibration(deps, { route: r, timbre: d.settings.get().practice.clickTimbre, clockRateError: await clockRate(), onClick: o.onClick });
+      const clock = await clockRate();
+      const progress: CalibrationProgress = { onStage: o.onStage, onSound: o.onSound };
+      const run = await runLoopbackCalibration(deps, { route: r, timbre: d.settings.get().practice.clickTimbre, clockRateError: clock?.error ?? null, onClick: o.onClick, progress });
       const lb = run.loopback;
       return {
         accepted: lb.accepted,
@@ -91,29 +130,26 @@ export function createCalibrationServices(d: CalibrationServicesDeps): Calibrati
         clicksScheduled: lb.clicksScheduled,
         aecSuspected: run.aec.suspected,
         calibration: run.calibration,
+        checks: await checks(r, clock, run, progress),
       };
     },
     async runPlayAlong(o) {
       const r = await route();
-      const run = await runPlayAlongCalibration(deps, { route: r, timbre: d.settings.get().practice.clickTimbre, clockRateError: await clockRate() });
+      const clock = await clockRate();
+      const progress: CalibrationProgress = { onStage: o.onStage, onSound: o.onSound };
+      const run = await runPlayAlongCalibration(deps, { route: r, timbre: d.settings.get().practice.clickTimbre, clockRateError: clock?.error ?? null, progress });
       run.playAlong.offsetsMs.forEach((ms, i) => o.onNote(i, ms));
       const pa = run.playAlong;
-      return { accepted: pa.accepted, failure: pa.failure, rtlMs: pa.rtlMs, madMs: pa.madMs, notesFound: pa.notesFound, clicks: pa.clicks, offsetsMs: pa.offsetsMs, calibration: run.calibration };
-    },
-    async runSelfTest() {
-      const r = await route();
-      const res = await runSelfTest(deps, {
-        route: r,
-        capabilities: d.capabilities,
-        timbre: d.settings.get().practice.clickTimbre,
-        recheckAgreeMs: d.configs.grading.ranked.recheckAgreeMs,
-        appBuild: d.appBuild,
-      });
       return {
-        passed: res.passed,
-        items: res.items.map((i) => ({ id: i.id as SelfTestItemId, status: i.status })),
-        calibration: res.calibration,
-        diagnosticsJson: exportDiagnostics(res.diagnostics),
+        accepted: pa.accepted,
+        failure: pa.failure,
+        rtlMs: pa.rtlMs,
+        madMs: pa.madMs,
+        notesFound: pa.notesFound,
+        clicks: pa.clicks,
+        offsetsMs: pa.offsetsMs,
+        calibration: run.calibration,
+        checks: await checks(r, clock, null, progress),
       };
     },
     save: (c) => d.saveCalibration(c),

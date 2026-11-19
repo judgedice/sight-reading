@@ -292,7 +292,7 @@ export function composeApp(rt: AppRuntime): ComposedApp {
       const off = dismissed.get();
       if (storageLost.get() && !off.includes('storage-loss')) out.push({ kind: 'storage-loss' });
       if (!settings.get().practice.listening && !off.includes('mic-off')) out.push({ kind: 'mic-off' });
-      else if (!hasCalibration.get() && !rt.testClock && !off.includes('calibrate')) out.push({ kind: 'calibrate', seconds: 8 });
+      else if (!hasCalibration.get() && !rt.testClock && !off.includes('calibrate')) out.push({ kind: 'calibrate', seconds: calibrationBase.plan(settings.get().practice.outputMode).seconds });
       return out;
     },
     jsonEqual,

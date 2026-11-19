@@ -8,7 +8,7 @@ import type { PlatformCapabilities, WorkerMessage } from '../core/platform.ts';
 import type { AudioRouteInfo, Calibration, ClickTimbre, JsonValue } from '../core/types.ts';
 import { runClockRateCheck, type ClockRateResult } from './clock-rate.ts';
 import { CountInRecheck, type RecheckDetail } from './recheck.ts';
-import { runLoopbackCalibration, type CalibrationDeps, type LoopbackRun } from './run.ts';
+import { outputLagSec, playTimeline, runLoopbackCalibration, stageSteps, type CalibrationDeps, type CalibrationProgress, type LoopbackRun } from './run.ts';
 
 export type SelfTestItemId = 'sanity-tone' | 'clicks' | 'recheck' | 'clock-rate' | 'processing' | 'frame-rate';
 export type SelfTestStatus = 'pass' | 'fail' | 'skipped';
@@ -31,7 +31,10 @@ export const FRAME_STRESS_SEC = 2;
  */
 export const FRAME_P95_MAX_MS = 2 * (1000 / 60) + 0.5;
 /** Tempo of the 1-bar recheck test, bpm. */
-const RECHECK_BPM = 100;
+export const RECHECK_BPM = 100;
+/** The 1-bar recheck: one bar of 4/4 count-in, accented first beat (as a take's count-in), after this lead. */
+export const RECHECK_BEATS = 4;
+export const RECHECK_LEAD_SEC = 0.5;
 
 export interface SelfTestOptions {
   route: AudioRouteInfo;
@@ -46,6 +49,15 @@ export interface SelfTestOptions {
   recheckAgreeMs?: number;
   /** For the export header. */
   appBuild?: string;
+  /**
+   * The loopback run calibration has just made on this route: reused instead of playing the timing clicks, the
+   * template clicks and the tone a second time (one flow, 04 §5.9). Omitted: the self-test runs its own.
+   */
+  loopback?: LoopbackRun;
+  /** A clock-rate result measured moments ago on this context: reused instead of measuring again. */
+  clock?: ClockRateResult;
+  /** Stage and per-sound timing for the screen (presentation only). */
+  progress?: CalibrationProgress;
 }
 
 export interface SelfTestResult {
@@ -79,7 +91,7 @@ export async function runSelfTest(deps: CalibrationDeps, o: SelfTestOptions): Pr
   const speakers = o.route.outputMode === 'speakers';
 
   // Clock rate (any output mode).
-  const clock: ClockRateResult = await runClockRateCheck(audio, budget, o.recreate ? { recreate: o.recreate } : {});
+  const clock: ClockRateResult = o.clock ?? (await runClockRateCheck(audio, budget, o.recreate ? { recreate: o.recreate } : {}));
   items.push({
     id: 'clock-rate',
     status: clock.ok ? 'pass' : 'fail',
@@ -89,7 +101,7 @@ export async function runSelfTest(deps: CalibrationDeps, o: SelfTestOptions): Pr
   // Loopback and sanity tone (speakers).
   let run: LoopbackRun | null = null;
   if (speakers) {
-    run = await runLoopbackCalibration(deps, { route: o.route, timbre: o.timbre, clockRateError: clock.error });
+    run = o.loopback ?? (await runLoopbackCalibration(deps, { route: o.route, timbre: o.timbre, clockRateError: clock.error, ...(o.progress ? { progress: o.progress } : {}) }));
     const lb = run.loopback;
     items.push({
       id: 'sanity-tone',
@@ -117,7 +129,7 @@ export async function runSelfTest(deps: CalibrationDeps, o: SelfTestOptions): Pr
   if (speakers) {
     const refMs = run?.calibration?.roundTripMs ?? (o.stored && o.stored.routeKey === o.route.routeKey ? o.stored.roundTripMs : null);
     const template = run?.calibration?.templates[o.timbre]?.samples ?? o.stored?.templates[o.timbre]?.samples ?? null;
-    const r = await oneBarRecheck(deps, o.route, o.timbre, template);
+    const r = await oneBarRecheck(deps, o.route, o.timbre, template, o.progress);
     const agree = o.recheckAgreeMs ?? budget.recheck.staleAboveMs;
     const diff = r.rtlMs !== null && refMs !== null ? r.rtlMs - refMs : null;
     const pass = r.accepted && (diff === null ? refMs === null : Math.abs(diff) <= agree);
@@ -183,7 +195,7 @@ export async function runSelfTest(deps: CalibrationDeps, o: SelfTestOptions): Pr
 }
 
 /** A 1-bar count-in on the take path (`scheduleTake`, count-in only), analysed by the per-take recheck. */
-async function oneBarRecheck(deps: CalibrationDeps, route: AudioRouteInfo, timbre: ClickTimbre, template: ArrayLike<number> | null): Promise<RecheckDetail> {
+async function oneBarRecheck(deps: CalibrationDeps, route: AudioRouteInfo, timbre: ClickTimbre, template: ArrayLike<number> | null, progress?: CalibrationProgress): Promise<RecheckDetail> {
   const { audio, budget } = deps;
   const rate = audio.audioInfo().contextSampleRate || route.sampleRate;
   let recheck: CountInRecheck | null = null;
@@ -196,10 +208,10 @@ async function oneBarRecheck(deps: CalibrationDeps, route: AudioRouteInfo, timbr
   try {
     const silenceStart = audio.now() as number;
     const { clicks } = await audio.scheduleTake({
-      leadSec: 0.5,
+      leadSec: RECHECK_LEAD_SEC,
       bpm: RECHECK_BPM,
-      beatsPerBar: 4,
-      countInBeats: 4,
+      beatsPerBar: RECHECK_BEATS,
+      countInBeats: RECHECK_BEATS,
       totalBeats: 0,
       mode: 'countInOnly',
       timbre,
@@ -210,6 +222,7 @@ async function oneBarRecheck(deps: CalibrationDeps, route: AudioRouteInfo, timbr
     recheck = new CountInRecheck(rate, countIn, { timbre, template, budget, silence: { t0: silenceStart, t1: first } });
     for (const m of pending) if (m.type === 'block') recheck.push(m.block);
     const last = Math.max(...countIn.map((c) => c.t));
+    await playTimeline(deps.waitUntil, stageSteps('count-in', countIn.map((c) => c.t), outputLagSec(audio), null, progress));
     await deps.waitUntil(last + budget.loopback.maxRtlMs / 1000 + 0.1);
     return recheck.finish();
   } finally {

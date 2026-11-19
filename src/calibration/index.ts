@@ -13,3 +13,4 @@ export * from './clock-rate.ts';
 export * from './record.ts';
 export * from './run.ts';
 export * from './self-test.ts';
+export * from './plan.ts';
