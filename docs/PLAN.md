@@ -96,7 +96,7 @@ Every tolerance and weight lives in `config/grading-config.json`. The follower, 
 The owner asked for a designer and a UX expert to review the built app. Their specs are in `docs/redesign/` (05 UX spec, 06 design spec, 08 plan, mockups). For screens, copy, and behaviour of the interface, those documents now override `spec/04-design.md`.
 
 56. "Level" is "Difficulty" everywhere the player sees it. Internal identifiers may stay.
-57. Baritone and mezzo-soprano ship as launch voices. Status: both are in `config/instruments.json` as `launch`, in singing order; the shipped corpus serves both at every difficulty, but its `stats.fit` still lacks them (corpus rebuild pending).
+57. Baritone and mezzo-soprano ship as launch voices. Status: both are in `config/instruments.json` as `launch`, in singing order; the shipped corpus serves both at every difficulty, and its re-emitted manifest (corpus c1-27c3bee0bf, 957 excerpts, 13 newly denylisted for H-serve) carries `stats.fit` for both; `pnpm corpus:check` passes.
 58. The metronome gets three sounds (Classic, Woodblock, Beep), default Classic, each with a preview in settings. The build does not wait for the owner's audition; the owner can change the default later.
 59. Listening to the excerpt before a take makes that take practice, recorded with the reason `listened-first`. The session sets this; `src/grade` is not changed. Listening after results is free.
 60. The redesign build may not touch `src/dsp`, `src/follow`, or `src/grade`.

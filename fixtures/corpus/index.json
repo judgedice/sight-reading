@@ -56,9 +56,9 @@
  ],
  "corpusVersion": "fixture-p0e-1",
  "manifest": {
-  "bytes": 28644,
-  "file": "manifest.b5c168939f.json",
-  "hash": "sha256:b5c168939f58a4c03eec95a4dac531de70a931f9c765161124f971f268352520"
+  "bytes": 29494,
+  "file": "manifest.a10406fa54.json",
+  "hash": "sha256:a10406fa5409e746e14421e44a3085c52a5a7e57a814131fda2ee11d657ee26e"
  },
  "schemaVersion": 1
 }

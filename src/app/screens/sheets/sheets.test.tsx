@@ -272,11 +272,13 @@ describe('Tips interstitial (04 5.6)', () => {
     expect($('.dom-tip-headline').textContent).toBe(def.name);
     expect($('.dom-tip-body').textContent).toBe(primary.text);
     expect($('.dom-tip-evidence').textContent).toMatch(/\d/);
-    expect(document.body.textContent).toContain(copy('tips.header'));
+    // 06 6.15: the card is titled "One thing to try"; "Before the next one" names the screen region.
+    expect($('.dom-tip-title').textContent).toBe(copy('results.tip.title'));
+    expect($('[data-testid="screen-practice.tips"]').getAttribute('aria-label')).toBe(copy('tips.header'));
     expect($('.dom-tip-who').textContent).toContain(cfg.instrumentById['flute']!.label);
   });
 
-  it('never shows more than two tips and puts the second behind "Also:"', () => {
+  it('never shows more than two tips and puts the second behind "Show 1 more tip"', () => {
     const rec = attemptFrom('case05-key-signature-f-sharp');
     const base = tipsFor(rec)[0]!;
     const tips: Tip[] = [
@@ -287,7 +289,10 @@ describe('Tips interstitial (04 5.6)', () => {
     renderTips(rec, tips);
     expect(document.querySelectorAll('.dom-tip-headline')).toHaveLength(1);
     expect(document.querySelectorAll('.dom-tip-also')).toHaveLength(1);
-    expect($('.dom-tip-also').textContent).toBe(copy('tips.also', { headline: cfg.tips.patterns.find((p) => p.id === 'E1')!.name }));
+    expect($('.dom-tip-also').textContent).toBe(copy('results.tip.more', { n: 1 }));
+    expect($('.dom-tip-also').getAttribute('aria-expanded')).toBe('false');
+    expect(document.querySelector<HTMLElement>('.dom-tip-panel')?.hidden).toBe(true);
+    expect(document.querySelector('.dom-tip-panel .dom-tip-evidence')?.textContent).toBe('Seen in bars 2, 3.');
     expect(document.querySelector('.dom-tip-header')?.textContent).toContain('(1 of 2)');
   });
 

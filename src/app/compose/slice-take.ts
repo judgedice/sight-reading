@@ -46,7 +46,7 @@ import budgetJson from '../../../config/measurement-budget.json';
 import progressionJson from '../../../config/progression.json';
 import tipsJson from '../../../config/tips.json';
 import valvesJson from '../../../data/trumpet-valves.json';
-import manifestJson from '../../../fixtures/corpus/manifest.b5c168939f.json';
+import manifestJson from '../../../fixtures/corpus/manifest.a10406fa54.json';
 import shardL03 from '../../../fixtures/corpus/shard-L03-01.a5c80d091c.json';
 
 export const SLICE = {

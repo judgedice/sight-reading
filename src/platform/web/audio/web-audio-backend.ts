@@ -331,6 +331,9 @@ export class WebAudioBackend implements AudioBackend {
     const mo = this.opts.clickGain !== undefined ? { clickGain: this.opts.clickGain } : {};
     this.metronome = new Metronome(ctx, bus, mo);
     this.soundMetronome = new Metronome(ctx, bus, mo);
+    // The accent recipe of the new sounds follows the declared output (06 section 9.5): offbeat recipe on speakers.
+    this.metronome.setOutputMode(this.outputMode);
+    this.soundMetronome.setOutputMode(this.outputMode);
     const lb = ctx.createGain();
     lb.gain.value = LISTEN_BUS_GAIN;
     lb.connect(bus);
@@ -435,6 +438,8 @@ export class WebAudioBackend implements AudioBackend {
   /** The player's declared output mode changes the route key (W7). */
   setOutputMode(mode: OutputMode): void {
     this.outputMode = mode;
+    this.metronome?.setOutputMode(mode);
+    this.soundMetronome?.setOutputMode(mode);
     if (!this.ctx || !this.route) return;
     const before = this.route.routeKey;
     this.route = this.computeRoute();

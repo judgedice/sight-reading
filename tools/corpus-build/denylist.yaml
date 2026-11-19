@@ -121,3 +121,42 @@ denylist:
   - id: schubert-lc6900961-voice-mp8-20
     gate: H-serve
     reason: "no launch instrument can be served this excerpt at levels 5 to 7 (source tempo outside the level range, bars or flags: 03 7.5 rule 5)"
+  - id: brahms-lc5098659-voice-mp10-19
+    gate: H-serve
+    reason: "no launch instrument can be served this excerpt at levels 6 to 8 (source tempo outside the level range, bars or flags: 03 7.5 rule 5)"
+  - id: brahms-lc5098728-voice-mp14-25
+    gate: H-serve
+    reason: "no launch instrument can be served this excerpt at levels 7 to 9 (source tempo outside the level range, bars or flags: 03 7.5 rule 5)"
+  - id: gouvy-sq10406164-vn-i-mv1-m215-223
+    gate: H-serve
+    reason: "no launch instrument can be served this excerpt at levels 9 to 11 (source tempo outside the level range, bars or flags: 03 7.5 rule 5)"
+  - id: lang-lc6068212-voice-m38-45
+    gate: H-serve
+    reason: "no launch instrument can be served this excerpt at levels 7 to 9 (source tempo outside the level range, bars or flags: 03 7.5 rule 5)"
+  - id: lang-lc6068212-voice-mp1-9
+    gate: H-serve
+    reason: "no launch instrument can be served this excerpt at levels 7 to 9 (source tempo outside the level range, bars or flags: 03 7.5 rule 5)"
+  - id: lehmann-lc6766368-voice-mp32-40
+    gate: H-serve
+    reason: "no launch instrument can be served this excerpt at levels 5 to 7 (source tempo outside the level range, bars or flags: 03 7.5 rule 5)"
+  - id: lehmann-lc6766368-voice-mp4-12
+    gate: H-serve
+    reason: "no launch instrument can be served this excerpt at levels 5 to 7 (source tempo outside the level range, bars or flags: 03 7.5 rule 5)"
+  - id: mayer-sq7556360-vn-i-mv2-m180-190
+    gate: H-serve
+    reason: "no launch instrument can be served this excerpt at levels 7 to 9 (source tempo outside the level range, bars or flags: 03 7.5 rule 5)"
+  - id: mendelssohn-sq7224846-vn-i-mv4-m128-136
+    gate: H-serve
+    reason: "no launch instrument can be served this excerpt at levels 5 to 7 (source tempo outside the level range, bars or flags: 03 7.5 rule 5)"
+  - id: schumann-lc6826597-voice-mp2-14
+    gate: H-serve
+    reason: "no launch instrument can be served this excerpt at levels 6 to 8 (source tempo outside the level range, bars or flags: 03 7.5 rule 5)"
+  - id: schumann-lc6885211-voice-m2-13
+    gate: H-serve
+    reason: "no launch instrument can be served this excerpt at levels 5 to 7 (source tempo outside the level range, bars or flags: 03 7.5 rule 5)"
+  - id: schumann-lc6909797-voice-mp1-9
+    gate: H-serve
+    reason: "no launch instrument can be served this excerpt at levels 6 to 8 (source tempo outside the level range, bars or flags: 03 7.5 rule 5)"
+  - id: schumann-lc6909797-voice-mp9-17
+    gate: H-serve
+    reason: "no launch instrument can be served this excerpt at levels 6 to 8 (source tempo outside the level range, bars or flags: 03 7.5 rule 5)"

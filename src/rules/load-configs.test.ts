@@ -33,7 +33,7 @@ describe('loadConfigs', () => {
     expect(() => {
       (cfg.levels.levels as unknown as unknown[]).push(1);
     }).toThrow(TypeError);
-    expect(Object.keys(cfg.instrumentById)).toHaveLength(24);
+    expect(Object.keys(cfg.instrumentById)).toHaveLength(26);
     expect(Object.keys(cfg.levelByNumber)).toHaveLength(10);
     expect(cfg.levelByNumber[5]?.scanSec).toBe(45);
     expect(cfg.configVersion).toBe('grading-2.1.0+levels-1.0.0+instruments-1.0.0+progression-1.0.0+tips-1.0.0+budget-1.0.0');

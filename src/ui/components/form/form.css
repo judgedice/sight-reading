@@ -116,7 +116,8 @@
   margin-inline-start: var(--space-1);
   font: inherit;
   font-weight: 500;
-  opacity: 0.6;
+  /* 06 6.1 says 60%; on the dark theme's light primary (and its hover and pressed fills) 60% falls under 4.5:1. */
+  opacity: 0.72;
 }
 
 .ui-button:not([aria-disabled='true']):hover {
