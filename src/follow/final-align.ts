@@ -30,7 +30,7 @@ import type {
 } from '../core/types.ts';
 import { intonationCredit, intonationVerdict, noteVerdict, onsetCredit, VoiceDriftReference } from '../rules/index.ts';
 import { classifyAgainst, matchCost, pitchCost, scoreSecondsOf, SKIP_DETECTED_COST, SKIP_EXPECTED_COST } from './cost.ts';
-import { extraMinMs, playerNotes } from './own-playback.ts';
+import { absorbedBy, extraMinMs, playerNotes } from './own-playback.ts';
 import { relabel, type AlignNote } from './relabel.ts';
 
 const MS = 1000;
@@ -260,8 +260,13 @@ export function alignNotes(c: FollowConfig, detected: readonly DetectedNote[]): 
   const attackMs = c.cfg.grading.intonation.attackExcludeMsByFamily[c.instrument.family];
   // Notes before the music and the app's own tones are not the player's (own-playback.ts); a note at a click needs
   // to sound longer before it is an extra.
-  return playerNotes(c, detected)
-    .map((note) => ({ note, s: scoreSecondsOf(note.onset, c.t0, c.latencyCompensationSec), extraEligible: soundedSec(note, attackMs) >= extraMinMs(c, note) / MS }))
+  // A short note right after a note of the same pitch class is that note sung on (round 2, `oneNote.absorbMs`).
+  const byOnset = [...playerNotes(c, detected)].sort((a, b) => a.onset - b.onset || a.id - b.id);
+  return byOnset
+    .map((note, k) => {
+      const absorbed = absorbedBy(c, note, byOnset[k - 1] ?? null);
+      return { note, s: scoreSecondsOf(note.onset, c.t0, c.latencyCompensationSec), extraEligible: soundedSec(note, attackMs) >= extraMinMs(c, note, absorbed) / MS };
+    })
     .sort((a, b) => a.s - b.s || a.note.id - b.note.id);
 }
 

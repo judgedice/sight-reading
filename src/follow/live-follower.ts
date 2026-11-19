@@ -54,7 +54,7 @@ import {
 import { classifyAgainst, LIVE_SKIP_COST, matchCost, pitchCost, scoreSecondsOf } from './cost.ts';
 import { DISPLACEMENT_WINDOW_NOTES, DisplacementDetector, type WindowNote } from './displacement.ts';
 import { ghostPitch } from './ghost-spelling.ts';
-import { extraMinMs, ignoredNote } from './own-playback.ts';
+import { absorbedBy, extraMinMs, holdWrongAtConfirm, ignoredNote } from './own-playback.ts';
 
 /** Analysis hop, samples (01 §5.6). */
 const HOP_SAMPLES = 128;
@@ -99,6 +99,8 @@ export class LiveFollower implements LiveFollowerInstance {
   private readonly status: ExpStatus[];
   private firstPending = 0;
   private readonly det = new Map<number, DetState>();
+  /** The last matched note (for `absorbedBy`). */
+  private lastMatched: DetState | null = null;
   /** Detected notes that are not the player's (`own-playback.ts`): no events at all. */
   private readonly ignored = new Set<number>();
   /** Unmatched notes still sounding (for the extra ghost on the clock). */
@@ -276,7 +278,8 @@ export class LiveFollower implements LiveFollowerInstance {
     }
     const offset = this.offsetCents();
     const best = this.greedy(s, d, offset);
-    const st: DetState = { note: d, s, idx: null, displaced: false, deltaMs: 0, ghost: null, extraGhosted: false, extraMinMs: extraMinMs(this.c, d), live: 'none', last: null, sounding: true };
+    const absorbed = absorbedBy(this.c, d, this.lastMatched?.note ?? null);
+    const st: DetState = { note: d, s, idx: null, displaced: false, deltaMs: 0, ghost: null, extraGhosted: false, extraMinMs: extraMinMs(this.c, d, absorbed), live: 'none', last: null, sounding: true };
     this.det.set(d.id, st);
 
     if (this.delta !== null) {
@@ -337,10 +340,12 @@ export class LiveFollower implements LiveFollowerInstance {
     const e = this.exp(idx);
     const tol = this.tol(idx);
     st.idx = idx;
+    this.lastMatched = st;
     st.deltaMs = (st.s - e.onsetSec) * MS;
     this.setStatus(idx, 'active');
     out.push({ type: 'note-start', detectedId: st.note.id, scoreBeat: this.beats(st.s), provisionalConcertMidi: st.note.provisionalMidi, matchedExpected: idx, displaced: false });
-    const wrong = wrongPitchAtConfirm(c, st.note.framesAgree, this.c.cfg);
+    // Round 2 (`oneNote.wrongAtConfirm` false, voice): a scoop starts off pitch; the pitch waits for the steady part.
+    const wrong = !holdWrongAtConfirm(this.c) && wrongPitchAtConfirm(c, st.note.framesAgree, this.c.cfg);
     // Until the pitch is known, judge timing alone: a correct-pitch placeholder with no intonation grade.
     const facts = wrong ? c : { ...c, kind: 'correct' as const, p: 1 as const, octaveDisplaced: false, devCents: 0 };
     const v = noteVerdict({ deltaMs: st.deltaMs, pitch: facts, intonation: 'not-graded' }, tol);

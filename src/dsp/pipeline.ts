@@ -84,6 +84,7 @@ export class DspPipeline {
         changeCents: cfg.changeCents,
         onsetProfile: cfg.onsetProfile,
         attackExcludeMs: cfg.attackExcludeMs,
+        oneNote: cfg.oneNote ?? null,
       }),
       ...opts.segmenter,
     };

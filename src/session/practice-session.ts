@@ -704,6 +704,7 @@ export class PracticeSession implements PracticeSessionInstance {
         timbre: s.clickTimbre,
         calibration: stored,
         repeatHints: repeatHints(plan, take.t0, rtlSec),
+        level: plan.level,
       });
       const recheckOn = s.outputMode === 'speakers' && take.countIn.length > 0;
       const first = take.countIn[0];

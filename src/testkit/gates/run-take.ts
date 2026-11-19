@@ -20,7 +20,7 @@ import { buildClickTemplate } from '../../dsp/click.ts';
 import { withOwnPlayback } from '../../follow/index.ts';
 import { gradeWithPatterns } from '../../grade/index.ts';
 import { DspWorkerCore } from '../../platform/web/audio/dsp-worker-core.ts';
-import { resolveTolerances } from '../../rules/index.ts';
+import { resolveOneNote, resolveTolerances } from '../../rules/index.ts';
 import { scenarioConfigs, type ScenarioBase, type ScenarioRender } from '../scenarios/index.ts';
 import { applyConditions, type CaptureConditions, type SynthRender } from '../synth/index.ts';
 import type { SynthClickTimbre } from '../synth-min.ts';
@@ -112,6 +112,7 @@ export function gateDspConfig(r: ScenarioRender, tolerances: readonly ResolvedTo
     repeatHints,
     attackExcludeMs: cfg.grading.intonation.attackExcludeMsByFamily[base.inst.family],
     clickLeakDb: null,
+    oneNote: resolveOneNote(cfg, base.inst, base.level),
   };
 }
 
@@ -159,6 +160,7 @@ export function runTake(r: ScenarioRender, o: RunTakeOptions = {}): TakeRun {
     voiceReferenceCents: tuning?.offsetCents ?? 0,
     analysisRate,
     writtenKey: base.writtenKey,
+    oneNote: resolveOneNote(cfg, base.inst, base.level),
   }, r.clicks.map((k) => ({ t: k.t as ClockSeconds, durSec: GATE_CLICK_SOUND_SEC, hz: null })));
 
   const live: TimedEvent[] = [];

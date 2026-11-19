@@ -21,7 +21,7 @@ import type {
 } from '../core/types.ts';
 import type { ClickSpec } from '../core/platform.ts';
 import { buildExpectedNotes } from '../corpus/index.ts';
-import { resolveTolerances } from '../rules/index.ts';
+import { resolveOneNote, resolveTolerances } from '../rules/index.ts';
 import { midiToFreq, toMidi, tonicOf } from '../theory/index.ts';
 
 /** Everything the session needs to schedule, follow and grade one take of a prepared excerpt. */

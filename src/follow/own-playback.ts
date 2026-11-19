@@ -14,6 +14,7 @@ import type { DetectedNote, ExpectedNote, FollowConfig, OwnSound, ResolvedTolera
 import { scoreSecondsOf } from './cost.ts';
 
 const MS = 1000;
+const HALF_SEMITONE_CENTS = 50;
 
 /** The 12-tone pitch-class distance between two fractional MIDI values, cents. */
 function pcDistanceCents(a: number, b: number): number {
@@ -55,10 +56,35 @@ export function atClick(c: FollowConfig, d: DetectedNote): boolean {
   return o !== null && o.hz === null;
 }
 
-/** Shortest sounding time, ms, for an unmatched note to be drawn or counted as an extra. */
-export function extraMinMs(c: FollowConfig, d: DetectedNote): number {
-  const base = c.cfg.grading.credit.extraMinDurMs;
-  return atClick(c, d) ? Math.max(base, c.cfg.grading.detection.ownPlayback.clickMaxMs) : base;
+/**
+ * Shortest sounding time, ms, for an unmatched note to be drawn or counted as an extra: 02 §4.1's `extraMinDurMs`,
+ * the profile's `oneNote.extraMinMs` (voice: a breath, a consonant or a scoop fragment is not a note), longer at a
+ * click, and `oneNote.absorbMs` when `absorbed` (the note re-articulates the note before it at the same pitch class).
+ */
+export function extraMinMs(c: FollowConfig, d: DetectedNote, absorbed = false): number {
+  let ms = c.cfg.grading.credit.extraMinDurMs;
+  const one = c.oneNote ?? null;
+  if (one) ms = Math.max(ms, one.extraMinMs);
+  if (atClick(c, d)) ms = Math.max(ms, c.cfg.grading.detection.ownPlayback.clickMaxMs);
+  if (one && absorbed) ms = Math.max(ms, one.absorbMs);
+  return ms;
+}
+
+/**
+ * True when `d` starts within `oneNote.absorbGapMs` of the end of `prev` (or while it sounds) at the same pitch class
+ * (within half a semitone): a short note there is `prev` sung on, not a new note (round 2 detection).
+ */
+export function absorbedBy(c: FollowConfig, d: DetectedNote, prev: DetectedNote | null): boolean {
+  const one = c.oneNote ?? null;
+  if (!one || !prev) return false;
+  const end = prev.offset ?? Infinity;
+  if ((d.onset as number) - (end as number) > one.absorbGapMs / MS) return false;
+  return pcDistanceCents(d.provisionalMidi, prev.midi) <= HALF_SEMITONE_CENTS;
+}
+
+/** True when the take shows no wrong pitch at confirmation (`oneNote.wrongAtConfirm` false: a scoop is not a wrong note). */
+export function holdWrongAtConfirm(c: FollowConfig): boolean {
+  return c.oneNote?.wrongAtConfirm === false;
 }
 
 /** The detected notes the follower and the final alignment may use. */

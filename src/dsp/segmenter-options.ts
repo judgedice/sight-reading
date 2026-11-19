@@ -6,7 +6,7 @@
  * sensitivity; `struck` and `plucked` rely on flux and envelope (a dip that reaches the floor is evaluated as an
  * attack from silence); `tongued-wind` and `brass` use all cues.
  */
-import type { OnsetProfile } from '../core/types.ts';
+import type { OneNoteTolerance, OnsetProfile } from '../core/types.ts';
 
 /** Default hop of the 01 section 7.3 pitch frames at 16 kHz, seconds. */
 export const DEFAULT_HOP_SEC = 128 / 16000;
@@ -59,12 +59,23 @@ export interface SegmenterOptions {
    * flux, and flux refinement raised the onset e90 against it on clean scenarios (segmenter.ts header).
    */
   fluxTiming: boolean;
+  /**
+   * One sung note stays one note (round 2 detection, `DspConfig.oneNote`). Scoop: a pitch change within `scoopSec` of
+   * the onset re-pitches a note that glided towards the new pitch without a plateau (`plateauSec` within
+   * `plateauCents`). Release: frames `tailDropDb` below the note's loudest frame never start a pitch change. 0, 0, 0
+   * and Infinity turn these off (every profile without a `grading.detection.oneNote` row).
+   */
+  scoopSec: number;
+  plateauSec: number;
+  plateauCents: number;
+  tailDropDb: number;
 }
 
 export function segmenterOptions(
   hopSec: number,
-  p: { windowSec: number; clarityThreshold: number; changeCents: number; onsetProfile: OnsetProfile; attackExcludeMs: number },
+  p: { windowSec: number; clarityThreshold: number; changeCents: number; onsetProfile: OnsetProfile; attackExcludeMs: number; oneNote?: OneNoteTolerance | null },
 ): SegmenterOptions {
+  const one = p.oneNote ?? null;
   const frames = (sec: number): number => Math.max(1, Math.round(sec / hopSec));
   const soft = p.onsetProfile === 'voice' || p.onsetProfile === 'bowed';
   return {
@@ -85,5 +96,9 @@ export function segmenterOptions(
     // and bowed tones (vibrato, bow noise) get the lowest flux sensitivity.
     fluxRouteFactor: p.onsetProfile === 'struck' || p.onsetProfile === 'plucked' ? 2 : soft ? 6 : 3,
     fluxTiming: false,
+    scoopSec: one ? one.scoopMs / 1000 : 0,
+    plateauSec: one ? one.plateauMs / 1000 : 0,
+    plateauCents: one ? one.plateauCents : 0,
+    tailDropDb: one ? one.tailDropDb : Infinity,
   };
 }

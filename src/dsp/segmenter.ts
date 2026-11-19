@@ -131,6 +131,9 @@ interface Note {
    * otherwise): the same voice's vibrato, standing in for this note's own until it has a full look-back.
    */
   prevAm: number;
+  /** Loudest frame so far (rmsDb) over the first `peakN` frames (`notePeakDb`). */
+  peakDb: number;
+  peakN: number;
 }
 
 const ENV_FLOOR_DB = -120;
@@ -574,15 +577,27 @@ export class Segmenter {
       return;
     }
     const med = this.changeRef(cur, f.t);
+    if (Math.abs((f.midi as number) - med) >= this.tol && this.releaseTail(cur, f)) {
+      // Round 2 (`tailDropDb`): the note dying away at another pitch (a falling or wobbling end) is not a new note. The
+      // frame counts towards the offset and stays out of the note's pitch.
+      this.pitchCand = [];
+      this.silence += 1;
+      if (this.silence >= this.o.offsetFrames) {
+        this.finish(cur, this.estimateOffset(cur), out);
+        this.pending = null;
+      }
+      return;
+    }
     if (Math.abs((f.midi as number) - med) >= this.tol) {
       this.addStable(this.pitchCand, f);
       if (this.pitchCand.length >= this.o.changeConfirmFrames) {
         const cand = this.pitchCand;
         this.pitchCand = [];
         const newMed = median(cand.map((x) => x.midi as number));
-        if ((cand[0] as Fr).t < cur.onset + this.o.minNoteSec || this.settling(cur, cand, med, newMed)) {
+        if ((cand[0] as Fr).t < cur.onset + this.o.minNoteSec || this.settling(cur, cand, med, newMed) || this.scoop(cur, cand, newMed)) {
           // The pitch settled inside the note's first 60 ms (window overlap with the previous note after a dip
-          // split, or a scoop), or is still settling in a room: re-pitch this note instead of splitting it.
+          // split, or a scoop), is still settling in a room, or the note so far was a sung scoop into this pitch
+          // (round 2, `scoopSec`): re-pitch this note instead of splitting it.
           cur.frames = cand;
           cur.provisional = newMed;
           if (cur.cause === 'repeat' && Math.round(newMed) !== Math.round(cur.prevMidi)) cur.cause = 'pitch-change';
@@ -644,6 +659,59 @@ export class Segmenter {
     return held < SETTLE_PLATEAU_FRAMES;
   }
 
+  /**
+   * Round 2 scoop (`scoopSec`, `plateauSec`, `plateauCents`): an untrained singer slides into a note from up to 250 c
+   * below (sometimes above) over 60 to 200 ms. When a pitch change comes within `scoopSec` of the onset, and every frame
+   * of the note so far lies on one side of the new pitch (or within `plateauCents` of it) without holding a pitch of its
+   * own for `plateauSec`, the note was the scoop: it is re-pitched, not split. A real short note holds a plateau.
+   */
+  private scoop(cur: Note, cand: Fr[], next: number): boolean {
+    if (this.o.scoopSec <= 0 || (cand[0] as Fr).t >= cur.onset + this.o.scoopSec) return false;
+    const fs = cur.frames;
+    if (fs.length === 0) return true;
+    const near = this.o.plateauCents / 100;
+    const side = Math.sign(next - median(fs.map((x) => x.midi as number)));
+    for (const x of fs) {
+      const d = next - (x.midi as number);
+      if (Math.abs(d) > near && Math.sign(d) !== side) return false;
+    }
+    return !this.hasPlateau(fs, next);
+  }
+
+  /** A run of at least `plateauSec` whose frames all lie within `plateauCents` of the run's median, away from `next`. */
+  private hasPlateau(fs: readonly Fr[], next: number): boolean {
+    const k = Math.max(2, Math.round(this.o.plateauSec / this.o.hopSec));
+    const near = this.o.plateauCents / 100;
+    for (let a = 0; a + k <= fs.length; a++) {
+      const run = fs.slice(a, a + k).map((x) => x.midi as number);
+      const m = median(run);
+      if (Math.abs(m - next) < this.tol) continue;
+      if (run.every((v) => Math.abs(v - m) <= near)) return true;
+    }
+    return false;
+  }
+
+  /**
+   * Round 2 release (`tailDropDb`): a frame at another pitch, `tailDropDb` or more below the note's loudest frame, is
+   * the note's end dying away (a falling or wobbling release, a low-clarity tail). Off for profiles without a row.
+   */
+  private releaseTail(cur: Note, f: Fr): boolean {
+    if (!Number.isFinite(this.o.tailDropDb)) return false;
+    return f.rmsDb <= this.notePeakDb(cur) - this.o.tailDropDb;
+  }
+
+  /** The loudest frame of the note so far, dB (incremental; rescanned when the frames were replaced). */
+  private notePeakDb(cur: Note): number {
+    const fs = cur.frames;
+    if (fs.length < cur.peakN) {
+      cur.peakDb = -Infinity;
+      cur.peakN = 0;
+    }
+    for (let i = cur.peakN; i < fs.length; i++) if ((fs[i] as Fr).rmsDb > cur.peakDb) cur.peakDb = (fs[i] as Fr).rmsDb;
+    cur.peakN = fs.length;
+    return cur.peakDb;
+  }
+
   /** The note (split at a pitch change, median `med`) reads a pitch more than SETTLE_MIX_ST outside both neighbours. */
   private mixtureNote(cur: Note, med: number, next: number): boolean {
     const prev = cur.prevMidi;
@@ -684,6 +752,8 @@ export class Segmenter {
       prevMidi,
       amFrom: onset + this.o.attackExcludeSec,
       prevAm: 0,
+      peakDb: -Infinity,
+      peakN: 0,
     };
     this.cur = n;
     this.silence = 0;
