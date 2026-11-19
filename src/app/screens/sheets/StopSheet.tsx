@@ -33,22 +33,26 @@ const TITLE = {
 export function StopSheet({ open, variant, credit, onKeep, onStop, onRestart }: StopSheetProps) {
   const before = variant === 'ranked-before-note';
   return (
-    <Modal open={open} title={text(TITLE[variant])} onClose={onKeep} closeButton={false} className="sheet-card">
-      <div className="sheet-body" data-testid={`stop-${variant}`}>
-        {credit ? <p className="sheet-credit">{text('credit.that-was', { credit })}</p> : null}
+    <Modal
+      open={open}
+      title={text(TITLE[variant])}
+      onClose={onKeep}
+      closeButton={false}
+      size="confirm"
+      className="sheet-card"
+      footer={
         <div className="sheet-actions">
+          <Button label={text('action.stop')} icon="stop" onClick={onStop} />
           {before ? (
-            <>
-              <Button label={text('action.restart')} variant="primary" onClick={onRestart ?? onKeep} data-autofocus="" />
-              <Button label={text('action.stop')} onClick={onStop} />
-            </>
+            <Button label={text('action.restart')} variant="primary" onClick={onRestart ?? onKeep} data-autofocus="" />
           ) : (
-            <>
-              <Button label={text('action.keepPlaying')} variant="primary" onClick={onKeep} data-autofocus="" />
-              <Button label={text('action.stop')} onClick={onStop} />
-            </>
+            <Button label={text('action.keepPlaying')} variant="primary" onClick={onKeep} data-autofocus="" />
           )}
         </div>
+      }
+    >
+      <div className="sheet-body" data-testid={`stop-${variant}`}>
+        {credit ? <p className="sheet-credit">{text('credit.that-was', { credit })}</p> : null}
       </div>
     </Modal>
   );

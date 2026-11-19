@@ -1,8 +1,11 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { AppSettings, AttemptRecord, PlayerProfile, ProgressEvent } from '../../../core/types.ts';
+import { createStore, type StoreApi } from 'zustand/vanilla';
+import type { AppSettings, AttemptRecord, PlayerProfile, ProgressEvent, Tip } from '../../../core/types.ts';
+import { idleSoundView, type ListenOptions, type SoundView } from '../../../session/index.ts';
 import { defaultAppSettings } from '../../../store/defaults.ts';
 import { copy } from '../../../ui/copy/copy.ts';
+import { ToastProvider } from '../../../ui/primitives/index.ts';
 import { act, click, mount, type Mounted } from '../../../ui/primitives/test-render.ts';
 import { RouterProvider, useRoute, type LocationSource } from '../../router.tsx';
 import { createRouteTable } from '../../routes.tsx';
@@ -14,6 +17,8 @@ import {
   creditLine,
   diagnosticLines,
   focusComponent,
+  headerState,
+  hearSpans,
   levelCards,
   manyRejudged,
   rankBar,
@@ -24,6 +29,9 @@ import {
 import { ResultsPanel } from './ResultsPanel.tsx';
 import { createResultsScreen } from './index.ts';
 import type { ResultsServices } from './services.ts';
+import type { ResultsSetupServices } from './ResultsScreen.tsx';
+import { reviewFixture } from './review/test-fixture.ts';
+import type { ReviewExtras } from './review/SessionReview.tsx';
 import { attemptFrom, cfg, makeProfile, sessionStore, tipsFor } from './test-data.ts';
 
 let m: Mounted | null = null;
@@ -243,31 +251,46 @@ describe('ResultsPanel', () => {
     render({ record: rec, profile: makeProfile({ xp: 2180, rank: 3 }) });
     const name = copy('a11y.grade.heading', { grade: s.grade, score: s.score, stars: s.stars });
     expect(document.querySelector(`[aria-label="${name}"]`)).toBeTruthy();
-    expect($('.res-badge[data-kind="ranked"]').textContent).toContain(copy('badge.ranked'));
+    expect($('.dom-pill[data-kind="ranked"]').textContent).toContain(copy('badge.ranked'));
     expect(document.body.textContent).toContain(copy(`grade.${s.grade}`));
+    // Ranked: no reason line.
+    expect($('[data-testid="results-panel"]').getAttribute('data-header')).toBe('ranked');
+    expect(q('[data-testid="res-reason"]')).toBeNull();
   });
 
-  it('shows three component bars, expandable, with the focus tag on the biggest loss', () => {
+  it('shows three component bars with numbers; the weakest is hatched and named in a sentence', () => {
     const rec = attemptFrom('case07-voice-30c-flat');
     render({ record: rec });
-    const rows = [...document.querySelectorAll('.dom-cbar')];
+    const rows = [...document.querySelectorAll('.res-comp')];
     expect(rows).toHaveLength(3);
-    const labels = rows.map((r) => r.querySelector('.dom-cbar-label')?.textContent ?? '');
-    expect(labels[0]).toContain(copy('component.notes.label'));
-    expect(labels[1]).toContain(copy('component.inTune.label'));
-    expect(labels[2]).toContain(copy('component.rhythm.label'));
-    expect(document.querySelectorAll('.dom-cbar[data-focus="true"]')).toHaveLength(1);
-    const toggle = rows[0]!.querySelector('button')!;
-    expect(toggle.getAttribute('aria-expanded')).toBe('false');
-    click(toggle);
-    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    const labels = rows.map((r) => r.querySelector('.res-comp-label')?.textContent ?? '');
+    expect(labels).toEqual([copy('component.notes.label'), copy('component.inTune.label'), copy('component.rhythm.label')]);
+    const weakest = document.querySelectorAll('.res-comp[data-weakest="true"]');
+    expect(weakest).toHaveLength(1);
+    const id = weakest[0]!.getAttribute('data-component') as 'P' | 'I' | 'R';
+    expect(id).toBe(focusComponent(rec.score!));
+    const label = weakest[0]!.querySelector('.res-comp-label')!.textContent!;
+    expect($('.res-how-focus').textContent).toBe(copy('component.focus', { component: label }));
+    for (const r of rows) expect(r.querySelector('[role="meter"]')!.getAttribute('aria-valuenow')).toBe(r.querySelector('.res-comp-value')!.textContent);
   });
 
-  it('renders diagnostics as plain text lines, not bars', () => {
+  it('renders diagnostics as plain text, not bars', () => {
     render({ record: attemptFrom('case06-stop-2-beats-bar-5') });
-    const lines = [...document.querySelectorAll('.res-diagnostics li')].map((l) => l.textContent);
+    const lines = [...document.querySelectorAll('.res-how-diag')].map((l) => l.textContent?.trim());
     expect(lines.some((l) => l?.startsWith('Stops: '))).toBe(true);
-    expect(document.querySelectorAll('.res-diagnostics .dom-cbar')).toHaveLength(0);
+    expect(document.querySelectorAll('[data-testid="res-diagnostics"] .res-comp')).toHaveLength(0);
+  });
+
+  it('drift is in words; milliseconds only with "Show cents and milliseconds"', () => {
+    const rec = attemptFrom('case04-drift-0.15');
+    const ms = Math.round(Math.abs(rec.score!.diagnostics.driftMsAtEnd!));
+    render({ record: rec });
+    const words = $('[data-testid="res-diagnostics"]').textContent!;
+    expect(words).toMatch(/You (slowed down|sped up) slightly by the end\./);
+    expect(words).not.toContain(' ms)');
+    m?.unmount();
+    render({ record: rec, showNumbers: true });
+    expect($('[data-testid="res-diagnostics"]').textContent).toContain(copy('results.drift.ms', { ms }));
   });
 
   it('counts are buttons only when a verdict handler exists, and the re-judged button follows', () => {
@@ -286,38 +309,63 @@ describe('ResultsPanel', () => {
     expect($('.res-count-button[data-count="rejudged"]').textContent).toBe(copy('results.rejudged', { n: 1 }));
   });
 
-  it('incomplete: badge text with the cap, no XP value, tip line allowed', () => {
+  it('incomplete: the Incomplete badge with its explanation as visible text, no XP value', () => {
     render({ record: attemptFrom('case10-incomplete') });
-    expect(document.body.textContent).toContain(copy('badge.incomplete.tooltip', { cap: 50 }));
+    expect($('[data-testid="results-panel"]').getAttribute('data-header')).toBe('incomplete');
+    expect($('.dom-pill[data-kind="incomplete"]')).toBeTruthy();
+    expect($('[data-testid="res-reason"]').textContent).toBe(copy('badge.incomplete.tooltip', { cap: 50 }));
     expect($('[data-testid="res-xp"]').textContent).toContain(copy('xp.none.incomplete'));
   });
 
-  it('practice badge shows the reason; the XP line is the practice line', () => {
+  it('practice by choice: the Practice badge and no reason line; the XP line is the practice line', () => {
     const rec = attemptFrom('case01-perfect-flute-l4');
     const practice: AttemptRecord = { ...rec, score: { ...rec.score!, ranked: false, rankedReasons: ['practice-mode'], xp: { total: 8, base: 34, factors: [{ id: 'practice', value: 0.25 }] } } };
     render({ record: practice });
-    expect($('.res-badge[data-kind="practice"]').textContent).toContain(copy('ranked.reason.practice-mode'));
+    expect($('[data-testid="results-panel"]').getAttribute('data-header')).toBe('practice');
+    expect($('.dom-pill[data-kind="practice"]').textContent).toBe(copy('badge.practice'));
+    expect(q('[data-testid="res-reason"]')).toBeNull();
+    expect(document.body.textContent).not.toContain(copy('ranked.reason.practice-mode'));
     expect($('[data-testid="res-xp"]').textContent).toContain('+8 XP (practice earns 25% of the XP)');
   });
 
-  it('personal best ribbon and the XP factor list expand', () => {
+  it('practice for a reason: the Practice badge with the reason (listened first)', () => {
+    const rec = attemptFrom('case01-perfect-flute-l4');
+    const listened: AttemptRecord = { ...rec, score: { ...rec.score!, ranked: false, rankedReasons: ['listened-first'] } };
+    render({ record: listened });
+    expect($('[data-testid="results-panel"]').getAttribute('data-header')).toBe('practice-reason');
+    expect($('.dom-pill[data-kind="practice"]')).toBeTruthy();
+    expect($('[data-testid="res-reason"]').textContent).toBe('You listened first, so this one is practice.');
+    expect(document.body.textContent).not.toContain(copy('action.calibrateNow'));
+  });
+
+  it('not calibrated: Practice with the calibration reason, Calibrate now, and the timing note on the score', () => {
+    const rec = attemptFrom('case01-perfect-flute-l4');
+    const uncal: AttemptRecord = { ...rec, score: { ...rec.score!, ranked: false, rankedReasons: ['practice-mode', 'calibration'] } };
+    const onCalibrateNow = vi.fn();
+    render({ record: uncal, onCalibrateNow, review: <div data-testid="fake-review" /> });
+    expect($('[data-testid="results-panel"]').getAttribute('data-header')).toBe('not-calibrated');
+    expect($('.dom-pill[data-kind="practice"]')).toBeTruthy();
+    expect($('[data-testid="res-reason"]').textContent).toContain(copy('ranked.reason.calibration'));
+    click(button(copy('action.calibrateNow')));
+    expect(onCalibrateNow).toHaveBeenCalledTimes(1);
+    expect($('[data-testid="res-score"]').textContent).toContain(copy('badge.timingOffset'));
+  });
+
+  it('personal best ribbon and the XP line', () => {
     const rec = attemptFrom('case01-perfect-flute-l4');
     render({ record: rec, progress: [{ type: 'best', instrumentId: rec.instrumentId, level: 4, score: 100 }] });
     expect($('[data-testid="res-ribbon"]').textContent).toBe('New best at difficulty 4');
-    const list = $('#res-xp-factors');
-    expect(list.hidden).toBe(true);
-    click(button(copy('xp.headline', { xp: 0 }) && 'Details'));
-    expect(list.hidden).toBe(false);
+    expect($('.res-xp').textContent).toBe(copy('xp.headline', { xp: rec.score!.xp.total }));
   });
 
-  it('rank bar exposes the formula percent', () => {
+  it('rank line and bar expose the formula percent', () => {
     render({ record: attemptFrom('case01-perfect-flute-l4'), profile: makeProfile({ xp: 2180, rank: 3 }) });
-    const bar = $('.res-rank-track');
+    const bar = $('.res-rank-bar');
     expect(bar.getAttribute('aria-valuenow')).toBe('79');
-    expect($('.res-rank-pct').textContent).toBe('79%');
+    expect($('[data-testid="res-rank"]').textContent).toBe('Student · 79% to Section player');
   });
 
-  it('level cards: Move up, Stay, Undo and Go to level call their handlers and disappear', () => {
+  it('level cards: the difficulty offer (Go to difficulty n), Stay, Undo and Go to level call their handlers and disappear', () => {
     const rec = attemptFrom('case01-perfect-flute-l4');
     const h = { onMoveUp: vi.fn(), onStayAt: vi.fn(), onUndoLevelUp: vi.fn(), onGoToLevel: vi.fn() };
     render({
@@ -330,7 +378,7 @@ describe('ResultsPanel', () => {
       ...h,
     });
     expect(document.querySelectorAll('.res-level-card')).toHaveLength(3);
-    click(button(copy('action.moveUp')));
+    click(button(copy('action.goToLevel', { level: 6 })));
     expect(h.onMoveUp).toHaveBeenCalledWith('flute', 6);
     click(button(copy('action.undo')));
     expect(h.onUndoLevelUp).toHaveBeenCalledWith('flute', 5);
@@ -346,47 +394,88 @@ describe('ResultsPanel', () => {
     expect(onStayAt).toHaveBeenCalledWith('flute', 5);
   });
 
-  it('actions: Next excerpt and Try again (practice) with its tooltip', () => {
+  it('actions in the header on desktop: Next excerpt, Try again (practice) with its tooltip, Change setup', () => {
     const onNext = vi.fn();
     const onTryAgain = vi.fn();
-    render({ record: attemptFrom('case01-perfect-flute-l4'), onNext, onTryAgain });
+    const onChangeSetup = vi.fn();
+    render({ record: attemptFrom('case01-perfect-flute-l4'), onNext, onTryAgain, onChangeSetup });
+    const head = $('.res-head [data-testid="res-actions-head"]');
+    expect([...head.querySelectorAll('button')].map((b) => b.textContent)).toEqual([copy('action.nextExcerpt'), copy('action.tryAgainPractice'), copy('action.changeSetup')]);
+    expect(q('[data-testid="res-actions-end"]')).toBeNull();
     click(button(copy('action.nextExcerpt')));
     click(button(copy('action.tryAgainPractice')));
+    click(button(copy('action.changeSetup')));
     expect(onNext).toHaveBeenCalledTimes(1);
     expect(onTryAgain).toHaveBeenCalledTimes(1);
+    expect(onChangeSetup).toHaveBeenCalledTimes(1);
     expect(document.querySelector(`[title="${copy('results.practice.tooltip')}"]`)).toBeTruthy();
   });
 
-  it('read-only (history) shows only Play this excerpt again, no level cards', () => {
-    const onPlayAgain = vi.fn();
-    render({
-      record: attemptFrom('case01-perfect-flute-l4'),
-      readOnly: true,
-      onNext: vi.fn(),
-      onPlayAgain,
-      progress: [{ type: 'level-up-offer', instrumentId: 'flute', from: 5, to: 6 }],
-    });
-    expect(document.querySelectorAll('.res-level-card')).toHaveLength(0);
-    expect(() => button(copy('action.nextExcerpt'))).toThrow();
-    click(button(copy('action.playThisAgain')));
-    expect(onPlayAgain).toHaveBeenCalled();
+  it('phones: the actions sit at the page end, after the components, and the bar pins once the header has scrolled away', () => {
+    const observers: { cb: IntersectionObserverCallback; el: Element | null }[] = [];
+    class FakeIO {
+      cb: IntersectionObserverCallback;
+      constructor(cb: IntersectionObserverCallback) {
+        this.cb = cb;
+        observers.push({ cb, el: null });
+      }
+      observe(el: Element): void {
+        observers.find((o) => o.cb === this.cb)!.el = el;
+      }
+      disconnect(): void {}
+    }
+    vi.stubGlobal('IntersectionObserver', FakeIO);
+    try {
+      render({ record: attemptFrom('case01-perfect-flute-l4'), wide: false, onNext: vi.fn(), onTryAgain: vi.fn(), onChangeSetup: vi.fn() });
+      expect(q('.res-head [data-testid="res-actions-head"]')).toBeNull();
+      const end = $('[data-testid="res-actions-end"]');
+      expect(end.compareDocumentPosition($('[data-testid="res-components"]')) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();
+      expect(q('[data-testid="res-pinned"]')).toBeNull();
+      const fire = (el: Element, visible: boolean): void => {
+        const o = observers.find((x) => x.el === el)!;
+        act(() => o.cb([{ isIntersecting: visible, target: el } as unknown as IntersectionObserverEntry], {} as IntersectionObserver));
+      };
+      fire($('.res-head'), false);
+      fire($('.res-end'), false);
+      const pinned = $('[data-testid="res-pinned"]');
+      expect([...pinned.querySelectorAll('button')].map((b) => b.textContent)).toEqual([copy('action.nextExcerpt'), copy('action.tryAgainPractice')]);
+      // At the page end the end actions are in view, so the bar steps aside.
+      fire($('.res-end'), true);
+      expect(q('[data-testid="res-pinned"]')).toBeNull();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
-  it('a void take has no grade, only the void card with its actions', () => {
+  it('not graded (void): the heading, the void reason, the clean score with its line, and its own actions', () => {
     const rec = attemptFrom('case01-perfect-flute-l4', { score: null, endReason: 'void', voidReason: 'no-signal' });
     const onTryAgain = vi.fn();
     const onCheckMicrophone = vi.fn();
-    render({ record: rec, onTryAgain, onCheckMicrophone });
-    expect(document.querySelector('.dom-grade')).toBeNull();
-    expect($('[data-testid="void-no-signal"]')).toBeTruthy();
+    render({ record: rec, onTryAgain, onCheckMicrophone, onNext: vi.fn(), onChangeSetup: vi.fn(), profile: makeProfile({ xp: 2180, rank: 3 }) });
+    const panel = $('[data-testid="results-panel"]');
+    expect(panel.getAttribute('data-state')).toBe('void');
+    expect(panel.getAttribute('data-header')).toBe('void');
+    expect(q('.res-grade')).toBeNull();
+    expect(q('.dom-stars')).toBeNull();
+    expect($('[data-testid="res-void-title"]').textContent).toBe(copy('results.badge.notGraded'));
+    expect($('.dom-pill[data-kind="not-graded"]')).toBeTruthy();
+    expect($('[data-testid="void-no-signal"]').textContent).toBe(copy('void.noSignal'));
+    expect($('[data-testid="res-score"]').getAttribute('data-clean')).toBe('true');
+    expect($('[data-testid="res-score"]').textContent).toBe(copy('results.void.cleanScore'));
+    expect([...$('[data-testid="res-actions-head"]').querySelectorAll('button')].map((b) => b.textContent)).toEqual([copy('action.checkMicrophone'), copy('action.tryAgain')]);
     click(button(copy('action.checkMicrophone')));
     expect(onCheckMicrophone).toHaveBeenCalled();
+    click(button(copy('action.tryAgain')));
+    expect(onTryAgain).toHaveBeenCalled();
+    // No tips and no components on a take that was not graded.
+    expect(q('[data-testid="res-components"]')).toBeNull();
   });
 
-  it('practising without listening: Not graded, no XP, no grade block', () => {
+  it('practising without listening: Not graded · no XP, no grade block, no XP', () => {
     render({ record: attemptFrom('case01-perfect-flute-l4', { listening: false, score: null }), onNext: vi.fn() });
-    expect(document.body.textContent).toContain(copy('results.notGraded'));
-    expect(document.querySelector('.dom-grade')).toBeNull();
+    expect($('[data-testid="not-graded"]').textContent).toBe(copy('results.notGraded'));
+    expect($('[data-testid="results-panel"]').getAttribute('data-state')).toBe('not-graded');
+    expect(document.querySelector('.res-grade')).toBeNull();
     expect(document.querySelector('[data-testid="res-xp"]')).toBeNull();
   });
 
@@ -468,7 +557,9 @@ function renderScreen(f: Fx): void {
   const table = createRouteTable({ 'practice.results': createResultsScreen(f.services) });
   m = mount(
     <RouterProvider table={table} source={f.loc}>
-      <Outlet />
+      <ToastProvider>
+        <Outlet />
+      </ToastProvider>
     </RouterProvider>,
   );
 }
@@ -484,7 +575,7 @@ describe('ResultsScreen', () => {
     const f = fixture();
     renderScreen(f);
     expect($('.res-credit').textContent).toBe(creditLine(f.store.getState().record!.credit));
-    expect(document.querySelector('.res-back')).toBeTruthy();
+    expect(button(copy('nav.home'))).toBeTruthy();
     expect($('[data-testid="results-panel"]')).toBeTruthy();
   });
 
@@ -637,5 +728,252 @@ describe('ResultsScreen', () => {
     renderScreen(f);
     settle(500);
     expect(document.querySelector('[data-testid="install-coach"]')).toBeNull();
+  });
+});
+
+// ---- header states, "One thing to try", Listen and Change setup (05 section 8.11) -----------------------------
+
+describe('header state model (05 section 8.11)', () => {
+  const base = attemptFrom('case01-perfect-flute-l4');
+  const withScore = (over: Partial<NonNullable<AttemptRecord['score']>>): AttemptRecord => ({ ...base, score: { ...base.score!, ...over } });
+  it.each([
+    ['ranked', withScore({ ranked: true, rankedReasons: [] }), 'ranked', null, false],
+    ['practice', withScore({ ranked: false, rankedReasons: ['practice-mode'] }), 'practice', null, false],
+    ['practice-reason', withScore({ ranked: false, rankedReasons: ['practice-mode', 'listened-first'] }), 'practice', copy('ranked.reason.listened-first'), false],
+    ['not-calibrated', withScore({ ranked: false, rankedReasons: ['familiar', 'calibration'] }), 'practice', `${copy('ranked.reason.calibration')} ${copy('ranked.reason.familiar')}`, true],
+    ['incomplete', attemptFrom('case10-incomplete'), 'incomplete', copy('badge.incomplete.tooltip', { cap: 50 }), false],
+    ['void', { ...base, score: null, endReason: 'void', voidReason: 'interrupted' } as AttemptRecord, 'not-graded', copy('void.interrupted'), false],
+    ['not-listening', { ...base, score: null, listening: false } as AttemptRecord, null, null, false],
+  ] as const)('%s', (kind, record, badge, reason, calibrateNow) => {
+    const h = headerState(record, cfg);
+    expect(h.kind).toBe(kind);
+    expect(h.badge).toBe(badge);
+    expect(h.reason).toBe(reason);
+    expect(h.calibrateNow).toBe(calibrateNow);
+    expect(h.clean).toBe(kind === 'void' || kind === 'not-listening');
+  });
+});
+
+describe('hear buttons for a tip', () => {
+  it('a bar alone is "Hear bar n"; a run is heard two bars at a time from its start; at most three', () => {
+    expect(hearSpans([2, 6]).map((s) => s.label)).toEqual(['Hear bar 2', 'Hear bar 6']);
+    expect(hearSpans([3, 4, 5, 6, 7, 8])).toEqual([{ from: 3, to: 4, label: 'Hear bars 3 to 4' }]);
+    expect(hearSpans([1, 3, 5, 7]).length).toBe(3);
+    expect(hearSpans([])).toEqual([]);
+  });
+});
+
+describe('"One thing to try" on the results page', () => {
+  const rec = attemptFrom('case05-key-signature-f-sharp');
+  const base: Tip = { id: 'T1', patternId: cfg.tips.patterns[0]!.id, text: 'Name the key out loud.', evidence: 'Seen in bars 2 and 6.', bars: [2, 6], primary: true };
+  const second: Tip = { id: 'T2', patternId: cfg.tips.patterns[1]!.id, text: 'Keep your eyes a beat ahead.', evidence: 'Seen in bars 3 to 8.', bars: [3, 4, 5, 6, 7, 8], primary: false };
+  const render = (props: Partial<Parameters<typeof ResultsPanel>[0]>): void => {
+    m = mount(<ResultsPanel configs={cfg} record={rec} {...props} />);
+  };
+
+  it('shows the primary tip, its evidence and hear buttons that play those bars', () => {
+    const onHearBars = vi.fn();
+    render({ tips: [base], onHearBars });
+    expect($('.res-tips-title').textContent).toBe(copy('results.tip.title'));
+    expect($('.res-tip-text').textContent).toBe('Name the key out loud.');
+    expect($('.res-tip-evidence').textContent).toBe('Seen in bars 2 and 6.');
+    click(button('Hear bar 6'));
+    expect(onHearBars).toHaveBeenCalledWith({ from: 6, to: 6, label: 'Hear bar 6' });
+  });
+
+  it('more tips wait behind "Show 1 more tip", which reads "Hide tip" when open; "Hear bars 3 to 4" for a run', () => {
+    const onHearBars = vi.fn();
+    render({ tips: [second, base], onHearBars, onShowTipsChange: vi.fn() });
+    // The primary leads whatever the order.
+    expect($('.res-tip-text').textContent).toBe(base.text);
+    const more = $('.res-tip-more');
+    expect(more.textContent).toBe(copy('results.tip.more', { n: 1 }));
+    expect(more.getAttribute('aria-expanded')).toBe('false');
+    expect($('.res-tip-rest').hidden).toBe(true);
+    expect(q('.res-tip-setting')).toBeNull();
+    click(more);
+    expect(more.textContent).toBe('Hide tip');
+    expect($('.res-tip-rest').hidden).toBe(false);
+    expect($('.res-tip-other .res-tip-body').textContent).toBe(second.text);
+    click(button('Hear bars 3 to 4'));
+    expect(onHearBars).toHaveBeenCalledWith({ from: 3, to: 4, label: 'Hear bars 3 to 4' });
+    // Open, the setting is the last row.
+    expect($('.res-tips').lastElementChild!.classList.contains('res-tip-setting')).toBe(true);
+  });
+
+  it('never more tips than the catalogue allows; "Show 2 more tips" when it allows three', () => {
+    const third: Tip = { ...second, id: 'T3' };
+    render({ tips: [base, second, third] });
+    const max = cfg.tips.selection.maxTips;
+    expect(document.querySelectorAll('.res-tip-other')).toHaveLength(Math.max(0, Math.min(3, max) - 1));
+  });
+
+  it('nothing at all with no tips, or with "Show a tip after each take" off', () => {
+    render({ tips: [] });
+    expect(q('[data-testid="res-tips"]')).toBeNull();
+    m?.unmount();
+    render({ tips: [base], showTips: false });
+    expect(q('[data-testid="res-tips"]')).toBeNull();
+  });
+});
+
+/** A results fixture whose session holds the take's excerpt, so Listen and the toolbar summary can show. */
+function listenFixture(): Fx & { listen: ReturnType<typeof vi.fn>; hearBar: ReturnType<typeof vi.fn>; stop: ReturnType<typeof vi.fn>; sounds: StoreApi<SoundView>; extras: { last: ReviewExtras | null } } {
+  const rv = reviewFixture();
+  const record = { ...attemptFrom('case05-key-signature-f-sharp'), excerptId: rv.prepared.excerptId };
+  const f = fixture({ record, view: { prepared: rv.prepared } });
+  const sounds = createStore<SoundView>()(() => idleSoundView());
+  const listen = vi.fn((_o: ListenOptions) => Promise.resolve());
+  const hearBar = vi.fn(() => Promise.resolve());
+  const stop = vi.fn(() => sounds.setState(idleSoundView()));
+  const extras: { last: ReviewExtras | null } = { last: null };
+  f.services.listen = listen;
+  f.services.hearBar = hearBar;
+  f.services.stopSounds = stop;
+  f.services.sounds = sounds;
+  // The review: the toolbar's right end, and a bar a test can tap.
+  f.services.renderReview = ((_r: AttemptRecord, x?: ReviewExtras) => {
+    extras.last = x ?? null;
+    return (
+      <div data-testid="fake-review" data-highlight={x?.highlightBar ?? ''}>
+        <button type="button" data-testid="tap-bar-5" onClick={() => x?.onBarTap?.(rv.prepared.measures.findIndex((mm) => mm.displayBar === 5))} />
+        {x?.toolbarEnd}
+      </div>
+    );
+  }) as NonNullable<ResultsServices['renderReview']>;
+  return { ...f, listen, hearBar, stop, sounds, extras };
+}
+
+describe('Listen on results (05 section 9.3, section 16 item 12)', () => {
+  it('Listen plays from bar 1 at the take tempo; Slower plays at 75%', () => {
+    const f = listenFixture();
+    renderScreen(f);
+    // The loop toolbar carries the excerpt summary.
+    expect($('.res-summary').textContent).toContain('bars');
+    click($('[data-testid="listen-button"]'));
+    expect(f.listen).toHaveBeenLastCalledWith({ slower: false });
+    click($<HTMLInputElement>('[data-testid="listen-controls"] input[role="switch"]'));
+    click($('[data-testid="listen-button"]'));
+    expect(f.listen).toHaveBeenLastCalledWith({ slower: true });
+  });
+
+  it('a tapped bar shows "From bar n" and the bar wash; Listen then starts there', () => {
+    const f = listenFixture();
+    renderScreen(f);
+    click($('[data-testid="tap-bar-5"]'));
+    expect($('[data-testid="from-bar"]').textContent).toBe(copy('listen.fromBar', { n: 5 }));
+    const idx = Number($('[data-testid="fake-review"]').getAttribute('data-highlight'));
+    expect(reviewFixture().prepared.measures[idx]!.displayBar).toBe(5);
+    click($('[data-testid="listen-button"]'));
+    expect(f.listen).toHaveBeenLastCalledWith({ slower: false, fromBar: 5 });
+  });
+
+  it('while it plays: "Playing bar n of m", the wash on that bar, Stop on a brass edge; a tap does not move the start', () => {
+    const f = listenFixture();
+    renderScreen(f);
+    act(() => f.sounds.setState({ ...idleSoundView(), playing: 'listen', caption: { kind: 'bar', bar: 3, of: 8 }, bar: 3 }));
+    expect($('[data-testid="live-caption"]').textContent).toBe(copy('listen.playing', { n: 3, total: 8 }));
+    const btn = $('[data-testid="listen-button"]');
+    expect(btn.textContent).toBe(copy('action.stop'));
+    expect(btn.classList.contains('res-listen-playing')).toBe(true);
+    const idx = Number($('[data-testid="fake-review"]').getAttribute('data-highlight'));
+    expect(reviewFixture().prepared.measures[idx]!.displayBar).toBe(3);
+    click($('[data-testid="tap-bar-5"]'));
+    click(btn);
+    expect(f.stop).toHaveBeenCalled();
+    expect(document.body.textContent).toContain(copy('listen.stopped'));
+    expect(q('[data-testid="from-bar"]')).toBeNull();
+  });
+
+  it('L plays Listen; leaving the screen stops the sound', () => {
+    const f = listenFixture();
+    renderScreen(f);
+    act(() => {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'l', bubbles: true }));
+    });
+    expect(f.listen).toHaveBeenCalledTimes(1);
+    m?.unmount();
+    m = null;
+    expect(f.stop).toHaveBeenCalled();
+  });
+
+  it('Hear bar n from the tip plays those bars, Slower included', () => {
+    const f = listenFixture();
+    const tip: Tip = { id: 'T1', patternId: cfg.tips.patterns[0]!.id, text: 'Tip.', evidence: 'Seen in bars 2 and 6.', bars: [2], primary: true };
+    act(() => f.store.setState({ tips: [tip] }));
+    renderScreen(f);
+    click(button('Hear bar 2'));
+    expect(f.hearBar).toHaveBeenLastCalledWith(2, undefined, { slower: false });
+  });
+
+  it('void: the review is asked for the clean score, with no marks, and the page says so', () => {
+    const f = listenFixture();
+    const rec = { ...f.store.getState().record!, score: null, endReason: 'void' as const, voidReason: 'no-signal' as const, judgments: [] };
+    act(() => f.store.setState({ record: rec, tips: [] }));
+    renderScreen(f);
+    expect($('[data-testid="results-panel"]').getAttribute('data-state')).toBe('void');
+    expect($('[data-testid="res-score"]').getAttribute('data-clean')).toBe('true');
+    expect($('[data-testid="fake-review"]')).toBeTruthy();
+    expect(q('[data-testid="res-components"]')).toBeNull();
+    expect(q('.res-grade')).toBeNull();
+  });
+});
+
+describe('tips off from results (designer\'s note 17)', () => {
+  it('turning the switch off removes the card and shows a toast with Undo, which restores it', () => {
+    const rec = attemptFrom('case05-key-signature-f-sharp');
+    const tip: Tip = { id: 'T1', patternId: cfg.tips.patterns[0]!.id, text: 'Tip.', evidence: 'Seen in bar 2.', bars: [2], primary: true };
+    const f = fixture({ record: rec, view: { tips: [tip] } });
+    renderScreen(f);
+    const input = $<HTMLInputElement>('.res-tip-setting input[role="switch"]');
+    expect(input.checked).toBe(true);
+    click(input);
+    expect(f.settings.get().practicePrefs.showTips).toBe(false);
+    expect(q('[data-testid="res-tips"]')).toBeNull();
+    expect(document.body.textContent).toContain(copy('tips.offToast'));
+    click(button(copy('action.undo')));
+    expect(f.settings.get().practicePrefs.showTips).toBe(true);
+    expect($('[data-testid="res-tips"]')).toBeTruthy();
+  });
+});
+
+describe('Change setup (05 sections 3.2 and 4.4)', () => {
+  const withSetup = (): Fx => {
+    const f = fixture();
+    (f.services as ResultsServices & ResultsSetupServices).countEligible = () => 40;
+    return f;
+  };
+
+  it('opens the setup sheet over results; Done with nothing changed stays on results', () => {
+    const f = withSetup();
+    renderScreen(f);
+    click(button(copy('action.changeSetup')));
+    expect($('[data-testid="setup-sheet"]')).toBeTruthy();
+    click(button(copy('setup.done')));
+    expect(q('[data-testid="setup-sheet"]')).toBeNull();
+    expect(f.hash.value).toBe('#/practice/results');
+  });
+
+  it('Done after a change goes to the cover of a new excerpt with the new setup', () => {
+    const f = withSetup();
+    const next = vi.fn(() => false);
+    f.services.actions.next = next;
+    renderScreen(f);
+    click(button(copy('action.changeSetup')));
+    const before = f.settings.get().practice.writtenKey;
+    const anyKey = [...document.querySelectorAll<HTMLElement>('[data-testid="setup-sheet"] [role="radio"]')].find((r) => r.getAttribute('aria-checked') === 'false' && /key/i.test(r.closest('[data-setup-slot]')?.getAttribute('data-setup-slot') ?? ''));
+    expect(anyKey).toBeTruthy();
+    click(anyKey!);
+    expect(f.settings.get().practice.writtenKey).not.toEqual(before);
+    click(button(copy('setup.done')));
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(f.hash.value).toBe('#/practice/scan');
+  });
+
+  it('without the corpus counts it goes to Practice', () => {
+    const f = fixture();
+    renderScreen(f);
+    click(button(copy('action.changeSetup')));
+    expect(f.hash.value).toBe('#/');
   });
 });

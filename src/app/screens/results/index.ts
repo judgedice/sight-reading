@@ -4,7 +4,9 @@ import type { ScreenComponent } from '../../route-types.ts';
 import { ResultsScreen, ResultsServicesProvider } from './ResultsScreen.tsx';
 import type { ResultsServices } from './services.ts';
 
-export { ResultsScreen, ResultsServicesProvider } from './ResultsScreen.tsx';
+export { ResultsScreen, ResultsServicesProvider, RESULTS_WIDE_QUERY, type ResultsSetupServices } from './ResultsScreen.tsx';
+export { TipsSection, type TipsSectionProps } from './TipsSection.tsx';
+export { ResultsListen, resultsListenCaption, type ResultsListenProps } from './ResultsListen.tsx';
 export { ResultsPanel, cardId, type ResultsHandlers, type ResultsPanelProps } from './ResultsPanel.tsx';
 export * from './model.ts';
 export type { ResultsActions, ResultsServices, RankUpMemory } from './services.ts';

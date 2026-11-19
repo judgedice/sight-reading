@@ -15,7 +15,19 @@ export interface SessionSummaryProps {
 
 export function SessionSummary({ open, data, onKeepGoing, onFinish }: SessionSummaryProps) {
   return (
-    <Modal open={open} title={text('summary.title')} onClose={onKeepGoing} closeButton={false} className="sheet-card">
+    <Modal
+      open={open}
+      title={text('summary.title')}
+      onClose={onKeepGoing}
+      closeButton={false}
+      className="sheet-card sheet-summary"
+      footer={
+        <div className="sheet-actions">
+          <Button label={text('action.finish')} onClick={onFinish} />
+          <Button label={text('action.keepGoing')} variant="primary" icon="arrow-right" onClick={onKeepGoing} data-autofocus="" />
+        </div>
+      }
+    >
       <div className="sheet-body" data-testid="session-summary">
         {data.takes === 0 ? (
           <p className="sheet-note">{text('summary.empty')}</p>
@@ -56,10 +68,6 @@ export function SessionSummary({ open, data, onKeepGoing, onFinish }: SessionSum
             ) : null}
           </>
         )}
-        <div className="sheet-actions">
-          <Button label={text('action.keepGoing')} variant="primary" onClick={onKeepGoing} data-autofocus="" />
-          <Button label={text('action.finish')} onClick={onFinish} />
-        </div>
       </div>
     </Modal>
   );

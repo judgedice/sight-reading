@@ -24,11 +24,13 @@ export interface RankUpCardProps {
 
 export function RankUpCard({ open, configs, rank, name, onContinue }: RankUpCardProps) {
   return (
-    <Modal open={open} title={text('rankup.headline', { rank: name })} onClose={onContinue} closeButton={false} className="sheet-card sheet-rankup">
+    <Modal open={open} title={text('rankup.headline', { rank: name })} onClose={onContinue} closeButton={false} size="confirm" className="sheet-card sheet-rankup">
       <div className="sheet-body sheet-center" data-testid="rankup-card">
-        <RankEmblem rank={rank} state="current" size={96} />
+        <span className="sheet-emblem">
+          <RankEmblem rank={rank} state="current" size={96} />
+        </span>
         <p className="sheet-note">{nextRankRequirement(configs, rank)}</p>
-        <div className="sheet-actions">
+        <div className="sheet-actions sheet-actions-wide">
           <Button label={text('action.continue')} variant="primary" onClick={onContinue} data-autofocus="" />
         </div>
       </div>

@@ -16,13 +16,22 @@ export interface SkipSheetProps {
 
 export function SkipSheet({ open, limitExceeded, perRanked, onSkip, onKeepReading }: SkipSheetProps) {
   return (
-    <Modal open={open} title={text('dialog.skip.title')} onClose={onKeepReading} closeButton={false} className="sheet-card">
+    <Modal
+      open={open}
+      title={text('dialog.skip.title')}
+      onClose={onKeepReading}
+      closeButton={false}
+      size="confirm"
+      className="sheet-card"
+      footer={
+        <div className="sheet-actions">
+          <Button label={text('action.skip')} icon="skip" onClick={onSkip} />
+          <Button label={text('action.keepReading')} variant="primary" onClick={onKeepReading} data-autofocus="" />
+        </div>
+      }
+    >
       <div className="sheet-body" data-testid="skip-sheet">
         {limitExceeded ? <p className="sheet-note">{text('dialog.skip.practiceNotice', { n: perRanked })}</p> : null}
-        <div className="sheet-actions">
-          <Button label={text('action.keepReading')} variant="primary" onClick={onKeepReading} data-autofocus="" />
-          <Button label={text('action.skip')} onClick={onSkip} />
-        </div>
       </div>
     </Modal>
   );

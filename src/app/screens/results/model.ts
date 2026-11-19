@@ -153,15 +153,24 @@ export function componentRows(record: AttemptRecord, instrument: Instrument | un
 
 // ---- diagnostics and counts (5.5.3) ---------------------------------------------------------
 
+/**
+ * Drift in words (05 section 8.11): "You slowed down slightly by the end", with "(24 ms)" only when the player shows
+ * cents and milliseconds in review. Null when there is no drift to name.
+ */
+export function driftLine(s: AttemptScore, showMs = false): string | null {
+  const drift = s.diagnostics.driftMsAtEnd;
+  if (drift === null || Math.abs(drift) < 1) return null;
+  const words = text(drift > 0 ? 'results.drift.behind' : 'results.drift.ahead');
+  return showMs ? `${words} ${text('results.drift.ms', { ms: Math.round(Math.abs(drift)) })}` : words;
+}
+
 /** Plain text lines: stops, drift, restarts. Omitted when empty (02 section 4.6). */
-export function diagnosticLines(s: AttemptScore): string[] {
+export function diagnosticLines(s: AttemptScore, showMs = false): string[] {
   const d = s.diagnostics;
   const out: string[] = [];
   for (const st of d.stops) out.push(text('results.stops', { n: d.stops.length, bar: st.bar, beats: Math.round(st.beats) }));
-  if (d.driftMsAtEnd !== null && Math.abs(d.driftMsAtEnd) >= 1) {
-    const ms = Math.round(Math.abs(d.driftMsAtEnd));
-    out.push(text(d.driftMsAtEnd > 0 ? 'results.drift.behind' : 'results.drift.ahead', { ms }));
-  }
+  const drift = driftLine(s, showMs);
+  if (drift) out.push(drift);
   for (const r of d.restarts) out.push(text('results.restart', { bar: r.bar, n: r.notesReplayed }));
   return out;
 }
@@ -307,6 +316,7 @@ export function levelCards(events: readonly ProgressEvent[], instrumentId: strin
   const out: LevelCard[] = [];
   const auto = cfg.progression.levelWindow.auto;
   for (const e of events) {
+    // The difficulty offer (05 section 4.4): "Go to difficulty 3" or "Stay at difficulty 2".
     if (e.type === 'level-up-offer' && e.instrumentId === instrumentId) out.push({ kind: 'offer', instrumentId, from: e.from, to: e.to, text: text('level.offer', { level: e.from, next: e.to }) });
     else if (e.type === 'level-up-auto' && e.instrumentId === instrumentId) out.push({ kind: 'auto', instrumentId, from: e.from, to: e.to, text: text('level.autoUp', { level: e.to, n: auto.consecutive, score: auto.score }) });
     else if (e.type === 'level-down-suggestion' && e.instrumentId === instrumentId) {
@@ -348,4 +358,108 @@ export function tipPreview(cfg: Configs, tips: readonly Tip[]): { line: string; 
   const t = tips.find((x) => x.primary) ?? tips[0];
   if (!t) return null;
   return { line: text('results.tipPreview', { headline: tipHeadline(cfg, t) }), evidence: t.evidence };
+}
+
+// ---- header state (05 section 8.11) ----------------------------------------------------------
+
+/**
+ * The results header's state: which badge, which reason line, and what the score area shows.
+ * - `ranked`: Ranked badge, no reason.
+ * - `practice`: Practice by choice, no reason (the badge says it).
+ * - `practice-reason`: Practice with the reason from `ranked.reason.*` (for example "You listened first").
+ * - `not-calibrated`: Practice with `ranked.reason.calibration` and "Calibrate now".
+ * - `void`: "Not graded" heading, the void reason, the clean score with its line, its own actions.
+ * - `not-listening`: practised without listening: "Not graded · no XP", the clean score.
+ * - `incomplete`: Incomplete badge with its explanation as visible text.
+ */
+export type HeaderStateKind = 'ranked' | 'practice' | 'practice-reason' | 'not-calibrated' | 'void' | 'not-listening' | 'incomplete';
+
+export interface HeaderState {
+  kind: HeaderStateKind;
+  badge: 'ranked' | 'practice' | 'not-graded' | 'incomplete' | null;
+  /** The visible reason line, or null. */
+  reason: string | null;
+  /** Show "Calibrate now" next to the reason. */
+  calibrateNow: boolean;
+  /** The score area shows the clean score, no marks. */
+  clean: boolean;
+}
+
+export function headerState(record: AttemptRecord, cfg: Configs): HeaderState {
+  const s = record.score;
+  if (record.endReason === 'void') {
+    return { kind: 'void', badge: 'not-graded', reason: record.voidReason ? text(voidKey(record.voidReason)) : null, calibrateNow: false, clean: true };
+  }
+  if (!record.listening || !s) return { kind: 'not-listening', badge: null, reason: null, calibrateNow: false, clean: true };
+  if (s.status === 'incomplete') {
+    return { kind: 'incomplete', badge: 'incomplete', reason: text('badge.incomplete.tooltip', { cap: cfg.grading.gates.incompleteScoreCap }), calibrateNow: false, clean: false };
+  }
+  if (s.ranked) return { kind: 'ranked', badge: 'ranked', reason: null, calibrateNow: false, clean: false };
+  const reasons = s.rankedReasons.filter((r) => r !== 'practice-mode');
+  if (reasons.length === 0) return { kind: 'practice', badge: 'practice', reason: null, calibrateNow: false, clean: false };
+  const calibration = reasons.includes('calibration');
+  // The calibration reason leads, since it carries the one fix on this screen.
+  const ordered = calibration ? ['calibration' as const, ...reasons.filter((r) => r !== 'calibration')] : reasons;
+  return {
+    kind: calibration ? 'not-calibrated' : 'practice-reason',
+    badge: 'practice',
+    reason: ordered.map(reasonText).join(' '),
+    calibrateNow: calibration,
+    clean: false,
+  };
+}
+
+function voidKey(reason: NonNullable<AttemptRecord['voidReason']>): TextKey {
+  switch (reason) {
+    case 'interrupted':
+      return 'void.interrupted';
+    case 'no-signal':
+      return 'void.noSignal';
+    case 'device-change':
+      return 'void.deviceChange';
+    case 'backlog':
+      return 'void.backlog';
+    case 'capture-gap':
+      return 'void.captureGap';
+    case 'stopped-before-first-note':
+      return 'void.stopped';
+  }
+}
+
+/** The rank line beside the XP: "Student · 81% to Section player", or "Rank 10 of 10" at the top. */
+export function rankLine(cfg: Configs, profile: Pick<PlayerProfile, 'xp' | 'rank'>): { text: string; fraction: number } {
+  const bar = rankBar(cfg, profile);
+  if (!bar.next) return { text: bar.label, fraction: 1 };
+  if (bar.needsLevel) return { text: bar.label, fraction: 1 };
+  return { text: text('home.rankLine', { rank: bar.name, percent: Math.round(bar.fraction * 100), nextRank: bar.next.name }), fraction: bar.fraction };
+}
+
+// ---- "One thing to try" hear buttons (06 section 6.15) ------------------------------------------
+
+export interface HearSpan {
+  from: number;
+  to: number;
+  label: string;
+}
+
+/**
+ * The hear buttons for a tip's bars: a bar on its own is "Hear bar 2"; a run of bars is heard two bars at a time from
+ * its start, "Hear bars 3 to 4" (a longer run is too long to hear twice). At most three buttons.
+ */
+export function hearSpans(bars: readonly number[], max = 3): HearSpan[] {
+  const sorted = [...new Set(bars)].filter((b) => Number.isFinite(b) && b >= 1).sort((a, b) => a - b);
+  const out: HearSpan[] = [];
+  let i = 0;
+  while (i < sorted.length && out.length < max) {
+    let j = i;
+    while (j + 1 < sorted.length && sorted[j + 1] === sorted[j]! + 1) j++;
+    const from = sorted[i]!;
+    if (j === i) out.push({ from, to: from, label: text('action.hearBar', { bar: from }) });
+    else {
+      const to = Math.min(sorted[j]!, from + 1);
+      out.push({ from, to, label: text('action.hearBars', { from, to }) });
+    }
+    i = j + 1;
+  }
+  return out;
 }

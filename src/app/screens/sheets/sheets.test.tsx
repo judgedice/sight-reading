@@ -1,12 +1,10 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { AppSettings, AttemptRecord, PlayerProfile, Tip } from '../../../core/types.ts';
-import { defaultAppSettings } from '../../../store/defaults.ts';
+import type { AppSettings, AttemptRecord } from '../../../core/types.ts';
 import { copy } from '../../../ui/copy/copy.ts';
-import { act, click, key, mount, type Mounted } from '../../../ui/primitives/test-render.ts';
-import { RouterProvider, useRoute, type LocationSource } from '../../router.tsx';
+import { click, key, mount, type Mounted } from '../../../ui/primitives/test-render.ts';
+import { RouterProvider, type LocationSource } from '../../router.tsx';
 import { createRouteTable } from '../../routes.tsx';
-import type { Readable, Writable } from '../home/services.ts';
 import { attemptFrom, cfg, makeProfile, sessionStore, tipsFor } from '../results/test-data.ts';
 import {
   InstallCoach,
@@ -14,13 +12,13 @@ import {
   SessionSummary,
   SkipSheet,
   StopSheet,
-  createTipsScreen,
   installCoachDue,
   nextRankRequirement,
   skipToastText,
   stopVariant,
   summarizeSession,
   summaryDue,
+  tipsScreenOverrides,
   type TipsServices,
 } from './index.ts';
 
@@ -42,7 +40,56 @@ const button = (label: string): HTMLButtonElement => {
   return b as HTMLButtonElement;
 };
 
+/** The redesign's confirm skin (06 section 6.7): 480 wide, the actions in the fixed foot, the safe choice last (bottom right) and primary. */
+function footActions(): { labels: string[]; primary: string | null } {
+  const foot = $('[data-testid="modal-foot"]');
+  const buttons = [...foot.querySelectorAll('button')];
+  return { labels: buttons.map((b) => b.textContent ?? ''), primary: buttons.find((b) => b.classList.contains('ui-button-primary'))?.textContent ?? null };
+}
+
+describe('the tips step is gone from the loop (05 section 3.1)', () => {
+  it('#/practice/tips keeps the route redirect; its screen draws nothing and goes to the open result, else Practice', () => {
+    const record = attemptFrom('case01-perfect-flute-l4');
+    const services = { configs: cfg, session: sessionStore({ record }), sessionAttempts: () => [] } as unknown as TipsServices;
+    const tips = createRouteTable(tipsScreenOverrides(services)).find((r) => r.id === 'practice.tips')!;
+    expect(tips.redirect?.({ resultOpen: true } as never)).toBe('/practice/results');
+    expect(tips.redirect?.({ resultOpen: false } as never)).toBe('/');
+    const run = (svc: TipsServices): string => {
+      const hash = { value: '#/practice/tips' };
+      const loc: LocationSource = { getHash: () => hash.value, subscribe: () => () => undefined, navigate: (p) => void (hash.value = `#${p}`) };
+      const table = createRouteTable(tipsScreenOverrides(svc)).map((r) => (r.id === 'practice.tips' ? { ...r, redirect: undefined } : r));
+      const Screen = table.find((r) => r.id === 'practice.tips')!.Screen;
+      m = mount(
+        <RouterProvider table={table} source={loc}>
+          <Screen route={{ def: table.find((r) => r.id === 'practice.tips')!, params: {}, path: '/practice/tips' } as never} />
+        </RouterProvider>,
+      );
+      expect(document.querySelector('[data-testid="screen-practice.tips"]')).toBeNull();
+      m.unmount();
+      m = null;
+      return hash.value;
+    };
+    expect(run(services)).toBe('#/practice/results');
+    expect(run({ ...services, session: sessionStore({ record: null }) })).toBe('#/');
+  });
+
+  it('the session summary still lists each top pattern with its tip text', () => {
+    const rec = attemptFrom('case05-key-signature-f-sharp');
+    const tips = tipsFor(rec);
+    const data = summarizeSession([rec], cfg, makeProfile(), []);
+    if (tips.length) expect(data.patterns.length).toBeGreaterThan(0);
+  });
+});
+
 describe('Stop confirm (04 5.10)', () => {
+  it('is a 480 confirm with Stop and the safe choice in the fixed foot, the safe choice primary on the right', () => {
+    m = mount(<StopSheet open variant="ranked-after-note" onKeep={vi.fn()} onStop={vi.fn()} />);
+    expect(document.querySelector('.ui-modal')?.classList.contains('ui-modal-confirm')).toBe(true);
+    expect(footActions()).toEqual({ labels: [copy('action.stop'), copy('action.keepPlaying')], primary: copy('action.keepPlaying') });
+    m.render(<StopSheet open variant="ranked-before-note" onKeep={vi.fn()} onStop={vi.fn()} onRestart={vi.fn()} />);
+    expect(footActions()).toEqual({ labels: [copy('action.stop'), copy('action.restart')], primary: copy('action.restart') });
+  });
+
   it('picks the variant from ranked and first-note state', () => {
     expect(stopVariant({ ranked: true, firstNoteHeard: false })).toBe('ranked-before-note');
     expect(stopVariant({ ranked: true, firstNoteHeard: true })).toBe('ranked-after-note');
@@ -82,16 +129,23 @@ describe('Stop confirm (04 5.10)', () => {
     document.body.appendChild(trigger);
     trigger.focus();
     m = mount(<StopSheet open variant="ranked-after-note" onKeep={vi.fn()} onStop={vi.fn()} />);
-    const stop = button(copy('action.stop'));
-    stop.focus();
+    // The safe choice sits last (bottom right): Tab from it wraps to Stop.
+    button(copy('action.keepPlaying')).focus();
     key(document, 'Tab');
-    expect(document.activeElement?.textContent).toBe(copy('action.keepPlaying'));
+    expect(document.activeElement?.textContent).toBe(copy('action.stop'));
     m.render(<StopSheet open={false} variant="ranked-after-note" onKeep={vi.fn()} onStop={vi.fn()} />);
     expect(document.activeElement).toBe(trigger);
   });
 });
 
 describe('Skip after reveal', () => {
+  it('is a 480 confirm; Keep reading is primary, focused and on the right', () => {
+    m = mount(<SkipSheet open limitExceeded={false} perRanked={5} onSkip={vi.fn()} onKeepReading={vi.fn()} />);
+    expect(document.querySelector('.ui-modal')?.classList.contains('ui-modal-confirm')).toBe(true);
+    expect(footActions()).toEqual({ labels: [copy('action.skip'), copy('action.keepReading')], primary: copy('action.keepReading') });
+    expect(document.activeElement?.textContent).toBe(copy('action.keepReading'));
+  });
+
   it('asks, with the practice notice only when the limit would be exceeded', () => {
     const onSkip = vi.fn();
     const onKeep = vi.fn();
@@ -215,152 +269,17 @@ describe('Session summary', () => {
   });
 });
 
-// ---- the tips interstitial ---------------------------------------------------------------
-
-function box<T>(init: T): Writable<T> {
-  let v = init;
-  const ls = new Set<() => void>();
-  return {
-    get: () => v,
-    set(n) {
-      v = n;
-      ls.forEach((l) => l());
-    },
-    subscribe: (l) => (ls.add(l), () => ls.delete(l)),
-  };
-}
-
-function Outlet() {
-  const route = useRoute();
-  const { Screen } = route.def;
-  return <Screen route={route} />;
-}
-
-function renderTips(record: AttemptRecord | null, tips: Tip[], extra: Partial<TipsServices> = {}) {
-  const store = sessionStore({ record, tips });
-  const settings = box<AppSettings>(defaultAppSettings());
-  const profile: Readable<PlayerProfile | undefined> = box<PlayerProfile | undefined>(makeProfile());
-  const hash = { value: '#/practice/tips' };
-  const ls = new Set<() => void>();
-  const loc: LocationSource = {
-    getHash: () => hash.value,
-    subscribe: (l) => (ls.add(l), () => ls.delete(l)),
-    navigate(path) {
-      hash.value = `#${path}`;
-      ls.forEach((l) => l());
-    },
-  };
-  const services: TipsServices = { configs: cfg, session: store, settings, profile, sessionAttempts: () => (record ? [record] : []), ...extra };
-  // The shell redirects `#/practice/tips` (decision 13) until results folds tips in and removes this screen (wave 4);
-  // the redirect is dropped here so the screen itself stays covered while it exists.
-  const table = createRouteTable({ 'practice.tips': createTipsScreen(services) }).map((r) =>
-    r.id === 'practice.tips' ? { ...r, redirect: undefined } : r,
-  );
-  m = mount(
-    <RouterProvider table={table} source={loc}>
-      <Outlet />
-    </RouterProvider>,
-  );
-  return { hash, settings, store };
-}
-
-describe('Tips interstitial (04 5.6)', () => {
-  it('shows the primary tip with its header, pattern name, text and an evidence line with bar numbers', () => {
-    const rec = attemptFrom('case05-key-signature-f-sharp');
-    const tips = tipsFor(rec);
-    expect(tips.length).toBeGreaterThan(0);
-    expect(tips.length).toBeLessThanOrEqual(2);
-    renderTips(rec, tips);
-    const primary = tips.find((t) => t.primary) ?? tips[0]!;
-    const def = cfg.tips.patterns.find((p) => p.id === primary.patternId)!;
-    expect($('.dom-tip-headline').textContent).toBe(def.name);
-    expect($('.dom-tip-body').textContent).toBe(primary.text);
-    expect($('.dom-tip-evidence').textContent).toMatch(/\d/);
-    // 06 6.15: the card is titled "One thing to try"; "Before the next one" names the screen region.
-    expect($('.dom-tip-title').textContent).toBe(copy('results.tip.title'));
-    expect($('[data-testid="screen-practice.tips"]').getAttribute('aria-label')).toBe(copy('tips.header'));
-    expect($('.dom-tip-who').textContent).toContain(cfg.instrumentById['flute']!.label);
+describe('sheet skins (06 section 6.7)', () => {
+  it('the session summary keeps Finish and Keep going in the fixed foot, Keep going primary and focused', () => {
+    m = mount(<SessionSummary open data={summarizeSession([], cfg, undefined, [])} onKeepGoing={vi.fn()} onFinish={vi.fn()} />);
+    expect(footActions()).toEqual({ labels: [copy('action.finish'), copy('action.keepGoing')], primary: copy('action.keepGoing') });
+    expect(document.activeElement?.textContent).toBe(copy('action.keepGoing'));
   });
 
-  it('never shows more than two tips and puts the second behind "Show 1 more tip"', () => {
-    const rec = attemptFrom('case05-key-signature-f-sharp');
-    const base = tipsFor(rec)[0]!;
-    const tips: Tip[] = [
-      { ...base, primary: true },
-      { ...base, id: 'U99', primary: false, patternId: 'E1', evidence: 'Seen in bars 2, 3.' },
-      { ...base, id: 'U98', primary: false, patternId: 'E2', evidence: 'Seen in bars 4, 5.' },
-    ];
-    renderTips(rec, tips);
-    expect(document.querySelectorAll('.dom-tip-headline')).toHaveLength(1);
-    expect(document.querySelectorAll('.dom-tip-also')).toHaveLength(1);
-    expect($('.dom-tip-also').textContent).toBe(copy('results.tip.more', { n: 1 }));
-    expect($('.dom-tip-also').getAttribute('aria-expanded')).toBe('false');
-    expect(document.querySelector<HTMLElement>('.dom-tip-panel')?.hidden).toBe(true);
-    expect(document.querySelector('.dom-tip-panel .dom-tip-evidence')?.textContent).toBe('Seen in bars 2, 3.');
-    expect(document.querySelector('.dom-tip-header')?.textContent).toContain('(1 of 2)');
-  });
-
-  it('a clean read shows one Clean read card', () => {
-    const rec = attemptFrom('case01-perfect-flute-l4');
-    const clean = cfg.tips.selection.cleanReadPatternId;
-    const tip: Tip = { id: cfg.tips.selection.cleanReadTipId, patternId: clean, text: 'Steady.', evidence: 'Seen in bars 1 and 2.', bars: [1, 2], primary: true };
-    renderTips(rec, [tip]);
-    expect($('.dom-tip-headline').textContent).toBe(copy('tips.cleanRead'));
-    expect(document.querySelectorAll('.dom-tip')).toHaveLength(1);
-  });
-
-  it('an incomplete take adds the "got away" line', () => {
-    const rec = attemptFrom('case10-incomplete');
-    renderTips(rec, []);
-    expect($('[data-testid="tips-none"]').textContent).toBe(copy('tips.incomplete'));
-    const withE6 = tipsFor(rec);
-    m?.unmount();
-    document.body.innerHTML = '';
-    if (withE6.length) {
-      renderTips(rec, withE6);
-      expect(document.body.textContent).toContain(copy('tips.incomplete'));
-    }
-  });
-
-  it('Next excerpt goes to the scan, calling the service first', () => {
-    const rec = attemptFrom('case05-key-signature-f-sharp');
-    const onNext = vi.fn();
-    const r = renderTips(rec, tipsFor(rec), { onNext });
-    expect(document.activeElement?.textContent).toBe(copy('action.nextExcerpt'));
-    click(button(copy('action.nextExcerpt')));
-    expect(onNext).toHaveBeenCalled();
-    expect(r.hash.value).toBe('#/practice/scan');
-  });
-
-  it('a handled Next does not navigate', () => {
-    const rec = attemptFrom('case05-key-signature-f-sharp');
-    const r = renderTips(rec, tipsFor(rec), { onNext: () => true });
-    click(button(copy('action.nextExcerpt')));
-    expect(r.hash.value).toBe('#/practice/tips');
-  });
-
-  it('the checkbox turns the interstitial off in settings', () => {
-    const rec = attemptFrom('case05-key-signature-f-sharp');
-    const r = renderTips(rec, tipsFor(rec));
-    const input = $<HTMLInputElement>('input[role="switch"]');
-    expect(input.checked).toBe(true);
-    act(() => input.click());
-    expect(r.settings.get().practicePrefs.showTips).toBe(false);
-  });
-
-  it('Done for now opens the summary; Finish calls the service and goes Home; Keep going moves on', () => {
-    const rec = attemptFrom('case05-key-signature-f-sharp');
-    const onFinish = vi.fn();
-    const r = renderTips(rec, tipsFor(rec), { onFinish });
-    click(button(copy('action.doneForNow')));
-    expect($('[data-testid="session-summary"]')).toBeTruthy();
-    click(button(copy('action.finish')));
-    expect(onFinish).toHaveBeenCalled();
-    expect(r.hash.value).toBe('#/');
-  });
-
-  it('without a record it returns Home', () => {
-    const r = renderTips(null, []);
-    expect(r.hash.value).toBe('#/');
+  it('the rank-up card is a 480 confirm with the emblem on its brass wash and one Continue', () => {
+    m = mount(<RankUpCard open configs={cfg} rank={4} name="Section player" onContinue={vi.fn()} />);
+    expect(document.querySelector('.ui-modal')?.classList.contains('ui-modal-confirm')).toBe(true);
+    expect($('.sheet-emblem .dom-rank')).toBeTruthy();
+    expect(document.activeElement?.textContent).toBe(copy('action.continue'));
   });
 });

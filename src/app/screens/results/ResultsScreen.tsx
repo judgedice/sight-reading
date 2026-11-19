@@ -1,23 +1,48 @@
-/** The results route (04 section 5.5): header, review slot, results panel, then the rank-up or install sheet. */
-import { createContext, useContext, useEffect, useState, useSyncExternalStore } from 'react';
-import type { AttemptRecord } from '../../../core/types.ts';
-import { Glyph, openOverlayCount } from '../../../ui/primitives/index.ts';
-import { Link, useNavigate } from '../../router.tsx';
+/**
+ * The results route (05 sections 3.2, 4.4, 8.11 and 9.3): the loop toolbar (Home and the excerpt summary), the results
+ * page with the marked score, Listen and "One thing to try", "Change setup" over results, then the rank-up, install
+ * or session summary sheet. Tips live here; there is no tips step in the loop (05 section 3.1, decision 13).
+ */
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
+import type { AttemptRecord, PracticeSettings } from '../../../core/types.ts';
+import { BeatUnitText } from '../../../ui/components/domain/index.ts';
+import { Button } from '../../../ui/components/form/index.ts';
+import { openOverlayCount, useToast } from '../../../ui/primitives/index.ts';
+import { useNavigate } from '../../router.tsx';
 import type { ScreenProps } from '../../route-types.ts';
+import { scanSummary } from '../scan/model.ts';
+import { normalize, type SetupContext } from '../setup/model.ts';
+import { SetupSheet } from '../setup/SetupSheet.tsx';
 import { InstallCoach, installCoachDue } from '../sheets/InstallCoach.tsx';
 import { RankUpCard } from '../sheets/RankUpCard.tsx';
 import { SessionSummary } from '../sheets/SessionSummary.tsx';
 import { summarizeSession, summaryDue } from '../sheets/summary.ts';
-import { creditLine, rankUpEvent } from './model.ts';
+import { creditLine, rankUpEvent, type HearSpan } from './model.ts';
+import type { ReviewExtras } from './review/SessionReview.tsx';
+import { ResultsListen, isListening, useResultsSound } from './ResultsListen.tsx';
 import { ResultsPanel } from './ResultsPanel.tsx';
 import type { ResultsServices } from './services.ts';
 import { text } from './text.ts';
 import './results.css';
 
+/**
+ * What "Change setup" needs beyond `ResultsServices` to draw the setup sheet over results: the corpus counts and the
+ * sounds the sheet's rows play. Optional until the composition root passes them; without `countEligible`, "Change
+ * setup" goes to Practice instead.
+ */
+export interface ResultsSetupServices {
+  countEligible?(instrumentId: string, level: number, meter: string | null): number;
+  hearTempo?(bpm: number, beatsPerBar: number): Promise<void>;
+  playNote?(concertMidi: number): Promise<void>;
+}
+
+/** The renderer the composition root passes (`createReviewRenderer`) takes the Listen extras as a second argument. */
+type ReviewRenderer = (record: AttemptRecord, extras?: ReviewExtras) => ReactNode;
+
 const Services = createContext<ResultsServices | null>(null);
 export const ResultsServicesProvider = Services.Provider;
 
-function useServices(): ResultsServices {
+function useServices(): ResultsServices & ResultsSetupServices {
   const s = useContext(Services);
   if (!s) throw new Error('Results needs ResultsServicesProvider');
   return s;
@@ -25,6 +50,20 @@ function useServices(): ResultsServices {
 
 function useReadable<T>(r: { get(): T; subscribe(l: () => void): () => void }): T {
   return useSyncExternalStore(r.subscribe, r.get, r.get);
+}
+
+/** Desktop layout (actions in the header) from this width; phones get the page-end actions and the pinned bar. */
+export const RESULTS_WIDE_QUERY = '(min-width: 43.75rem)';
+
+function useWide(): boolean {
+  const subscribe = useCallback((l: () => void) => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return () => undefined;
+    const mq = window.matchMedia(RESULTS_WIDE_QUERY);
+    mq.addEventListener('change', l);
+    return () => mq.removeEventListener('change', l);
+  }, []);
+  const get = (): boolean => (typeof window === 'undefined' || typeof window.matchMedia !== 'function' ? true : window.matchMedia(RESULTS_WIDE_QUERY).matches);
+  return useSyncExternalStore(subscribe, get, get);
 }
 
 export const DEFAULT_SETTLE_MS = 600;
@@ -69,6 +108,8 @@ const isEditable = (t: EventTarget | null): boolean => {
 export function ResultsScreen(_props: ScreenProps) {
   const services = useServices();
   const navigate = useNavigate();
+  const toast = useToast();
+  const wide = useWide();
   const view = useSyncExternalStore(services.session.subscribe, services.session.getState, services.session.getState);
   const profile = useReadable(services.profile);
   const settings = useReadable(services.settings);
@@ -76,6 +117,12 @@ export function ResultsScreen(_props: ScreenProps) {
   const cfg = services.configs;
   const actions = services.actions;
   const [rankSeen, setRankSeen] = useState<ReadonlySet<number>>(new Set());
+  const sound = useResultsSound(services.sounds);
+  const [slower, setSlower] = useState(false);
+  const [startBar, setStartBar] = useState<number | null>(null);
+  const [announce, setAnnounce] = useState('');
+  const [setupOpen, setSetupOpen] = useState(false);
+  const setupAtOpen = useRef<string>('');
 
   const rankUp = rankUpEvent(view.progress);
   const rankUpDue = rankUp !== null && !rankSeen.has(rankUp.to) && !(services.rankUps?.seen(rankUp.to) ?? false);
@@ -89,10 +136,20 @@ export function ResultsScreen(_props: ScreenProps) {
   const attemptsNow = services.sessionAttempts?.() ?? null;
   const summaryNow = record !== null && attemptsNow !== null && summaryShownFor !== record.id && summaryDue(attemptsNow.length, cfg);
 
+  // A new take starts Listen from bar 1 at full speed.
+  const recordId = record?.id ?? null;
+  useEffect(() => {
+    setStartBar(null);
+    setSlower(false);
+  }, [recordId]);
+
+  // Leaving the screen stops playback (05 section 9.3).
+  const stopSounds = services.stopSounds;
+  useEffect(() => () => stopSounds?.(), [stopSounds]);
+
   const proceed = (): void => {
+    services.stopSounds?.();
     if (actions.next?.() === true) return;
-    // Decision 13 (08-plan): `#/practice/tips` now redirects, so Next goes straight to the next read-through.
-    // Tips fold into this screen in wave 4.
     navigate('/practice/scan');
   };
   const next = (): void => {
@@ -109,18 +166,46 @@ export function ResultsScreen(_props: ScreenProps) {
     navigate('/');
   };
   const tryAgain = (): void => {
+    services.stopSounds?.();
     if (actions.tryAgain?.() !== true) navigate('/practice/scan');
   };
   const recalibrate = (): void => {
+    services.stopSounds?.();
     if (actions.recalibrate) actions.recalibrate();
     else navigate('/calibrate');
   };
 
-  useEffect(() => {
-    // No take to show: Home. Next and Try again clear the record while the session moves on to the next excerpt or
-    // the scan, which the scan route follows, so those states stay.
-    if (!record && view.state !== 'finishing' && !MOVING_ON.has(view.state)) navigate('/', { replace: true });
-  }, [record, view.state, navigate]);
+  // ---- Listen (05 section 9.3) -----------------------------------------------------------------------------------
+  const measures = view.prepared && record && view.prepared.excerptId === record.excerptId ? view.prepared.measures : [];
+  const playing = isListening(sound);
+  const listen = (o: { slower: boolean; fromBar: number | null }): void => {
+    const run = services.listen;
+    if (!run) return;
+    setAnnounce('');
+    run({ slower: o.slower, ...(o.fromBar !== null && o.fromBar > 1 ? { fromBar: o.fromBar } : {}) }).catch(() => undefined);
+  };
+  const stop = (): void => {
+    services.stopSounds?.();
+    setAnnounce(text('listen.stopped'));
+  };
+  const toggleListen = (): void => (playing ? stop() : listen({ slower, fromBar: startBar }));
+  const hear = (span: HearSpan): void => {
+    const run = services.hearBar;
+    if (!run) return;
+    setAnnounce('');
+    run(span.from, span.to === span.from ? undefined : span.to, { slower }).catch(() => undefined);
+  };
+  const indexOfBar = (bar: number | null): number | null => {
+    if (bar === null) return null;
+    const i = measures.findIndex((m) => m.displayBar === bar);
+    return i >= 0 ? i : null;
+  };
+  const onBarTap = (index: number): void => {
+    // A tap sets where Listen starts, only while nothing plays.
+    if (playing) return;
+    const bar = measures[index]?.displayBar;
+    if (bar !== undefined) setStartBar(bar);
+  };
 
   useEffect(() => {
     if (!settings.accessibility.keyboardShortcuts || !record) return undefined;
@@ -134,11 +219,71 @@ export function ResultsScreen(_props: ScreenProps) {
       } else if (k === 'r') {
         e.preventDefault();
         tryAgain();
+      } else if (k === 'l' && services.listen) {
+        e.preventDefault();
+        toggleListen();
       }
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
   });
+
+  useEffect(() => {
+    // No take to show: Home. Next and Try again clear the record while the session moves on to the next excerpt or
+    // the scan, which the scan route follows, so those states stay.
+    if (!record && view.state !== 'finishing' && !MOVING_ON.has(view.state)) navigate('/', { replace: true });
+  }, [record, view.state, navigate]);
+
+  // ---- Change setup (05 sections 3.2 and 4.4) ----------------------------------------------------------------------
+  const countEligible = services.countEligible;
+  const ctx = useMemo<SetupContext | null>(
+    () =>
+      countEligible
+        ? {
+            cfg,
+            eligible: (id, level, meter) => countEligible(id, level, meter),
+            showBeta: settings.practicePrefs.showBeta,
+            playerLevel: (id) => profile?.instruments[id]?.level ?? (typeof settings.practice.level === 'number' && id === settings.practice.instrumentId ? settings.practice.level : 1),
+          }
+        : null,
+    [countEligible, cfg, settings.practicePrefs.showBeta, settings.practice.level, settings.practice.instrumentId, profile],
+  );
+  const practice = useMemo(() => (ctx ? normalize(settings.practice, ctx) : settings.practice), [ctx, settings.practice]);
+  const openSetup = (): void => {
+    services.stopSounds?.();
+    if (!ctx) {
+      navigate('/');
+      return;
+    }
+    setupAtOpen.current = JSON.stringify(practice);
+    setSetupOpen(true);
+  };
+  const saveSetup = (nextSettings: PracticeSettings): void => {
+    services.settings.set({ ...services.settings.get(), practice: nextSettings });
+  };
+  const closeSetup = (): void => {
+    setSetupOpen(false);
+    // Done with a new setup: the cover of a new excerpt with it. Closing with nothing changed stays on results.
+    if (JSON.stringify(normalize(services.settings.get().practice, ctx!)) !== setupAtOpen.current) proceed();
+  };
+
+  // ---- tips off from results (designer's note 17) ------------------------------------------------------------------
+  const setShowTips = (on: boolean): void => {
+    const now = services.settings.get();
+    services.settings.set({ ...now, practicePrefs: { ...now.practicePrefs, showTips: on } });
+    if (!on) {
+      toast.show({
+        text: text('tips.offToast'),
+        action: {
+          label: text('action.undo'),
+          onAction: () => {
+            const again = services.settings.get();
+            services.settings.set({ ...again, practicePrefs: { ...again.practicePrefs, showTips: true } });
+          },
+        },
+      });
+    }
+  };
 
   if (!record) {
     return view.state === 'finishing' ? (
@@ -158,41 +303,91 @@ export function ResultsScreen(_props: ScreenProps) {
   };
   const closeInstall = (): void => services.settings.set({ ...settings, shown: { ...settings.shown, installCoach: true } });
 
+  const voided = record.endReason === 'void';
+  const canListen = services.listen !== undefined && measures.length > 0;
+  const controls = canListen ? (
+    <ResultsListen
+      sound={sound}
+      slower={slower}
+      fromBar={startBar}
+      onSlower={(v) => {
+        setSlower(v);
+        if (playing && sound.playing === 'listen') listen({ slower: v, fromBar: sound.fromBar ?? startBar });
+      }}
+      onListen={() => listen({ slower, fromBar: startBar })}
+      onStop={stop}
+    />
+  ) : null;
+  const renderReview = services.renderReview as ReviewRenderer | undefined;
+  const highlight = indexOfBar(playing ? sound.bar : startBar);
+  const review = renderReview ? renderReview(record, { highlightBar: highlight, onBarTap, ...(controls ? { toolbarEnd: controls } : {}) }) : null;
+
   const credit = creditLine(record.credit);
+  const creditNode = actions.openSource ? (
+    <button type="button" className="res-credit-button" onClick={() => actions.openSource?.(record)}>
+      {credit}
+    </button>
+  ) : (
+    <p className="res-credit">{credit}</p>
+  );
+  const prepared = view.prepared && view.prepared.excerptId === record.excerptId ? view.prepared : null;
+
   return (
     <section className="res-screen" data-testid="screen-practice.results" data-route-id="practice.results">
-      <header className="res-header">
-        <Link to="/" className="res-back">
-          <Glyph id="chevron-left" size={16} />
-          <span>{text('nav.home')}</span>
-        </Link>
-        {actions.openSource ? (
-          <button type="button" className="res-credit-button" onClick={() => actions.openSource?.(record)}>
-            {credit}
-          </button>
+      <header className="res-toolbar">
+        <Button label={text('nav.home')} variant="quiet" size="compact" icon="chevron-left" onClick={() => navigate('/')} className="res-home" />
+        {prepared ? (
+          <p className="res-summary">
+            <BeatUnitText text={scanSummary(prepared)} />
+          </p>
         ) : (
-          <p className="res-credit">{credit}</p>
+          <span className="res-summary" />
         )}
+        <span className="res-toolbar-end" />
       </header>
-      <div className="res-layout">
-        <div className="res-review">{services.renderReview?.(record) ?? null}</div>
-        <ResultsPanel
-          record={record}
-          configs={cfg}
-          profile={profile}
-          progress={view.progress}
-          tips={view.tips}
-          recalibrate={view.recalibrateRouteKey !== null}
-          onNext={next}
-          onTryAgain={tryAgain}
-          onMoveUp={actions.moveUp}
-          onStayAt={actions.stayAt}
-          onUndoLevelUp={actions.undoLevelUp}
-          onGoToLevel={actions.goToLevel}
-          onRecalibrate={recalibrate}
-          onCheckMicrophone={recalibrate}
+      <ResultsPanel
+        record={record}
+        configs={cfg}
+        profile={profile}
+        progress={view.progress}
+        tips={view.tips}
+        review={review}
+        wide={wide}
+        showTips={settings.practicePrefs.showTips}
+        showNumbers={settings.display.showCentsMs}
+        recalibrate={view.recalibrateRouteKey !== null}
+        credit={creditNode}
+        onNext={next}
+        onTryAgain={tryAgain}
+        {...(voided ? {} : { onChangeSetup: openSetup })}
+        onMoveUp={actions.moveUp}
+        onStayAt={actions.stayAt}
+        onUndoLevelUp={actions.undoLevelUp}
+        onGoToLevel={actions.goToLevel}
+        onRecalibrate={recalibrate}
+        onCalibrateNow={recalibrate}
+        onCheckMicrophone={recalibrate}
+        {...(services.hearBar ? { onHearBars: hear } : {})}
+        onShowTipsChange={setShowTips}
+      />
+      <p className="ui-visually-hidden" role="status" aria-live="polite">
+        {announce}
+      </p>
+      {ctx ? (
+        <SetupSheet
+          open={setupOpen}
+          value={practice}
+          ctx={ctx}
+          onChange={saveSetup}
+          onClose={closeSetup}
+          onShowLessTested={(on) => {
+            const now = services.settings.get();
+            services.settings.set({ ...now, practicePrefs: { ...now.practicePrefs, showBeta: on } });
+          }}
+          onHearNote={services.playNote ? (midi) => void services.playNote?.(midi).catch(() => undefined) : undefined}
+          onHearTempo={services.hearTempo ? (bpm, beats) => void services.hearTempo?.(bpm, beats).catch(() => undefined) : undefined}
         />
-      </div>
+      ) : null}
       {rankUp ? <RankUpCard open={pending === 'rankup'} configs={cfg} rank={rankUp.to} name={rankUp.name} onContinue={closeRankUp} /> : null}
       <InstallCoach open={pending === 'install'} onGotIt={closeInstall} />
       {attemptsNow !== null && summaryShownFor === record.id ? (
