@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Calibrate</title>
+<link rel="stylesheet" href="mockup.css">
+<script>if (/dark/.test(location.search)) document.documentElement.dataset.theme = 'dark';</script>
+</head>
+<body class="">
+<header class="appbar">
+  <div class="wordmark"><svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><g stroke="var(--text)" stroke-width="1.3" opacity="0.9"><path d="M1.5 4.5h21M1.5 8.25h21M1.5 12h21M1.5 15.75h21M1.5 19.5h21"/></g><ellipse cx="13" cy="10.1" rx="3.6" ry="2.6" transform="rotate(-22 13 10.1)" fill="var(--brass)"/></svg><span>Sightread</span></div>
+  <nav class="tabs"><a class="tab is-on">Practice</a><a class="tab ">Progress</a><a class="tab ">History</a></nav>
+  <button class="icon-btn only-desktop" aria-label="Settings"><svg class="icon " viewBox="0 0 24 24" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg></button>
+  <button class="icon-btn only-phone" style="margin-left:auto" aria-label="Settings"><svg class="icon " viewBox="0 0 24 24" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg></button>
+</header>
+<main class="page" style="max-width:720px">
+  <h1 class="t-title" style="margin-bottom:6px">Calibrate</h1>
+  <p class="t-small muted" style="margin:0 0 24px">About 20 seconds. Using the Classic metronome sound.</p>
+  <section class="card cal-card">
+  <p class="t-small" style="margin:0;font-size:16px">Your speakers and mic add a small delay. We'll measure it so “late” really means late.</p>
+  <div class="cal-sel">
+    <label><span class="t-label">Input device</span><span class="select">MacBook Pro Microphone <svg class="icon sm" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></span></label>
+    <label><span class="t-label">Output</span><span class="select">Speakers <svg class="icon sm" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></span></label>
+  </div>
+  <div class="cal-stage">
+    <p class="t-label" style="margin:0 0 4px">Listening…</p>
+    <p class="t-small muted" style="margin:0 0 22px">Stay quiet for about 6 seconds while we time the clicks.</p>
+    <div class="cal-marks"><span class="cal-mark heard" role="img" aria-label="Click 1 of 10: heard"></span><span class="cal-mark heard" role="img" aria-label="Click 2 of 10: heard"></span><span class="cal-mark heard" role="img" aria-label="Click 3 of 10: heard"></span><span class="cal-mark missed" role="img" aria-label="Click 4 of 10: missed"></span><span class="cal-mark heard" role="img" aria-label="Click 5 of 10: heard"></span><span class="cal-mark heard" role="img" aria-label="Click 6 of 10: heard"></span><span class="cal-mark now" role="img" aria-label="Click 7 of 10: waiting"></span><span class="cal-mark " role="img" aria-label="Click 8 of 10: waiting"></span><span class="cal-mark " role="img" aria-label="Click 9 of 10: waiting"></span><span class="cal-mark " role="img" aria-label="Click 10 of 10: waiting"></span></div>
+    <p class="cal-count num"><b>5</b> of 10 heard</p>
+  </div>
+  <div class="cal-foot">
+    <button class="btn btn-tonal"><svg class="icon sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.6 4.5h6.8L19 20H5z"/><path d="M12 16.5 16.5 7.5"/><circle cx="12" cy="16.5" r="0.6" fill="currentColor"/><path d="M5 20h14"/></svg>Hear the click</button>
+    <span style="flex:1"></span>
+    <button class="btn btn-quiet">Skip</button>
+  </div>
+  <p class="t-caption muted" style="margin:10px 0 0;text-align:right">Without calibration, takes on this device are practice only. You can calibrate later from Practice or Settings.</p>
+</section>
+</main>
+<style>
+.cal-card { padding: 32px; }
+.cal-sel { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 22px; }
+.cal-sel label { display: grid; gap: 8px; }
+.cal-stage { margin-top: 26px; padding: 28px; border-radius: 18px; background: var(--bg); }
+.cal-count { margin: 22px 0 0; font-size: 17px; }
+.cal-foot { display: flex; align-items: center; gap: 8px; margin-top: 24px; }
+@media (max-width: 700px) { .cal-card { padding: 20px; } .cal-sel { grid-template-columns: 1fr; } .cal-stage { padding: 20px; } .cal-marks { gap: 10px; } .cal-mark { width: 24px; height: 24px; } .cal-mark.now { box-shadow: 0 0 0 4px var(--brass-wash); } }
+</style>
+</body>
+</html>

@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Settings: sound</title>
+<link rel="stylesheet" href="mockup.css">
+<script>if (/dark/.test(location.search)) document.documentElement.dataset.theme = 'dark';</script>
+</head>
+<body class="">
+<header class="appbar">
+  <div class="wordmark"><svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><g stroke="var(--text)" stroke-width="1.3" opacity="0.9"><path d="M1.5 4.5h21M1.5 8.25h21M1.5 12h21M1.5 15.75h21M1.5 19.5h21"/></g><ellipse cx="13" cy="10.1" rx="3.6" ry="2.6" transform="rotate(-22 13 10.1)" fill="var(--brass)"/></svg><span>Sightread</span></div>
+  <nav class="tabs"><a class="tab ">Practice</a><a class="tab ">Progress</a><a class="tab ">History</a></nav>
+  <button class="icon-btn only-desktop" aria-label="Settings"><svg class="icon " viewBox="0 0 24 24" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg></button>
+  <button class="icon-btn only-phone" style="margin-left:auto" aria-label="Settings"><svg class="icon " viewBox="0 0 24 24" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg></button>
+</header>
+<main class="page set-grid">
+  <nav class="only-desktop set-nav"><h1 class="t-title" style="font-size:30px;margin:0 0 18px">Settings</h1><a class="snav ">Profile</a><a class="snav is-on">Sound</a><a class="snav ">Display</a><a class="snav ">Practice</a><a class="snav ">Accessibility</a><a class="snav ">Data</a><a class="snav ">About</a></nav>
+  <div>
+    <div class="only-phone" style="margin-bottom:6px"><button class="btn btn-quiet btn-compact" style="padding:0"><svg class="icon sm" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>Settings</button></div>
+    <h2 class="t-h2" style="font-size:28px;margin:0 0 18px">Sound</h2>
+    <section class="card card-pad">
+      <div class="row" style="padding-top:0;border:0">
+        <div class="row-head"><p class="t-label">Metronome sound</p></div>
+        <div role="radiogroup" aria-label="Metronome sound" class="mopts">
+          <div class="mopt is-on" role="radio" aria-checked="true">
+  <span class="radio"><i></i></span>
+  <div class="mtext"><p class="t-label" style="margin:0">Classic</p><p class="t-small muted" style="margin:2px 0 0">A mechanical metronome: a firm, woody click.</p></div>
+  <span class="mwave only-desktop"><svg width="120" height="36" viewBox="0 0 120 36" aria-hidden="true"><path d="M2 18 H118" stroke="var(--border)" stroke-width="1"/><path d="M8 18 L8.8 2 C10 12.4 12 16.08 17 18 C12 19.92 10 23.6 8.8 34 Z M38 18 L38.8 8.08 C40 14.528 42 16.8096 47 18 C42 19.1904 40 21.472 38.8 27.92 Z M68 18 L68.8 8.08 C70 14.528 72 16.8096 77 18 C72 19.1904 70 21.472 68.8 27.92 Z M98 18 L98.8 8.08 C100 14.528 102 16.8096 107 18 C102 19.1904 100 21.472 98.8 27.92 Z " fill="var(--text)" fill-opacity="0.85" stroke="var(--text)" stroke-width="0.75" stroke-linejoin="round" stroke-linecap="round"/></svg></span>
+  <button class="btn btn-tonal btn-compact" aria-label="Play a bar of Classic"><svg class="icon sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5v14l12-7z" fill="currentColor"/></svg><span class="only-desktop">Play a bar</span></button>
+</div>
+          <div class="mopt " role="radio" aria-checked="false">
+  <span class="radio"></span>
+  <div class="mtext"><p class="t-label" style="margin:0">Woodblock</p><p class="t-small muted" style="margin:2px 0 0">Rounder and softer.</p></div>
+  <span class="mwave only-desktop"><svg width="120" height="36" viewBox="0 0 120 36" aria-hidden="true"><path d="M2 18 H118" stroke="var(--border)" stroke-width="1"/><path d="M8 18 C9 3.5999999999999996 12 6 15 11.6 C18 16.4 20 18 22 18 C20 18 18 19.6 15 24.4 C12 30 9 32.4 8 18 Z M38 18 C39 9.072 42 10.56 45 14.032 C48 17.008 50 18 52 18 C50 18 48 18.992 45 21.968 C42 25.439999999999998 39 26.928 38 18 Z M68 18 C69 9.072 72 10.56 75 14.032 C78 17.008 80 18 82 18 C80 18 78 18.992 75 21.968 C72 25.439999999999998 69 26.928 68 18 Z M98 18 C99 9.072 102 10.56 105 14.032 C108 17.008 110 18 112 18 C110 18 108 18.992 105 21.968 C102 25.439999999999998 99 26.928 98 18 Z " fill="var(--text)" fill-opacity="0.85" stroke="var(--text)" stroke-width="0.75" stroke-linejoin="round" stroke-linecap="round"/></svg></span>
+  <button class="btn btn-tonal btn-compact" aria-label="Play a bar of Woodblock"><svg class="icon sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5v14l12-7z" fill="currentColor"/></svg><span class="only-desktop">Play a bar</span></button>
+</div>
+          <div class="mopt " role="radio" aria-checked="false">
+  <span class="radio"></span>
+  <div class="mtext"><p class="t-label" style="margin:0">Beep</p><p class="t-small muted" style="margin:2px 0 0">A short electronic beep. Cuts through in a loud room.</p></div>
+  <span class="mwave only-desktop"><svg width="120" height="36" viewBox="0 0 120 36" aria-hidden="true"><path d="M2 18 H118" stroke="var(--border)" stroke-width="1"/><path d="M8 6.800000000000001 h9 v22.4 h-9 z M38 11.056000000000001 h9 v13.888 h-9 z M68 11.056000000000001 h9 v13.888 h-9 z M98 11.056000000000001 h9 v13.888 h-9 z " fill="var(--text)" fill-opacity="0.85" stroke="var(--text)" stroke-width="0.75" stroke-linejoin="round" stroke-linecap="round"/></svg></span>
+  <button class="btn btn-tonal btn-compact" aria-label="Play a bar of Beep"><svg class="icon sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5v14l12-7z" fill="currentColor"/></svg><span class="only-desktop">Play a bar</span></button>
+</div>
+        </div>
+      </div>
+      <div class="row"><div class="row-head" style="margin:0"><div><p class="t-label">Accent the first beat</p><p class="t-small muted" style="margin:2px 0 0">Beat one is higher and a little louder.</p></div><span class="switch is-on"><span class="switch-track"></span></span></div></div>
+      <div class="row"><p class="t-label" style="margin-bottom:12px">Click volume</p><div style="display:flex;align-items:center;gap:14px"><svg class="icon sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5 6.5 9H3v6h3.5L11 19z"/><path d="M15.5 9a4 4 0 0 1 0 6"/><path d="M18.5 6.5a7.5 7.5 0 0 1 0 11"/></svg><div class="slider"><div class="trk"></div><div class="fill" style="width:70%"></div><div class="thumb" style="left:70%"></div></div><span class="num t-small" style="width:40px;text-align:right">70%</span></div></div>
+      <div class="row"><p class="t-label" style="margin-bottom:12px">Click during the take</p><div class="seg"><button class="seg-btn is-on">On</button><button class="seg-btn">Count-in only</button></div></div>
+    </section>
+    <section class="card card-pad" style="margin-top:18px">
+      <div class="row" style="padding-top:0;border:0"><div class="row-head" style="margin:0"><div><p class="t-label">Calibration</p><p class="t-small muted" style="margin:2px 0 0">Calibrated today on Speakers. Your setup adds <span class="num">42</span> ms.</p></div><button class="btn btn-secondary btn-compact">Recalibrate</button></div></div>
+      <div class="row"><p class="t-label" style="margin-bottom:10px">Input device</p><span class="select" style="max-width:360px">MacBook Pro Microphone <svg class="icon sm" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></span></div>
+      <div class="row"><p class="t-label" style="margin-bottom:10px">Output</p><span class="select" style="max-width:360px">Speakers <svg class="icon sm" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></span></div>
+      <div class="row"><div class="row-head" style="margin:0"><div><p class="t-label">Tuning pitch</p><p class="t-small muted" style="margin:2px 0 0">The A above middle C. Most groups tune to 440 Hz.</p></div><span class="field num">440 Hz</span></div></div>
+    </section>
+  </div>
+</main>
+<style>
+.set-grid { display: grid; grid-template-columns: 220px minmax(0, 720px); gap: 48px; }
+.snav { display: block; padding: 9px 14px; border-radius: 10px; color: var(--text-muted); font-weight: 500; }
+.snav.is-on { background: var(--surface-2); color: var(--text); font-weight: 600; }
+.mopts { display: grid; gap: 8px; }
+.mopt { display: flex; align-items: center; gap: 14px; padding: 14px 14px 14px 16px; border-radius: 16px; border: 1px solid var(--border); }
+.mopt.is-on { background: var(--selected); border-color: var(--text); box-shadow: 0 0 0 1px var(--text) inset; }
+.mtext { flex: 1; min-width: 0; }
+.radio { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--border-strong); display: grid; place-items: center; flex: none; }
+.mopt.is-on .radio { border-color: var(--text); }
+.radio i { width: 10px; height: 10px; border-radius: 50%; background: var(--text); }
+@media (max-width: 700px) { .set-grid { display: block; } .mopt .btn { width: 44px; height: 44px; padding: 0; } }
+</style>
+</body>
+</html>
