@@ -12,7 +12,7 @@
  * - breathy onsets (a noise burst before the voice) and consonants (a short unvoiced burst: "da", "ta");
  * - decaying ends that wobble: the last 80 to 220 ms fall (or rise) 40 to 200 c while the level dies away;
  * - breaths between some notes, and syllable dips of 4 to 14 dB between joined notes (one vowel per note);
- * - low level (-40 to -26 dBFS RMS) and level changes of a few dB from note to note;
+ * - low level (-38 to -26 dBFS RMS over a -66 to -56 dBFS noise floor) and level changes of a few dB between notes;
  * - creaky onsets on low notes: period doubling (a subharmonic at f0 / 2) for the first 40 to 120 ms;
  * - a laptop mic that rolls off the fundamental (4th-order high-pass at 180 to 260 Hz), so low notes (98 to 196 Hz)
  *   reach the detector mostly through their harmonics and invite octave errors.
@@ -88,11 +88,13 @@ export function planUntrainedVoice(expected: readonly ExpectedNote[], t0Sec: num
   const rng = createRng(seed);
   const beat = 60 / bpm;
   const notes: SungNote[] = [];
+  // Onsets first (a joined note runs into the next one's sung onset), timing jitter about 22 ms.
+  const onsets = expected.map((e) => t0Sec + (e.onsetSec as number) + Math.max(-0.05, Math.min(0.05, 0.022 * gauss(rng))));
   expected.forEach((e, i) => {
     const next = expected[i + 1];
-    const on = t0Sec + (e.onsetSec as number) + Math.max(-0.05, Math.min(0.05, 0.022 * gauss(rng)));
+    const on = onsets[i] as number;
     const writtenEnd = t0Sec + (e.onsetSec as number) + e.durSec;
-    const nextOn = next ? t0Sec + (next.onsetSec as number) : Infinity;
+    const nextOn = next ? (onsets[i + 1] as number) : Infinity;
     const breath = !next || next.precededByRest || rng.next() < 0.15;
     // A breath ends the note 80 to 220 ms before the next one (or before its written end when that is earlier);
     // a joined note runs into the next onset.
@@ -132,9 +134,9 @@ export function planUntrainedVoice(expected: readonly ExpectedNote[], t0Sec: num
   });
   return {
     notes,
-    levelDb: uniform(rng, -40, -26),
+    levelDb: uniform(rng, -38, -26),
     micHighPassHz: uniform(rng, 180, 260),
-    noiseDbfs: uniform(rng, -62, -50),
+    noiseDbfs: uniform(rng, -66, -56),
     seed,
   };
 }

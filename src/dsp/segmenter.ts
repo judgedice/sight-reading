@@ -675,7 +675,19 @@ export class Segmenter {
       const d = next - (x.midi as number);
       if (Math.abs(d) > near && Math.sign(d) !== side) return false;
     }
-    return !this.hasPlateau(fs, next);
+    return !this.hasPlateau(fs, next) || this.glidesTowards(fs, next);
+  }
+
+  /**
+   * The frames move towards `next`: the median of the last `plateauSec` is at least `plateauCents` closer to it than
+   * the median of the first `plateauSec` (a slow scoop starts flat, so its first frames can pass for a plateau).
+   */
+  private glidesTowards(fs: readonly Fr[], next: number): boolean {
+    const k = Math.max(2, Math.round(this.o.plateauSec / this.o.hopSec));
+    if (fs.length < k + 1) return true;
+    const head = median(fs.slice(0, k).map((x) => x.midi as number));
+    const tail = median(fs.slice(-k).map((x) => x.midi as number));
+    return Math.abs(next - head) - Math.abs(next - tail) >= this.o.plateauCents / 100;
   }
 
   /** A run of at least `plateauSec` whose frames all lie within `plateauCents` of the run's median, away from `next`. */
