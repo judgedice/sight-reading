@@ -27,7 +27,7 @@ const launchOptions = {
     `--use-file-for-fake-audio-capture=${TOUR_WAV}%noloop`,
   ],
 };
-const desktop = { ...devices['Desktop Chrome'], viewport: { width: 1280, height: 800 }, deviceScaleFactor: 2 };
+const desktop = { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2 };
 const iphone = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true };
 
 export default defineConfig({

@@ -1,15 +1,38 @@
-// Screen tour (wave 3 review): every screen of the production build against the emitted corpus, as a user reaches
-// it, captured into docs/screenshots/<project>/. One take is played through Chromium's fake capture with one note
-// 2 semitones sharp and one note late; the spec checks on screen that the wrong note turns red with a ghost at the
-// played pitch and that the late note turns red with a 'late' ghost displaced to the right of its notehead.
+// Screen tour: every screen of the production build against the emitted corpus, as a user reaches it, captured into
+// docs/screenshots/<project>/ (the folder is emptied first, so the set is always fresh). It covers the picker with
+// Baritone, the key grid and time segments, "Show the music", the starting-pitch reference and its info, "Listen first"
+// in practice, the results, "One thing to try" when a take earns a tip, and Settings > Sound previews. One take is
+// played through Chromium's fake capture with one note 2 semitones sharp and one note late; the spec checks on screen
+// that the wrong note turns red with a ghost at the played pitch and that the late note turns red with a 'late' ghost
+// displaced to the right of its notehead.
 // Run with -c e2e/tour/playwright.tour.config.ts.
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import { loadLoopHelpers } from '../loop/bundle.ts';
 import { chooseMode, chooseOutput, LOOP_T0_SEC, pagePlan, watchErrors } from '../loop/flow.ts';
 
 test.skip(process.env['E2E_TOUR'] !== '1', 'run with -c e2e/tour/playwright.tour.config.ts');
+
+const isPhone = (page: Page): boolean => (page.viewportSize()?.width ?? 1280) < 1024;
+
+/** Opens a setup row: on phones through its summary chip (the setup sheet), on desktop it is already on screen. */
+async function openRow(page: Page, row: 'key' | 'time'): Promise<Locator> {
+  if (isPhone(page)) {
+    await page.locator(`[data-chip="${row}"]`).click();
+    const sheet = page.getByTestId('setup-sheet');
+    await expect(sheet).toBeVisible();
+    return sheet.locator(`[data-setup-slot="${row}"]`);
+  }
+  return page.getByTestId('screen-home').locator(`[data-setup-slot="${row}"]`);
+}
+
+/** Closes the setup sheet on phones; desktop rows need no closing. */
+async function closeRow(page: Page): Promise<void> {
+  if (!isPhone(page)) return;
+  await page.getByRole('dialog').getByRole('button', { name: 'Done', exact: true }).click();
+  await expect(page.getByTestId('setup-sheet')).toHaveCount(0);
+}
 
 /** Copy keys look like `a.b.c` with no spaces; a rendered key means a missing string. */
 const RAW_KEY = /\b(?:[a-z][a-zA-Z0-9]*\.){1,4}[a-z][a-zA-Z0-9-]*\b/;
@@ -46,10 +69,12 @@ async function overflow(page: Page): Promise<string[]> {
 }
 
 test('screen tour: onboarding, home, scan, take with a wrong and a late note, results, tips, every tab', async ({ page }, info) => {
+  test.setTimeout(600_000);
   const h = await loadLoopHelpers();
   const wav = process.env['E2E_TOUR_WAV']!;
   const errors = watchErrors(page);
   const dir = join(process.cwd(), 'docs', 'screenshots', info.project.name);
+  rmSync(dir, { recursive: true, force: true });
   mkdirSync(dir, { recursive: true });
   let n = 0;
   const issues: string[] = [];
@@ -67,7 +92,8 @@ test('screen tour: onboarding, home, scan, take with a wrong and a late note, re
   await shot('welcome');
   await page.getByRole('button', { name: 'Get started' }).click();
   await shot('onboarding-instrument');
-  await page.getByRole('radio', { name: /Flute/ }).check();
+  // Baritone: a voice, so the take has the starting-pitch reference (its info and the sound) rather than the key chord.
+  await page.getByRole('radio', { name: /Baritone/ }).check();
   await page.getByRole('button', { name: 'Continue' }).click();
   await expect(page.getByTestId('ob-mic')).toBeVisible();
   await shot('onboarding-mic');
@@ -86,6 +112,25 @@ test('screen tour: onboarding, home, scan, take with a wrong and a late note, re
   await expect(home).toBeVisible({ timeout: 15_000 });
   await shot('home');
   await chooseOutput(page, 'Wired headphones');
+
+  // The picker lists Baritone among the launch voices.
+  await (isPhone(page) ? home.locator('.home-summary-inst') : home.getByRole('button', { name: /Change instrument/ }).first()).click();
+  await expect(page.locator('[role="radio"][data-instrument="voice-baritone"]')).toHaveCount(1);
+  await shot('picker');
+  await page.getByRole('button', { name: 'Done', exact: true }).click();
+  await expect(page.locator('[role="radio"][data-instrument="voice-baritone"]')).toHaveCount(0);
+
+  // Key grid and time segments: choose a key and a time signature other than Any, then close the rows.
+  const key = await openRow(page, 'key');
+  await expect(key.locator('[role="radio"][data-key]').first()).toBeVisible();
+  await shot('key-grid', false);
+  await key.locator('[role="radio"][data-key]').nth(1).click();
+  await closeRow(page);
+  const time = await openRow(page, 'time');
+  await shot('time-segments', false);
+  await time.getByRole('radio').nth(1).click();
+  await closeRow(page);
+
   await chooseMode(page, 'practice');
   await page.getByRole('button', { name: 'Start', exact: true }).click();
   await expect(page.getByTestId('scan-cover')).toBeVisible({ timeout: 30_000 });
@@ -98,6 +143,15 @@ test('screen tour: onboarding, home, scan, take with a wrong and a late note, re
   await expect(scan.locator('[data-expected-idx]').first()).toBeVisible({ timeout: 30_000 });
   await expect.poll(() => page.evaluate(() => document.fonts.check('30pt Bravura')), { timeout: 15_000 }).toBe(true);
   await shot('scan');
+  // The starting pitch: its info, then the sound. Listen first makes this take practice (the take stays unranked).
+  await page.getByRole('button', { name: 'About Hear starting pitch' }).click();
+  await shot('scan-reference-info', false);
+  await page.keyboard.press('Escape');
+  await page.getByRole('button', { name: /^Hear starting pitch/ }).click();
+  await shot('scan-starting-pitch', false);
+  await page.getByRole('button', { name: /^Listen first/ }).click();
+  await shot('scan-listen-first', false);
+  await page.getByRole('button', { name: /^Stop/ }).first().click();
   const plan = await pagePlan(page);
   const wrongIdx = h.wrongNoteIdx(plan.expected);
   const lateIdx = h.lateNoteIdx(plan.expected);
@@ -161,6 +215,13 @@ test('screen tour: onboarding, home, scan, take with a wrong and a late note, re
   // clean-read tip. The tips interstitial is gone: `#/practice/tips` goes back to the open result (decision 13).
   const tipsShown = await page.evaluate(() => (window as unknown as { __sr: { session: { record: { score: { tipsShown: string[] } | null } | null } } }).__sr.session.record?.score?.tipsShown ?? []);
   expect(tipsShown).not.toContain('U18');
+  if (tipsShown.length > 0) {
+    // The tip sits under the results as "One thing to try".
+    await expect(page.getByText('One thing to try', { exact: true }).first()).toBeVisible();
+    await shot('results-one-thing-to-try', false);
+  } else {
+    info.annotations.push({ type: 'tip', description: 'this take earned no tip, so One thing to try is not on screen' });
+  }
   await page.evaluate(() => { window.location.hash = '#/practice/tips'; });
   await expect(page).toHaveURL(/#\/practice\/results$/);
   await expect(page.getByTestId('results-panel')).toBeVisible({ timeout: 10_000 });
@@ -185,6 +246,11 @@ test('screen tour: onboarding, home, scan, take with a wrong and a late note, re
   }
   await visit('#/settings', 'settings');
   for (const s of ['audio', 'display', 'practice', 'accessibility', 'data', 'about']) await visit(`#/settings/${s}`, `settings-${s}`);
+  // Sound previews: each metronome sound plays a bar from its own button.
+  await page.evaluate(() => { window.location.hash = '#/settings/audio'; });
+  await page.getByRole('button', { name: /^Play a bar of/ }).nth(1).click();
+  await shot('settings-sound-previews', false);
+  await page.getByRole('button', { name: /^Stop/ }).first().click().catch(() => undefined);
   await visit('#/calibrate', 'calibrate');
   await visit('#/credits', 'credits');
   await visit('#/no-such-page', 'not-found');
