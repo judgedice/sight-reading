@@ -3,7 +3,7 @@
  * page with the marked score, Listen and "One thing to try", "Change setup" over results, then the rank-up, install
  * or session summary sheet. Tips live here; there is no tips step in the loop (05 section 3.1, decision 13).
  */
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { AttemptRecord, PracticeSettings } from '../../../core/types.ts';
 import { BeatUnitText } from '../../../ui/components/domain/index.ts';
 import { Button } from '../../../ui/components/form/index.ts';
@@ -18,7 +18,6 @@ import { RankUpCard } from '../sheets/RankUpCard.tsx';
 import { SessionSummary } from '../sheets/SessionSummary.tsx';
 import { summarizeSession, summaryDue } from '../sheets/summary.ts';
 import { creditLine, rankUpEvent, type HearSpan } from './model.ts';
-import type { ReviewExtras } from './review/SessionReview.tsx';
 import { ResultsListen, isListening, useResultsSound } from './ResultsListen.tsx';
 import { ResultsPanel } from './ResultsPanel.tsx';
 import type { ResultsServices } from './services.ts';
@@ -35,9 +34,6 @@ export interface ResultsSetupServices {
   hearTempo?(bpm: number, beatsPerBar: number): Promise<void>;
   playNote?(concertMidi: number): Promise<void>;
 }
-
-/** The renderer the composition root passes (`createReviewRenderer`) takes the Listen extras as a second argument. */
-type ReviewRenderer = (record: AttemptRecord, extras?: ReviewExtras) => ReactNode;
 
 const Services = createContext<ResultsServices | null>(null);
 export const ResultsServicesProvider = Services.Provider;
@@ -123,6 +119,8 @@ export function ResultsScreen(_props: ScreenProps) {
   const [announce, setAnnounce] = useState('');
   const [setupOpen, setSetupOpen] = useState(false);
   const setupAtOpen = useRef<string>('');
+  /** The settings as they were when "Change setup" opened, so Cancel can put them back (05 section 3.1). */
+  const setupRestore = useRef<{ practice: PracticeSettings; showBeta: boolean } | null>(null);
 
   const rankUp = rankUpEvent(view.progress);
   const rankUpDue = rankUp !== null && !rankSeen.has(rankUp.to) && !(services.rankUps?.seen(rankUp.to) ?? false);
@@ -256,6 +254,8 @@ export function ResultsScreen(_props: ScreenProps) {
       return;
     }
     setupAtOpen.current = JSON.stringify(practice);
+    const now = services.settings.get();
+    setupRestore.current = { practice: now.practice, showBeta: now.practicePrefs.showBeta };
     setSetupOpen(true);
   };
   const saveSetup = (nextSettings: PracticeSettings): void => {
@@ -263,8 +263,16 @@ export function ResultsScreen(_props: ScreenProps) {
   };
   const closeSetup = (): void => {
     setSetupOpen(false);
-    // Done with a new setup: the cover of a new excerpt with it. Closing with nothing changed stays on results.
+    // Done with a new setup: the cover of a new excerpt with it. Done with nothing changed stays on results.
     if (JSON.stringify(normalize(services.settings.get().practice, ctx!)) !== setupAtOpen.current) proceed();
+  };
+  const cancelSetup = (): void => {
+    setSetupOpen(false);
+    // Cancel changes nothing: the changes the sheet applied as they were made are put back, and results stays.
+    const was = setupRestore.current;
+    if (!was) return;
+    const now = services.settings.get();
+    services.settings.set({ ...now, practice: was.practice, practicePrefs: { ...now.practicePrefs, showBeta: was.showBeta } });
   };
 
   // ---- tips off from results (designer's note 17) ------------------------------------------------------------------
@@ -318,7 +326,7 @@ export function ResultsScreen(_props: ScreenProps) {
       onStop={stop}
     />
   ) : null;
-  const renderReview = services.renderReview as ReviewRenderer | undefined;
+  const renderReview = services.renderReview;
   const highlight = indexOfBar(playing ? sound.bar : startBar);
   const review = renderReview ? renderReview(record, { highlightBar: highlight, onBarTap, ...(controls ? { toolbarEnd: controls } : {}) }) : null;
 
@@ -380,6 +388,7 @@ export function ResultsScreen(_props: ScreenProps) {
           ctx={ctx}
           onChange={saveSetup}
           onClose={closeSetup}
+          onCancel={cancelSetup}
           onShowLessTested={(on) => {
             const now = services.settings.get();
             services.settings.set({ ...now, practicePrefs: { ...now.practicePrefs, showBeta: on } });

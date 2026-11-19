@@ -970,6 +970,25 @@ describe('Change setup (05 sections 3.2 and 4.4)', () => {
     expect(f.hash.value).toBe('#/practice/scan');
   });
 
+  it('Cancel (Escape) after a change puts the setup back and stays on results', () => {
+    const f = withSetup();
+    const next = vi.fn(() => false);
+    f.services.actions.next = next;
+    renderScreen(f);
+    click(button(copy('action.changeSetup')));
+    const before = f.settings.get().practice;
+    const anyKey = [...document.querySelectorAll<HTMLElement>('[data-testid="setup-sheet"] [role="radio"]')].find((r) => r.getAttribute('aria-checked') === 'false' && /key/i.test(r.closest('[data-setup-slot]')?.getAttribute('data-setup-slot') ?? ''));
+    click(anyKey!);
+    expect(f.settings.get().practice.writtenKey).not.toEqual(before.writtenKey);
+    act(() => {
+      document.activeElement?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    });
+    expect(q('[data-testid="setup-sheet"]')).toBeNull();
+    expect(f.settings.get().practice).toEqual(before);
+    expect(next).not.toHaveBeenCalled();
+    expect(f.hash.value).toBe('#/practice/results');
+  });
+
   it('without the corpus counts it goes to Practice', () => {
     const f = fixture();
     renderScreen(f);

@@ -6,7 +6,7 @@
  */
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { AttemptRecord, Configs, PlayerProfile, ProgressEvent, Tip } from '../../../core/types.ts';
-import { copy, isCopyKey, type CopyKey } from '../../../ui/copy/copy.ts';
+import { copy } from '../../../ui/copy/copy.ts';
 import { Button } from '../../../ui/components/form/index.ts';
 import { GradeBadge, StarRow } from '../../../ui/components/domain/index.ts';
 import { Glyph } from '../../../ui/primitives/index.ts';
@@ -84,10 +84,6 @@ export interface ResultsPanelProps extends ResultsHandlers {
 export const cardId = (c: LevelCard): string => `${c.kind}:${c.instrumentId}`;
 
 /** Copy that the catalogue may not hold yet: shown once the key exists, never as a literal here. */
-function optionalCopy(key: string): string | null {
-  return isCopyKey(key) ? copy(key as CopyKey) : null;
-}
-
 function LevelCards({ cards, h, dismissed, dismiss }: { cards: LevelCard[]; h: ResultsHandlers; dismissed: ReadonlySet<string>; dismiss: (c: LevelCard) => void }) {
   const open = cards.filter((c) => !dismissed.has(cardId(c)));
   if (open.length === 0) return null;
@@ -157,14 +153,11 @@ function HowItWent({ record, configs, showNumbers, h }: { record: AttemptRecord;
   const focus = focusComponent(s);
   const focusRow = rows.find((r) => r.id === focus);
   const lines = diagnosticLines(s, showNumbers);
-  const title = optionalCopy('results.components.title');
   return (
-    <section className="res-card res-how" data-testid="res-components" {...(title ? { 'aria-labelledby': 'res-how-title' } : {})}>
-      {title ? (
-        <h2 className="res-how-title" id="res-how-title">
-          {title}
-        </h2>
-      ) : null}
+    <section className="res-card res-how" data-testid="res-components" aria-labelledby="res-how-title">
+      <h2 className="res-how-title" id="res-how-title">
+        {copy('results.components.title')}
+      </h2>
       <div className="res-comps">
         {rows.map((r) => (
           <div key={r.id} className="res-comp" data-component={r.id} data-weakest={r.id === focus ? 'true' : undefined}>
@@ -284,7 +277,6 @@ export function ResultsPanel(props: ResultsPanelProps) {
   const calibrateNow = props.onCalibrateNow ?? props.onRecalibrate;
   const timingNote = record.calibration.method === 'reported' || state.kind === 'not-calibrated';
   const gradeName = s ? text('a11y.grade.heading', { grade: s.grade, score: s.score, stars: s.stars }) : '';
-  const outOf = optionalCopy('results.outOf');
 
   const left = graded && s ? (
     <section className="res-grade" aria-label={gradeName}>
@@ -294,7 +286,7 @@ export function ResultsPanel(props: ResultsPanelProps) {
       <div className="res-grade-side" aria-hidden="true">
         <p className="res-grade-score">
           <span className="res-grade-number">{Math.round(s.score)}</span>
-          {outOf ? <span className="res-grade-of">{outOf}</span> : null}
+          <span className="res-grade-of">{copy('results.outOf')}</span>
         </p>
         <StarRow stars={s.stars} shine={s.shine} size="results" />
         <p className="res-grade-line">{text(`grade.${s.grade}`)}</p>

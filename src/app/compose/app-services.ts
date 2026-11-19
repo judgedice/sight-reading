@@ -21,7 +21,7 @@ import { homeScreenOverrides, type HomeBanner, type HomeServices, type Readable,
 import { OnboardingScreen, OnboardingServicesProvider, type MicOutcome, type OnboardingResult, type OnboardingServices } from '../screens/onboarding/index.ts';
 import { progressScreenOverrides } from '../screens/progress/index.ts';
 import { createReviewRenderer } from '../screens/results/review/index.ts';
-import { resultsScreenOverrides, type ResultsServices } from '../screens/results/index.ts';
+import { resultsScreenOverrides, type ResultsServices, type ResultsSetupServices } from '../screens/results/index.ts';
 import { practiceFlowScreenOverrides, type PracticeFlowServices } from '../screens/scan/index.ts';
 import type { SettingsServices } from '../screens/settings/context.ts';
 import type { SettingsSoundServices } from '../screens/settings/services.ts';
@@ -87,7 +87,7 @@ export interface ComposedApp {
     home: HomeServices;
     onboarding: OnboardingServices;
     flow: PracticeFlowServices;
-    results: ResultsServices;
+    results: ResultsServices & ResultsSetupServices;
     tips: TipsServices;
     calibration: CalibrationServices;
     settings: SettingsServices & SettingsSoundServices;
@@ -409,7 +409,7 @@ export function composeApp(rt: AppRuntime): ComposedApp {
   };
 
   // ---- results and tips ----------------------------------------------------------------------------
-  const results: ResultsServices = {
+  const results: ResultsServices & ResultsSetupServices = {
     configs: cfg,
     session: session.view,
     profile,
@@ -449,26 +449,15 @@ export function composeApp(rt: AppRuntime): ComposedApp {
     renderReview: createReviewRenderer({ configs: cfg, session: session.view, settings, loadNotation, spell: ghostPitch }),
     listen: (o) => session.listen(o),
     hearBar: (from, to, o) => session.hearBar(from, to, o),
+    // "Change setup" draws the setup sheet over results (05 section 3.1).
+    countEligible: (instrumentId, level, meter) => countEligible(manifest, instrumentId, level, meter, cfg),
+    hearTempo: (bpm, beatsPerBar) => session.hearTempo(bpm, beatsPerBar),
+    playNote,
     stopSounds,
     sounds,
   };
-  const tips: TipsServices = {
-    configs: cfg,
-    session: session.view,
-    settings,
-    profile,
-    sessionAttempts: () => sessionAttempts,
-    onNext() {
-      prepareNext();
-      return false;
-    },
-    onFinish() {
-      rt.keepAwake.leavePractice();
-    },
-    hearBar: (from, to) => session.hearBar(from, to),
-    stopSounds,
-    sounds,
-  };
+  // `#/practice/tips` only redirects now (decision 13): the redirect needs the session alone.
+  const tips: TipsServices = { session: session.view };
 
   // ---- history -------------------------------------------------------------------------------------
   // Attempt detail draws the marked score once `preparedFor` has resolved; the renderer reads the excerpt from here.

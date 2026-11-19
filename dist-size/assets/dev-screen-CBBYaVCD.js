@@ -1,0 +1,2 @@
+import{r as e,j as r}from"./index-BEGKfDa3.js";import{V as a,e as i}from"./fonts-DeU5NPeR.js";import"./types-D3vJWBGq.js";function f(){const t=e.useRef(null),[s,o]=e.useState(!1);return e.useEffect(()=>{const n=new a;t.current?.setAttribute("data-view",typeof n.render),i().then(()=>o(!0))},[]),r.jsx("section",{"data-testid":"screen-dev-notation","data-ready":s,children:r.jsx("div",{ref:t})})}export{f as default};
+//# sourceMappingURL=dev-screen-CBBYaVCD.js.map

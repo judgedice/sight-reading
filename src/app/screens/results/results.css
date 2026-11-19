@@ -662,8 +662,9 @@
     padding: 0 var(--space-3);
   }
 
+  /* Out of layout, not only hidden: its nowrap width would push the page wider than a phone. */
   .res-summary {
-    visibility: hidden;
+    display: none;
   }
 
   .res-score .rv-toolbar > .ui-segmented {

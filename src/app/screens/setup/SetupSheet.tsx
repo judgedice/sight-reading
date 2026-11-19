@@ -123,6 +123,11 @@ export interface SetupSheetProps {
   onChange: (next: PracticeSettings, notes: FallbackNote[]) => void;
   /** Done, Escape, a swipe down and a scrim tap all close the sheet; the changes are already applied. */
   onClose: () => void;
+  /**
+   * Escape, a swipe down, a scrim tap and the close button, when the caller treats them apart from Done (results:
+   * "Cancel changes nothing"). Without it they call `onClose`.
+   */
+  onCancel?: (() => void) | undefined;
   /** The row the sheet opens at: scrolled to the top with focus on its control. */
   row?: SetupRowId | null | undefined;
   /** "Show more instruments (less tested)" changed in the picker. */
@@ -150,6 +155,7 @@ export function SetupSheet({
   ctx,
   onChange,
   onClose,
+  onCancel,
   row,
   onShowLessTested,
   onHearNote,
@@ -198,7 +204,7 @@ export function SetupSheet({
 
   return (
     <>
-      <Sheet open={open} title={copy('action.changeSetup')} onCancel={onClose} onDone={onClose}>
+      <Sheet open={open} title={copy('action.changeSetup')} onCancel={onCancel ?? onClose} onDone={onClose}>
         <div ref={bodyRef} className="setup-sheet" data-testid="setup-sheet">
           <button type="button" className="setup-sheet-inst" onClick={() => setPicking(true)}>
             <InstrumentTile instrument={inst} small />

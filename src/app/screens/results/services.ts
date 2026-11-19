@@ -7,6 +7,7 @@ import type { StoreApi } from 'zustand/vanilla';
 import type { AppSettings, AttemptRecord, Configs, PlayerProfile, ProgressEvent } from '../../../core/types.ts';
 import type { ListenOptions, SessionView, SoundView } from '../../../session/index.ts';
 import type { Readable, Writable } from '../home/services.ts';
+import type { ReviewExtras } from './review/SessionReview.tsx';
 
 export interface ResultsActions {
   /** Start the next excerpt (after the tips interstitial when on). Return true when handled; the default goes to the scan. */
@@ -38,8 +39,8 @@ export interface ResultsServices {
   profile: Readable<PlayerProfile | undefined>;
   settings: Writable<AppSettings>;
   actions: ResultsActions;
-  /** Review content for the left column: the score frame with D8b's interactions. */
-  renderReview?(record: AttemptRecord): ReactNode;
+  /** Review content for the left column: the score frame with D8b's interactions, and the Listen extras. */
+  renderReview?(record: AttemptRecord, extras?: ReviewExtras): ReactNode;
   rankUps?: RankUpMemory;
   /** Wait before a rank-up or install sheet opens, so the panel settles first (ms; default 600). */
   settleMs?: number;

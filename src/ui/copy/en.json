@@ -789,5 +789,7 @@
   "settings.audio.metronomeVolume.hint": "Plays one click when you let go.",
   "scan.practice.readHint": "Read it through. Start when you are ready.",
   "setup.empty.title": "No excerpt fits these settings",
-  "scan.sounds.listenRanked": "In a ranked take, this makes it practice. We ask first."
+  "scan.sounds.listenRanked": "In a ranked take, this makes it practice. We ask first.",
+  "results.outOf": "of 100",
+  "results.components.title": "How it went"
 }

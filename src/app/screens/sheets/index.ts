@@ -17,7 +17,7 @@ export type { TipsServices } from './services.ts';
  * route's own redirect sends `#/practice/tips` to the open result or to Practice before any screen renders; this
  * screen only backs that up (it draws nothing and moves on the same way) for a table built without the redirect.
  */
-export function createTipsRedirect(services: Pick<TipsServices, 'session'>): ScreenComponent {
+export function createTipsRedirect(services: TipsServices): ScreenComponent {
   return function TipsRedirect() {
     const navigate = useNavigate();
     const view = useSyncExternalStore(services.session.subscribe, services.session.getState, services.session.getState);
