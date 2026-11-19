@@ -91,6 +91,16 @@ Every tolerance and weight lives in `config/grading-config.json`. The follower, 
 54. Ruling 45's room target was missed for voice, cello, violin, and flute in strong rooms. Reverberant rooms are a known limit, and voice is labelled beta outside quiet, dry rooms.
 55. The DSP worker posts the count-in recheck and the voice drift reference, so speaker takes can be ranked in port mode and the voice drift pattern can fire. The session summary in 02 section 6.1 is built.
 
+## Redesign (R56 to R60)
+
+The owner asked for a designer and a UX expert to review the built app. Their specs are in `docs/redesign/` (05 UX spec, 06 design spec, 08 plan, mockups). For screens, copy, and behaviour of the interface, those documents now override `spec/04-design.md`.
+
+56. "Level" is "Difficulty" everywhere the player sees it. Internal identifiers may stay.
+57. Baritone and mezzo-soprano ship as launch voices.
+58. The metronome gets three sounds (Classic, Woodblock, Beep), default Classic, each with a preview in settings. The build does not wait for the owner's audition; the owner can change the default later.
+59. Listening to the excerpt before a take makes that take practice, recorded with the reason `listened-first`. The session sets this; `src/grade` is not changed. Listening after results is free.
+60. The redesign build may not touch `src/dsp`, `src/follow`, or `src/grade`.
+
 ## What the owner should know
 
 - Early, late, and wrong-note marks appear within about 150 ms of the note. Sharp and flat marks appear about 260 to 350 ms after the note starts, because pitch needs roughly 100 ms of steady tone after the attack before it can be measured to the cent.
