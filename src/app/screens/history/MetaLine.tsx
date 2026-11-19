@@ -1,4 +1,5 @@
 /** The one-line summary of a take (05 section 8.12): "Baritone voice · Difficulty 2 · C major · 4/4 · ♩ = 71". */
+import { Fragment } from 'react';
 import { BeatUnitText } from '../../../ui/components/domain/index.ts';
 import { metaParts, type RowDetail } from './model.ts';
 
@@ -15,10 +16,12 @@ export function MetaLine({ instrument, levelServed, detail, className }: MetaLin
   return (
     <span className={className} data-testid="meta-line">
       {parts.map((p, i) => (
-        <span key={i} className="hist-meta-part">
+        <Fragment key={i}>
           {i > 0 ? ' · ' : ''}
-          <BeatUnitText text={p} />
-        </span>
+          <span className="hist-meta-part">
+            <BeatUnitText text={p} />
+          </span>
+        </Fragment>
       ))}
     </span>
   );

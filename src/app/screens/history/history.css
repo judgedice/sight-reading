@@ -322,3 +322,8 @@
   display: flex;
   gap: var(--space-3);
 }
+
+/* A part of the summary line never breaks inside; the line wraps between parts. */
+.hist-meta-part {
+  white-space: nowrap;
+}

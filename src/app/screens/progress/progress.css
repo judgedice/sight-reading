@@ -111,6 +111,13 @@
   list-style: none;
 }
 
+@media (max-width: 40rem) {
+  .prog-ladder {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
 @media (min-width: 64rem) {
   .prog-ladder {
     flex-direction: row;

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { makeAttempt } from '../../../store/test-data.ts';
 import { summarizeAttempt } from '../../../store/summary.ts';
-import { dayLabel, filterQuery, groupByDay, localDayOf, matchesFilter, parseFilter, shiftDay } from './model.ts';
+import { attemptTitle, metaLine, metaParts, rowDetail, servedMeter, dayLabel, filterQuery, groupByDay, localDayOf, matchesFilter, parseFilter, shiftDay } from './model.ts';
 
 describe('filter query', () => {
   it('round-trips instrument and ranked through the URL query', () => {
@@ -46,5 +46,33 @@ describe('local days', () => {
     expect(dayLabel('2026-11-18', '2026-11-18')).toBe('Today');
     expect(dayLabel('2026-11-17', '2026-11-18')).toBe('Yesterday');
     expect(dayLabel('2026-11-16', '2026-11-18')).toBe('Mon 16 Nov');
+  });
+});
+
+describe('row and detail summary', () => {
+  const rec = (meter: string, bpm = 71) => makeAttempt(0, { bpm, settingsResolved: { ...makeAttempt(0).settingsResolved, meter } });
+
+  it('reads "Baritone voice · Difficulty 2 · C major · 4/4 · ♩ = 71"', () => {
+    const r = rec('4/4');
+    const line = metaLine(metaParts('Baritone voice', 2, rowDetail(r)));
+    expect(line).toBe('Baritone voice · Difficulty 2 · C major · 4/4 · ♩ = 71');
+  });
+
+  it('uses the dotted quarter for a compound meter', () => {
+    expect(metaLine(metaParts('Flute', 3, rowDetail(rec('6/8', 60))))).toBe('Flute · Difficulty 3 · C major · 6/8 · ♩. = 60');
+  });
+
+  it('never says random: the served meter comes from the excerpt, and is left out when unknown', () => {
+    const r = rec('random');
+    expect(servedMeter(r)).toBeNull();
+    expect(servedMeter(r, { meter: { beats: 3, beatType: 4 } })).toBe('3/4');
+    expect(metaLine(metaParts('Flute', 1, rowDetail(r)))).toBe('Flute · Difficulty 1 · C major · ♩ = 71');
+    expect(metaLine(metaParts('Flute', 1, rowDetail(r, { meter: { beats: 3, beatType: 4 } })))).toBe('Flute · Difficulty 1 · C major · 3/4 · ♩ = 71');
+  });
+
+  it('titles a take with its work and movement', () => {
+    const r = makeAttempt(0);
+    expect(attemptTitle({ credit: { ...r.credit, work: 'Sonata', movement: 'Allegro' } })).toBe('Sonata: Allegro');
+    expect(attemptTitle({ credit: { ...r.credit, work: 'Sonata', movement: undefined as never } })).toBe('Sonata');
   });
 });

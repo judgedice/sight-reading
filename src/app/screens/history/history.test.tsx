@@ -11,6 +11,9 @@ import { setNativeValue, q } from '../../../ui/components/form/test-helpers.ts';
 import { RouterProvider, useRoute, type LocationSource } from '../../router.tsx';
 import { createRouteTable } from '../../routes.tsx';
 import { createAttemptScreen, createHistoryScreen } from './index.ts';
+import { createStore } from 'zustand/vanilla';
+import type { SoundView } from '../../../session/index.ts';
+import type { AttemptServices } from './AttemptScreen.tsx';
 import { creditLine } from '../results/model.ts';
 import type { HistoryServices } from './services.ts';
 import { localDayOf } from './model.ts';
@@ -171,6 +174,146 @@ describe('AttemptScreen', () => {
     act(() => open!.click());
     await flush();
     expect(document.querySelector('[data-testid="source-sheet"]')).not.toBeNull();
+  });
+});
+
+describe('history row format', () => {
+  it('reads "Instrument · Difficulty n · key · meter · ♩ = bpm" with the served meter', async () => {
+    const repos = await seed(3, (i) => ({
+      instrumentId: ['voice-baritone', 'flute', 'violin'][i]!,
+      levelServed: 2,
+      bpm: 71,
+      settingsResolved: { ...makeAttempt(i).settingsResolved, meter: ['4/4', 'random', '6/8'][i]! },
+    }));
+    const services: HistoryServices = {
+      configs: cfg,
+      repos,
+      localDay: () => '2026-02-01',
+      // The random-meter take was served in 3/4.
+      preparedFor: async () => ({ meter: { beats: 3, beatType: 4 } }) as never,
+    };
+    await renderAt('#/history', services);
+    const lines = [...document.querySelectorAll('[data-testid="history-row"] [data-testid="meta-line"]')].map((e) => e.textContent);
+    expect(lines).toHaveLength(3);
+    expect(lines).toContain('Baritone voice · Difficulty 2 · C major · 4/4 · ♩ = 71');
+    expect(lines).toContain('Flute · Difficulty 2 · C major · 3/4 · ♩ = 71');
+    expect(lines).toContain('Violin · Difficulty 2 · C major · 6/8 · ♩. = 71');
+    expect(lines.join('')).not.toContain('random');
+  });
+
+  it('leaves the meter out rather than print random when the excerpt cannot be read', async () => {
+    const repos = await seed(1, () => ({ instrumentId: 'flute', levelServed: 1, bpm: 71, settingsResolved: { ...makeAttempt(0).settingsResolved, meter: 'random' } }));
+    await renderAt('#/history', { configs: cfg, repos, localDay: () => '2026-02-01' });
+    expect(document.querySelector('[data-testid="meta-line"]')?.textContent).toBe('Flute · Difficulty 1 · C major · ♩ = 71');
+  });
+
+  it('shows the error line when the takes cannot be read', async () => {
+    const repos = memoryRepos();
+    repos.attempts.list = () => Promise.reject(new Error('x'));
+    await renderAt('#/history', { configs: cfg, repos, localDay: () => '2026-02-01' });
+    expect(document.querySelector('[role="alert"]')?.textContent).toBe(text('history.error'));
+  });
+});
+
+describe('attempt detail: title, score and Listen', () => {
+  const idle = (): SoundView => ({ playing: null, caption: null, bar: null, fromBar: null, slower: false, attemptId: null, failed: false, startsAt: null, endsAt: null });
+  const prepared = { meter: { beats: 4, beatType: 4 }, measures: [{ displayBar: 1 }, { displayBar: 2 }, { displayBar: 3 }] };
+
+  async function open(extra: Partial<AttemptServices> = {}) {
+    const repos = await seed(1, () => ({ instrumentId: 'voice-baritone', score: makeScore(84, true), bpm: 71 }));
+    const [only] = await repos.attempts.all();
+    const sounds = createStore<SoundView>()(() => idle());
+    const calls: { id: string; o: { fromBar?: number; slower?: boolean } }[] = [];
+    let stops = 0;
+    let extras: { highlightBar?: number | null; onBarTap?: (i: number) => void } = {};
+    const services: AttemptServices = {
+      configs: cfg,
+      repos,
+      localDay: () => '2026-02-01',
+      sounds,
+      preparedFor: async () => prepared as never,
+      listen: async (r, o) => {
+        calls.push({ id: r.id, o });
+      },
+      stopSounds: () => {
+        stops++;
+      },
+      renderReview: (_r, e) => {
+        extras = e;
+        return <div data-testid="fake-review">{e.toolbarEnd}</div>;
+      },
+      ...extra,
+    };
+    await renderAt(`#/history/${only!.id}`, services);
+    return { only: only!, sounds, calls, stops: () => stops, extras: () => extras };
+  }
+
+  it('has a plain title, not a link, and the one-line summary', async () => {
+    await open();
+    const title = document.querySelector('[data-testid="attempt-title"]')!;
+    expect(title.tagName).toBe('H1');
+    expect(title.textContent).toBe('Work 0');
+    expect(title.closest('a')).toBeNull();
+    expect(title.querySelector('a')).toBeNull();
+    expect(document.querySelector('.hist-attempt-meta')?.textContent).toBe('Baritone voice · Difficulty 1 · C major · 4/4 · ♩ = 71');
+  });
+
+  it('puts Listen and Slower in the score toolbar and starts the take from bar 1', async () => {
+    const t = await open();
+    expect(document.querySelector('[data-testid="fake-review"] [data-testid="listen-controls"]')).not.toBeNull();
+    const listen = q<HTMLButtonElement>('[data-testid="listen-button"]');
+    expect(listen.textContent).toBe(copy('action.listen'));
+    click(listen);
+    expect(t.calls).toEqual([{ id: t.only.id, o: { slower: false } }]);
+  });
+
+  it('Slower asks for 75% and a tapped bar sets where Listen starts', async () => {
+    const t = await open();
+    click(q('[role="switch"]'));
+    act(() => t.extras().onBarTap?.(2));
+    expect(t.extras().highlightBar).toBe(2);
+    expect(document.querySelector('.hist-from-bar')?.textContent).toBe(copy('listen.fromBar', { n: 3 }));
+    click(q('[data-testid="listen-button"]'));
+    expect(t.calls[0]?.o).toEqual({ slower: true, fromBar: 3 });
+  });
+
+  it('reads Stop with the live caption while it plays, and Stop stops at once', async () => {
+    const t = await open();
+    act(() => t.sounds.setState({ playing: 'listen', attemptId: t.only.id, bar: 2, caption: { kind: 'bar', bar: 2, of: 8 } }));
+    const btn = q<HTMLButtonElement>('[data-testid="listen-button"]');
+    expect(btn.textContent).toBe(copy('action.stop'));
+    expect(document.querySelector('[data-testid="live-caption"]')?.textContent).toContain(copy('listen.playing', { n: 2, total: 8 }));
+    click(btn);
+    expect(t.stops()).toBe(1);
+  });
+
+  it('ignores a sound that belongs to another take, and shows a failed sound', async () => {
+    const t = await open();
+    act(() => t.sounds.setState({ playing: 'listen', attemptId: 'someone-else' }));
+    expect(q<HTMLButtonElement>('[data-testid="listen-button"]').textContent).toBe(copy('action.listen'));
+    act(() => t.sounds.setState({ playing: null, attemptId: null, failed: true }));
+    expect(document.querySelector('[data-testid="live-caption"]')?.textContent).toContain(copy('sound.failed'));
+  });
+
+  it('shows no score and no Listen when the excerpt is not available', async () => {
+    await open({ preparedFor: async () => null });
+    expect(document.querySelector('[data-testid="fake-review"]')).toBeNull();
+    expect(document.querySelector('[data-testid="listen-controls"]')).toBeNull();
+  });
+
+  it('stops the sound when leaving the screen', async () => {
+    const t = await open();
+    m?.unmount();
+    m = null;
+    expect(t.stops()).toBeGreaterThan(0);
+  });
+
+  it('shows the error line when the take cannot be read, with a way back', async () => {
+    const repos = memoryRepos();
+    repos.attempts.byId = () => Promise.reject(new Error('x'));
+    await renderAt('#/history/x', { configs: cfg, repos, localDay: () => '2026-02-01' });
+    expect(document.querySelector('[role="alert"]')?.textContent).toBe(text('history.error'));
+    expect(document.body.textContent).toContain(text('history.backToList'));
   });
 });
 

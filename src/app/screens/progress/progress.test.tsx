@@ -120,6 +120,41 @@ describe('ProgressScreen', () => {
   });
 });
 
+describe('ProgressScreen rank gate and boxes', () => {
+  it('shows the rank gate only when the next rank is blocked by difficulty', () => {
+    const next = cfg.progression.ranks.table[3]!;
+    const open = renderWith(makeProfile({ rank: 3, xp: 1200 }));
+    expect(open.querySelector('[data-testid="rank-gate"]')).toBeNull();
+    expect(open.textContent).not.toContain('Reach difficulty');
+    m?.unmount();
+    m = null;
+    const gated = renderWith(makeProfile({ rank: 3, xp: next.xp + 10 }));
+    expect(gated.querySelector('[data-testid="rank-gate"]')?.textContent).toBe(text('rank.bar.needsLevel', { level: next.minLevel }));
+  });
+
+  it('labels the boxes and reads empty ones as "Not yet played"', () => {
+    const el = renderWith(makeProfile({ activeInstrumentId: 'flute', instruments: { flute: progress({ window: [{ attemptId: 'a', score: 90, atMidTempo: false }] }) } }));
+    const list = el.querySelector('.prog-window')!;
+    const label = document.getElementById(list.getAttribute('aria-labelledby')!)!;
+    expect(label.textContent).toBe('Recent ranked takes at this difficulty');
+    expect(label.classList.contains('ui-visually-hidden')).toBe(false);
+    const empty = list.querySelectorAll('[data-state="empty"]');
+    expect(empty).toHaveLength(cfg.progression.levelWindow.size - 1);
+    expect(empty[0]?.textContent).toBe('Not yet played');
+  });
+
+  it('says "difficulty" and never "level" in what the player reads', () => {
+    const el = renderWith(makeProfile({ activeInstrumentId: 'flute', instruments: { flute: progress({ level: 4, attemptsRanked: 5, bestByLevel: { 4: 91 } }) } }));
+    expect(el.textContent).toContain('Difficulty 4');
+    expect(/\blevel\b/i.test(el.textContent ?? '')).toBe(false);
+  });
+
+  it('names a voice the way the picker does', () => {
+    const el = renderWith(makeProfile({ activeInstrumentId: 'voice-baritone', instruments: { 'voice-baritone': progress() } }));
+    expect(el.querySelector('.prog-instrument-name')?.textContent).toBe('Baritone voice');
+  });
+});
+
 describe('progressScreenOverrides', () => {
   it('replaces the progress placeholder in the route table', () => {
     const services: ProgressServices = { configs: cfg, profile: store(undefined) };
