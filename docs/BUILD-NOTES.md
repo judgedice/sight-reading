@@ -818,3 +818,11 @@ Final status (this review, Chromium only):
 - `pnpm corpus:check`: pass, 970 excerpts, 970 rendered, 77 selector cells, 0 stats.fit mismatches. Corpus pytest: 352 passed.
 - Playwright: root 96 passed / 42 skipped (WebKit and gated suites); notation 22; audio 6; slice 1; loop 2; ios 48; synthetic 7; pwa 2; design 18; tour 8 (tour.spec and first-user.spec on desktop and iPhone, light and dark).
 - Not run: any WebKit project, CI itself, Lighthouse, real devices.
+
+## Gate repair
+
+Running log (P4c gate repair: piano device onset F1, voice false missed / pitch class / divergence). Newest last.
+
+- Start: HEAD carries a partial change in src/dsp/segmenter.ts (`riseStart` uses the measured noise band, `noiseSpreadDb`, when the trough is at the noise floor) plus TEMPDBG env hooks (`VOICE_TOL`, `REF_LAG`, `__segTrace`), inert by default. Baseline before it: 188/195 (docs/accuracy-report.md at be3ce7d).
+- Measured the partial work (full `pnpm gates`, report-only): 189/195. Piano device onset F1 0.9631 -> 0.9983 (passes); piano room 0.963 -> 0.974; flute/clarinet/sax device F1 up. No gate that passed fails. Remaining blocking: voice false missed 1.89% clean / 1.89% device, pitch class 98.71% / 98.97%, device divergence 3.20%. Keeping the `riseStart` noise-band change.
+- Voice diagnosis (scenario 114 clean, notes 7-8, 64 -> 65): the slur is a glide of about 80 ms; each glide frame lands within 80 c of the note median and is appended to the note, so the median creeps after the pitch and no frame is ever 80 c from it. The note median used as the change reference is contaminated by the change itself.
