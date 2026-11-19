@@ -61,7 +61,7 @@ export function ListenControls({ sound, slower, fromBar, meter, onSlower, onList
   const caption = listenCaption(sound, fromBar, meter);
   return (
     <div className="hist-listen" data-testid="listen-controls" data-playing={playing ? 'true' : 'false'}>
-      {playing || sound.failed ? <LiveCaption failed={sound.failed}>{caption}</LiveCaption> : <p className="hist-from-bar">{caption}</p>}
+      {playing || sound.failed ? <LiveCaption failed={sound.failed}>{caption}</LiveCaption> : caption ? <p className="hist-from-bar">{caption}</p> : null}
       <div className="hist-listen-row">
         <Toggle checked={slower} label={copy('listen.slower')} onChange={onSlower} />
         <Button

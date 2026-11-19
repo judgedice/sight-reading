@@ -195,25 +195,28 @@
   min-inline-size: 0;
 }
 
-/* Listen and Slower: the right end of the score toolbar. */
+/* Listen and Slower: the right end of the score toolbar, the live caption to their left. */
 .hist-listen {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: var(--space-1);
-}
-
-.hist-listen-row {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
+  gap: var(--space-2) var(--space-3);
+}
+
+.hist-listen-row {
+  display: flex;
+  align-items: center;
   gap: var(--space-3);
+}
+
+.hist-listen-row .ui-toggle {
+  flex: none;
+  inline-size: auto;
 }
 
 .hist-from-bar {
   margin: 0;
-  min-block-size: 1.5rem;
   color: var(--text-muted);
   font-size: var(--type-label-size);
   line-height: var(--type-label-line);
@@ -221,7 +224,7 @@
 }
 
 .hist-score-bare .hist-listen {
-  align-items: flex-start;
+  justify-content: flex-start;
 }
 
 .hist-credit {
