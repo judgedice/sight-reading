@@ -144,9 +144,21 @@ test('screen tour: onboarding, home, scan, take with a wrong and a late note, re
   await expect.poll(() => page.evaluate(() => document.fonts.check('30pt Bravura')), { timeout: 15_000 }).toBe(true);
   await shot('scan');
   // The starting pitch: its info, then the sound. Listen first makes this take practice (the take stays unranked).
-  await page.getByRole('button', { name: 'About Hear starting pitch' }).click();
-  await shot('scan-reference-info', false);
-  await page.keyboard.press('Escape');
+  // Desktop: the info button beside the reference. Phones: the dock's "What do these do?" sheet, which carries the
+  // same reference explanation (05 section 8, 14 item 2).
+  if (isPhone(page)) {
+    await page.getByRole('button', { name: 'What do these do?' }).click();
+    const explain = page.getByTestId('explain-list');
+    await expect(explain).toBeVisible();
+    await expect(explain.locator('[data-sound="reference"]')).toBeVisible();
+    await shot('scan-reference-info', false);
+    await page.keyboard.press('Escape');
+    await expect(explain).toHaveCount(0);
+  } else {
+    await page.getByRole('button', { name: 'About Hear starting pitch' }).click();
+    await shot('scan-reference-info', false);
+    await page.keyboard.press('Escape');
+  }
   await page.getByRole('button', { name: /^Hear starting pitch/ }).click();
   await shot('scan-starting-pitch', false);
   await page.getByRole('button', { name: /^Listen first/ }).click();
@@ -250,7 +262,8 @@ test('screen tour: onboarding, home, scan, take with a wrong and a late note, re
   await page.evaluate(() => { window.location.hash = '#/settings/audio'; });
   await page.getByRole('button', { name: /^Play a bar of/ }).nth(1).click();
   await shot('settings-sound-previews', false);
-  await page.getByRole('button', { name: /^Stop/ }).first().click().catch(() => undefined);
+  // The bar may have finished (its Stop button gone) by the time the screenshot is taken: bound the wait.
+  await page.getByRole('button', { name: /^Stop/ }).first().click({ timeout: 2_000 }).catch(() => undefined);
   await visit('#/calibrate', 'calibrate');
   await visit('#/credits', 'credits');
   await visit('#/no-such-page', 'not-found');
