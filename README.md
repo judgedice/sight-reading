@@ -45,6 +45,7 @@ pnpm test:bare       # pure packages bundled and run with only ES2022 globals, c
 pnpm size            # bundle budget: 150 KB gzip initial, 500 KB gzip total, music font 260 KB
 pnpm gates           # full synthetic accuracy gates, about 6 minutes on 4 cores
 pnpm corpus:check    # validates the shipped corpus in public/corpus/v1
+pnpm validators:check  # the precompiled backup-file validator matches schemas/ (`pnpm validators` regenerates it)
 ```
 
 `pnpm gates` writes `docs/accuracy-report.md` and `tools/gates/artifacts/accuracy.json`. Add `--report-only` to publish the report without failing, or `--no-write` to leave the files alone.
@@ -61,6 +62,7 @@ pnpm exec playwright test -c e2e/ios/playwright.ios.config.ts
 pnpm exec playwright test -c e2e/synthetic/playwright.synthetic.config.ts
 pnpm exec playwright test -c src/platform/web/sw/playwright.pwa.config.ts   # offline and subpath
 pnpm exec playwright test -c e2e/design/playwright.design.config.ts         # axe, tap targets, motion
+pnpm exec playwright test -c e2e/a11y/playwright.a11y.config.ts             # accessibility walk, keyboard, owner walkthrough
 pnpm exec playwright test -c e2e/tour/playwright.tour.config.ts             # screen tour, writes docs/screenshots/
 ```
 

@@ -18,7 +18,13 @@
     "allowImportingTsExtensions": true,
     "skipLibCheck": true,
     "noEmit": true,
-    "types": ["vite/client", "node"]
+    "types": ["vite/client", "node"],
+    // One VexFlow source module per import (src/notation/font/vexflow-bravura.ts). The package exports map hides them,
+    // so the types come from build/types/src and the JavaScript from build/esm/src (esbuild and depcruise read this).
+    // vite.config.ts and vitest.config.ts carry the same mapping as an alias.
+    "paths": {
+      "vexflow-src/*": ["./node_modules/vexflow/build/types/src/*", "./node_modules/vexflow/build/esm/src/*"]
+    }
   },
   "include": ["src", "config", "fixtures/**/*.ts", "test", "tools/**/*.ts"],
   "exclude": ["test/lint-fixtures", "node_modules", "dist"]

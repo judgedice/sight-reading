@@ -1,4 +1,5 @@
 import react from '@vitejs/plugin-react';
+import { fileURLToPath } from 'node:url';
 import { defineConfig, type Plugin } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
@@ -44,8 +45,15 @@ function pwaHead(): Plugin {
   };
 }
 
+/** `vexflow-src/x.js` → one VexFlow source module (tsconfig.json paths; src/notation/font/vexflow-bravura.ts). */
+export const vexflowSrcAlias = {
+  find: /^vexflow-src\//,
+  replacement: fileURLToPath(new URL('./node_modules/vexflow/build/esm/src/', import.meta.url)),
+};
+
 export default defineConfig({
   base: './',
+  resolve: { alias: [vexflowSrcAlias] },
   plugins: [
     react(),
     pwaHead(),

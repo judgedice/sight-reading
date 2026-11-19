@@ -1,6 +1,8 @@
 import { defineConfig } from 'vitest/config';
+import { vexflowSrcAlias } from './vite.config.ts';
 
 export default defineConfig({
+  resolve: { alias: [vexflowSrcAlias] },
   test: {
     environment: 'node',
     include: ['src/**/*.test.{ts,tsx}', 'test/**/*.test.ts', 'tools/**/*.test.ts', 'fixtures/**/*.test.ts', 'config/**/*.test.ts'],

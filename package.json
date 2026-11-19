@@ -24,6 +24,8 @@
     "test:e2e:webkit": "IOS_WEBKIT=1 playwright test --project=webkit --project=webkit-iphone --project=webkit-ipad",
     "schemas": "tsx tools/generate-schemas.ts",
     "schemas:check": "tsx tools/generate-schemas.ts --check",
+    "validators": "tsx tools/generate-validators.ts",
+    "validators:check": "tsx tools/generate-validators.ts --check",
     "tokens": "tsx tools/generate-tokens.ts",
     "tokens:check": "tsx tools/generate-tokens.ts --check",
     "test:bare": "tsx tools/bare-runtime/run.ts",

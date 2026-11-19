@@ -1,9 +1,9 @@
 /** Export and import (01 sections 5.9 and 11). Platform-neutral: works on any `StoreRepos` and `KeyValue`. */
-import Ajv from 'ajv';
 import type { ExportFileV1, JsonValue } from '../core/types.ts';
 import type { KeyValue, StoreRepos } from '../core/platform.ts';
 import type { StoreApi } from '../core/api.ts';
-import exportSchema from '../../schemas/export-file.schema.json';
+// Precompiled from schemas/export-file.schema.json by tools/generate-validators.ts (no Ajv runtime in the bundle).
+import validateFile from './export-file-validator.js';
 import { isReservedKvKey } from './keys.ts';
 import { CURRENT_EXPORT_VERSION, MigrationError, migrateExport } from './migrations.ts';
 
@@ -26,9 +26,6 @@ let exportAppVersion = '0.0.0';
 export function setExportAppVersion(v: string): void {
   exportAppVersion = v;
 }
-
-const ajv = new Ajv({ strict: false, allErrors: false });
-const validateFile = ajv.compile(exportSchema);
 
 /** Migrates and validates; throws `StoreImportError`. */
 export function parseExportFile(f: unknown): ExportFileV1 {

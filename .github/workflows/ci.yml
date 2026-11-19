@@ -37,6 +37,7 @@ jobs:
       - run: pnpm typecheck
       # Generated artefacts must match their sources (01 section 14 items 6 and 15).
       - run: pnpm schemas:check
+      - run: pnpm validators:check
       - run: pnpm tokens:check
 
   unit:
