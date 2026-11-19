@@ -176,3 +176,15 @@
     grid-row: 3;
   }
 }
+
+/*
+ * The count-in numbers still sit in the toolbar until the count-in band of redesign 06 section 6.12 is built. The
+ * `count` type token is now that band's 200 / 132 px size, so the toolbar keeps the heading size here.
+ */
+.perform-toolbar .dom-beats {
+  min-block-size: var(--type-h1-size);
+}
+
+.perform-toolbar .dom-beat-number {
+  font-size: var(--type-h1-size);
+}

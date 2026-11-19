@@ -693,6 +693,7 @@
   "setup.time.a11y": "{beats} {unit} time",
   "setup.time.few": "few pieces",
   "setup.time.unavailable": "No {meters} music for {instrument} at difficulty {level} yet.",
+  "setup.time.listOr": "{list} or {last}",
   "setup.tempo.any": "Any tempo in range",
   "setup.tempo.anyChip": "Any tempo",
   "setup.tempo.anyValue": "Any tempo from {min} to {max}",
