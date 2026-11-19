@@ -178,7 +178,7 @@ describe('ghosts', () => {
     const head = el.querySelector('.sr-ghost-head')!;
     const x = Number(/translate\(([-\d.]+) /.exec(head.getAttribute('transform')!)![1]);
     expect(x).toBeGreaterThan(layout.beatToPoint(1).x + 5);
-    expect(el.querySelector('.sr-ghost-arrow')!.getAttribute('href')).toBe('#arrow-up');
+    expect(el.querySelector('.sr-ghost-arrow')!.getAttribute('data-arrow')).toBe('up');
     view.showGhost({ ...g, detectedId: 2, kind: 'flat' });
     expect(el.querySelectorAll('.sr-ghost-arrow')).toHaveLength(2);
   });
@@ -292,20 +292,21 @@ describe('modes', () => {
     expect(ghostsIn(el)).toHaveLength(2);
   });
 
-  it('review: correct notes turn teal with a check; rejudged notes get a dashed ring and a 200 ms crossfade', () => {
-    const { el, view } = setup();
+  it('review: correct notes stay ink with no mark; rejudged notes get a dashed ring and a 200 ms crossfade', () => {
+    const { el, view, layout } = setup();
     view.setNoteState(0, { phase: 'judged', timing: 'on-time', pitch: 'in-tune' });
     view.setNoteState(1, { phase: 'judged', timing: 'on-time', marginal: true });
     view.setNoteState(2, { phase: 'judged', timing: 'late', rejudged: true });
     view.setMode('review');
-    expect(groups(el, 0)[0]!.classList.contains('n-correct')).toBe(true);
-    expect(groups(el, 0)[0]!.style.color).toBe('var(--correct)');
-    expect(glyphIds(el.querySelector('.sr-note-marks[data-marks-for="0"]')!)).toEqual(['check']);
-    expect(glyphIds(el.querySelector('.sr-note-marks[data-marks-for="1"]')!)).toEqual(['check-marginal']);
+    expect(groups(el, 0)[0]!.classList.contains('n-ink')).toBe(true);
+    expect(groups(el, 0)[0]!.style.color).toBe('');
+    expect(el.querySelector('.sr-note-marks[data-marks-for="0"]')).toBeNull();
+    expect(el.querySelector('.sr-note-marks[data-marks-for="1"]')).toBeNull();
     expect(el.querySelector('.sr-note-marks[data-marks-for="2"] .sr-ring-rejudged')!.getAttribute('stroke-dasharray')).toBe('4 3');
     expect(groups(el, 2)[0]!.style.transition).toContain('200ms');
-    // Review glyph size is 12.
-    expect(glyphsIn(el)[0]!.getAttribute('width')).toBe('12');
+    // Review lane glyphs are 1.25 staff spaces.
+    const sp = layout.systems[0]!.lineSpacing;
+    expect(Number(glyphsIn(el)[0]!.getAttribute('data-size'))).toBeCloseTo(1.25 * sp, 1);
   });
 
   it('review ghosts are opaque with stems', () => {
@@ -313,7 +314,8 @@ describe('modes', () => {
     view.showGhost(ghost(p, 1));
     view.setMode('review');
     expect(el.querySelector('.sr-ghost-stem')).not.toBeNull();
-    expect(el.querySelector('.sr-ghost-head')!.getAttribute('fill-opacity')).toBe('0.2');
+    expect(el.querySelector('.sr-ghost-head')!.getAttribute('fill-opacity')).toBe('0.55');
+    expect(el.querySelector('.sr-ghost-stem')!.getAttribute('stroke-opacity')).toBe('0.75');
   });
 
   it('clear() removes every mark and restores the ink', () => {
@@ -350,30 +352,45 @@ describe('playhead, bar tint, fading the past', () => {
     expect(el.querySelector('.sr-bar-tint')!.getAttribute('visibility')).toBe('hidden');
   });
 
-  it('shows the next-bar marker from 75% of the bar', () => {
-    const { el, view, p } = setup();
+  it('draws one wash and no next-bar marker (06 section 7)', () => {
+    const { el, view, p, layout } = setup();
     const per = p.meter.countsPerBar;
-    view.setPlayhead(per * 0.5);
-    expect(el.querySelector('.sr-next-bar')?.getAttribute('visibility') ?? 'hidden').toBe('hidden');
     view.setPlayhead(per * 0.8);
-    expect(el.querySelector('.sr-next-bar')!.getAttribute('visibility')).toBe('visible');
+    expect(el.querySelector('.sr-next-bar')).toBeNull();
+    const wash = el.querySelectorAll('.sr-bar-tint');
+    expect(wash).toHaveLength(1);
+    const sys = layout.systems[0]!;
+    const sp = sys.lineSpacing;
+    expect(Number(wash[0]!.getAttribute('y'))).toBeCloseTo(sys.staffTopY - 1.8 * sp, 1);
+    expect(Number(wash[0]!.getAttribute('rx'))).toBeCloseTo(0.5 * sp, 1);
+    // No visible playhead line.
+    expect(el.querySelector('.sr-playhead')!.getAttribute('visibility')).toBe('hidden');
   });
 
-  it('fades marks to 60% one beat past their bar and 40% once the playhead leaves their system', () => {
+  it('drops slip marks and slip notes to 70% once the playhead leaves their system; ink never fades', () => {
     const { el, view, layout, p } = setup('mozart-sq35524196-violin1-mv2-mp16-28');
     const per = p.meter.countsPerBar;
+    const chains = expectedChains(p);
+    const inBar1 = chains.map((c, i) => [c.bar, i] as const).filter(([b]) => b === 1).map(([, i]) => i);
+    expect(inBar1.length).toBeGreaterThan(1);
+    view.setNoteState(inBar1[0]!, { phase: 'judged', timing: 'late' });
+    view.setNoteState(inBar1[1]!, { phase: 'judged', timing: 'on-time', pitch: 'in-tune' });
     const bars = Array.from(el.querySelectorAll<SVGElement>('g.sr-bar'));
     const bar1 = bars.find((b) => b.getAttribute('data-bar') === '1')!;
     view.setPlayhead(per * 0.5);
     expect(bar1.getAttribute('opacity')).toBeNull();
-    view.setPlayhead(per + 0.5);
-    expect(bar1.getAttribute('opacity')).toBeNull();
     view.setPlayhead(per + 1.2);
-    expect(bar1.getAttribute('opacity')).toBe('0.6');
+    expect(bar1.getAttribute('opacity')).toBeNull();
     const next = layout.systems[1]!.firstBar;
     const beatInNext = (p.measures.find((m) => m.displayBar === next)!.startTick - p.pickupTicks) / p.meter.countUnitTicks + 0.1;
     view.setPlayhead(beatInNext);
-    expect(bar1.getAttribute('opacity')).toBe('0.4');
+    expect(bar1.getAttribute('opacity')).toBe('0.7');
+    expect(groups(el, inBar1[0]!)[0]!.getAttribute('opacity')).toBe('0.7');
+    expect(groups(el, inBar1[1]!)[0]!.getAttribute('opacity')).toBeNull();
+    // Review shows everything at full strength.
+    view.setMode('review');
+    expect(bar1.getAttribute('opacity')).toBeNull();
+    expect(groups(el, inBar1[0]!)[0]!.getAttribute('opacity')).toBeNull();
   });
 });
 
@@ -474,4 +491,119 @@ describe('ghost geometry', () => {
     view.showGhost(ghost(p, 3, { writtenPitch: { step: 'G', alter: 2, octave: 5 }, scoreBeat: 3 }));
     expect(el.querySelector('[data-detected-id="3"] .sr-ghost-accidental')!.textContent).toBe('');
   });
+});
+
+describe('06 section 7 drawing', () => {
+  it('mirrors the score token group', async () => {
+    const { score } = await import('../../ui/tokens.ts');
+    const geo = await import('./geometry.ts');
+    expect(geo.GHOST_FILL).toEqual(score['ghost-fill']);
+    expect(geo.GHOST_STROKE).toEqual(score['ghost-stroke']);
+    expect(geo.PAST_OPACITY.systemLeft).toBe(score['past-mark-opacity'].systemLeft);
+    expect(geo.LANE_GLYPH_SP).toEqual(score['lane-glyph-size-staff-spaces']);
+    expect(geo.LANE_OFFSET_SP).toBe(score['lane-offset-staff-spaces']);
+    expect([geo.MISSED_RING.rxHeads, geo.MISSED_RING.rySp, geo.MISSED_RING.stroke]).toEqual([
+      score['missed-ring']['rx-noteheads'],
+      score['missed-ring']['ry-staff-spaces'],
+      score['missed-ring'].stroke,
+    ]);
+    expect([geo.PITCH_ARROW.lengthSp, geo.PITCH_ARROW.gapSp]).toEqual([score['pitch-arrow']['length-staff-spaces'], score['pitch-arrow']['gap-staff-spaces']]);
+    expect([...geo.PLAYHEAD_PAD_SP]).toEqual(score['playhead-pad-staff-spaces']);
+    expect(geo.SHARP_FLAT_OFFSET).toBe(score['sharp-flat-offset-noteheads']);
+    expect(geo.COLLISION_OFFSET).toEqual(score['collision-offset-noteheads']);
+  });
+
+  it('a missed note keeps its written head and gets a 0.95 sp error ring', () => {
+    const { el, view, layout } = setup();
+    view.setNoteState(0, { phase: 'missed' });
+    const ring = el.querySelector('.sr-note-marks[data-marks-for="0"] .sr-ring-missed')!;
+    const sp = layout.systems[0]!.lineSpacing;
+    expect(Number(ring.getAttribute('ry'))).toBeCloseTo(0.95 * sp, 1);
+    expect(ring.getAttribute('stroke')).toBe('var(--error)');
+    expect(glyphIds(el)).toEqual(['missed']);
+  });
+
+  it('the live correct dot is a 0.2 sp circle in the correct colour', () => {
+    const { el, view, layout } = setup();
+    view.setNoteState(0, { phase: 'judged', timing: 'on-time', pitch: 'in-tune' });
+    const dot = el.querySelector('circle.sr-glyph[data-glyph="dot"]') as SVGElement;
+    expect(Number(dot.getAttribute('r'))).toBeCloseTo(0.2 * layout.systems[0]!.lineSpacing, 1);
+    expect(dot.style.color).toBe('var(--correct)');
+  });
+
+  it('pitch arrows are 1.6 sp long and start 1 sp from the ghost centre', () => {
+    const { el, view, p, layout } = setup();
+    view.showGhost(ghost(p, 1, { scoreBeat: 1, kind: 'sharp' }));
+    const d = el.querySelector('.sr-ghost-arrow path')!.getAttribute('d')!;
+    const m = /^M([-\d.]+) ([-\d.]+)V([-\d.]+)/.exec(d)!;
+    const sp = layout.systems[0]!.lineSpacing;
+    expect(Number(m[2]) - Number(m[3])).toBeCloseTo(1.6 * sp, 1);
+  });
+
+  it('a wrong-pitch ghost within one step of its note sits 0.85 notehead widths right', () => {
+    const { el, view, p, layout } = setup();
+    const e = p.measures.flatMap((m) => m.events).find((x) => x.kind === 'note')!;
+    if (e.kind !== 'note') throw new Error('no note');
+    const beat = (e.tick - p.pickupTicks) / p.meter.countUnitTicks;
+    const played = spellGhost(toMidi(e.writtenPitch) + 2, e.writtenPitch, p.writtenKey);
+    view.showGhost(ghost(p, 5, { kind: 'wrong-pitch', scoreBeat: beat, writtenPitch: played, targetExpectedIdx: 0 }));
+    const node = el.querySelector('.sr-ghost[data-detected-id="5"]')!;
+    if (node.querySelector('.sr-ghost-accidental')) return; // cue placement covers it
+    const x = Number(/translate\(([-\d.]+) /.exec(node.querySelector('.sr-ghost-head')!.getAttribute('transform')!)![1]);
+    const sp = layout.systems[0]!.lineSpacing;
+    expect(x - layout.beatToPoint(beat).x).toBeCloseTo(0.85 * 1.18 * sp, 1);
+  });
+
+  // Designer's notes, check to add to 05 section 16: no ghost accidental overlaps another glyph's box.
+  const files = ['arriaga-sax-cut-time', 'faure-cello-tenor-clef', 'gouvy-cello-compound', 'haydn-clarinet-fast', 'holmes-voice-octave-flat', 'le-beau-flute-restart', 'mayer-flute-s1-mix', 'mozart-violin-stop'];
+  it.each(files)('%s: no ghost accidental box overlaps a notehead, a ghost head or another ghost accidental', (name) => {
+    const dir = join(process.cwd(), 'fixtures/render');
+    const lines = readFileSync(join(dir, `${name}.events.jsonl`), 'utf8').trimEnd().split('\n').map((l) => JSON.parse(l) as RenderStreamLine);
+    const header = lines[0] as Extract<RenderStreamLine, { kind: 'header' }>;
+    const { el, view, p, layout } = setup(header.excerptId);
+    for (const l of lines) {
+      if (l.kind !== 'event') continue;
+      const ev = l.event;
+      if (ev.type === 'judgment') view.setNoteState(ev.judgment.expectedIdx, visualStateFromJudgment(ev.judgment));
+      else if (ev.type === 'missed') view.setNoteState(ev.expectedIdx, { phase: 'missed' });
+      else if (ev.type === 'ghost') view.showGhost(ev.ghost);
+    }
+    // Plus a chromatic wrong note on every written note, so every fixture draws many accidentals.
+    const chains = expectedChains(p);
+    const byId = new Map(p.measures.flatMap((m) => m.events).map((e) => [e.id, e] as const));
+    chains.forEach((c, i) => {
+      const e = byId.get(c.eventIds[0]!);
+      if (!e || e.kind !== 'note') return;
+      const played = spellGhost(toMidi(e.writtenPitch) + (i % 2 === 0 ? 1 : -1), e.writtenPitch, p.writtenKey);
+      view.setNoteState(i, { phase: 'judged', timing: 'on-time', pitch: 'wrong-pitch' });
+      view.showGhost({ detectedId: 10_000 + i, scoreBeat: (e.tick - p.pickupTicks) / p.meter.countUnitTicks, writtenPitch: played, kind: 'wrong-pitch', centsError: null, targetExpectedIdx: i, displaced: false });
+    });
+    for (const mode of ['live', 'review'] as const) {
+      view.setMode(mode);
+      type B = { x: number; y: number; w: number; h: number; who: string };
+      const hit = (a: B, b: B): boolean => a.x < b.x + b.w - 0.01 && b.x < a.x + a.w - 0.01 && a.y < b.y + b.h - 0.01 && b.y < a.y + a.h - 0.01;
+      const accs: (B & { sys: string })[] = [];
+      const heads: (B & { sys: string })[] = [];
+      for (const g of ghostsIn(el)) {
+        const sys = g.closest('svg')!.getAttribute('data-system')!;
+        const sp = layout.systems.find((s) => String(s.index) === sys)!.lineSpacing;
+        const t = /translate\(([-\d.]+) ([-\d.]+)\) scale\(([-\d.]+)/.exec(g.querySelector('.sr-ghost-head')!.getAttribute('transform')!)!;
+        const w = Number(t[3]) * 295;
+        heads.push({ x: Number(t[1]), y: Number(t[2]) - 0.5 * sp, w, h: sp, sys, who: `ghost ${g.getAttribute('data-detected-id')}` });
+        const a = g.querySelector('.sr-ghost-accidental');
+        if (a) {
+          const [x, y, bw, bh] = a.getAttribute('data-box')!.split(' ').map(Number) as [number, number, number, number];
+          accs.push({ x, y, w: bw, h: bh, sys, who: `accidental of ghost ${g.getAttribute('data-detected-id')}` });
+        }
+      }
+      expect(accs.length, `${name}: accidentals drawn`).toBeGreaterThan(3);
+      const written = [...layout.noteBoxes.entries()].map(([id, b]) => ({ ...b, sys: String(b.system), who: `note ${id}` }));
+      for (const a of accs) {
+        for (const o of [...written, ...heads, ...accs]) {
+          if (o === a || o.sys !== a.sys) continue;
+          expect(hit(a, o), `${name} ${mode}: ${a.who} overlaps ${o.who}`).toBe(false);
+        }
+      }
+    }
+  }, 60_000);
 });

@@ -5,7 +5,8 @@
 
 import type { ScoreView } from '../../core/api.ts';
 import type { Beats, GhostNote, NoteVisualState, OverlayMode, PreparedExcerpt, ScoreLayout } from '../../core/types.ts';
-import { CROSSFADE_MS, planLayout, planSwaps, type Insets, type LayoutPlan, type PagePlan } from '../layout-table.ts';
+import { CROSSFADE_MS, MAX_SLOTS, planLayout, planSwaps, systemHeightPx, type Insets, type LayoutPlan, type PagePlan } from '../layout-table.ts';
+import { breakpoints, score, tokens } from '../tokens.ts';
 import { documentAppearance, type FrameNotation, type FrameScoreView, type FrameViewOptions } from './notation-binding.ts';
 import {
   frozenScale,
@@ -26,6 +27,40 @@ export const GUTTER_PX = 24;
 /** 'slots': the take's fixed slots with page turns. 'all': every system in reading order (scan and review on phones). */
 export type Arrangement = 'slots' | 'all';
 
+/**
+ * What the score is drawn for (06 section 7): staff space and page margins come from the `score` token group. Without
+ * a purpose the frame keeps the 04 section 4.2 layout table (the e2e notation harness and older screens).
+ */
+export type FramePurpose = 'take' | 'read' | 'review';
+
+/**
+ * Fitting a purpose's staff space to the width: bars of at least this many staff spaces, plus the clef, key and time
+ * signature. Looser than 04's 14 sp so the 06 phone take (11 sp, two bars a system at 390 px) holds; the renderer
+ * shares the width equally when a system is tighter than its own minimum.
+ */
+const PURPOSE_MIN_BAR_SP = 10;
+const SYSTEM_EXTRA_SP = 7;
+
+/** Staff space and page margins for a purpose at a viewport width (06 section 7, design/tokens.json `score`). */
+export function purposeGeometry(purpose: FramePurpose, viewportWidth: number): { spPx: number; marginBlock: number; marginInline: number } {
+  const phone = viewportWidth <= breakpoints.phoneMax;
+  const ss = score['staff-space'];
+  const sp = { take: phone ? ss.takePhone : ss.takeDesktop, read: phone ? ss.readPhone : ss.readDesktop, review: phone ? ss.reviewPhone : ss.reviewDesktop }[purpose];
+  const [block, inline] = score['page-margin'][phone || purpose === 'review' ? 'phone' : 'desktop'];
+  return { spPx: sp, marginBlock: block!, marginInline: inline! };
+}
+
+/** The layout table's plan with the purpose's staff space, stepped down only as far as the bars need to fit the width. */
+export function purposePlan(base: LayoutPlan, purpose: FramePurpose, viewportWidth: number, widthPx: number, heightPx: number): LayoutPlan {
+  const g = purposeGeometry(purpose, viewportWidth);
+  const maxBars = Math.max(1, ...base.barsPerSystem);
+  const fit = widthPx / (maxBars * PURPOSE_MIN_BAR_SP + SYSTEM_EXTRA_SP);
+  const spPx = Math.max(base.row.spMinPx, Math.floor(Math.min(g.spPx, fit) * 100) / 100);
+  const sysH = systemHeightPx(spPx);
+  const slots = heightPx > 0 ? Math.min(MAX_SLOTS, Math.max(1, Math.floor(heightPx / sysH))) : base.slots;
+  return { ...base, spPx, systemHeightPx: sysH, slots, renderOptions: { ...base.renderOptions, spPx } };
+}
+
 export interface Box {
   width: number;
   height: number;
@@ -40,6 +75,10 @@ export interface FrameLayoutArgs {
   widthPx: number;
   /** Take tempo, metronome beats per minute (page-turn timing). */
   bpm: number;
+  /** Staff space and margins from tokens for this purpose (06 section 7); omitted: the 04 layout table. */
+  purpose?: FramePurpose;
+  /** Height the frame can draw in, px (slot count with a purpose). */
+  heightPx?: number;
 }
 
 export interface FrameLayoutInfo {
@@ -149,7 +188,8 @@ export class ScoreFrameController implements Omit<ScoreView<HTMLElement>, 'rende
    */
   layout(p: PreparedExcerpt, args: FrameLayoutArgs, tickablesPerBar?: readonly number[]): FrameLayoutInfo {
     if (this.frozenBox) throw new Error('ScoreFrame: layout() during a take (the layout is frozen)');
-    const base = planLayout(args.viewport, args.insets, p.measures.length, tickablesPerBar, args.widthPx);
+    const table = planLayout(args.viewport, args.insets, p.measures.length, tickablesPerBar, args.widthPx);
+    const base = args.purpose ? purposePlan(table, args.purpose, args.viewport.width, args.widthPx, args.heightPx ?? 0) : table;
     const systemCount = base.barsPerSystem.length;
     const turns = systemCount > base.slots;
     const scoreWidthPx = Math.max(1, Math.floor(args.widthPx - (turns ? GUTTER_PX : 0)));
@@ -181,6 +221,7 @@ export class ScoreFrameController implements Omit<ScoreView<HTMLElement>, 'rende
     this.host.setAttribute('data-turns', String(turns));
     this.host.setAttribute('data-row', plan.row.id);
     this.applySlots(false);
+    this.redrawDecor();
     return info;
   }
 
@@ -224,16 +265,19 @@ export class ScoreFrameController implements Omit<ScoreView<HTMLElement>, 'rende
 
   /** The playhead drives the bar tint (overlay) and the page turns (4.3); null clears it and resets the slots. */
   setPlayhead(scoreBeat: Beats | null): void {
+    if (this.clean) scoreBeat = null;
     this.playhead = scoreBeat;
     this.view.setPlayhead(scoreBeat);
     if (this.laid) this.applySlots(true);
   }
 
   setNoteState(expectedIdx: number, s: NoteVisualState): void {
+    if (this.clean) return;
     this.view.setNoteState(expectedIdx, s);
   }
 
   showGhost(g: GhostNote): void {
+    if (this.clean) return;
     this.view.showGhost(g);
   }
 
@@ -300,8 +344,276 @@ export class ScoreFrameController implements Omit<ScoreView<HTMLElement>, 'rende
     this.unfreeze();
     this.host.replaceChildren();
     this.host.classList.remove('sf-frame');
-    for (const a of ['data-arrangement', 'data-turns', 'data-row']) this.host.removeAttribute(a);
+    for (const a of ['data-arrangement', 'data-turns', 'data-row', 'data-purpose', 'data-band', 'data-clean']) this.host.removeAttribute(a);
+    this.bandEl = null;
     this.laid = null;
+  }
+
+  // ---- highlights, count-in band, clean score (06 sections 6.12, 7; 05 sections 8.8, 8.11) ----
+
+  /**
+   * Wash one bar (0-based measure index) for Listen and for a tapped bar; null clears it. Drawn behind the ink with the
+   * playhead wash's geometry and colour. Independent of the playhead.
+   */
+  highlightBar(index: number | null): void {
+    this.decor.bar = index;
+    this.redrawDecor();
+  }
+
+  /** Brass wash behind the first system's key signature while the key chord plays; false clears it. */
+  highlightKeySignature(on: boolean): void {
+    this.decor.key = on;
+    this.redrawDecor();
+  }
+
+  /** The first notehead in brass-ink on a brass disc with its name above (a copy or theory string); null clears it. */
+  highlightFirstNote(name: string | null): void {
+    this.decor.firstNote = name;
+    this.redrawDecor();
+  }
+
+  /**
+   * The count-in band (06 section 6.12): `slot` is the element to render the band into, placed in the paper's top
+   * margin above the first system, never over its ink. While it is shown, systems after the first render at 50%.
+   * Returns the slot, or null when nothing is laid out.
+   */
+  showBand(on: boolean): HTMLElement | null {
+    this.decor.band = on;
+    this.host.toggleAttribute('data-band', on);
+    if (on) this.placeBand();
+    return on ? this.band : null;
+  }
+
+  /** Re-measure the band after its content changed (its height decides whether the number drops to a smaller size). */
+  refreshBand(): void {
+    if (this.decor.band) this.placeBand();
+  }
+
+  /** The band's slot element (empty until `showBand(true)`). */
+  get bandSlot(): HTMLElement {
+    return this.band;
+  }
+
+  /**
+   * Clean score: no marks at all (void results, "Clean score" in review). Overlay calls are ignored while it is on;
+   * turning it off leaves the score clean until the caller sends marks again.
+   */
+  setClean(on: boolean): void {
+    this.clean = on;
+    this.host.toggleAttribute('data-clean', on);
+    if (on) {
+      this.view.clearOverlay();
+      this.playhead = null;
+      if (this.laid) this.applySlots(false);
+    }
+  }
+
+  get isClean(): boolean {
+    return this.clean;
+  }
+
+  /** The bar (0-based measure index) under a point in a system SVG, px in the SVG's own units; null off the score. */
+  barAt(system: number, x: number): number | null {
+    const l = this.laid;
+    if (!l) return null;
+    const bars = this.barsOf(l).filter((b) => b.system === system);
+    if (bars.length === 0) return null;
+    let hit = bars[0]!.index;
+    for (const b of bars) if (b.x0 <= x) hit = b.index;
+    return hit;
+  }
+
+  /** The bar under a client point, from a pointer event on the frame; null when the point is not on a system. */
+  barAtClient(target: Element | null, clientX: number): number | null {
+    const svg = target?.closest('svg.sr-system');
+    if (!svg || !this.host.contains(svg)) return null;
+    const r = svg.getBoundingClientRect();
+    const w = Number(svg.getAttribute('width') ?? 0);
+    if (!(r.width > 0) || !(w > 0)) return null;
+    return this.barAt(Number(svg.getAttribute('data-system')), ((clientX - r.left) * w) / r.width);
+  }
+
+  private readonly decor: { bar: number | null; key: boolean; firstNote: string | null; band: boolean } = {
+    bar: null,
+    key: false,
+    firstNote: null,
+    band: false,
+  };
+  private clean = false;
+  private recoloured: SVGElement[] = [];
+  private bandEl: HTMLElement | null = null;
+
+  private get band(): HTMLElement {
+    if (!this.bandEl) {
+      const b = this.host.ownerDocument.createElement('div');
+      b.className = 'sf-band';
+      this.bandEl = b;
+    }
+    if (this.bandEl.parentNode !== this.host) this.host.appendChild(this.bandEl);
+    return this.bandEl;
+  }
+
+  /** Bars with their system and x range, from the measures and the layout. */
+  private barsOf(l: Laid): { index: number; system: number; x0: number; x1: number }[] {
+    const p = l.excerpt;
+    const unit = p.meter.countUnitTicks;
+    const lay = l.info.layout;
+    const starts = p.measures.map((m) => (m.startTick - p.pickupTicks) / unit);
+    return p.measures.map((m, i) => {
+      const a = lay.beatToPoint(starts[i]!);
+      const endBeat = i + 1 < starts.length ? starts[i + 1]! : starts[i]! + (m.isPickup ? p.pickupTicks / unit : p.meter.countsPerBar);
+      const b = lay.beatToPoint(endBeat);
+      const svg = this.systemSvg(a.system);
+      const w = Number(svg?.getAttribute('width') ?? a.x);
+      return { index: i, system: a.system, x0: a.x, x1: b.system === a.system && i + 1 < starts.length ? b.x : w };
+    });
+  }
+
+  private systemSvg(system: number): SVGSVGElement | null {
+    return this.score.querySelector<SVGSVGElement>(`svg.sr-system[data-system="${system}"]`);
+  }
+
+  private svgEl<K extends keyof SVGElementTagNameMap>(name: K, attrs: Record<string, string | number>): SVGElementTagNameMap[K] {
+    const e = this.host.ownerDocument.createElementNS('http://www.w3.org/2000/svg', name);
+    for (const k in attrs) e.setAttribute(k, String(attrs[k]));
+    return e;
+  }
+
+  private underlay(system: number): SVGGElement | null {
+    return this.systemSvg(system)?.querySelector<SVGGElement>('.sr-underlay') ?? null;
+  }
+
+  /** Remove and redraw every highlight (they live in the systems' underlays, so they move and scale with them). */
+  private redrawDecor(): void {
+    for (const e of Array.from(this.score.querySelectorAll('.sf-hl'))) e.remove();
+    for (const g of this.recoloured) g.style.removeProperty('color');
+    this.recoloured = [];
+    const l = this.laid;
+    if (!l) return;
+    const lay = l.info.layout;
+    const n = (v: number): string => String(Math.round(v * 100) / 100);
+    const [above, inset] = score['playhead-pad-staff-spaces'];
+    const laneBelow = 4 + score['lane-offset-staff-spaces'] + score['lane-glyph-size-staff-spaces'].live;
+
+    if (this.decor.bar !== null) {
+      const b = this.barsOf(l)[this.decor.bar];
+      const sys = b ? lay.systems.find((s) => s.index === b.system) : undefined;
+      const u = b ? this.underlay(b.system) : null;
+      if (b && sys && u) {
+        const sp = sys.lineSpacing;
+        const top = sys.staffTopY - above! * sp;
+        u.appendChild(
+          this.svgEl('rect', {
+            class: 'sf-hl sf-hl-bar',
+            'data-bar-index': b.index,
+            x: n(b.x0 + inset! * sp),
+            y: n(top),
+            width: n(Math.max(0, b.x1 - b.x0 - 2 * inset! * sp)),
+            height: n(sys.staffTopY + laneBelow * sp - top),
+            rx: n(0.5 * sp),
+            fill: 'var(--playhead-bar)',
+            stroke: 'none',
+            'pointer-events': 'none',
+          }),
+        );
+      }
+    }
+
+    const sys0 = lay.systems[0];
+    if (this.decor.key && sys0) {
+      const svg = this.systemSvg(sys0.index);
+      const key = svg?.querySelector('.vf-keysignature');
+      const r = key?.getBoundingClientRect();
+      const sr = svg?.getBoundingClientRect();
+      const w = Number(svg?.getAttribute('width') ?? 0);
+      const u = this.underlay(sys0.index);
+      if (r && sr && u && r.width > 0 && sr.width > 0) {
+        const k = w / sr.width;
+        const sp = sys0.lineSpacing;
+        const x = (r.left - sr.left) * k - 0.4 * sp;
+        u.appendChild(
+          this.svgEl('rect', {
+            class: 'sf-hl sf-hl-key',
+            x: n(x),
+            y: n(sys0.staffTopY - 1.2 * sp),
+            width: n(r.width * k + 0.8 * sp),
+            height: n(6.4 * sp),
+            rx: n(0.5 * sp),
+            fill: 'var(--brass-wash)',
+            stroke: 'none',
+            'pointer-events': 'none',
+          }),
+        );
+      }
+    }
+
+    if (this.decor.firstNote !== null && sys0) {
+      const first = l.excerpt.measures.flatMap((m) => m.events).find((e) => e.kind === 'note');
+      const box = first ? lay.noteBoxes.get(first.id) : undefined;
+      const u = box ? this.underlay(box.system) : null;
+      const sys = box ? lay.systems.find((s) => s.index === box.system) : undefined;
+      if (first && box && u && sys) {
+        const sp = sys.lineSpacing;
+        const cx = box.x + box.w / 2;
+        const cy = box.y + box.h / 2;
+        const r = 1.6 * sp;
+        u.appendChild(this.svgEl('circle', { class: 'sf-hl sf-hl-disc', cx: n(cx), cy: n(cy), r: n(r), fill: 'var(--brass-wash)', stroke: 'none', 'pointer-events': 'none' }));
+        const stemUp = cy > sys.staffTopY + 2 * sp;
+        const bottom = Math.min(cy - r - 0.3 * sp, stemUp ? cy - 3.8 * sp : Infinity);
+        const t = this.svgEl('text', {
+          class: 'sf-hl sf-hl-name',
+          x: n(cx),
+          y: n(bottom),
+          'text-anchor': 'middle',
+          fill: 'var(--brass-ink)',
+          stroke: 'none',
+        });
+        t.textContent = this.decor.firstNote;
+        // Above the ink, so it reads over a stem; the underlay would sit behind it.
+        this.systemSvg(box.system)?.appendChild(t);
+        for (const g of Array.from(this.score.querySelectorAll<SVGElement>(`[data-event-id="${first.id}"]`))) {
+          g.style.color = 'var(--brass-ink)';
+          this.recoloured.push(g);
+        }
+      }
+    }
+    if (this.decor.band) this.placeBand();
+  }
+
+  /**
+   * Put the band's bottom 36 px (count-band-gap) above the first system's highest ink, ledger lines and stems
+   * included. If the band is taller than the room there, its number drops to the phone size first.
+   */
+  private placeBand(): void {
+    const l = this.laid;
+    const band = this.band;
+    if (!l) return;
+    const lay = l.info.layout;
+    const sys0 = lay.systems[0];
+    if (!sys0) return;
+    const sp = sys0.lineSpacing;
+    let inkTop = sys0.staffTopY;
+    for (const b of lay.noteBoxes.values()) {
+      if (b.system !== sys0.index) continue;
+      const cy = b.y + b.h / 2;
+      const top = cy > sys0.staffTopY + 2 * sp ? cy - 3.5 * sp : b.y;
+      inkTop = Math.min(inkTop, top);
+    }
+    const slot0 = this.score.querySelector<HTMLElement>('.sr-slot[data-system="0"]');
+    const stageTop = this.stage.offsetTop + (slot0?.offsetTop ?? 0) * this.currentScale;
+    const y = stageTop + inkTop * this.currentScale - tokens.component['count-band-gap'];
+    band.style.setProperty('--sf-band-bottom', `${Math.round(y * 100) / 100}px`);
+    band.style.setProperty('--sf-count-compact', `${tokens.type.count.phoneSize}px`);
+    band.removeAttribute('data-compact');
+    if (band.offsetHeight > 0 && band.offsetHeight > y) {
+      band.setAttribute('data-compact', 'true');
+      // Still taller than the room (a phone with every system on the page): the number shrinks to fit; the score
+      // never moves for it.
+      if (band.offsetHeight > y) {
+        const size = Math.max(tokens.type.h1.size, Math.floor(y / tokens.component['count-line-height']));
+        band.style.setProperty('--sf-count-compact', `${Math.min(tokens.type.count.phoneSize, size)}px`);
+      }
+    }
   }
 
   // ---- internals ----
@@ -310,6 +622,21 @@ export class ScoreFrameController implements Omit<ScoreView<HTMLElement>, 'rende
     this.currentScale = s;
     if (Math.abs(s - 1) < 1e-9) this.stage.style.removeProperty('transform');
     else this.stage.style.transform = `scale(${Math.round(s * 1e6) / 1e6})`;
+    if (this.decor.band) this.placeBand();
+  }
+
+  /** Page margins for a purpose (06 section 7), as the frame's padding; null restores the default. */
+  setMargins(purpose: FramePurpose | null, viewportWidth: number): void {
+    if (!purpose) {
+      this.host.removeAttribute('data-purpose');
+      this.host.style.removeProperty('--sf-margin-block');
+      this.host.style.removeProperty('--sf-margin-inline');
+      return;
+    }
+    const g = purposeGeometry(purpose, viewportWidth);
+    this.host.setAttribute('data-purpose', purpose);
+    this.host.style.setProperty('--sf-margin-block', px(g.marginBlock));
+    this.host.style.setProperty('--sf-margin-inline', px(g.marginInline));
   }
 
   private targetSlots(): number[] {

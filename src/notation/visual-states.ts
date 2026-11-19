@@ -1,4 +1,4 @@
-// Feedback look as data (04 section 6.1, 6.4). Pure functions; no DOM.
+// Feedback look as data (04 section 6.1, 6.4; drawing per 06 section 7). Pure functions; no DOM.
 // The overlay layer reads these and draws; nothing here knows about VexFlow.
 
 import type { GhostNote, LiveJudgment, NoteJudgment, NoteVisualState, OverlayMode } from '../core/types.ts';
@@ -124,9 +124,8 @@ export function noteVisual(s: NoteVisualState, mode: OverlayMode, braked: boolea
   }
 
   // Judged and correct (on time, in tune or not graded). Marginal is never red.
-  if (review) {
-    return { noteClass: 'n-correct', ring, laneGlyphs: [s.marginal === true ? 'check-marginal' : 'check'], fadeMs };
-  }
+  // Review keeps correct notes in plain ink with no lane mark: only slips are coloured (06 section 0, D7).
+  if (review) return { noteClass: 'n-ink', ring, laneGlyphs: [], fadeMs };
   return { noteClass: 'n-ink', ring, laneGlyphs: ['dot'], fadeMs };
 }
 

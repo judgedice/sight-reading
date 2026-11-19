@@ -1,0 +1,84 @@
+/* Count-in band (06 section 6.12). Tokens only. */
+
+.sf-count {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  color: var(--brass-ink);
+}
+
+.sf-count-num {
+  font-family: var(--type-count-family);
+  font-size: var(--type-count-size);
+  font-weight: var(--type-count-weight);
+  line-height: var(--count-line-height);
+  font-variant-numeric: lining-nums tabular-nums;
+  min-inline-size: 0.6em;
+  text-align: center;
+  animation: sf-count-in var(--dur-count) var(--ease-settle);
+}
+
+.sf-band[data-compact] .sf-count-num {
+  font-size: var(--sf-count-compact);
+}
+
+@keyframes sf-count-in {
+  from {
+    transform: scale(1.08);
+  }
+}
+
+:root[data-motion='reduced'] .sf-count-num {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sf-count-num {
+    animation: none;
+  }
+}
+
+.sf-count-side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.sf-count-dots {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+/* Band dots: 14 px, the downbeat 20 px (beat-dot-downbeat plus a third), outlined until played. */
+.sf-count-dot {
+  box-sizing: border-box;
+  inline-size: var(--beat-dot-downbeat);
+  block-size: var(--beat-dot-downbeat);
+  border-radius: var(--radius-full);
+  border: var(--beat-dot-outline) solid var(--text-muted);
+}
+
+.sf-count-dot[data-downbeat] {
+  inline-size: calc(var(--beat-dot-downbeat) + var(--space-2) - var(--space-1) / 2);
+  block-size: calc(var(--beat-dot-downbeat) + var(--space-2) - var(--space-1) / 2);
+}
+
+.sf-count-dot[data-state='past'] {
+  background: var(--text-muted);
+}
+
+.sf-count-dot[data-state='current'] {
+  background: var(--brass);
+  border-color: var(--brass);
+  box-shadow: 0 0 0 calc(var(--space-1) + var(--space-1) / 2) var(--brass-wash);
+}
+
+.sf-count-caption {
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: var(--type-h3-size);
+  font-weight: var(--type-label-weight);
+  line-height: var(--type-h3-line);
+  white-space: nowrap;
+}

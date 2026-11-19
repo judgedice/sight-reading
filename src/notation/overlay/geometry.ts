@@ -1,6 +1,7 @@
 // Pure geometry and colour tables for the overlay (04 sections 6.1, 6.2, 6.4). No DOM.
 
 import type { Alter, Clef, Meter, PreparedExcerpt, SpelledPitch, Ticks } from '../../core/types.ts';
+import { BRAVURA_METRICS, BRAVURA_METRICS_EM_PX } from '../bravura-metrics.ts';
 import { tickToBeat } from '../layout.ts';
 import { keyAlterations, ledgerLineCount, stepsBelowTopLine } from '../pitch-geometry.ts';
 import type { LaneGlyphId } from '../visual-states.ts';
@@ -8,15 +9,40 @@ import type { LaneGlyphId } from '../visual-states.ts';
 /** Verdict lane height and the gap under it (04 section 4.2; mirrors the 'score' token group). */
 export const LANE_PX = 20;
 export const SYSTEM_GAP_PX = 12;
-export const GLYPH_SIZE = { live: 9, review: 12, highContrast: 14 } as const;
+/**
+ * Mirrors of design/tokens.json group `score` (06 section 7). notation/ may not import ui/, so the values are spelled
+ * here and svg-overlay.test.ts checks them against tokens.ts.
+ */
+/** Lane glyph size in staff spaces; the lane sits LANE_OFFSET_SP under the bottom staff line. */
+export const LANE_GLYPH_SP = { live: 1.25, review: 1.25, highContrast: 1.5 } as const;
+export const LANE_OFFSET_SP = 2.2;
+/** Radius of the live correct dot, staff spaces. */
+export const CORRECT_DOT_SP = 0.2;
 export const GHOST_STROKE = { live: 1.5, highContrast: 2.25 } as const;
-export const GHOST_FILL = { live: 0.15, review: 0.2, highContrast: 0.3 } as const;
+export const GHOST_FILL = { live: 0.4, review: 0.55, highContrast: 0.55 } as const;
 export const REPLAY_DASH = '3 2';
-export const PAST_OPACITY = { oneBeatPast: 0.6, systemLeft: 0.4 } as const;
+/** Every slip mark of a system drops to this once the playhead has left it; ink never fades (06 D6). */
+export const PAST_OPACITY = { systemLeft: 0.7 } as const;
 export const SHARP_FLAT_OFFSET = 1.1;
+/** A wrong-pitch ghost within one staff step of its written note sits this many notehead widths right. */
+export const WRONG_NEAR_OFFSET = 0.85;
 export const COLLISION_OFFSET = { preferred: 0.8, minimum: 0.5 } as const;
 export const RING = { active: 1.5, rejudgedDashed: 2 } as const;
-export const NEXT_BAR_MARKER_FROM = 0.75;
+/** Ring around a missed note: rx in notehead widths, ry in staff spaces, stroke px. */
+export const MISSED_RING = { rxHeads: 0.95, rySp: 0.95, stroke: 1.5 } as const;
+/** Ghost pitch arrow: length and gap from the ghost centre, staff spaces. */
+export const PITCH_ARROW = { lengthSp: 1.6, gapSp: 1.0 } as const;
+/** Playhead wash: from this many staff spaces above the staff, inset this many staff spaces; radius 0.5 sp. */
+export const PLAYHEAD_PAD_SP = [1.8, 0.15] as const;
+export const PLAYHEAD_RADIUS_SP = 0.5;
+/** Cue-size ghost with an accidental (06 section 7): 75%, accidental 0.2 sp right of the written head, head 0.95 sp on. */
+export const CUE_SCALE = 0.75;
+export const CUE_ACCIDENTAL_GAP_SP = 0.2;
+export const CUE_HEAD_GAP_SP = 0.95;
+/** Smallest clear space between a ghost accidental and the head it belongs to, staff spaces. */
+export const ACCIDENTAL_HEAD_GAP_SP = 0.15;
+/** Review ghost stem opacity. */
+export const REVIEW_STEM_OPACITY = 0.75;
 /** Bravura noteheadBlack width in staff spaces. */
 export const HEAD_W_SP = 1.18;
 /** Most ledger lines a ghost draws before it is clamped and labelled 8va / 8vb. */
@@ -42,6 +68,14 @@ export const GLYPH_COLOUR: Record<LaneGlyphId | 'plus-n', string> = {
   replay: 'var(--ghost-replay)',
   'plus-n': 'var(--ghost)',
 };
+
+/** Bravura accidental advance width and extents above / below the baseline, staff spaces (1 em = 4 sp). */
+export function accidentalSp(alter: Alter): { w: number; up: number; down: number } {
+  const cp = SMUFL_ACCIDENTAL[alter].codePointAt(0)!.toString(16);
+  const m = BRAVURA_METRICS[cp] ?? [250, 0, 250, 360, 360];
+  const k = 4 / BRAVURA_METRICS_EM_PX;
+  return { w: m[0] * k, up: m[3] * k, down: m[4] * k };
+}
 
 /** SMuFL codepoints for ghost accidentals, by alter. */
 export const SMUFL_ACCIDENTAL: Record<Alter, string> = {

@@ -4,7 +4,7 @@
  * stepper (Shift+← / Shift+→) with the counts-line filters; the note inspector (click or Enter); a roving tabindex over
  * the notes (← / →, ↑ / ↓ by system).
  */
-import { useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
 import type { AttemptRecord, Configs, ExpectedNote, PreparedExcerpt, ResolvedTolerance, ScoreLayout } from '../../../../core/types.ts';
 import { SegmentedControl } from '../../../../ui/components/form/index.ts';
 import type { Insets } from '../../../../ui/layout-table.ts';
@@ -39,6 +39,17 @@ export interface ReviewProps {
   /** Layout inputs for tests; default the window and the resolved safe-area insets. */
   viewport?: Box;
   insets?: Insets;
+  /**
+   * Not graded (void): the clean score in ink with no marks, the line "Clean score. Nothing is marked when a take is
+   * not graded.", and no My take / Clean score switch or slip stepper (05 section 8.11, 06 section 6.15).
+   */
+  clean?: boolean;
+  /** Bar wash by 0-based measure index: the bar Listen is playing, or the tapped bar Listen will start from. */
+  highlightBar?: number | null;
+  /** A tap on a bar away from a note or mark (0-based measure index), e.g. to start Listen there. */
+  onBarTap?: (barIndex: number) => void;
+  /** The right end of the score toolbar: the live caption, Slower and Listen (results owns them). */
+  toolbarEnd?: ReactNode;
 }
 
 const FILTER_TEXT: Record<Exclude<SlipFilter, 'all'>, ReviewTextKey> = {
@@ -67,6 +78,7 @@ const isEditable = (t: EventTarget | null): boolean => {
 
 export function Review(props: ReviewProps) {
   const { record, prepared, expected, tolerances, configs, loadNotation, spell, showNumbers = true, keyboardShortcuts = true, bus } = props;
+  const forcedClean = props.clean === true;
   const instrument = configs.instrumentById[record.instrumentId];
   const uid = `rv${useId().replace(/[^a-zA-Z0-9]/g, '')}`;
   const wrapRef = useRef<HTMLDivElement | null>(null);
@@ -106,7 +118,7 @@ export function Review(props: ReviewProps) {
       if (!host || !m) return;
       frame.clearOverlay();
       frame.setMode('review');
-      if (s === 'take') {
+      if (s === 'take' && !frame.isClean) {
         for (const n of m.notes) frame.setNoteState(n.idx, n.state);
         for (const g of m.ghosts) frame.showGhost(g);
         drawExtras({ host, layout, model: m, clef: prepared.clef, uid });
@@ -132,7 +144,7 @@ export function Review(props: ReviewProps) {
     const f = frameRef.current;
     const l = layoutRef.current;
     if (f && l) paint(f, l);
-  }, [show, model, paint]);
+  }, [show, model, paint, forcedClean]);
 
   // The selection ring and the roving tab stop follow the selection.
   useEffect(() => {
@@ -180,7 +192,7 @@ export function Review(props: ReviewProps) {
 
   // C: My take / Clean score (04 §8.3).
   useEffect(() => {
-    if (!keyboardShortcuts) return undefined;
+    if (!keyboardShortcuts || forcedClean) return undefined;
     const onKey = (e: KeyboardEvent): void => {
       if (e.ctrlKey || e.metaKey || e.altKey || e.defaultPrevented || isEditable(e.target)) return;
       if (openOverlayCount() > (inspecting ? 1 : 0)) return;
@@ -191,7 +203,7 @@ export function Review(props: ReviewProps) {
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [keyboardShortcuts, inspecting]);
+  }, [keyboardShortcuts, inspecting, forcedClean]);
 
   if (!model) return null;
 
@@ -262,44 +274,62 @@ export function Review(props: ReviewProps) {
   const lines = selected ? inspectorFor(model, selected) : [];
   const at = selected ? slips.findIndex((s) => sameTarget(s, selected)) : -1;
 
+  const clean = forcedClean || show === 'clean';
   return (
-    <div className="rv-review" data-testid="review" data-show={show} data-filter={filter}>
+    <div className="rv-review" data-testid="review" data-show={clean ? 'clean' : 'take'} data-filter={filter} data-void={forcedClean ? 'true' : undefined}>
+      {forcedClean ? (
+        <p className="rv-void-line" data-testid="review-void-line">
+          {rtext('results.void.cleanScore')}
+        </p>
+      ) : null}
       <div className="rv-toolbar">
-        <div className="rv-show">
-          <span className="rv-show-label" aria-hidden="true">
-            {rtext('results.show')}
-          </span>
-          <SegmentedControl<ShowMode>
-            ariaLabel={rtext('results.show')}
-            value={show}
-            onChange={setShow}
-            options={[
-              { value: 'take', label: rtext('results.myTake') },
-              { value: 'clean', label: rtext('results.cleanScore') },
-            ]}
-          />
-        </div>
-        <div className="rv-stepper">
-          <button type="button" className="rv-step" data-testid="prev-slip" onClick={() => step(-1)} aria-disabled={slips.length === 0 ? 'true' : undefined}>
-            <Glyph id="chevron-left" size={16} />
-            <span>{rtext('results.prevSlip')}</span>
-          </button>
-          <span className="rv-slip-count" aria-live="polite">
-            {slips.length === 0 ? rtext('review.noSlips') : at >= 0 ? rtext('review.slipCount', { n: at + 1, total: slips.length }) : null}
-          </span>
-          <button type="button" className="rv-step" data-testid="next-slip" onClick={() => step(1)} aria-disabled={slips.length === 0 ? 'true' : undefined}>
-            <span>{rtext('results.nextSlip')}</span>
-            <Glyph id="chevron-right" size={16} />
-          </button>
-        </div>
-        {filter !== 'all' ? (
+        {forcedClean ? null : (
+          <>
+            <SegmentedControl<ShowMode>
+              ariaLabel={rtext('results.show')}
+              value={show}
+              onChange={setShow}
+              options={[
+                { value: 'take', label: rtext('results.myTake') },
+                { value: 'clean', label: rtext('results.cleanScore') },
+              ]}
+            />
+            <div className="rv-stepper">
+              <button
+                type="button"
+                className="ui-button ui-button-secondary ui-button-compact rv-step"
+                data-testid="prev-slip"
+                onClick={() => step(-1)}
+                aria-disabled={slips.length === 0 ? 'true' : undefined}
+              >
+                <Glyph id="chevron-left" size={16} />
+                <span>{rtext('action.previousSlip')}</span>
+              </button>
+              <button
+                type="button"
+                className="ui-button ui-button-secondary ui-button-compact rv-step"
+                data-testid="next-slip"
+                onClick={() => step(1)}
+                aria-disabled={slips.length === 0 ? 'true' : undefined}
+              >
+                <span>{rtext('action.nextSlip')}</span>
+                <Glyph id="chevron-right" size={16} />
+              </button>
+              <span className="rv-slip-count" aria-live="polite">
+                {slips.length === 0 ? rtext('review.noSlips') : at >= 0 ? rtext('review.slipCount', { n: at + 1, total: slips.length }) : null}
+              </span>
+            </div>
+          </>
+        )}
+        {filter !== 'all' && !forcedClean ? (
           <div className="rv-filter" data-testid="review-filter">
             <span>{rtext(FILTER_TEXT[filter])}</span>
-            <button type="button" className="rv-all-slips" onClick={() => setFilter('all')}>
+            <button type="button" className="ui-button ui-button-quiet ui-button-compact rv-all-slips" onClick={() => setFilter('all')}>
               {rtext('results.allSlips')}
             </button>
           </div>
         ) : null}
+        {props.toolbarEnd ? <div className="rv-toolbar-end">{props.toolbarEnd}</div> : null}
       </div>
       {/* Clicks and keys on the notes bubble here (the notes are SVG groups drawn by notation). */}
       <div ref={wrapRef} className="rv-score" onClick={onClick} onKeyDown={onKeyDown}>
@@ -308,6 +338,10 @@ export function Review(props: ReviewProps) {
           excerpt={prepared}
           bpm={record.bpm}
           arrangement="all"
+          purpose="review"
+          clean={clean}
+          highlightBar={props.highlightBar ?? null}
+          {...(props.onBarTap ? { onBarTap: props.onBarTap } : {})}
           label={rtext('review.label')}
           {...(props.viewport ? { viewport: props.viewport } : {})}
           {...(props.insets ? { insets: props.insets } : {})}

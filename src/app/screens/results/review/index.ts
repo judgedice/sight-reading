@@ -1,6 +1,6 @@
 // D8b review interactions (04 §6.5, §6.6, §8.3).
 export { Review, type ReviewProps, type ShowMode } from './Review.tsx';
-export { SessionReview, createReviewRenderer, type ReviewDeps } from './SessionReview.tsx';
+export { SessionReview, createReviewRenderer, type ReviewDeps, type ReviewExtras } from './SessionReview.tsx';
 export { createReviewBus, filterOfCount, reviewPanelHandlers, type ReviewBus } from './bus.ts';
 export {
   buildReview,

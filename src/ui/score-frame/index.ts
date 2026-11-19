@@ -1,14 +1,18 @@
 // ScoreFrame (D3): slots, page turns, freeze and scale, system numbers (04 §4.3, §4.4, §7.5).
 export { ScoreFrame, type ScoreFrameProps } from './ScoreFrame.tsx';
+export { CountInBand, type CountInBandProps } from './CountInBand.tsx';
 export {
   ScoreFrameController,
   GUTTER_PX,
+  purposeGeometry,
+  purposePlan,
   contentBox,
   readInsets,
   type Arrangement,
   type Box,
   type FrameLayoutArgs,
   type FrameLayoutInfo,
+  type FramePurpose,
   type FrozenResize,
   type ScoreFrameOptions,
 } from './controller.ts';

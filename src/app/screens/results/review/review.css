@@ -12,21 +12,25 @@
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-3);
-  justify-content: space-between;
 }
 
-.rv-show {
+.rv-toolbar-end {
   display: inline-flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--space-3);
+  margin-inline-start: auto;
 }
 
-.rv-show-label,
-.rv-slip-count,
-.rv-filter {
+.rv-filter,
+.rv-void-line {
   color: var(--text-muted);
   font-size: var(--type-small-size);
   line-height: var(--type-small-line);
+}
+
+.rv-void-line {
+  margin: 0;
 }
 
 .rv-stepper {
@@ -35,42 +39,19 @@
   gap: var(--space-2);
 }
 
-.rv-step,
-.rv-all-slips {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-  min-block-size: var(--target-min);
-  min-inline-size: var(--target-min);
-  padding-inline: var(--space-3);
-  border: 0.0625rem solid var(--border);
-  border-radius: var(--radius-m);
-  background: var(--surface);
-  color: var(--text);
-  font: inherit;
-  font-size: var(--type-small-size);
-  cursor: pointer;
-}
-
-.rv-step:hover,
-.rv-all-slips:hover {
-  background: var(--surface-2-hover);
-}
-
-.rv-step:active,
-.rv-all-slips:active {
-  background: var(--surface-2-pressed);
-}
-
 .rv-step[aria-disabled='true'] {
   opacity: var(--opacity-disabled);
   cursor: default;
 }
 
-.rv-step:focus-visible,
-.rv-all-slips:focus-visible {
-  outline: 0.125rem solid var(--focus-ring);
-  outline-offset: 0.125rem;
+/* Read out as the stepper moves; the mockup shows no visible count. */
+.rv-slip-count {
+  position: absolute;
+  inline-size: 0.0625rem;
+  block-size: 0.0625rem;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .rv-filter {
@@ -80,8 +61,18 @@
   gap: var(--space-2);
 }
 
+/* The paper: a 1 px border and no shadow (06 section 6.15). */
 .rv-score {
   min-inline-size: 0;
+  border: 0.0625rem solid var(--border);
+  border-radius: var(--radius-m);
+  background: var(--paper);
+  overflow: hidden;
+}
+
+/* Bars are tappable (Listen starts there); notes keep their own pointer. */
+.rv-score .sr-system {
+  cursor: pointer;
 }
 
 /* Notes as buttons (roving tabindex, 04 section 8.3). The ring is drawn in SVG (rv-select-ring). */

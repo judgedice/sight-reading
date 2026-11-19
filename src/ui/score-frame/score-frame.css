@@ -79,14 +79,14 @@
   color: var(--text-muted);
 }
 
-/* The next system is not directly below the current one: a 3 px --playhead-next bar on the slot's left edge. */
+/* The next system is not directly below the current one: a 3 px brass bar on the slot's left edge. */
 .sf-line[data-wrap='true']::after {
   content: '';
   position: absolute;
   inset-block: 0;
   inset-inline-end: 0;
   inline-size: 0.1875rem;
-  background: var(--playhead-next);
+  background: var(--brass);
 }
 
 /* ---- Crossfade layer: the outgoing system fades out over the incoming one ---- */
@@ -136,5 +136,49 @@
 
 /* Held until the layout is drawn and Bravura can paint (ensureNotationFonts). */
 .sf-frame:not([data-ready='true']) .sf-stage {
+  visibility: hidden;
+}
+
+/* ---- Purpose geometry (06 section 7): page margins from the score tokens, set by the controller ---- */
+.sf-frame[data-purpose] {
+  padding-block: var(--sf-margin-block);
+  padding-inline: var(--sf-margin-inline);
+}
+
+/* The take and the count-in centre the music on the paper, so the band has room above it and nothing moves. */
+.sf-frame[data-purpose='take'] {
+  display: grid;
+  align-content: center;
+}
+
+/* ---- Count-in band (06 section 6.12): in the top margin above the first system, never over its ink ---- */
+.sf-band {
+  position: absolute;
+  inset-inline: 0;
+  inset-block-start: var(--sf-band-bottom, 0);
+  transform: translateY(-100%);
+  display: none;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.sf-frame[data-band] > .sf-band {
+  display: flex;
+}
+
+/* The first system keeps full ink; later systems step back to half. */
+.sf-frame[data-band] .sr-slot:not([data-system='0']) {
+  opacity: 0.5;
+}
+
+/* ---- Highlights: the first note's name above its disc (05 section 8.8) ---- */
+.sf-hl-name {
+  font-family: var(--font-ui);
+  font-size: var(--type-label-size);
+  font-weight: var(--type-label-weight);
+}
+
+/* ---- Clean score: no marks of any kind ---- */
+.sf-frame[data-clean] .sr-overlay {
   visibility: hidden;
 }

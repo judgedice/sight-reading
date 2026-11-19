@@ -3,6 +3,7 @@
 // alignment, heat strip, replay bracket and tails, the note inspector (click, Enter, Esc), the roving tabindex and
 // arrow keys, the slip stepper and its filters from the counts line, My take / Clean score (C), and the session-bound
 // renderer.
+import type React from 'react';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { createStore } from 'zustand/vanilla';
 import type { AppSettings } from '../../../../core/types.ts';
@@ -56,7 +57,7 @@ const flush = async (): Promise<void> => {
   });
 };
 
-async function render(opts: { showNumbers?: boolean; bus?: ReturnType<typeof createReviewBus>; keyboardShortcuts?: boolean } = {}) {
+async function render(opts: { showNumbers?: boolean; bus?: ReturnType<typeof createReviewBus>; keyboardShortcuts?: boolean; clean?: boolean; highlightBar?: number | null; onBarTap?: (i: number) => void; toolbarEnd?: React.ReactNode } = {}) {
   const fx = reviewFixture();
   const m = mount(
     <Review
@@ -257,5 +258,89 @@ describe('createReviewRenderer', () => {
     mounted.push(other);
     await flush();
     expect(other.container.querySelector('[data-testid="review"]')).toBeNull();
+  });
+});
+
+describe('<Review> redesign (06 sections 6.15, 7)', () => {
+  it('correct notes stay plain ink with no lane mark; only slips are coloured', async () => {
+    const { root, model } = await render();
+    const correct = model.notes.filter((n) => n.state.phase === 'judged' && !n.state.timing?.match(/early|late/) && !n.state.pitch?.match(/sharp|flat|wrong|octave/));
+    expect(correct.length).toBeGreaterThan(0);
+    for (const n of correct) {
+      expect(root.querySelector(`.sr-note-marks[data-marks-for="${n.idx}"] .sr-glyph`)).toBeNull();
+      expect(noteEl(root, n.idx).classList.contains('n-correct')).toBe(false);
+    }
+    expect(root.querySelector('[data-glyph="check"]')).toBeNull();
+    expect(noteEl(root, LATE).classList.contains('n-error')).toBe(true);
+  });
+
+  it('draws the review at the review staff space with the paper toolbar order', async () => {
+    const { root } = await render({ toolbarEnd: <button type="button">Listen</button> });
+    expect(root.querySelector('.sf-host')!.getAttribute('data-purpose')).toBe('review');
+    const end = root.querySelector('.rv-toolbar-end')!;
+    expect(end.textContent).toBe('Listen');
+    expect(root.querySelector('[data-testid="prev-slip"]')!.textContent).toBe('Previous slip');
+    expect(root.querySelector('[data-testid="next-slip"]')!.textContent).toBe('Next slip');
+  });
+
+  it('not graded: the clean score with no marks, the void line, no switch and no stepper', async () => {
+    const { root } = await render({ clean: true });
+    expect(root.getAttribute('data-void')).toBe('true');
+    expect(root.querySelector('[data-testid="review-void-line"]')!.textContent).toBe('Clean score. Nothing is marked when a take is not graded.');
+    expect(root.querySelectorAll('.sr-ghost')).toHaveLength(0);
+    expect(root.querySelectorAll('.n-error, .n-error-hollow')).toHaveLength(0);
+    expect(root.querySelector('[data-testid="prev-slip"]')).toBeNull();
+    expect(root.querySelector('[role="radiogroup"]')).toBeNull();
+    expect(root.querySelector('.sf-host')!.hasAttribute('data-clean')).toBe(true);
+  });
+
+  it('washes the Listen bar by index', async () => {
+    const { root } = await render({ highlightBar: 2 });
+    const hl = root.querySelectorAll('.sf-hl-bar');
+    expect(hl).toHaveLength(1);
+    expect(hl[0]!.getAttribute('data-bar-index')).toBe('2');
+  });
+
+  it('a tap on a bar away from the notes reports its index; a tap on a note opens the inspector instead', async () => {
+    const taps: number[] = [];
+    const real = SVGElement.prototype.getBoundingClientRect;
+    SVGElement.prototype.getBoundingClientRect = function (this: SVGElement) {
+      const w = Number(this.getAttribute('width') ?? 0);
+      return { left: 0, top: 0, right: w, bottom: 100, width: w, height: 100, x: 0, y: 0, toJSON: () => ({}) } as DOMRect;
+    };
+    try {
+      const { root, fx } = await render({ onBarTap: (i) => taps.push(i) });
+      const svg = root.querySelector<SVGSVGElement>('svg.sr-system[data-system="0"]')!;
+      const firstNote = noteEl(root, 0);
+      const bar1Start = fx.prepared.measures[1]!;
+      // A point just right of bar 2's first note: past every bar-1 note.
+      const id = bar1Start.events.find((e) => e.kind === 'note')!.id;
+      const notes = svg.querySelectorAll(`[data-event-id="${id}"]`);
+      expect(notes.length).toBeGreaterThan(0);
+      act(() => {
+        svg.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, clientX: Number(svg.getAttribute('width')) - 2 }));
+      });
+      expect(taps.length).toBe(1);
+      expect(taps[0]).toBeGreaterThan(0);
+      click(firstNote);
+      expect(taps.length).toBe(1);
+      expect(inspector()).not.toBeNull();
+    } finally {
+      SVGElement.prototype.getBoundingClientRect = real;
+    }
+  });
+
+  it('the session renderer shows a void take as the clean score', async () => {
+    const fx = reviewFixture();
+    const record = { ...fx.record, endReason: 'void' as const, judgments: [] };
+    const session = createStore<SessionView>()(() => ({ ...initialSessionView(), state: 'results', prepared: fx.prepared, record }));
+    const base = defaultAppSettings();
+    const renderer = createReviewRenderer({ configs: cfg, session, settings: { get: () => base, subscribe: () => () => {} }, loadNotation, spell });
+    const m = mount(<>{renderer(record)}</>);
+    mounted.push(m);
+    await flush();
+    const root = m.container.querySelector<HTMLElement>('[data-testid="review"]')!;
+    expect(root.getAttribute('data-void')).toBe('true');
+    expect(root.querySelectorAll('.sr-ghost')).toHaveLength(0);
   });
 });

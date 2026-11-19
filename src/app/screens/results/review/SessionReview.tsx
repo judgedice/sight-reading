@@ -34,14 +34,23 @@ function safePlan(p: PreparedExcerpt, cfg: Configs): TakePlan | null {
   }
 }
 
-export function SessionReview({ record, deps }: { record: AttemptRecord; deps: ReviewDeps }) {
+/** What the results screen adds around the review: the Listen bar wash, bar taps and the toolbar's right end. */
+export interface ReviewExtras {
+  highlightBar?: number | null;
+  onBarTap?: (barIndex: number) => void;
+  toolbarEnd?: ReactNode;
+}
+
+export function SessionReview({ record, deps, extras = {} }: { record: AttemptRecord; deps: ReviewDeps; extras?: ReviewExtras }) {
   const view = useSyncExternalStore(deps.session.subscribe, deps.session.getState, deps.session.getState);
   const settings = useSyncExternalStore(deps.settings.subscribe, deps.settings.get, deps.settings.get);
   const current = view.prepared && view.prepared.excerptId === record.excerptId ? view.prepared : null;
   const prepared = current ?? deps.preparedFor?.(record) ?? null;
   const plan = useMemo(() => (prepared ? safePlan(prepared, deps.configs) : null), [prepared, deps.configs]);
-  // Nothing to draw without a score: a void take, practise without listening, or an attempt from another session.
-  if (!prepared || !plan || record.judgments.length === 0) return null;
+  // Nothing to draw without a score (an attempt from another session). A void take, or one with no judgments, shows
+  // the clean score with no marks (05 section 16 item 17).
+  if (!prepared || !plan) return null;
+  const clean = record.endReason === 'void' || record.judgments.length === 0;
   return (
     <Review
       record={record}
@@ -54,13 +63,17 @@ export function SessionReview({ record, deps }: { record: AttemptRecord; deps: R
       showNumbers={settings.display.showCentsMs}
       keyboardShortcuts={settings.accessibility.keyboardShortcuts}
       {...(deps.bus ? { bus: deps.bus } : {})}
+      clean={clean}
+      {...(extras.highlightBar !== undefined ? { highlightBar: extras.highlightBar } : {})}
+      {...(extras.onBarTap ? { onBarTap: extras.onBarTap } : {})}
+      {...(extras.toolbarEnd ? { toolbarEnd: extras.toolbarEnd } : {})}
     />
   );
 }
 
 /** `ResultsServices.renderReview` for the composition root. */
-export function createReviewRenderer(deps: ReviewDeps): (record: AttemptRecord) => ReactNode {
-  return function renderReview(record) {
-    return <SessionReview key={record.id} record={record} deps={deps} />;
+export function createReviewRenderer(deps: ReviewDeps): (record: AttemptRecord, extras?: ReviewExtras) => ReactNode {
+  return function renderReview(record, extras) {
+    return <SessionReview key={record.id} record={record} deps={deps} {...(extras ? { extras } : {})} />;
   };
 }

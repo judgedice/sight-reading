@@ -1,7 +1,8 @@
 // <ScoreFrame>: the paper surface that owns the system SVGs and the ScoreView (04 §7.5). Loads notation lazily
 // through `loadNotation` (ui/ cannot import notation/, 01 §4.2; PLAN ruling 39 keeps it a lazy chunk), lays the
 // excerpt out at reveal, re-lays out on resize until it is frozen, then only scales (04 §4.4).
-import { useEffect, useImperativeHandle, useRef, useState, type Ref } from 'react';
+import { useEffect, useImperativeHandle, useRef, useState, type ReactNode, type Ref } from 'react';
+import { createPortal } from 'react-dom';
 import type { PreparedExcerpt } from '../../core/types.ts';
 import type { Insets } from '../layout-table.ts';
 import {
@@ -12,6 +13,7 @@ import {
   type Box,
   type FrameLayoutArgs,
   type FrameLayoutInfo,
+  type FramePurpose,
   type FrozenResize,
 } from './controller.ts';
 import { documentAppearance, type FrameNotation, type FrameViewOptions } from './notation-binding.ts';
@@ -43,6 +45,20 @@ export interface ScoreFrameProps {
   /** A resize while frozen; the frame has already scaled. `orientationChanged` lets the screen cancel a count-in. */
   onFrozenResize?: (r: FrozenResize) => void;
   onError?: (e: unknown) => void;
+  /** Staff space and page margins from the score tokens (06 section 7). Omitted: the 04 layout table. */
+  purpose?: FramePurpose;
+  /** Content of the count-in band (e.g. <CountInBand>), shown in the top margin above the first system; later systems drop to 50%. */
+  band?: ReactNode;
+  /** Bar wash by 0-based measure index (Listen, a tapped bar); null or omitted for none. */
+  highlightBar?: number | null;
+  /** Wash behind the key signature (the key chord is sounding). */
+  highlightKey?: boolean;
+  /** The first note highlighted, with this name above it (the first note is sounding). Remove before the count-in. */
+  firstNoteName?: string | null;
+  /** Clean score: no marks (void results, review's "Clean score"). */
+  clean?: boolean;
+  /** A tap or click on a bar that is not on a note's mark (review): the 0-based measure index. */
+  onBarTap?: (barIndex: number) => void;
 }
 
 const loads = new WeakMap<() => Promise<FrameNotation>, Promise<FrameNotation>>();
@@ -62,6 +78,8 @@ function windowViewport(el: HTMLElement): Box {
 
 const sameArgs = (a: FrameLayoutArgs, b: FrameLayoutArgs): boolean =>
   a.bpm === b.bpm &&
+  a.purpose === b.purpose &&
+  (a.purpose === undefined || a.heightPx === b.heightPx) &&
   a.widthPx === b.widthPx &&
   a.viewport.width === b.viewport.width &&
   a.viewport.height === b.viewport.height &&
@@ -69,7 +87,10 @@ const sameArgs = (a: FrameLayoutArgs, b: FrameLayoutArgs): boolean =>
   a.insets.bottom === b.insets.bottom;
 
 export function ScoreFrame(props: ScoreFrameProps) {
-  const { loadNotation, excerpt, bpm, arrangement = 'slots', frozen = false, viewport, insets, label, className, ref } = props;
+  const { loadNotation, excerpt, bpm, arrangement = 'slots', frozen = false, viewport, insets, label, className, ref, purpose } = props;
+  const { band, highlightBar = null, highlightKey = false, firstNoteName = null, clean = false } = props;
+  const [bandSlot, setBandSlot] = useState<HTMLElement | null>(null);
+  const [laidOut, setLaidOut] = useState(0);
   const hostRef = useRef<HTMLDivElement | null>(null);
   const [frame, setFrame] = useState<ScoreFrameController | null>(null);
   const [notation, setNotation] = useState<FrameNotation | null>(null);
@@ -123,14 +144,19 @@ export function ScoreFrame(props: ScoreFrameProps) {
     let cancelled = false;
     host.removeAttribute('data-ready');
     try {
+      const vp = viewport ?? windowViewport(host);
+      frame.setMargins(purpose ?? null, vp.width);
+      const box = contentBox(host);
       const args: FrameLayoutArgs = {
-        viewport: viewport ?? windowViewport(host),
+        viewport: vp,
         insets: insets ?? readInsets(host),
-        widthPx: contentBox(host).width,
+        widthPx: box.width,
         bpm,
+        ...(purpose ? { purpose, heightPx: box.height } : {}),
       };
       const info = frame.layout(excerpt, args, notation.tickablesPerBar(excerpt));
       lastArgs.current = args;
+      setLaidOut((n) => n + 1);
       live.current.onLayout?.(info, frame);
     } catch (e) {
       live.current.onError?.(e);
@@ -144,7 +170,7 @@ export function ScoreFrame(props: ScoreFrameProps) {
     };
     // viewport and insets are compared by value in the resize path; a new object alone must not re-render VexFlow.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [frame, notation, excerpt, bpm]);
+  }, [frame, notation, excerpt, bpm, purpose]);
 
   useEffect(() => {
     frame?.setArrangement(arrangement);
@@ -168,16 +194,21 @@ export function ScoreFrame(props: ScoreFrameProps) {
       return;
     }
     const p = live.current;
+    const vp = p.viewport ?? windowViewport(host);
+    frame.setMargins(p.purpose ?? null, vp.width);
+    const box = contentBox(host);
     const args: FrameLayoutArgs = {
-      viewport: p.viewport ?? windowViewport(host),
+      viewport: vp,
       insets: p.insets ?? readInsets(host),
-      widthPx: contentBox(host).width,
+      widthPx: box.width,
       bpm: p.bpm,
+      ...(p.purpose ? { purpose: p.purpose, heightPx: box.height } : {}),
     };
     if (sameArgs(args, prev)) return;
     try {
       const info = frame.relayout(args);
       lastArgs.current = args;
+      setLaidOut((n) => n + 1);
       if (info) p.onLayout?.(info, frame);
     } catch (e) {
       p.onError?.(e);
@@ -205,5 +236,49 @@ export function ScoreFrame(props: ScoreFrameProps) {
     };
   }, []);
 
-  return <div ref={hostRef} className={className ? `sf-host ${className}` : 'sf-host'} role={label ? 'figure' : undefined} aria-label={label} />;
+  // Highlights, clean score and the band follow their props; each layout redraws them in the controller.
+  useEffect(() => {
+    frame?.setClean(clean);
+  }, [frame, clean]);
+  useEffect(() => {
+    frame?.highlightBar(highlightBar);
+  }, [frame, highlightBar, laidOut]);
+  useEffect(() => {
+    frame?.highlightKeySignature(highlightKey);
+  }, [frame, highlightKey, laidOut]);
+  useEffect(() => {
+    frame?.highlightFirstNote(firstNoteName);
+  }, [frame, firstNoteName, laidOut]);
+  const hasBand = band !== undefined && band !== null && band !== false;
+  useEffect(() => {
+    if (!frame) return;
+    setBandSlot(frame.showBand(hasBand));
+  }, [frame, hasBand, laidOut]);
+
+  useEffect(() => {
+    if (bandSlot && hasBand) frame?.refreshBand();
+  });
+
+  // Bar taps (review): a click that no note or mark handled, mapped to the bar under it.
+  useEffect(() => {
+    const host = hostRef.current;
+    if (!host || !frame) return;
+    const onClick = (e: MouseEvent): void => {
+      const tap = live.current.onBarTap;
+      if (!tap || e.defaultPrevented) return;
+      const t = e.target as Element | null;
+      if (t?.closest('[data-rv-idx], .sr-ghost')) return;
+      const bar = frame.barAtClient(t, e.clientX);
+      if (bar !== null) tap(bar);
+    };
+    host.addEventListener('click', onClick);
+    return () => host.removeEventListener('click', onClick);
+  }, [frame]);
+
+  return (
+    <>
+      <div ref={hostRef} className={className ? `sf-host ${className}` : 'sf-host'} role={label ? 'figure' : undefined} aria-label={label} />
+      {bandSlot && hasBand ? createPortal(band, bandSlot) : null}
+    </>
+  );
 }
