@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { readFileSync } from 'node:fs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, click, mount, type Mounted } from '../../primitives/test-render.ts';
 import { copy } from '../../copy/copy.ts';
@@ -6,6 +7,7 @@ import {
   BeatDots,
   ChecklistItem,
   ComponentBar,
+  DifficultyMeter,
   EmptyState,
   GradeBadge,
   HeatStrip,
@@ -16,7 +18,7 @@ import {
   TipCard,
   VerdictGlyph,
   beatPulses,
-  filledSegments,
+  difficultySegments,
   groupBeats,
   heatLevel,
   meterZone,
@@ -43,7 +45,7 @@ describe('BeatDots', () => {
     expect(dots).toHaveLength(4);
     expect(dots[0]?.getAttribute('data-downbeat')).toBe('true');
     expect(dots[1]?.getAttribute('data-downbeat')).toBeNull();
-    expect([...dots].map((d) => d.getAttribute('data-state'))).toEqual(['idle', 'pulse', 'idle', 'idle']);
+    expect([...dots].map((d) => d.getAttribute('data-state'))).toEqual(['past', 'pulse', 'idle', 'idle']);
     expect(c.firstElementChild?.getAttribute('aria-hidden')).toBe('true');
   });
   it('groups 5/8 as 3+2 and ignores a grouping that does not add up', () => {
@@ -65,6 +67,26 @@ describe('BeatDots', () => {
   });
 });
 
+describe('DifficultyMeter', () => {
+  it('fills `level` of ten segments and leaves the rest empty', () => {
+    expect(difficultySegments(3)).toEqual(['filled', 'filled', 'filled', 'empty', 'empty', 'empty', 'empty', 'empty', 'empty', 'empty']);
+    expect(difficultySegments(0).every((s) => s === 'empty')).toBe(true);
+    expect(difficultySegments(99).every((s) => s === 'filled')).toBe(true);
+    expect(difficultySegments(Number.NaN).every((s) => s === 'empty')).toBe(true);
+  });
+  it('marks segments with no music as hollow dashed, over filled or empty', () => {
+    expect(difficultySegments(5, [4, 5, 6])).toEqual(['filled', 'filled', 'filled', 'no-music', 'no-music', 'no-music', 'empty', 'empty', 'empty', 'empty']);
+    const c = m(<DifficultyMeter level={2} noMusic={[9, 10]} />);
+    const segs = [...c.querySelectorAll('.dom-diff-seg')].map((e) => e.getAttribute('data-state'));
+    expect(segs).toHaveLength(10);
+    expect(segs.slice(7)).toEqual(['empty', 'no-music', 'no-music']);
+  });
+  it('is hidden from assistive tech', () => {
+    const c = m(<DifficultyMeter level={2} />);
+    expect(c.querySelector('.dom-diff')?.getAttribute('aria-hidden')).toBe('true');
+  });
+});
+
 describe('LevelMeter', () => {
   it('classifies the three zones', () => {
     expect(meterZone(-50, -40, false)).toBe('below-gate');
@@ -83,6 +105,15 @@ describe('LevelMeter', () => {
     const c = m(<LevelMeter levelDb={-30} gateDb={-40} clipping={false} decorative={false} label="Input" />);
     const el = c.querySelector('[role=meter]');
     expect(el?.getAttribute('aria-valuenow')).toBe('-30');
+  });
+});
+
+describe('BeatDots states', () => {
+  it('marks beats already played as past, the current one, and the rest as idle', () => {
+    const c = m(<BeatDots beatsPerBar={4} currentBeat={3} />);
+    expect([...c.querySelectorAll('.dom-beat-dot')].map((d) => d.getAttribute('data-state'))).toEqual(['past', 'past', 'pulse', 'idle']);
+    current?.render(<BeatDots beatsPerBar={4} currentBeat={null} />);
+    expect([...c.querySelectorAll('.dom-beat-dot')].every((d) => d.getAttribute('data-state') === 'idle')).toBe(true);
   });
 });
 
@@ -130,6 +161,31 @@ describe('ChecklistItem', () => {
   });
 });
 
+describe('GradeBadge pills', () => {
+  it.each([
+    ['ranked', 'badge.ranked'],
+    ['practice', 'badge.practice'],
+    ['not-graded', 'results.badge.notGraded'],
+    ['incomplete', 'badge.incomplete'],
+  ] as const)('renders the %s pill from copy', (kind, key) => {
+    const c = m(<GradeBadge kind={kind} />);
+    const pill = c.querySelector('.dom-pill');
+    expect(pill?.getAttribute('data-kind')).toBe(kind);
+    expect(pill?.textContent).toContain(copy(key));
+  });
+  it('explains an incomplete take with its cap, in text and not only a tooltip', () => {
+    const c = m(<GradeBadge kind="incomplete" cap={60} />);
+    const why = copy('badge.incomplete.tooltip', { cap: 60 });
+    expect(c.querySelector('.dom-pill')?.getAttribute('title')).toBe(why);
+    expect(c.querySelector('.dom-sr')?.textContent).toBe(why);
+    expect(c.querySelector('.dom-pill svg')).not.toBeNull();
+  });
+  it('has no letter or score in a pill', () => {
+    const c = m(<GradeBadge kind="ranked" />);
+    expect(c.querySelector('.dom-grade')).toBeNull();
+  });
+});
+
 describe('GradeBadge and StarRow', () => {
   it('names the grade, score and stars (04 5.5.2)', () => {
     const c = m(<GradeBadge grade="B" score={85} size={72} stars={2} />);
@@ -152,12 +208,27 @@ describe('GradeBadge and StarRow', () => {
 });
 
 describe('ComponentBar', () => {
-  it('fills floor(value/10) of ten segments', () => {
-    expect([86, 91, 82, 100, 0, 9, 150, -5].map(filledSegments)).toEqual([8, 9, 8, 10, 0, 0, 10, 0]);
+  it('draws one bar filled to the value and shows the number', () => {
     const c = m(<ComponentBar label="Notes" value={86} explainer="Right notes." />);
-    expect(c.querySelectorAll('.dom-cbar-seg[data-filled=true]')).toHaveLength(8);
+    expect((c.querySelector('.dom-cbar-fill') as HTMLElement).style.inlineSize).toBe('86%');
     expect(c.querySelector('.dom-cbar-value')?.textContent).toBe('86');
     expect(c.querySelector('[role=meter]')?.getAttribute('aria-valuenow')).toBe('86');
+  });
+  it('clamps the fill into 0 to 100', () => {
+    const c = m(<ComponentBar label="Notes" value={150} explainer="x" />);
+    expect((c.querySelector('.dom-cbar-fill') as HTMLElement).style.inlineSize).toBe('100%');
+  });
+  it('marks only the weakest bar with a hatch attribute that the stylesheet turns into a pattern', () => {
+    const c = m(
+      <div>
+        <ComponentBar label="Notes" value={76} explainer="x" focus />
+        <ComponentBar label="In tune" value={93} explainer="x" />
+      </div>,
+    );
+    const fills = [...c.querySelectorAll('.dom-cbar-fill')].map((f) => f.getAttribute('data-weakest'));
+    expect(fills).toEqual(['true', null]);
+    const css = readFileSync('src/ui/components/domain/domain.css', 'utf8');
+    expect(css).toMatch(/\.dom-cbar-fill\[data-weakest='true'\][^}]*repeating-linear-gradient/);
   });
   it('expands to the explainer and detail', () => {
     const c = m(<ComponentBar label="Rhythm" value={82} explainer="On time." detail="6 late" focus />);
@@ -172,7 +243,7 @@ describe('ComponentBar', () => {
   });
   it('shows no bar and no number when the value is null', () => {
     const c = m(<ComponentBar label="In tune" value={null} explainer="x" />);
-    expect(c.querySelector('.dom-cbar-segments')).toBeNull();
+    expect(c.querySelector('.dom-cbar-bar')).toBeNull();
     expect(c.querySelector('.dom-cbar-value')).toBeNull();
     expect(c.querySelector('.dom-cbar-unavailable')?.textContent).toBe(copy('component.inTune.notEnough'));
   });
@@ -220,6 +291,10 @@ describe('VerdictGlyph and RankEmblem', () => {
     expect(c.querySelector('use')?.getAttribute('href')).toBe('#rank-3');
     expect(c.querySelector('.dom-rank')?.getAttribute('data-state')).toBe('current');
   });
+  it.each(['achieved', 'current', 'future'] as const)('carries the %s state', (state) => {
+    const c = m(<RankEmblem rank={5} state={state} size={24} />);
+    expect(c.querySelector('.dom-rank')?.getAttribute('data-state')).toBe(state);
+  });
 });
 
 describe('TipCard and EmptyState', () => {
@@ -233,14 +308,33 @@ describe('TipCard and EmptyState', () => {
   };
   it('shows header, count, and an expandable secondary tip', () => {
     const c = m(<TipCard tip={tip} index={1} total={2} secondary={{ headline: 'Fell behind', body: 'Listen.', evidence: 'Seen in bars 2.' }} />);
-    expect(c.textContent).toContain(copy('tips.header'));
     expect(c.textContent).toContain(copy('tips.count', { n: 1, total: 2 }));
-    expect(c.querySelector('h2')?.textContent).toBe(tip.headline);
+    expect(c.querySelector('h2')?.textContent).toBe(copy('results.tip.title'));
+    expect(c.querySelector('h3')?.textContent).toBe(tip.headline);
+    expect(c.querySelector('.dom-tip-tile')?.getAttribute('aria-hidden')).toBe('true');
     const btn = c.querySelector('.dom-tip-also') as HTMLElement;
-    expect(btn.textContent).toBe(copy('tips.also', { headline: 'Fell behind' }));
+    expect(btn.textContent).toBe(copy('results.tip.more', { n: 1 }));
     expect((document.getElementById(btn.getAttribute('aria-controls') ?? '') as HTMLElement).hidden).toBe(true);
     click(btn);
     expect(btn.getAttribute('aria-expanded')).toBe('true');
+    expect(btn.textContent).toBe(copy('results.tip.less', { n: 1 }));
+    expect((document.getElementById(btn.getAttribute('aria-controls') ?? '') as HTMLElement).hidden).toBe(false);
+  });
+  it('shows hear-bar actions for the primary and the expanded tip', () => {
+    const c = m(
+      <TipCard
+        tip={tip}
+        secondary={{ headline: 'h', body: 'b', evidence: 'e', dimension: 'Rhythm' }}
+        actions={<button type="button">{'Hear bar 2'}</button>}
+        secondaryActions={<button type="button">{'Hear bars 3 to 4'}</button>}
+      />,
+    );
+    expect(c.querySelectorAll('.dom-tip-actions button')).toHaveLength(2);
+    expect(c.querySelector('.dom-tip-dim')?.textContent).toBe('Rhythm');
+  });
+  it('has no disclosure without a secondary tip', () => {
+    const c = m(<TipCard tip={tip} />);
+    expect(c.querySelector('.dom-tip-also')).toBeNull();
   });
   it('renders the empty state with its action', () => {
     const c = m(<EmptyState icon="info" title={copy('empty.history.title')} body={copy('empty.history.body')} action={<button type="button">{'Go'}</button>} />);

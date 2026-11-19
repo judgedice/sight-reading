@@ -14,7 +14,7 @@ export function defaultAppSettings(): AppSettings {
       mode: 'ranked',
       listening: true,
       metronome: 'audible',
-      clickTimbre: 'tick',
+      clickTimbre: 'classic',
       accentFirstBeat: true,
       outputMode: 'speakers',
       a4Hz: 440,

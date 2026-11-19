@@ -1,0 +1,521 @@
+/*
+ * Setup controls (05 sections 5.3 to 5.10, 06 sections 6.2 to 6.6). Tokens only: no raw colours, no px
+ * (0.0625rem = 1 px). The mini staff and the meter numerals are SVG drawn at their token staff space.
+ */
+
+/* ---- Row frame ----------------------------------------------------------------------- */
+
+.su-row {
+  min-width: 0;
+  color: var(--text);
+  font-family: var(--font-ui);
+}
+
+.su-row-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+  min-height: var(--toggle-hit-size);
+  margin-bottom: var(--space-2);
+}
+
+.su-label {
+  margin: 0;
+  font-family: var(--type-label-family);
+  font-size: var(--type-label-size);
+  line-height: var(--type-label-line);
+  font-weight: var(--type-label-weight);
+}
+
+.su-hint {
+  margin: var(--space-3) 0 0;
+  color: var(--text-muted);
+  font-size: var(--type-small-size);
+  line-height: var(--type-small-line);
+}
+
+.su-hint-strong {
+  color: var(--text);
+}
+
+.su-hint-tight {
+  margin-top: var(--space-1);
+}
+
+.su-muted {
+  color: var(--text-muted);
+}
+
+.su-note-line {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: var(--space-3) 0 0;
+  color: var(--text-muted);
+  font-size: var(--type-small-size);
+  line-height: var(--type-small-line);
+}
+
+.su-note-icon {
+  flex: none;
+  margin-top: 0.125rem;
+}
+
+.su-tag {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  height: 1.25rem;
+  padding: 0 0.4375rem;
+  border-radius: var(--radius-full);
+  background: var(--surface-2);
+  color: var(--text-muted);
+  font-size: var(--type-caption-size);
+  line-height: 1;
+  font-weight: 600;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* A switch on the label row: as wide as its label, not the row (06 sections 6.4 and 6.5). */
+.su-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.su-switch .ui-toggle {
+  width: auto;
+  gap: var(--space-2);
+  font-size: var(--type-small-size);
+  font-weight: 500;
+}
+
+/* ---- Fallback note (05 section 5.9) ---------------------------------------------------- */
+
+.su-fallback-wrap:empty {
+  display: none;
+}
+
+.su-fallback {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-4);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-m);
+  background: var(--brass-wash);
+  color: var(--text);
+  font-size: var(--type-small-size);
+  line-height: var(--type-small-line);
+}
+
+.su-fallback-icon {
+  flex: none;
+  margin-top: 0.125rem;
+  color: var(--caution);
+}
+
+/* ---- Difficulty (06 section 6.4) ------------------------------------------------------- */
+
+.su-diff-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3) var(--space-5);
+}
+
+/* The setup stepper is one bordered unit with divided cells, as the mockups draw it (06 section 6.4). */
+.su-diff-line .ui-stepper {
+  gap: 0;
+  height: var(--stepper-button-size);
+  border: 0.0625rem solid var(--border-strong);
+  border-radius: var(--radius-m);
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.su-diff-line .ui-stepper-button {
+  height: 100%;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.su-diff-line .ui-stepper-button:focus-visible {
+  outline-offset: -0.125rem;
+}
+
+.su-diff-line .ui-stepper-value {
+  align-self: stretch;
+  min-height: 0;
+  padding: 0 var(--space-3);
+  border-inline: 0.0625rem solid var(--border);
+}
+
+.su-diff-follow {
+  margin: 0;
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+  font-weight: 600;
+}
+
+/* ---- Key grid (06 section 6.3) --------------------------------------------------------- */
+
+.su-key-grid {
+  --su-cols: var(--su-key-cols, 3);
+  display: grid;
+  gap: var(--key-grid-gap);
+}
+
+.su-key-group {
+  display: grid;
+  grid-template-columns: repeat(var(--su-cols), minmax(0, 1fr));
+  gap: var(--key-grid-gap);
+}
+
+/* Below 1024 px the controls live in the phone sheet: 3 columns at every difficulty, no chip under 96 px (note 18). */
+@media (max-width: 63.99rem) {
+  .su-key-grid {
+    --su-cols: 3;
+  }
+}
+
+.su-key-group-label {
+  grid-column: 1 / -1;
+  margin: var(--space-2) 0 0;
+  color: var(--text-muted);
+  font-size: var(--type-caption-size);
+  line-height: var(--type-caption-line);
+  font-weight: 600;
+}
+
+.su-chip {
+  position: relative;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  min-width: 0;
+  min-height: var(--key-chip-min-height);
+  margin: 0;
+  padding: var(--space-2) 0.625rem 0.625rem;
+  border: 0.0625rem solid var(--border);
+  border-radius: var(--radius-m);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--dur-fast) var(--ease-out);
+}
+
+.su-chip:not(.su-chip-on):hover {
+  background: var(--surface-2-hover);
+}
+
+.su-chip:not(.su-chip-on):active {
+  background: var(--surface-2-pressed);
+}
+
+.su-chip:focus-visible,
+.su-seg-btn:focus-visible {
+  outline: 0.125rem solid var(--focus-ring);
+  outline-offset: 0.125rem;
+}
+
+/* Selected: wash, 2 px text edge (1 px border plus 1 px inset), check disc (06 section 6.3). */
+.su-chip-on {
+  border-color: var(--text);
+  background: var(--selected);
+  box-shadow: inset 0 0 0 0.0625rem var(--text);
+}
+
+.su-chip-name {
+  font-size: var(--type-label-size);
+  line-height: 1.2;
+  font-weight: 600;
+}
+
+.su-chip-concert {
+  color: var(--text-muted);
+  font-size: var(--type-caption-size);
+  line-height: var(--type-caption-line);
+  font-weight: 400;
+}
+
+.su-check {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  display: grid;
+  place-items: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.su-check svg {
+  stroke-width: 2.6;
+}
+
+.su-chip-any {
+  grid-column: 1 / -1;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 3.25rem;
+  padding: 0 3rem 0 0.875rem;
+}
+
+.su-chip-any .su-chip-name {
+  flex: none;
+  font-size: var(--type-body-size);
+  white-space: nowrap;
+}
+
+.su-chip-hint {
+  color: var(--text-muted);
+  font-size: var(--type-caption-size);
+  line-height: var(--type-caption-line);
+  font-weight: 400;
+}
+
+.su-chip-any .su-tag {
+  margin-inline-start: auto;
+}
+
+.su-chip-on .su-tag,
+.su-seg-on .su-tag {
+  background: var(--surface-2-pressed);
+  color: var(--text);
+}
+
+.su-chip-any .su-check {
+  top: 50%;
+  right: 0.875rem;
+  transform: translateY(-50%);
+}
+
+/* The staff is drawn wider than any chip and clipped, so it spans the chip and is never scaled (critique C3). */
+.su-mini-key {
+  display: block;
+  align-self: stretch;
+  overflow: hidden;
+  margin: 0.125rem 0 0;
+}
+
+.su-mini-key svg {
+  display: block;
+  max-width: none;
+}
+
+.su-mini-key-lines {
+  opacity: 0.55;
+}
+
+/* ---- Segments (06 section 6.2) --------------------------------------------------------- */
+
+.su-seg {
+  box-sizing: border-box;
+  display: inline-flex;
+  flex-wrap: wrap;
+  max-width: 100%;
+  padding: var(--segment-track-padding);
+  gap: var(--space-1);
+  border-radius: var(--segment-track-radius);
+  background: var(--surface-2);
+}
+
+.su-seg-stretch {
+  display: flex;
+  width: 100%;
+}
+
+.su-seg-stretch > .su-seg-btn {
+  flex: 1 1 0;
+}
+
+.su-seg-btn {
+  box-sizing: border-box;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.125rem;
+  min-height: var(--segment-height);
+  min-width: var(--target-min);
+  margin: 0;
+  padding: 0 var(--space-4);
+  border: 0.0625rem solid transparent;
+  border-radius: var(--segment-radius);
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+  font-weight: 500;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.su-seg-btn:not(.su-seg-on):not(.su-seg-blocked):hover {
+  background: var(--surface-2-hover);
+}
+
+.su-seg-btn:not(.su-seg-on):not(.su-seg-blocked):active {
+  background: var(--surface-2-pressed);
+}
+
+.su-seg-on {
+  border-color: var(--border-strong);
+  background: var(--surface);
+  color: var(--text);
+  font-weight: 600;
+  box-shadow: var(--e1);
+}
+
+.su-seg-blocked {
+  cursor: default;
+}
+
+.su-seg-blocked > .su-seg-main {
+  opacity: var(--opacity-disabled);
+}
+
+.su-seg-main {
+  display: inline-flex;
+  align-items: center;
+}
+
+.su-seg-caption {
+  color: var(--text-muted);
+  font-size: var(--type-caption-size);
+  line-height: var(--type-caption-line);
+  font-weight: 500;
+}
+
+.su-seg-time .su-seg-btn {
+  min-height: var(--time-segment-height);
+  min-width: var(--time-segment-min-width);
+}
+
+.su-seg-time .su-seg-caption .su-tag {
+  margin-top: var(--space-1);
+}
+
+.su-time-mark {
+  display: block;
+}
+
+/* ---- Tempo (06 section 6.6) ------------------------------------------------------------ */
+
+.su-tempo-set {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.su-tempo-value {
+  flex: none;
+  min-width: 4.5rem;
+  font-family: var(--type-h3-family);
+  font-size: var(--type-h3-size);
+  line-height: var(--type-h3-line);
+  font-weight: var(--type-h3-weight);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* The quarter note from the music-text face, a little larger than the digits, set tight to "=" (critique C9). */
+.su-tempo-unit {
+  font-family: "Sightread Music Text", var(--font-ui);
+  font-size: 1.3em;
+  font-weight: 400;
+  line-height: 0;
+  margin-inline-end: -0.05em;
+}
+
+.su-tempo-range {
+  flex: 1 1 auto;
+}
+
+.su-tempo-field {
+  width: 3.75rem;
+  text-align: center;
+}
+
+.su-hear-tempo {
+  margin-top: var(--space-3);
+}
+
+/* ---- Length ---------------------------------------------------------------------------- */
+
+.su-length-only {
+  margin: 0;
+  font-size: var(--type-small-size);
+  line-height: var(--type-small-line);
+}
+
+/* ---- Mode (05 section 5.8) ------------------------------------------------------------- */
+
+.su-mode .su-label {
+  margin-bottom: var(--space-2);
+}
+
+.su-mode-blocked-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.su-mode-hints .su-hint {
+  margin-top: var(--space-2);
+}
+
+.su-mode-fix {
+  margin-top: var(--space-3);
+}
+
+/* Desktop foot: "Mode" left of the segments, hints under the segments. */
+.su-mode-inline {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  column-gap: var(--space-4);
+}
+
+.su-mode-inline .su-label {
+  margin-bottom: 0;
+}
+
+.su-mode-inline .su-mode-hints {
+  grid-column: 2;
+}
+
+/* ---- XP line (05 section 5.10) --------------------------------------------------------- */
+
+.su-xp-line {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--type-small-size);
+  line-height: var(--type-small-line);
+}
+
+.su-xp-line b {
+  color: var(--text);
+  font-weight: 600;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .su-chip {
+    transition: none;
+  }
+}

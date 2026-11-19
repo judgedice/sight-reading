@@ -189,7 +189,7 @@ describe('Toast', () => {
     );
   }
 
-  it('shows for 4 seconds in a polite live region', () => {
+  it('shows for 6 seconds in a polite live region', () => {
     vi.useFakeTimers();
     try {
       current = mount(
@@ -202,7 +202,7 @@ describe('Toast', () => {
       click(q('[data-testid=go]'));
       expect(region.textContent).toContain('Saved');
       act(() => {
-        vi.advanceTimersByTime(3900);
+        vi.advanceTimersByTime(5900);
       });
       expect(region.textContent).toContain('Saved');
       act(() => {

@@ -385,8 +385,10 @@
       },
       "instruments": [
         "voice-soprano",
+        "voice-mezzo",
         "voice-alto",
         "voice-tenor",
+        "voice-baritone",
         "voice-bass"
       ]
     },
@@ -888,8 +890,10 @@
       "family": "voice",
       "instruments": [
         "voice-soprano",
+        "voice-mezzo",
         "voice-alto",
         "voice-tenor",
+        "voice-baritone",
         "voice-bass"
       ],
       "patterns": [
@@ -908,8 +912,10 @@
       "family": "voice",
       "instruments": [
         "voice-soprano",
+        "voice-mezzo",
         "voice-alto",
         "voice-tenor",
+        "voice-baritone",
         "voice-bass"
       ],
       "patterns": [
@@ -929,8 +935,10 @@
       "family": "voice",
       "instruments": [
         "voice-soprano",
+        "voice-mezzo",
         "voice-alto",
         "voice-tenor",
+        "voice-baritone",
         "voice-bass"
       ],
       "patterns": [
@@ -949,8 +957,10 @@
       "family": "voice",
       "instruments": [
         "voice-soprano",
+        "voice-mezzo",
         "voice-alto",
         "voice-tenor",
+        "voice-baritone",
         "voice-bass"
       ],
       "patterns": [
@@ -1296,8 +1306,10 @@
       "family": "voice",
       "instruments": [
         "voice-soprano",
+        "voice-mezzo",
         "voice-alto",
         "voice-tenor",
+        "voice-baritone",
         "voice-bass"
       ],
       "patterns": [
@@ -1317,8 +1329,10 @@
       "family": "voice",
       "instruments": [
         "voice-soprano",
+        "voice-mezzo",
         "voice-alto",
         "voice-tenor",
+        "voice-baritone",
         "voice-bass"
       ],
       "patterns": [
@@ -1337,8 +1351,10 @@
       "family": "voice",
       "instruments": [
         "voice-soprano",
+        "voice-mezzo",
         "voice-alto",
         "voice-tenor",
+        "voice-baritone",
         "voice-bass"
       ],
       "patterns": [

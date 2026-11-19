@@ -10,9 +10,12 @@
  * Determinism: only Math.sin/cos/exp/pow/sqrt and the seeded mulberry32 generator are used, and the output is
  * a pure function of the spec. Reference WAV checksums are taken over 16-bit quantised output on Node 22.
  */
+import { renderClick } from '../core/click-sounds.ts';
 import { createRng } from '../core/rng.ts';
+import type { ClickTimbre } from '../core/types.ts';
 
-export type SynthClickTimbre = 'tick' | 'wood';
+/** Every metronome timbre: the legacy Tick and Wood and the player's sounds (06 section 9). */
+export type SynthClickTimbre = ClickTimbre;
 
 export interface SynthNote {
   /** Concert MIDI note (integer or fractional). */
@@ -99,9 +102,11 @@ const dbToGain = (db: number): number => 10 ** (db / 20);
 /**
  * One pre-rendered click burst, peak-normalised to 1 (01 section 7.6): tick is a 12 ms noise-like burst in
  * 5.5 to 9 kHz (18 ms when accented), wood an 8 ms burst in 1.5 to 4 kHz. Built from fixed-seed random partials, so
- * every call returns the same samples.
+ * every call returns the same samples. Classic, Woodblock and Beep are the metronome's own renders
+ * (`src/core/click-sounds.ts`, offbeat recipe, or accent recipe when `accent`), so bleed matches the speakers.
  */
 export function clickBurst(timbre: SynthClickTimbre, accent: boolean, sampleRate: number): Float32Array {
+  if (timbre !== 'tick' && timbre !== 'wood') return renderClick(timbre, accent, sampleRate);
   const band: [number, number] = timbre === 'tick' ? [5500, 9000] : [1500, 4000];
   const lenSec = timbre === 'tick' ? (accent ? 0.018 : 0.012) : 0.008;
   const attackSec = timbre === 'tick' ? 0.002 : 0.001;
@@ -177,7 +182,9 @@ export function renderMin(spec: SynthSpec): SynthResult {
 
   const lastEnd = voices.reduce((m, v) => Math.max(m, v.end + adsr.releaseSec), 0);
   const clicks = spec.clicks ?? [];
-  const clickTail = clicks.reduce((m, c) => Math.max(m, c.t + 0.02), 0);
+  const legacyClick = (spec.clickTimbre ?? 'tick') === 'tick' || spec.clickTimbre === 'wood';
+  // The new sounds run up to 60 ms; the legacy tail stays 20 ms so the reference WAVs keep their checksums.
+  const clickTail = clicks.reduce((m, c) => Math.max(m, c.t + (legacyClick ? 0.02 : 0.065)), 0);
   const durationSec = spec.durationSec ?? Math.max(lastEnd + 0.1, clickTail);
   const n = Math.max(1, Math.round(durationSec * sr));
   const buf = new Float64Array(n);

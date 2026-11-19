@@ -43,7 +43,8 @@ export function BeatDots({ beatsPerBar, grouping, currentBeat, countIn = false, 
           {beats.map((beat) => {
             const active = currentBeat === beat;
             const pulses = active && beatPulses(beat, bpm);
-            const state = pulses ? 'pulse' : active ? 'steady' : 'idle';
+            const past = currentBeat !== null && beat < currentBeat;
+            const state = pulses ? 'pulse' : active ? 'steady' : past ? 'past' : 'idle';
             return countIn ? (
               <span key={beat} className="dom-beat-number" data-state={state} data-beat={beat}>
                 {beat}

@@ -1,54 +1,34 @@
 /**
- * Metronome click scheduler (01 §7.6, 05 W9, W10).
+ * Metronome click scheduler (01 §7.6, 05 W9, W10, 06 §9).
  *
- * Two pre-rendered, noise-based timbres with no tonal content below 1 kHz: Tick (12 ms burst band-limited to
- * 5.5 to 9 kHz, 2 ms attack, exponential decay; accent 18 ms) and Wood (8 ms, 1.5 to 4 kHz). The burst is the
- * same deterministic band-limited noise as the testkit's `clickBurst`, so synthetic bleed matches what the
- * speakers play. Every click of a take is its own AudioBufferSourceNode, started on the audio clock when the take
- * is scheduled; no main-thread timer runs during a take, so a stalled main thread cannot move a click.
- * No oscillator is used here (lint rule, W10).
+ * The clicks are pre-rendered buffers from `src/core/click-sounds.ts` (Classic, Woodblock and Beep, plus the legacy
+ * Tick and Wood the calibration and tests use), the same samples the testkit's click bleed renders. Every click of a
+ * take is its own AudioBufferSourceNode, started on the audio clock when the take is scheduled; no main-thread timer
+ * runs during a take, so a stalled main thread cannot move a click. No oscillator is used here (lint rule, W10).
+ *
+ * Levels: a plain beat is the offbeat recipe at `clickGain`; an accented beat is the accent recipe at
+ * `clickGain + accentDb`, capped at 0.99. With "Accent the first beat" off (`TakeSchedule.accent` false) every beat
+ * is the offbeat recipe at 0 dB. Calibration clicks are all at `+accentDb` (5 dB by default); for the new sounds
+ * they use the offbeat recipe, because the low-band template they build is the plain click's (src/dsp/click.ts).
  */
-import type { ClickSpec, ClickTimbre, ClockSeconds, TakeSchedule } from '../../../core/platform.ts';
-import { createRng } from '../../../core/rng.ts';
+import type { ClickSpec, ClickTimbre, ClockSeconds, MetronomeSound, TakeSchedule } from '../../../core/platform.ts';
+import { renderClick } from '../../../core/click-sounds.ts';
+
+export { renderClick };
 
 /** Minimum lead from now to the first count-in click, seconds (01 §7.1). */
 export const MIN_LEAD_SEC = 0.5;
 
-/** Unscaled click burst, peak-normalised to 1. Bit-identical to the testkit's `clickBurst` below Nyquist. */
-export function renderClick(timbre: ClickTimbre, accent: boolean, sampleRate: number): Float32Array {
-  const band: [number, number] = timbre === 'tick' ? [5500, 9000] : [1500, 4000];
-  const lenSec = timbre === 'tick' ? (accent ? 0.018 : 0.012) : 0.008;
-  const attackSec = timbre === 'tick' ? 0.002 : 0.001;
-  const n = Math.max(1, Math.round(lenSec * sampleRate));
-  const rng = createRng(timbre === 'tick' ? 0x71c4 : 0x300d);
-  const nyquistGuard = 0.475 * sampleRate;
-  const partials: { w: number; ph: number }[] = [];
-  for (let k = 0; k < 40; k++) {
-    const f = band[0] + rng.next() * (band[1] - band[0]);
-    const ph = rng.next() * 2 * Math.PI;
-    // Low capture rates (16 kHz HFP routes) cannot carry the top of the Tick band; drop what would alias.
-    if (f < nyquistGuard) partials.push({ w: (2 * Math.PI * f) / sampleRate, ph });
-  }
-  const out = new Float32Array(n);
-  let peak = 0;
-  for (let i = 0; i < n; i++) {
-    const t = i / sampleRate;
-    const env = (t < attackSec ? t / attackSec : 1) * Math.exp((-5 * t) / lenSec);
-    let s = 0;
-    for (const p of partials) s += Math.sin(p.w * i + p.ph);
-    const v = s * env;
-    out[i] = v;
-    if (Math.abs(v) > peak) peak = Math.abs(v);
-  }
-  if (peak > 0) for (let i = 0; i < n; i++) out[i] = (out[i] as number) / peak;
-  return out;
-}
+/** Accent over a plain click on calibration clicks, dB (01 §7.6; the DSP's nominal accent gain). */
+export const CALIBRATION_ACCENT_DB = 5;
 
 /**
  * The clicks of a take (pure). Beat `i` sounds at `firstClick + i × beat`; count-in beats come first; accents
- * fall on bar downbeats. `countInOnly` stops after the count-in. Same rule as `FakeAudioBackend.scheduleTake`.
+ * fall on bar downbeats unless `p.accent` is false. `countInOnly` stops after the count-in. Same rule as
+ * `FakeAudioBackend.scheduleTake`.
  */
 export function planTakeClicks(p: TakeSchedule, t0: number): ClickSpec[] {
+  const accentOn = p.accent ?? true;
   const beatSec = 60 / p.bpm;
   const firstClick = t0 - p.countInBeats * beatSec;
   const total = p.countInBeats + Math.ceil(p.totalBeats);
@@ -56,7 +36,7 @@ export function planTakeClicks(p: TakeSchedule, t0: number): ClickSpec[] {
   for (let i = 0; i < total; i++) {
     const countIn = i < p.countInBeats;
     if (p.mode === 'countInOnly' && !countIn) break;
-    clicks.push({ beatIndex: i, accent: i % p.beatsPerBar === 0, t: (firstClick + i * beatSec) as ClockSeconds, countIn });
+    clicks.push({ beatIndex: i, accent: accentOn && i % p.beatsPerBar === 0, t: (firstClick + i * beatSec) as ClockSeconds, countIn });
   }
   return clicks;
 }
@@ -130,14 +110,28 @@ export class Metronome {
     const t0 = t0Override ?? takeT0(p, this.ctx.currentTime);
     const clicks = planTakeClicks(p, t0);
     this.prepare(p.timbre, p.accentDb);
-    for (const c of clicks) this.schedule(c.t, c.accent, p.timbre, p.accentDb);
+    for (const c of clicks) this.schedule(c.t, c.accent, p.timbre, c.accent, c.accent ? p.accentDb : 0);
     return { t0: t0 as ClockSeconds, clicks };
   }
 
-  /** Calibration clicks: accented clicks at the given times. */
-  scheduleClicks(times: readonly number[], timbre: ClickTimbre, accentDb = 5): void {
-    this.prepare(timbre, accentDb);
-    for (const t of times) this.schedule(t, true, timbre, accentDb);
+  /**
+   * Calibration clicks, all at +`accentDb` over a plain click (recorded as accents). Tick and Wood use their accent
+   * burst as before; the new sounds use their offbeat recipe, whose low-band template the take subtracts.
+   */
+  scheduleClicks(times: readonly number[], timbre: ClickTimbre, accentDb = CALIBRATION_ACCENT_DB): void {
+    const legacy = timbre === 'tick' || timbre === 'wood';
+    for (const t of times) this.schedule(t, true, timbre, legacy, accentDb);
+  }
+
+  /**
+   * Previews and lead-ins (`AudioBackend.playClicks`): click i is the accent recipe at +`accentDb` when
+   * `accents[i]`, else the offbeat recipe at 0 dB.
+   */
+  playClicks(times: readonly number[], sound: MetronomeSound, accents: readonly boolean[], accentDb: number): void {
+    times.forEach((t, i) => {
+      const a = accents[i] === true;
+      this.schedule(t, a, sound, a, a ? accentDb : 0);
+    });
   }
 
   /** Stop and drop every click that has not finished. */
@@ -159,9 +153,9 @@ export class Metronome {
     return [...this.live];
   }
 
-  private schedule(t: number, accent: boolean, timbre: ClickTimbre, accentDb: number): void {
+  private schedule(t: number, accent: boolean, timbre: ClickTimbre, accentRecipe: boolean, gainDb: number): void {
     const src = this.ctx.createBufferSource();
-    src.buffer = this.buffer(timbre, accent, accentDb);
+    src.buffer = this.buffer(timbre, accentRecipe, gainDb);
     src.connect(this.out);
     const entry: ScheduledClick = { t, accent, timbre, source: src };
     src.onended = () => {
@@ -173,15 +167,15 @@ export class Metronome {
     this.history.push({ t, accent, timbre });
   }
 
-  private buffer(timbre: ClickTimbre, accent: boolean, accentDb: number): ClickBuffer {
-    const key = `${timbre}|${accent ? accentDb : 'n'}`;
+  /** The buffer of a recipe (offbeat or accent) at `gainDb` over a plain click, rendered once per key. */
+  private buffer(timbre: ClickTimbre, accentRecipe: boolean, gainDb: number): ClickBuffer {
+    const key = `${timbre}|${accentRecipe ? 'a' : 'o'}|${gainDb}`;
     let b = this.cache.get(key);
     if (!b) {
       const sr = this.ctx.sampleRate;
-      const burst = renderClick(timbre, accent, sr);
-      const g = this.clickGain * (accent ? 10 ** (accentDb / 20) : 1);
+      const burst = renderClick(timbre, accentRecipe, sr);
       // Keep the accent below full scale.
-      const scale = Math.min(g, 0.99);
+      const scale = Math.min(this.clickGain * 10 ** (gainDb / 20), 0.99);
       b = this.ctx.createBuffer(1, burst.length, sr);
       const data = b.getChannelData(0);
       for (let i = 0; i < burst.length; i++) data[i] = (burst[i] as number) * scale;

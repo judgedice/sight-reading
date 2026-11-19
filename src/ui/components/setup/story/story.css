@@ -1,0 +1,99 @@
+/* Dev-only story layout for the setup controls. Tokens only. */
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-feature-settings: var(--font-features);
+}
+
+.story {
+  display: grid;
+  gap: var(--space-5);
+  padding: var(--space-5);
+}
+
+@media (min-width: 64rem) {
+  .story {
+    grid-template-columns: 41.25rem 24.375rem;
+    align-items: start;
+  }
+
+  .story-states {
+    grid-column: 1 / -1;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .story-wide {
+    grid-column: 1 / -1;
+  }
+}
+
+.story-states {
+  display: grid;
+  gap: var(--space-5);
+}
+
+.story-card {
+  display: grid;
+  gap: var(--space-6);
+  box-sizing: border-box;
+  min-width: 0;
+  padding: var(--card-x-padding-lg);
+  border: 0.0625rem solid var(--border);
+  border-radius: var(--radius-l);
+  background: var(--surface);
+  box-shadow: var(--e1);
+}
+
+.story-home {
+  gap: 0;
+  padding: 0;
+}
+
+.story-scroll {
+  display: grid;
+  gap: var(--space-5);
+  padding: var(--card-x-padding-lg);
+}
+
+.story-rule {
+  width: 100%;
+  margin: 0;
+  border: 0;
+  border-top: 0.0625rem solid var(--border);
+}
+
+.story-foot {
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--card-x-padding-lg) var(--card-x-padding-lg);
+  border-top: 0.0625rem solid var(--border);
+}
+
+.story-start-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.story-start {
+  flex: 1;
+  height: var(--button-hero-height);
+  border-radius: var(--button-hero-radius);
+  background: var(--accent);
+}
+
+@media (max-width: 63.99rem) {
+  .story {
+    padding: var(--space-4);
+  }
+
+  .story-card {
+    padding: var(--card-x-padding);
+  }
+}
+
+.story .story-home {
+  padding: 0;
+}

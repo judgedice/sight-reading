@@ -10,7 +10,7 @@ describe('form.css: sizes (7.5 table)', () => {
     expect(formCss).toMatch(/\.ui-button-default\s*\{\s*min-height:\s*var\(--button-default-height\)/);
     expect(formCss).toMatch(/\.ui-button-hero\s*\{[^}]*min-height:\s*var\(--button-hero-height\)/);
     expect(formCss).toMatch(/\.ui-stepper-button\s*\{[^}]*width:\s*var\(--stepper-button-size\)/);
-    expect(formCss).toMatch(/\.ui-stepper-value\s*\{[^}]*min-width:\s*var\(--stepper-value-width\)/);
+    expect(formCss).toMatch(/\.ui-stepper-value\s*\{[^}]*min-width:\s*var\(--stepper-value-min-width\)/);
     expect(formCss).toMatch(/\.ui-select\s*\{[^}]*min-height:\s*var\(--select-height\)/);
     expect(formCss).toMatch(/\.ui-tempo-field\s*\{[^}]*width:\s*var\(--tempo-field-width\)/);
     expect(formCss).toMatch(/\.ui-tempo-range\s*\{[^}]*height:\s*var\(--tempo-hit-size\)/);

@@ -28,10 +28,21 @@
   block-size: var(--beat-dot-downbeat);
 }
 
+.dom-beat-dot[data-state='past'] {
+  border-color: var(--text-muted);
+  background: var(--text-muted);
+}
+
 .dom-beat-dot[data-state='pulse'],
 .dom-beat-dot[data-state='steady'] {
-  border-color: var(--metro-active);
-  background: var(--metro-active);
+  border-color: var(--brass);
+  background: var(--brass);
+}
+
+/* Count-in: the current dot gets a 6 px brass-wash halo (06 6.12). */
+.dom-beats[data-count-in='true'] .dom-beat-dot[data-state='pulse'],
+.dom-beats[data-count-in='true'] .dom-beat-dot[data-state='steady'] {
+  box-shadow: 0 0 0 0.375rem var(--brass-wash);
 }
 
 /* Fill, then ease to 60% until the next beat (04 5.4.3). Durations collapse to 0 under reduced motion. */
@@ -41,11 +52,11 @@
 
 @keyframes dom-beat-ease {
   from {
-    background: var(--metro-active);
+    background: var(--brass);
   }
 
   to {
-    background: color-mix(in srgb, var(--metro-active) 60%, transparent);
+    background: color-mix(in srgb, var(--brass) 60%, transparent);
   }
 }
 
@@ -62,7 +73,7 @@
 
 .dom-beat-number[data-state='pulse'],
 .dom-beat-number[data-state='steady'] {
-  color: var(--metro-active);
+  color: var(--brass-ink);
 }
 
 /* ---- LevelMeter ---- */
@@ -114,6 +125,29 @@
   color: var(--danger);
 }
 
+/* ---- DifficultyMeter (06 6.4) ---- */
+.dom-diff {
+  display: inline-flex;
+  gap: var(--difficulty-meter-gap);
+}
+
+.dom-diff-seg {
+  box-sizing: border-box;
+  inline-size: 0.875rem;
+  block-size: 1.125rem;
+  border-radius: var(--radius-xs);
+  background: var(--track);
+}
+
+.dom-diff-seg[data-state='filled'] {
+  background: var(--accent);
+}
+
+.dom-diff-seg[data-state='no-music'] {
+  background: transparent;
+  border: 0.09375rem dashed var(--border-strong);
+}
+
 /* ---- ScanTimer ---- */
 .dom-scan-timer {
   position: relative;
@@ -141,12 +175,13 @@
 }
 
 .dom-scan-ring-fill {
-  stroke: var(--accent);
+  stroke: var(--brass);
+  stroke-linecap: round;
   transition: stroke-dashoffset var(--dur-base) var(--ease-in-out);
 }
 
 .dom-scan-timer[data-done='true'][data-mode='practice'] .dom-scan-ring-track {
-  stroke: var(--accent);
+  stroke: var(--brass);
 }
 
 .dom-scan-number,
@@ -155,7 +190,7 @@
 }
 
 .dom-scan-check {
-  color: var(--accent);
+  color: var(--brass-ink);
 }
 
 /* ---- ChecklistItem ---- */
@@ -269,6 +304,42 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* ---- Status pills (06 6.15) ---- */
+.dom-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  box-sizing: border-box;
+  block-size: 1.625rem;
+  padding-inline: var(--space-2);
+  border-radius: var(--radius-full);
+  background: var(--surface-2);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 0.78125rem;
+  line-height: 1;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.dom-pill[data-kind='ranked'] {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.dom-pill-icon {
+  color: var(--caution);
+}
+
+.dom-sr {
+  position: absolute;
+  inline-size: 0.0625rem;
+  block-size: 0.0625rem;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 /* ---- StarRow ---- */
 .dom-stars {
   display: inline-flex;
@@ -327,35 +398,46 @@
 
 .dom-cbar-label {
   flex: 0 0 6rem;
+  font-weight: 600;
   display: inline-flex;
   flex-direction: column;
 }
 
 .dom-cbar-focus {
+  margin: 0;
   font-size: var(--type-caption-size);
   line-height: var(--type-caption-line);
   font-weight: var(--type-caption-weight);
   color: var(--text-muted);
 }
 
-.dom-cbar-segments {
-  display: inline-flex;
-  gap: var(--component-bar-segment-gap);
-}
-
-.dom-cbar-seg {
-  inline-size: var(--component-bar-segment-width);
-  block-size: var(--component-bar-segment-height);
+.dom-cbar-bar {
+  position: relative;
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  block-size: var(--component-bar-height);
+  border-radius: var(--radius-xs);
   background: var(--track);
+  overflow: hidden;
 }
 
-.dom-cbar-seg[data-filled='true'] {
-  background: var(--text);
+.dom-cbar-fill {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  border-radius: var(--radius-xs);
+  background: var(--accent);
+}
+
+/* The weakest bar is hatched, so it is marked by shape and not colour alone. */
+.dom-cbar-fill[data-weakest='true'] {
+  background-image: repeating-linear-gradient(135deg, transparent 0 0.25rem, color-mix(in srgb, var(--surface) 55%, transparent) 0.25rem 0.375rem);
 }
 
 .dom-cbar-value {
   min-inline-size: var(--space-6);
   text-align: end;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 
@@ -426,7 +508,7 @@
   font-weight: 700;
 }
 
-/* ---- RankEmblem ---- */
+/* ---- RankEmblem: achieved ink, current brass (ringed), future outlined ---- */
 .dom-rank {
   display: inline-grid;
   place-items: center;
@@ -436,8 +518,8 @@
 }
 
 .dom-rank[data-state='current'] {
-  color: var(--accent);
-  outline: 0.125rem solid var(--accent);
+  color: var(--brass-ink);
+  outline: 0.125rem solid var(--brass);
   outline-offset: 0.125rem;
 }
 
@@ -445,7 +527,7 @@
   color: var(--border-strong);
 }
 
-/* ---- TipCard ---- */
+/* ---- TipCard (06 6.15) ---- */
 .dom-tip {
   box-sizing: border-box;
   padding: var(--card-x-padding);
@@ -462,14 +544,35 @@
   }
 }
 
-.dom-tip-header {
-  display: flex;
-  justify-content: space-between;
+.dom-tip p,
+.dom-tip h2,
+.dom-tip h3 {
+  margin: 0;
 }
 
-.dom-tip p,
-.dom-tip h2 {
-  margin: 0;
+.dom-tip-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.dom-tip-tile {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  inline-size: 2.5rem;
+  block-size: 2.5rem;
+  border-radius: var(--radius-m);
+  background: var(--brass-wash);
+  color: var(--brass-ink);
+}
+
+.dom-tip-title {
+  flex: 1;
+  font-family: var(--type-h2-family);
+  font-size: var(--type-h2-size);
+  line-height: var(--type-h2-line);
+  font-weight: var(--type-h2-weight);
 }
 
 .dom-tip-caption {
@@ -480,34 +583,20 @@
 }
 
 .dom-tip-who {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  margin-block: var(--space-2);
-}
-
-.dom-tip-mark {
-  display: inline-grid;
-  place-items: center;
-  inline-size: var(--instrument-circle);
-  block-size: var(--instrument-circle);
-  border: 0.0625rem solid var(--border-strong);
-  border-radius: 50%;
-  background: var(--surface-2);
-  font-size: var(--type-caption-size);
-  font-weight: 700;
+  margin-block-start: var(--space-3);
 }
 
 .dom-tip-headline {
-  font-size: var(--type-h2-size);
-  line-height: var(--type-h2-line);
-  font-weight: var(--type-h2-weight);
+  margin-block-start: var(--space-1);
+  font-size: var(--type-h3-size);
+  line-height: var(--type-h3-line);
+  font-weight: var(--type-h3-weight);
 }
 
 .dom-tip-body {
   margin-block-start: var(--space-2);
-  font-size: var(--type-body-size);
-  line-height: var(--type-body-line);
+  font-size: 1.0625rem;
+  line-height: 1.55;
 }
 
 .dom-tip-evidence {
@@ -517,27 +606,43 @@
   color: var(--text-muted);
 }
 
+.dom-tip-actions {
+  margin-block-start: var(--space-3);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
 .dom-tip-secondary {
   margin-block-start: var(--space-3);
-  padding-block-start: var(--space-3);
-  border-block-start: 0.0625rem solid var(--border);
 }
 
 .dom-tip-also {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-block-size: var(--stepper-button-size);
   padding: 0;
   border: 0;
   background: transparent;
-  color: var(--accent);
+  color: var(--text);
   font: inherit;
-  font-size: var(--type-small-size);
+  font-size: var(--type-label-size);
+  font-weight: var(--type-label-weight);
   cursor: pointer;
 }
 
-.dom-tip-actions {
-  margin-block-start: var(--space-4);
-  display: flex;
-  align-items: center;
-  gap: var(--space-4);
+.dom-tip-panel {
+  margin-block-start: var(--space-2);
+  padding: var(--space-4);
+  border-radius: 0.875rem;
+  background: var(--bg);
+}
+
+.dom-tip-dim {
+  font-size: var(--type-label-size);
+  font-weight: var(--type-label-weight);
 }
 
 /* ---- EmptyState ---- */

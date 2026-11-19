@@ -20,7 +20,7 @@ export function scanFraction(remainingSec: number, totalSec: number): number {
   return Math.min(1, Math.max(0, remainingSec / totalSec));
 }
 
-/** 28 px ring counting down; in practice at 0 the ring gives way to a check mark (04 7.5). */
+/** 26 px brass ring counting down; in practice at 0 the ring gives way to a check mark (04 7.5). */
 export function ScanTimer({ remainingSec, totalSec, mode, label }: ScanTimerProps) {
   const fraction = scanFraction(remainingSec, totalSec);
   const done = remainingSec <= 0;

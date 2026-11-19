@@ -1,14 +1,14 @@
 /**
  * Loopback analysis (01 §7.8, P14): speakers only. Ten accented Tick clicks at random 400 to 700 ms gaps after a
  * silence request; arrival per click from the hi band (arrivals.ts); then clicks of the selected timbre whose
- * received low band is averaged into its template. Accept: at least `minFound` of `clicks` found, MAD at most
+ * received low band is averaged into its template (Tick's template always; the selected sound's when it is not Tick). Accept: at least `minFound` of `clicks` found, MAD at most
  * `maxMadMs`, RTL in [minRtlMs, maxRtlMs]; RTL = median lag. Every threshold comes from
  * `config/measurement-budget.json` `calibration.loopback`. Pure.
  */
 import type { Calibration, ClickTimbre, MeasurementBudget } from '../core/types.ts';
 import { buildClickTemplate } from '../dsp/click.ts';
 import {
-  clickShape,
+  calibrationClickShape,
   hiBandCandidates,
   hiNoiseFloorDb,
   lowNoiseFloorDb,
@@ -27,6 +27,11 @@ export interface LoopbackSchedule {
   /** Scheduled times of the accented clicks of the selected timbre, for its template. */
   templateClicks: readonly number[];
   templateTimbre: ClickTimbre;
+  /**
+   * Sound of the `ticks` clicks; default `tick` (the calibration flow always plays Tick). Any sound with the Tick
+   * layer (not Wood) is found the same way, with its own arrival envelope; the synthetic e2e uses this per sound.
+   */
+  clickTimbre?: ClickTimbre;
   /** The quiet window before the first click, for the noise floors. */
   silence?: { t0: number; t1: number };
 }
@@ -73,7 +78,7 @@ export function analyzeLoopback(rec: CaptureRecording, sched: LoopbackSchedule, 
   const maxLag = lb.maxRtlMs / 1000;
   const hiFloor = hiNoiseFloorDb(rec, sched.silence);
   const lowFloor = lowNoiseFloorDb(rec, sched.silence);
-  const shape = clickShape('tick', true);
+  const shape = calibrationClickShape(sched.clickTimbre ?? 'tick');
   const lastTick = sched.ticks.length ? Math.max(...sched.ticks) : 0;
   const firstTick = sched.ticks.length ? Math.min(...sched.ticks) : 0;
   // Only the tick section: the template clicks (possibly also Tick) must not count as found ticks.
@@ -108,9 +113,10 @@ export function analyzeLoopback(rec: CaptureRecording, sched: LoopbackSchedule, 
     const tickSet = sched.templateTimbre === 'tick' ? [...tickClicks, ...extra] : tickClicks;
     const tick = buildClickTemplate(rec.lowband, rec.lowStartT, rate, tickSet);
     templates.tick = { rate, samples: Array.from(tick) };
-    if (sched.templateTimbre === 'wood' && extra.length) {
-      const wood = buildClickTemplate(rec.lowband, rec.lowStartT, rate, extra);
-      templates.wood = { rate, samples: Array.from(wood) };
+    // Every other timbre (Wood, Classic, Woodblock, Beep) gets its own template from its clicks (06 §9.5).
+    if (sched.templateTimbre !== 'tick' && extra.length) {
+      const own = buildClickTemplate(rec.lowband, rec.lowStartT, rate, extra);
+      templates[sched.templateTimbre] = { rate, samples: Array.from(own) };
     }
     const sel = templates[sched.templateTimbre];
     clickLeakDb = sel ? templateLeakDb(sel.samples, rate) : null;

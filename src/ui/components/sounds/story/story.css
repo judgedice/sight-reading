@@ -1,0 +1,79 @@
+/* Dev-only story page for the sounds components. Tokens only. Not shipped. */
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-ui);
+}
+
+.story-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 22.5rem;
+  gap: var(--space-6);
+  align-items: start;
+  box-sizing: border-box;
+  max-width: 90rem;
+  margin: 0 auto;
+  padding: var(--space-6) var(--space-7);
+}
+
+.story-paper {
+  box-sizing: border-box;
+  min-height: 24rem;
+  padding: var(--space-6);
+  border-radius: var(--radius-l);
+  background: var(--surface);
+  box-shadow: var(--e2);
+}
+
+.story-aside {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.story-start {
+  width: 100%;
+}
+
+.story-note {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--type-small-size);
+}
+
+.story-phone {
+  display: none;
+  box-sizing: border-box;
+  min-height: 100dvh;
+  padding: var(--space-3) var(--space-3) 21rem;
+}
+
+.story-dock {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  box-sizing: border-box;
+  padding: var(--space-3) var(--space-3) var(--space-5);
+  background: var(--surface);
+  border-top: 0.0625rem solid var(--border);
+  box-shadow: var(--e2);
+}
+
+.story-dock .sd-coach {
+  margin-top: 0;
+}
+
+.story-dock-start {
+  margin-top: var(--space-3);
+}
+
+@media (max-width: 63.9375rem) {
+  .story-grid {
+    display: none;
+  }
+
+  .story-phone {
+    display: block;
+  }
+}

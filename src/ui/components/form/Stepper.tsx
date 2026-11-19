@@ -15,10 +15,12 @@ export interface StepperProps {
   incrementLabel?: string;
   /** Text shown for the value. Defaults to the number itself. */
   formatValue?: (value: number) => string;
+  /** Muted second part of the value cell, for example "of 10". */
+  valueSuffix?: string;
   disabled?: boolean;
 }
 
-/** Stepper: minus, value, plus. Buttons are 36 / 44 px square; the value field is 56 px wide (04 section 7.5). */
+/** Stepper: minus, value, plus. Two 44 px buttons and a value cell at least 96 wide (06 section 6.4). */
 export function Stepper({
   value,
   min,
@@ -29,6 +31,7 @@ export function Stepper({
   decrementLabel = copy('stepper.decrease', { label: ariaLabel }),
   incrementLabel = copy('stepper.increase', { label: ariaLabel }),
   formatValue = (n: number) => String(n),
+  valueSuffix,
   disabled = false,
 }: StepperProps) {
   const blocked = new Set(disabledValues);
@@ -58,7 +61,10 @@ export function Stepper({
       >
         <span className="ui-stepper-sign" aria-hidden="true" />
       </button>
-      <span className="ui-stepper-value">{formatValue(value)}</span>
+      <span className="ui-stepper-value">
+        {formatValue(value)}
+        {valueSuffix ? <span className="ui-stepper-suffix">{valueSuffix}</span> : null}
+      </span>
       <button
         type="button"
         className="ui-stepper-button"

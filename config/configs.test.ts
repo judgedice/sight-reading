@@ -137,9 +137,9 @@ describe('levels.json (02 §2.3)', () => {
 
 describe('instruments.json (02 §1)', () => {
   const launch = instruments.instruments.filter((i) => i.status === 'launch');
-  it('holds all 24 instruments, 11 launch ids covering the 8 launch instruments', () => {
-    expect(instruments.instruments).toHaveLength(24);
-    expect(launch.map((i) => i.id)).toEqual(['voice-soprano', 'voice-alto', 'voice-tenor', 'voice-bass', 'flute', 'clarinet-bb', 'sax-alto', 'trumpet-bb', 'violin', 'cello', 'piano-rh']);
+  it('holds all 26 instruments, 13 launch ids covering the 8 launch instruments', () => {
+    expect(instruments.instruments).toHaveLength(26);
+    expect(launch.map((i) => i.id)).toEqual(['voice-soprano', 'voice-mezzo', 'voice-alto', 'voice-tenor', 'voice-baritone', 'voice-bass', 'flute', 'clarinet-bb', 'sax-alto', 'trumpet-bb', 'violin', 'cello', 'piano-rh']);
     expect(new Set(launch.map((i) => (i.family === 'voice' ? 'voice' : i.id))).size).toBe(8);
     for (const i of launch) expect(i.testkitTimbre, i.id).not.toBeNull();
   });
@@ -234,7 +234,7 @@ describe('tips.json (02 §6)', () => {
     const inst = (id: string) => tips.patterns.find((p) => p.id === id)?.instruments;
     expect(inst('E16')).toEqual(['trumpet-bb']);
     expect(inst('E31')).toEqual(['clarinet-bb']);
-    expect(inst('E23')).toEqual(['voice-soprano', 'voice-alto', 'voice-tenor', 'voice-bass']);
+    expect(inst('E23')).toEqual(['voice-soprano', 'voice-mezzo', 'voice-alto', 'voice-tenor', 'voice-baritone', 'voice-bass']);
   });
   it('has the 14 enabled universal tips and 23 enabled family tips of 02 §6.3 and §6.4', () => {
     const enabled = tips.tips.filter((t) => t.enabled);

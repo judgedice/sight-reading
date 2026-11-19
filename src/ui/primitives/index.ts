@@ -1,11 +1,13 @@
 export { Glyph, GlyphSprite } from './Glyph.tsx';
 export type { GlyphProps } from './Glyph.tsx';
 export { Modal } from './Modal.tsx';
-export type { ModalProps } from './Modal.tsx';
-export { Sheet } from './Sheet.tsx';
+export type { ModalProps, ModalSize } from './Modal.tsx';
+export { Sheet, SHEET_SWIPE_DISTANCE } from './Sheet.tsx';
 export type { SheetProps } from './Sheet.tsx';
 export { Popover } from './Popover.tsx';
 export type { PopoverProps } from './Popover.tsx';
 export { ToastProvider, useToast, TOAST_DURATION_MS } from './Toast.tsx';
 export type { ToastApi, ToastSpec, ToastProviderProps } from './Toast.tsx';
 export { openOverlayCount, focusableWithin } from './overlay-stack.ts';
+export { InfoButton, INFO_HOVER_DELAY_MS } from './InfoButton.tsx';
+export type { InfoButtonProps } from './InfoButton.tsx';

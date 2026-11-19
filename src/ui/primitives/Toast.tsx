@@ -12,8 +12,8 @@ export interface ToastApi {
   dismiss: () => void;
 }
 
-/** Toasts last 4 seconds (04 section 7.5). */
-export const TOAST_DURATION_MS = 4000;
+/** Toasts last 6 seconds, and never less when they carry an action such as Undo (05 change 17). */
+export const TOAST_DURATION_MS = 6000;
 
 const ToastContext = createContext<ToastApi | null>(null);
 
@@ -46,7 +46,7 @@ export function ToastProvider({ suppressed = false, durationMs = TOAST_DURATION_
       if (suppressed) return;
       if (timer.current !== null) clearTimeout(timer.current);
       setToast(next);
-      timer.current = setTimeout(clear, durationMs);
+      timer.current = setTimeout(clear, next.action ? Math.max(durationMs, TOAST_DURATION_MS) : durationMs);
     },
     [suppressed, durationMs, clear],
   );

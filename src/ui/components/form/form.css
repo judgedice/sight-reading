@@ -37,6 +37,7 @@
   font-size: var(--type-body-size);
   line-height: var(--type-body-line);
   font-weight: 600;
+  white-space: nowrap;
   text-decoration: none;
   cursor: pointer;
   user-select: none;
@@ -49,10 +50,12 @@
   --btn-bg-pressed: var(--accent-pressed);
   --btn-fg: var(--on-accent);
   --btn-fg-pressed: var(--on-accent);
+  /* 1 px inner top highlight (06 section 6.1). */
+  box-shadow: inset 0 0.0625rem 0 color-mix(in srgb, var(--on-accent) 16%, transparent);
 }
 
 .ui-button-secondary {
-  --btn-bg: var(--surface-2);
+  --btn-bg: var(--surface);
   --btn-bg-hover: var(--surface-2-hover);
   --btn-bg-pressed: var(--surface-2-pressed);
   --btn-border: var(--border-strong);
@@ -60,12 +63,22 @@
   --btn-fg-pressed: var(--text);
 }
 
+.ui-button-tonal {
+  --btn-bg: var(--surface-2);
+  --btn-bg-hover: var(--surface-2-hover);
+  --btn-bg-pressed: var(--surface-2-pressed);
+  --btn-fg: var(--text);
+  --btn-fg-pressed: var(--text);
+}
+
+.ui-button-quiet,
 .ui-button-tertiary {
   --btn-bg: transparent;
-  --btn-bg-hover: transparent;
-  --btn-bg-pressed: transparent;
-  --btn-fg: var(--accent);
-  --btn-fg-pressed: var(--accent-pressed);
+  --btn-bg-hover: var(--surface-2);
+  --btn-bg-pressed: var(--surface-2-pressed);
+  --btn-fg: var(--text);
+  --btn-fg-pressed: var(--text);
+  padding: 0 var(--button-tertiary-x-padding);
 }
 
 .ui-button-danger {
@@ -78,6 +91,14 @@
 
 .ui-button-compact {
   min-height: var(--button-compact-height);
+  padding-inline: calc(var(--space-3) + 0.125rem);
+  border-radius: var(--segment-radius);
+  font-size: var(--type-small-size);
+}
+
+.ui-button-quiet.ui-button-compact,
+.ui-button-tertiary.ui-button-compact {
+  padding-inline: var(--button-tertiary-x-padding);
 }
 
 .ui-button-default {
@@ -87,6 +108,15 @@
 .ui-button-hero {
   min-height: var(--button-hero-height);
   padding: 0 var(--button-hero-x-padding);
+  border-radius: var(--button-hero-radius);
+  font-size: 1.0625rem;
+}
+
+.ui-button-kbd {
+  margin-inline-start: var(--space-1);
+  font: inherit;
+  font-weight: 500;
+  opacity: 0.6;
 }
 
 .ui-button:not([aria-disabled='true']):hover {
@@ -98,11 +128,17 @@
   color: var(--btn-fg-pressed);
 }
 
-.ui-button > svg,
-.ui-button > .ui-form-spinner {
+.ui-button > svg {
   flex: none;
   width: var(--icon-size);
   height: var(--icon-size);
+}
+
+/* The spinner is 16 px and replaces the leading icon (06 section 6.1). */
+.ui-button > .ui-form-spinner {
+  flex: none;
+  width: 1rem;
+  height: 1rem;
 }
 
 .ui-button[aria-disabled='true'] {
@@ -124,14 +160,10 @@
   outline-offset: 0.125rem;
 }
 
-/* Tertiary is a text button: no padding box beyond its label, underline on hover. Keep last. */
+/* Quiet is a text button: no edge, a surface wash on hover. */
+.ui-button-quiet,
 .ui-button-tertiary {
-  padding: 0 var(--button-tertiary-x-padding);
   border-color: transparent;
-}
-
-.ui-button-tertiary:not([aria-disabled='true']):hover {
-  text-decoration: underline;
 }
 
 /* Loading spinner: replaces the icon while a button is busy. */
@@ -201,31 +233,48 @@
   display: inline-flex;
   box-sizing: border-box;
   max-width: 100%;
-  padding: 0.0625rem;
-  border: 0.0625rem solid var(--border-strong);
-  border-radius: var(--radius-m);
+  padding: var(--segment-track-padding);
+  gap: var(--space-1);
+  border-radius: var(--segment-track-radius);
   background: var(--surface-2);
+}
+
+.ui-segmented-stretch {
+  display: flex;
+  width: 100%;
+}
+
+.ui-segmented-stretch > .ui-segment {
+  flex: 1 1 0;
 }
 
 .ui-segment {
   position: relative;
   box-sizing: border-box;
   display: inline-flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   min-height: var(--segment-height);
   min-width: var(--target-min);
   padding: 0 var(--segment-x-padding);
   border: 0.0625rem solid transparent;
-  border-radius: var(--radius-s);
+  border-radius: var(--segment-radius);
   color: var(--text-muted);
   font-size: var(--type-body-size);
   line-height: var(--type-body-line);
-  /* Labels wrap only when the group is narrower than its content (a 390 px phone with three long options);
-     with nowrap the group overflowed its row and the last option was clipped. */
+  font-weight: 500;
+  /* Labels wrap only when the group is narrower than its content. */
   text-align: center;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
+}
+
+.ui-segment-caption {
+  color: var(--text-muted);
+  font-size: var(--type-caption-size);
+  line-height: var(--type-caption-line);
+  font-weight: 500;
 }
 
 .ui-segment:not(.ui-segment-selected):not(.ui-segment-disabled):hover {
@@ -241,6 +290,7 @@
   background: var(--surface);
   color: var(--text);
   font-weight: 600;
+  box-shadow: var(--e1);
 }
 
 .ui-segment-disabled {
@@ -322,7 +372,7 @@
   padding: 0;
   border: 0.0625rem solid var(--border-strong);
   border-radius: var(--radius-m);
-  background: var(--surface-2);
+  background: var(--surface);
   color: var(--text);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
@@ -345,13 +395,22 @@
   box-sizing: border-box;
   display: inline-grid;
   place-items: center;
-  min-width: var(--stepper-value-width);
+  grid-auto-flow: column;
+  gap: var(--space-1);
+  min-width: var(--stepper-value-min-width);
+  min-height: var(--stepper-button-size);
   padding: 0 var(--space-2);
   color: var(--text);
+  font-weight: 600;
   font-size: var(--type-body-size);
   line-height: var(--type-body-line);
   font-variant-numeric: tabular-nums;
   text-align: center;
+}
+
+.ui-stepper-suffix {
+  color: var(--text-muted);
+  font-weight: 500;
 }
 
 /* Minus and plus are drawn from two bars, so the component carries no literal characters. */
@@ -391,9 +450,11 @@
 }
 
 .ui-tempo-marking {
-  color: var(--text-muted);
-  font-size: var(--type-body-size);
-  line-height: var(--type-body-line);
+  color: var(--text);
+  font-family: var(--type-h3-family);
+  font-size: var(--type-h3-size);
+  line-height: var(--type-h3-line);
+  font-weight: var(--type-h3-weight);
   font-variant-numeric: tabular-nums;
 }
 
@@ -431,9 +492,11 @@
   width: var(--tempo-thumb-size);
   height: var(--tempo-thumb-size);
   margin-top: calc((var(--tempo-track-height) - var(--tempo-thumb-size)) / 2);
-  border: 0;
+  box-sizing: border-box;
+  border: 0.125rem solid var(--accent);
   border-radius: 50%;
-  background: var(--accent);
+  background: var(--surface);
+  box-shadow: var(--e1);
 }
 
 .ui-tempo-range::-moz-range-track {
@@ -451,16 +514,18 @@
 .ui-tempo-range::-moz-range-thumb {
   width: var(--tempo-thumb-size);
   height: var(--tempo-thumb-size);
-  border: 0;
+  box-sizing: border-box;
+  border: 0.125rem solid var(--accent);
   border-radius: 50%;
-  background: var(--accent);
+  background: var(--surface);
+  box-shadow: var(--e1);
 }
 
 .ui-tempo-field {
   box-sizing: border-box;
   flex: none;
   width: var(--tempo-field-width);
-  min-height: var(--select-height);
+  min-height: var(--button-default-height);
   margin: 0;
   padding: 0 var(--space-2);
   border: 0.0625rem solid var(--border-strong);
@@ -471,6 +536,7 @@
   font-size: var(--type-body-size);
   line-height: var(--type-body-line);
   font-variant-numeric: tabular-nums;
+  font-weight: 600;
   text-align: end;
 }
 
@@ -505,7 +571,7 @@
   box-sizing: border-box;
   width: var(--toggle-track-width);
   height: var(--toggle-track-height);
-  border-radius: var(--radius-xl);
+  border-radius: var(--radius-full);
   background: var(--border-strong);
   transition: background-color var(--dur-fast) var(--ease-out);
 }
@@ -518,6 +584,7 @@
   height: var(--toggle-thumb-size);
   border-radius: 50%;
   background: var(--surface);
+  box-shadow: var(--e1);
   transition: transform var(--dur-fast) var(--ease-out);
 }
 
@@ -525,7 +592,23 @@
   background: var(--accent);
 }
 
+/* The check sits on the track, opposite the thumb, so on and off differ by shape (06 section 6.5). */
+.ui-toggle-check {
+  position: absolute;
+  top: 50%;
+  left: calc((var(--toggle-track-height) - var(--toggle-thumb-size)) / 2 + 0.125rem);
+  transform: translateY(-50%);
+  color: var(--on-accent);
+  opacity: 0;
+  transition: opacity var(--dur-fast) var(--ease-out);
+}
+
+.ui-toggle > .ui-form-hidden:checked + .ui-toggle-track > .ui-toggle-check {
+  opacity: 1;
+}
+
 .ui-toggle > .ui-form-hidden:checked + .ui-toggle-track > .ui-toggle-thumb {
+  background: var(--on-accent);
   transform: translateX(calc(var(--toggle-track-width) - var(--toggle-track-height)));
 }
 

@@ -1,7 +1,7 @@
 /**
  * Click arrival finding (01 §7.7, §7.8). Pure.
  *
- * Tick (5.5 to 9 kHz) is found in the hi band: a click's arrival is the first 1 ms sub-block above the noise floor
+ * Tick (5.5 to 9 kHz), and every metronome sound through its Tick layer (06 section 9.1), is found in the hi band: a click's arrival is the first 1 ms sub-block above the noise floor
  * plus 20 dB, refined below the sub-block by a least-squares fit of the click's designed power envelope (01 §7.6:
  * 2 ms attack, exponential decay over the click length) to the sub-block energies around it, which places the
  * steepest part of the energy rise (the energy-derivative peak) at sub-millisecond precision.
@@ -11,6 +11,7 @@
  * Arrivals are matched to the scheduled clicks through a consensus lag: the lag that most clicks agree on within
  * `LAG_CLUSTER_SEC`, so a player's noise or a cough between clicks cannot pull the result.
  */
+import { clickArrivalShape } from '../core/click-sounds.ts';
 import type { ClickTimbre } from '../core/types.ts';
 import { CLICK_TEMPLATE_PRE_SEC } from '../dsp/click.ts';
 import type { CaptureRecording } from './recording.ts';
@@ -29,14 +30,26 @@ export const LAG_ACCEPT_SEC = 0.015;
 /** Lowest noise floor assumed, dB (per-sample power), so digital silence still has a finite threshold. */
 export const NOISE_FLOOR_MIN_DB = -110;
 
-/** Designed click envelopes (01 §7.6; src/platform/web/audio/metronome.ts renders them). */
+/** Designed click envelopes (01 §7.6, 06 §9; src/core/click-sounds.ts renders them). */
 export interface ClickShape {
   attackSec: number;
   lengthSec: number;
 }
 
+/**
+ * The arrival envelope of a click: Tick's burst, the Tick layer of Classic, Woodblock and Beep (per recipe: accent or
+ * offbeat), or Wood's burst.
+ */
 export function clickShape(timbre: ClickTimbre, accent: boolean): ClickShape {
-  return timbre === 'tick' ? { attackSec: 0.002, lengthSec: accent ? 0.018 : 0.012 } : { attackSec: 0.001, lengthSec: 0.008 };
+  return clickArrivalShape(timbre, accent);
+}
+
+/**
+ * The arrival envelope of a calibration click (`Metronome.scheduleClicks`): Tick and Wood play their accent burst,
+ * the new sounds their offbeat recipe (at the accent gain).
+ */
+export function calibrationClickShape(timbre: ClickTimbre): ClickShape {
+  return clickShape(timbre, timbre === 'tick' || timbre === 'wood');
 }
 
 /** Power envelope of the designed click at time t after its start (amplitude ramp then exp(-5 t / length)). */

@@ -61,6 +61,63 @@
       }
     },
     {
+      "id": "voice-mezzo",
+      "label": "Voice (mezzo-soprano)",
+      "family": "voice",
+      "status": "launch",
+      "semis": 0,
+      "writtenMinusSounding": {
+        "diatonic": 0,
+        "chromatic": 0
+      },
+      "clefs": [
+        {
+          "clef": "treble",
+          "fromLevel": 1
+        }
+      ],
+      "fullWrittenRange": [
+        55,
+        81
+      ],
+      "tiers": {
+        "A": [
+          60,
+          72
+        ],
+        "B": [
+          59,
+          74
+        ],
+        "C": [
+          57,
+          77
+        ],
+        "D": [
+          55,
+          79
+        ],
+        "E": [
+          55,
+          81
+        ]
+      },
+      "pitchKind": "continuous",
+      "relativePitch": true,
+      "onsetClass": "soft",
+      "testkitTimbre": "voice",
+      "lowFundamental": false,
+      "detection": {
+        "minHz": 174.61,
+        "maxHz": 987.77,
+        "windowSamples": 512,
+        "onsetProfile": "voice",
+        "vibratoClass": "vibrato",
+        "clarityThreshold": 0.8,
+        "changeCents": 80
+      }
+    },
+    {
       "id": "voice-alto",
       "label": "Voice (alto)",
       "family": "voice",
@@ -167,6 +224,63 @@
       "detection": {
         "minHz": 92.5,
         "maxHz": 523.25,
+        "windowSamples": 1024,
+        "onsetProfile": "voice",
+        "vibratoClass": "vibrato",
+        "clarityThreshold": 0.8,
+        "changeCents": 80
+      }
+    },
+    {
+      "id": "voice-baritone",
+      "label": "Voice (baritone)",
+      "family": "voice",
+      "status": "launch",
+      "semis": 0,
+      "writtenMinusSounding": {
+        "diatonic": 0,
+        "chromatic": 0
+      },
+      "clefs": [
+        {
+          "clef": "bass",
+          "fromLevel": 1
+        }
+      ],
+      "fullWrittenRange": [
+        43,
+        67
+      ],
+      "tiers": {
+        "A": [
+          48,
+          60
+        ],
+        "B": [
+          45,
+          62
+        ],
+        "C": [
+          43,
+          64
+        ],
+        "D": [
+          43,
+          65
+        ],
+        "E": [
+          43,
+          67
+        ]
+      },
+      "pitchKind": "continuous",
+      "relativePitch": true,
+      "onsetClass": "soft",
+      "testkitTimbre": "voice",
+      "lowFundamental": false,
+      "detection": {
+        "minHz": 87.31,
+        "maxHz": 440.0,
         "windowSamples": 1024,
         "onsetProfile": "voice",
         "vibratoClass": "vibrato",

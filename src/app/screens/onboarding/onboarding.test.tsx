@@ -107,8 +107,8 @@ describe('instruments', () => {
     const g = groupInstruments(instruments, false);
     expect(g.map((x) => x.group)).toEqual(['voice', 'woodwinds', 'brass', 'strings', 'keyboard']);
     expect(g.flatMap((x) => x.items).every((i) => i.status === 'launch')).toBe(true);
-    expect(g[0]?.items.map((i) => i.id)).toEqual(['voice-soprano', 'voice-alto', 'voice-tenor', 'voice-bass']);
-    expect(g.flatMap((x) => x.items)).toHaveLength(11);
+    expect(g[0]?.items.map((i) => i.id)).toEqual(['voice-soprano', 'voice-mezzo', 'voice-alto', 'voice-tenor', 'voice-baritone', 'voice-bass']);
+    expect(g.flatMap((x) => x.items)).toHaveLength(13);
   });
   it('beta toggle reveals beta instruments', () => {
     const all = groupInstruments(instruments, true).flatMap((x) => x.items);
@@ -163,7 +163,7 @@ describe('OnboardingScreen', () => {
     render(svc);
     await press('Get started');
     const radios = [...document.querySelectorAll<HTMLInputElement>('input[type=radio]')];
-    expect(radios).toHaveLength(11);
+    expect(radios).toHaveLength(13);
     expect(new Set(radios.map((r) => r.name)).size).toBe(1);
     expect(radios.find((r) => r.value === 'flute')?.checked).toBe(true);
     expect(document.body.textContent).toContain('A.Sx');
