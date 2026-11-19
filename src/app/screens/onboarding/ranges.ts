@@ -1,7 +1,7 @@
 /** Range pictures and the difficulty row for onboarding, from the shared range and setup models. */
 import type { Configs, Instrument } from '../../../core/types.ts';
 import { keyboardSpan, pictureNotes, rangeModel, staffPlan } from '../../../instruments/range.ts';
-import { defaultAppSettings } from '../../../store/index.ts';
+import { defaultAppSettings } from '../../../store/defaults.ts';
 import type { RangeData } from '../../../ui/components/range/index.ts';
 import type { DifficultyRowView } from '../../../ui/components/setup/index.ts';
 import { setupModel, type EligibleFn } from '../setup/model.ts';

@@ -497,13 +497,13 @@ describe('ResultsScreen', () => {
     expect(open).toHaveBeenCalledWith(f.store.getState().record);
   });
 
-  it('Next excerpt goes to the tips interstitial when tips are on and exist, else to the scan', () => {
+  it('Next excerpt goes to the scan whether or not tips exist (the tips route redirects, decision 13)', () => {
     const rec = attemptFrom('case05-key-signature-f-sharp');
     const withTips = fixture({ record: rec });
     expect(withTips.store.getState().tips.length).toBeGreaterThan(0);
     renderScreen(withTips);
     click(button(copy('action.nextExcerpt')));
-    expect(withTips.hash.value).toBe('#/practice/tips');
+    expect(withTips.hash.value).toBe('#/practice/scan');
     m?.unmount();
     document.body.innerHTML = '';
 
@@ -530,7 +530,7 @@ describe('ResultsScreen', () => {
     expect(items.length).toBeGreaterThan(0);
     for (const li of items) expect(li.querySelector('.sheet-pattern-tip')?.textContent?.length ?? 0).toBeGreaterThan(0);
     click(button(copy('action.keepGoing')));
-    expect(f.hash.value).toBe('#/practice/tips');
+    expect(f.hash.value).toBe('#/practice/scan');
     m?.unmount();
     document.body.innerHTML = '';
 
@@ -551,7 +551,7 @@ describe('ResultsScreen', () => {
     renderScreen(f);
     click(button(copy('action.nextExcerpt')));
     expect(q('[data-testid="session-summary"]')).toBeNull();
-    expect(f.hash.value).toBe('#/practice/tips');
+    expect(f.hash.value).toBe('#/practice/scan');
   });
 
   it('Try again goes to the scan; a handled action does not navigate', () => {

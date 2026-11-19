@@ -251,7 +251,11 @@ function renderTips(record: AttemptRecord | null, tips: Tip[], extra: Partial<Ti
     },
   };
   const services: TipsServices = { configs: cfg, session: store, settings, profile, sessionAttempts: () => (record ? [record] : []), ...extra };
-  const table = createRouteTable({ 'practice.tips': createTipsScreen(services) });
+  // The shell redirects `#/practice/tips` (decision 13) until results folds tips in and removes this screen (wave 4);
+  // the redirect is dropped here so the screen itself stays covered while it exists.
+  const table = createRouteTable({ 'practice.tips': createTipsScreen(services) }).map((r) =>
+    r.id === 'practice.tips' ? { ...r, redirect: undefined } : r,
+  );
   m = mount(
     <RouterProvider table={table} source={loc}>
       <Outlet />

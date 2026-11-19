@@ -26,6 +26,8 @@ type Sr = {
 async function rankedCover(page: Page): Promise<void> {
   await page.getByRole('button', { name: 'Start', exact: true }).click();
   await expect(page.getByTestId('scan-cover')).toBeVisible({ timeout: 30_000 });
+  // The cover shows while the excerpt still loads; wait for the session's current excerpt before asking again.
+  await expect.poll(() => page.evaluate(() => (window as unknown as Sr).__sr.session.current !== null), { timeout: 30_000 }).toBe(true);
   await page.evaluate(async () => {
     const s = (window as unknown as Sr).__sr.session;
     await s.prepare({ ...s.current!.settings, mode: 'ranked', outputMode: 'wired', listening: true });

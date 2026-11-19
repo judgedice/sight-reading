@@ -7,7 +7,7 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import { loadLoopHelpers } from '../loop/bundle.ts';
-import { LOOP_T0_SEC, pagePlan, watchErrors } from '../loop/flow.ts';
+import { chooseMode, chooseOutput, LOOP_T0_SEC, pagePlan, watchErrors } from '../loop/flow.ts';
 
 test.skip(process.env['E2E_TOUR'] !== '1', 'run with -c e2e/tour/playwright.tour.config.ts');
 
@@ -85,8 +85,8 @@ test('screen tour: onboarding, home, scan, take with a wrong and a late note, re
   const home = page.getByTestId('screen-home');
   await expect(home).toBeVisible({ timeout: 15_000 });
   await shot('home');
-  await home.getByRole('combobox', { name: 'Output' }).selectOption({ label: 'Wired headphones' });
-  await home.getByRole('radiogroup', { name: 'Mode' }).getByText('Practice', { exact: true }).click();
+  await chooseOutput(page, 'Wired headphones');
+  await chooseMode(page, 'practice');
   await page.getByRole('button', { name: 'Start', exact: true }).click();
   await expect(page.getByTestId('scan-cover')).toBeVisible({ timeout: 30_000 });
   await shot('scan-cover');
@@ -158,14 +158,13 @@ test('screen tour: onboarding, home, scan, take with a wrong and a late note, re
   await expect(page.locator(`[data-expected-idx="${lateIdx}"]`).first()).toHaveClass(/n-error/);
 
   // Tips. A wrong and a late note in different bars fire no pattern, and since PLAN ruling 51 red notes rule out the
-  // clean-read tip, so Next would skip the interstitial; open it directly then (it shows the "no tips" card).
+  // clean-read tip. The tips interstitial is gone: `#/practice/tips` goes back to the open result (decision 13).
   const tipsShown = await page.evaluate(() => (window as unknown as { __sr: { session: { record: { score: { tipsShown: string[] } | null } | null } } }).__sr.session.record?.score?.tipsShown ?? []);
   expect(tipsShown).not.toContain('U18');
-  if (tipsShown.length > 0) await page.getByRole('button', { name: 'Next excerpt' }).click();
-  else await page.evaluate(() => { window.location.hash = '#/practice/tips'; });
-  const tips = page.getByTestId('screen-practice.tips');
-  await expect(tips).toBeVisible({ timeout: 10_000 });
-  await shot('tips');
+  await page.evaluate(() => { window.location.hash = '#/practice/tips'; });
+  await expect(page).toHaveURL(/#\/practice\/results$/);
+  await expect(page.getByTestId('results-panel')).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByTestId('screen-practice.tips')).toHaveCount(0);
 
   // Tabs and secondary screens.
   const visit = async (hash: string, name: string): Promise<void> => {

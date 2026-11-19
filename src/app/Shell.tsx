@@ -50,6 +50,9 @@ export function Shell({ showBetaBadge = false, children }: ShellProps) {
       firstRender.current = false;
       return;
     }
+    // A new screen opens at its top, not at the previous screen's scroll position.
+    const page = document.scrollingElement;
+    if (page) page.scrollTop = 0;
     const main = mainRef.current;
     if (main && !main.contains(document.activeElement)) main.focus({ preventScroll: true });
   }, [route.path, def.id]);

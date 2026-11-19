@@ -32,6 +32,8 @@ export interface OnboardingServices {
   /** Placement length (`progression.placement.excerpts`) and the minutes copy says it takes. */
   placement: { excerpts: number; minutes: number };
   levelCount: number;
+  /** Eligible excerpts at a level (corpus `countEligible`, as Home): the difficulty step marks empty and thin levels. */
+  countEligible?(instrumentId: string, level: number, meter: string | null): number;
   /** The `levels.json` description of a level. */
   levelDescription(level: number): string;
   /** Which unblock steps the denied card shows. */

@@ -68,7 +68,7 @@ describe('Performance screen', () => {
     expect($('.perform').getAttribute('data-mode')).toBe('ranked');
     expect($('.perform-centre-text').textContent).toBe(copy('play.status.countIn'));
     expect($('.perform-tempo').textContent).toContain('♩ = 100');
-    expect($('.perform-mic-label').textContent).toBe('Mic');
+    expect($('.perform-mic-label').textContent).toBe(copy('play.mic'));
     expect($('.sf-host').getAttribute('data-purpose')).toBe('take');
     expect($('[role="status"].ui-visually-hidden').textContent).toBe(copy('a11y.countIn.announce'));
   });

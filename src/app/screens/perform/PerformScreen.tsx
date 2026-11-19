@@ -4,7 +4,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { FollowerEvent, SessionEvent } from '../../../core/types.ts';
 import { visualStateFromJudgment } from '../../../notation/visual-states.ts';
-import { copy, isCopyKey } from '../../../ui/copy/copy.ts';
+import { copy } from '../../../ui/copy/copy.ts';
 import { idleSoundView, type SoundView } from '../../../session/index.ts';
 import { createStore } from 'zustand/vanilla';
 import { BeatDots, BeatUnitText, meterZone } from '../../../ui/components/domain/index.ts';
@@ -57,9 +57,8 @@ function BeatIndicator({ svc, beatsPerBar, grouping, bpm }: { svc: PracticeFlowS
   return <BeatDots beatsPerBar={beatsPerBar} currentBeat={beat} bpm={bpm} {...(grouping ? { grouping } : {})} />;
 }
 
-/** The label of the strip's meter. The catalogue key is `play.mic`; until it lands the strip says "Mic" itself. */
-const MIC_LABEL_KEY = 'play.mic';
-const micLabel = (): string => (isCopyKey(MIC_LABEL_KEY) ? copy(MIC_LABEL_KEY) : 'Mic');
+/** The label of the strip's meter. */
+const micLabel = (): string => copy('play.mic');
 
 const MIC_BAR_HEIGHTS = [5, 9, 13, 16, 12, 7, 4] as const; // 06 section 6.13: seven bars, 3 px wide
 

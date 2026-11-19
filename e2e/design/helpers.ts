@@ -94,6 +94,16 @@ export async function smallTargets(page: Page, min = 44): Promise<SmallTarget[]>
       }
       if (r.width === 0 && r.height === 0) continue;
       if (r.width < m - 0.5 || r.height < m - 0.5) {
+        // A hit area widened by an absolutely placed ::before or ::after (a small pill with a 44 px touch box) counts.
+        for (const pseudo of ['::before', '::after']) {
+          const ps = getComputedStyle(el, pseudo);
+          if (ps.content === 'none' || ps.position !== 'absolute' || ps.display === 'none') continue;
+          const pw = parseFloat(ps.width);
+          const ph = parseFloat(ps.height);
+          if (Number.isFinite(pw) && Number.isFinite(ph)) r = new DOMRect(r.x, r.y, Math.max(r.width, pw), Math.max(r.height, ph));
+        }
+      }
+      if (r.width < m - 0.5 || r.height < m - 0.5) {
         const name = el.getAttribute('aria-label') ?? el.textContent?.trim().slice(0, 30) ?? '';
         out.push({ desc: `${el.tagName.toLowerCase()}${el.id ? '#' + el.id : ''}.${String(el.className).split(' ')[0] ?? ''} "${name}"`, w: Math.round(r.width), h: Math.round(r.height) });
       }

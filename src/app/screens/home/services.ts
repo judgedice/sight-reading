@@ -6,6 +6,7 @@
 import type { StoreApi } from 'zustand/vanilla';
 import type { AppSettings, Configs, PlayerProfile, PracticeSettings } from '../../../core/types.ts';
 import type { RankedAvailability, SessionView, SoundView } from '../../../session/index.ts';
+import type { MicBrowser } from '../states/mic.ts';
 
 export interface Readable<T> {
   get(): T;
@@ -38,6 +39,8 @@ export interface HomeServices {
   configs: Configs;
   /** `countEligible` from corpus/ with the manifest and configs bound (04 section 5.2). */
   countEligible(instrumentId: string, level: number, meter: string | null): number;
+  /** The browser whose steps the blocked-microphone notice gives (as onboarding). Omitted: Chromium's. */
+  micBrowser?: MicBrowser;
   settings: Writable<AppSettings>;
   profile: Readable<PlayerProfile | undefined>;
   today: Readable<TodayStats>;

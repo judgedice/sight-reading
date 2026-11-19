@@ -76,9 +76,9 @@ class TestClockBackend extends WebAudioBackend {
   }
 }
 
-function Root({ table, settings }: { table: readonly RouteDef[]; settings: Readable<AppSettings> }) {
+function Root({ table, settings, resultOpen }: { table: readonly RouteDef[]; settings: Readable<AppSettings>; resultOpen: () => boolean }) {
   const s = useSyncExternalStore(settings.subscribe, settings.get, settings.get);
-  return <App table={table} appearance={appearanceFromSettings(s)} dev={import.meta.env.DEV} />;
+  return <App table={table} appearance={appearanceFromSettings(s)} dev={import.meta.env.DEV} resultOpen={resultOpen} />;
 }
 
 function bootError(root: Root, e: unknown): void {
@@ -252,9 +252,11 @@ export async function boot(root: Root): Promise<void> {
       });
     }
 
+    // `#/practice/tips` goes back to the open result, else to Practice (decision 13).
+    const resultOpen = (): boolean => composed.session.view.getState().record !== null;
     root.render(
       <StrictMode>
-        <Root table={composed.table} settings={composed.settings} />
+        <Root table={composed.table} settings={composed.settings} resultOpen={resultOpen} />
       </StrictMode>,
     );
   } catch (e) {

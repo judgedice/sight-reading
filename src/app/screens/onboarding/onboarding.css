@@ -87,6 +87,15 @@
   letter-spacing: var(--type-display-tracking);
 }
 
+.ob-privacy {
+  margin: var(--space-5) 0 0;
+  font-family: var(--type-caption-family);
+  font-size: var(--type-caption-size);
+  font-weight: var(--type-caption-weight);
+  line-height: var(--type-caption-line);
+  color: var(--text-muted);
+}
+
 .ob-lede {
   max-inline-size: 32.5rem;
   margin: var(--space-4) 0 var(--space-6);

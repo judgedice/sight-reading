@@ -131,6 +131,8 @@
 /* The setup stepper is one bordered unit with divided cells, as the mockups draw it (06 section 6.4). */
 .su-diff-line .ui-stepper {
   gap: 0;
+  /* The border sits outside the buttons, so each keeps the full target height. */
+  box-sizing: content-box;
   height: var(--stepper-button-size);
   border: 0.0625rem solid var(--border-strong);
   border-radius: var(--radius-m);

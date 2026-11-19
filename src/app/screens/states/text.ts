@@ -6,10 +6,7 @@
  */
 import { copy, formatMessage, isCopyKey, type CopyKey, type CopyVars } from '../../../ui/copy/copy.ts';
 
-export const PENDING_COPY = {
-  'error.corpus.title': "Couldn't load the music",
-  'error.noAudioWorklet.title': "Listening isn't available here",
-} as const;
+export const PENDING_COPY = {} as const;
 
 export type PendingKey = keyof typeof PENDING_COPY;
 export type TextKey = CopyKey | PendingKey;

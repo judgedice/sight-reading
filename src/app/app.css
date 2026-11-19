@@ -237,20 +237,23 @@ body {
   outline: none;
 }
 
-/* Screen change: fade plus an 8 px rise (06 section 4). Reduced motion keeps a 100 ms fade, not none. */
+/* Screen change: fade plus an 8 px rise (06 section 4). Reduced motion keeps a 100 ms fade, not none. The rise moves
+   the box with a relative offset, not a transform: a transform would make the screen the containing block of its
+   fixed docks (Start, sounds) for the length of the motion, so they would scroll with the page. */
 .app-screen {
+  position: relative;
   animation: app-screen-in var(--dur-base) var(--ease-out);
 }
 
 @keyframes app-screen-in {
   from {
     opacity: 0;
-    transform: translateY(0.5rem);
+    inset-block-start: 0.5rem;
   }
 
   to {
     opacity: 1;
-    transform: none;
+    inset-block-start: 0;
   }
 }
 

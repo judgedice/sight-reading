@@ -12,7 +12,7 @@ import { Glyph } from '../../../ui/primitives/Glyph.tsx';
 import { useNavigate } from '../../router.tsx';
 import type { ScreenProps } from '../../route-types.ts';
 import { START_BUTTON_ID } from '../Placeholder.tsx';
-import { deniedStepsKey, type MicBrowser } from '../states/mic.ts';
+import { deniedStepsKey } from '../states/mic.ts';
 import { applySetupChange, effectiveLevel, localSuggestions, normalize, setupModel, type FallbackNote, type SetupContext } from '../setup/model.ts';
 import { SETUP_ROWS, SetupForm, rowValueText, useFallbackNotes, type SetupRowId } from '../setup/SetupForm.tsx';
 import { InstrumentTile, SetupInstrumentPicker, SetupSheet, rangeDataFor } from '../setup/SetupSheet.tsx';
@@ -105,12 +105,9 @@ function pickNotice(list: readonly HomeBanner[], micDenied: boolean): Notice | n
   return micDenied ? { kind: 'mic-denied' } : null;
 }
 
-/**
- * The browser's own steps to unblock the microphone (05 section 8.6 permission state). The composition root knows the
- * browser (`micBrowser`, as onboarding has it); until Home's services carry it, Chromium's steps are shown.
- */
+/** The browser's own steps to unblock the microphone (05 section 8.6 permission state); Chromium's when unknown. */
 function deniedSteps(services: HomeServices): string {
-  const browser = (services as HomeServices & { micBrowser?: MicBrowser }).micBrowser ?? 'chrome';
+  const browser = services.micBrowser ?? 'chrome';
   return copy(deniedStepsKey(browser));
 }
 
@@ -164,7 +161,9 @@ function TodayLine({ services, className }: { services: HomeServices; className:
   const parts = text.split(` ${SEPARATOR} `);
   return (
     <div className={className} role="group" aria-label={copy('common.today')}>
-      <p className="home-today-line" data-testid="today-line" aria-label={text}>
+      <p className="home-today-line" data-testid="today-line">
+        {/* A <p> may not carry aria-label: the plain sentence is read, the drawn parts are not. */}
+        <span className="ui-visually-hidden">{text}</span>
         <Glyph id="flame" size={16} className="home-today-icon" />
         {parts.map((p, i) => (
           <span key={i} className="home-today-part" aria-hidden="true">
@@ -488,7 +487,7 @@ export function HomeScreen(_props: ScreenProps) {
       {notice ? <NoticeRow key={notice.kind} services={services} notice={notice} /> : null}
       <section className="home-card home-summary" aria-label={copy('action.changeSetup')}>
         {inst && range ? (
-          <button type="button" className="home-summary-inst" onClick={() => setPicking(true)} aria-label={`${name}. ${copy('setup.changeInstrument')}`}>
+          <button type="button" className="home-summary-inst" onClick={() => setPicking(true)}>
             <InstrumentTile instrument={inst} small />
             <span className="home-summary-inst-text">
               <span className="home-summary-inst-name">{name}</span>
@@ -497,6 +496,7 @@ export function HomeScreen(_props: ScreenProps) {
                 <span>{copy('range.cardText', { low: range.model.names.full[0], high: range.model.names.full[1] })}</span>
               </span>
             </span>
+            <span className="ui-visually-hidden">{copy('setup.changeInstrument')}</span>
             <Glyph id="chevron-right" size={20} />
           </button>
         ) : null}
@@ -518,7 +518,7 @@ export function HomeScreen(_props: ScreenProps) {
                 onClick={() => openRow(row)}
               >
                 <span className="home-chip-text">
-                  <span className="home-chip-label">{label}</span>
+                  <span className="home-chip-label">{label}</span>{' '}
                   <span className="home-chip-value">{value}</span>
                 </span>
                 <Glyph id="chevron-down" size={16} className="home-chip-chevron" />

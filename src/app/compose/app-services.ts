@@ -5,7 +5,7 @@
  */
 import { createElement, lazy, Suspense, type ComponentType, type ReactNode } from 'react';
 import type { AudioBackend, KeyValue, PlatformCapabilities, PlatformServices, WorkerLike, MessagePortLike } from '../../core/platform.ts';
-import type { AppSettings, AttemptRecord, AttributionsFile, Calibration, Configs, CorpusManifest, PlayerProfile, PracticeSettings, Rng } from '../../core/types.ts';
+import type { AppSettings, AttemptRecord, AttributionsFile, Calibration, Configs, CorpusManifest, PlayerProfile, PracticeSettings, PreparedExcerpt, Rng } from '../../core/types.ts';
 import { PracticeSession, type PracticeSessionOptions, type RankedAvailability, type SoundPrefs } from '../../session/index.ts';
 import { metronomeSoundOf } from '../../core/click-sounds.ts';
 import { countEligible, prefetchNeighbours } from '../../corpus/index.ts';
@@ -25,7 +25,7 @@ import { resultsScreenOverrides, type ResultsServices } from '../screens/results
 import { practiceFlowScreenOverrides, type PracticeFlowServices } from '../screens/scan/index.ts';
 import type { SettingsServices } from '../screens/settings/context.ts';
 import type { SettingsSoundServices } from '../screens/settings/services.ts';
-import type { HistoryServices } from '../screens/history/services.ts';
+import type { AttemptServices } from '../screens/history/index.ts';
 import { tipsScreenOverrides, type TipsServices } from '../screens/sheets/index.ts';
 import { classifyMicError, type MicBrowser } from '../screens/states/index.ts';
 import { createCalibrationServices, type CalibrationBackendExtras } from './calibration-services.ts';
@@ -91,7 +91,7 @@ export interface ComposedApp {
     tips: TipsServices;
     calibration: CalibrationServices;
     settings: SettingsServices & SettingsSoundServices;
-    history: HistoryServices;
+    history: AttemptServices;
   };
   dispose(): void;
 }
@@ -296,6 +296,7 @@ export function composeApp(rt: AppRuntime): ComposedApp {
   );
   const home: HomeServices = {
     configs: cfg,
+    micBrowser: rt.micBrowser,
     countEligible: (instrumentId, level, meter) => countEligible(manifest, instrumentId, level, meter, cfg),
     settings,
     profile,
@@ -344,6 +345,7 @@ export function composeApp(rt: AppRuntime): ComposedApp {
     initial: { instrumentId: settings.get().practice.instrumentId, showBeta: settings.get().practicePrefs.showBeta },
     placement: { excerpts: cfg.progression.placement.excerpts, minutes: Math.max(1, Math.round(cfg.progression.placement.excerpts * 1.5)) },
     levelCount: cfg.levels.levels.length,
+    countEligible: (instrumentId, level, meter) => countEligible(manifest, instrumentId, level, meter, cfg),
     levelDescription: (level) => cfg.levelByNumber[level]?.description ?? '',
     micBrowser: rt.micBrowser,
     requestMic,
@@ -407,10 +409,6 @@ export function composeApp(rt: AppRuntime): ComposedApp {
   };
 
   // ---- results and tips ----------------------------------------------------------------------------
-  const tipsWillShow = (): boolean => {
-    const v = session.view.getState();
-    return settings.get().practicePrefs.showTips && v.tips.length > 0 && !!v.record?.score;
-  };
   const results: ResultsServices = {
     configs: cfg,
     session: session.view,
@@ -423,8 +421,8 @@ export function composeApp(rt: AppRuntime): ComposedApp {
     },
     actions: {
       next() {
-        // The tips interstitial prepares the next excerpt when the player leaves it.
-        if (!tipsWillShow()) prepareNext();
+        // `#/practice/tips` redirects now (decision 13), so results always prepares the next excerpt itself.
+        prepareNext();
         return false;
       },
       tryAgain() {
@@ -473,13 +471,27 @@ export function composeApp(rt: AppRuntime): ComposedApp {
   };
 
   // ---- history -------------------------------------------------------------------------------------
-  const history: HistoryServices = {
+  // Attempt detail draws the marked score once `preparedFor` has resolved; the renderer reads the excerpt from here.
+  const preparedCache = new Map<string, PreparedExcerpt | null>();
+  const history: AttemptServices = {
     configs: cfg,
     repos,
     localDay: () => platform.localDay(),
     profile,
     loadAttributions,
-    preparedFor: (record) => session.preparedForRecord(record),
+    preparedFor: async (record) => {
+      const p = await session.preparedForRecord(record);
+      preparedCache.set(record.id, p);
+      return p;
+    },
+    renderReview: createReviewRenderer({
+      configs: cfg,
+      session: session.view,
+      settings,
+      loadNotation,
+      spell: ghostPitch,
+      preparedFor: (r) => preparedCache.get(r.id) ?? null,
+    }),
     listen: (record, o) => session.listen({ ...o, record }),
     hearBar: (record, from, to, o) => session.hearBar(from, to, { ...o, record }),
     stopSounds,

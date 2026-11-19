@@ -5,6 +5,7 @@
 //   - reduced motion: no running animation moves anything (the reduced-motion project).
 // Failures are collected over the whole walk and reported together, so one run lists every violation.
 import { expect, test } from '@playwright/test';
+import { chooseOutput } from '../loop/flow.ts';
 import { axeSeriousViolations, go, HASH_ROUTES, movingAnimations, onboard, smallTargets } from './helpers.ts';
 
 test.skip(process.env['E2E_DESIGN'] !== '1', 'run with -c e2e/design/playwright.design.config.ts');
@@ -27,7 +28,7 @@ test('every route: axe, tap targets and reduced motion', async ({ page, hasTouch
 
   // The scan cover: from home, Start.
   await go(page, '#/');
-  await page.getByRole('combobox', { name: 'Output' }).selectOption({ label: 'Wired headphones' });
+  await chooseOutput(page, 'Wired headphones');
   await page.getByRole('button', { name: 'Start', exact: true }).click();
   await expect(page.getByTestId('scan-cover')).toBeVisible({ timeout: 30_000 });
   await check('scan-cover');

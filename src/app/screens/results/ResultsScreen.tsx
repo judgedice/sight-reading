@@ -91,8 +91,9 @@ export function ResultsScreen(_props: ScreenProps) {
 
   const proceed = (): void => {
     if (actions.next?.() === true) return;
-    if (settings.practicePrefs.showTips && view.tips.length > 0 && record?.score) navigate('/practice/tips');
-    else navigate('/practice/scan');
+    // Decision 13 (08-plan): `#/practice/tips` now redirects, so Next goes straight to the next read-through.
+    // Tips fold into this screen in wave 4.
+    navigate('/practice/scan');
   };
   const next = (): void => {
     if (summaryNow && record) {

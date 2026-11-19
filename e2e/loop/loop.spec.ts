@@ -54,16 +54,13 @@ test('practice loop: onboarding, setup, scan, count-in, live red note, graded re
   const wrong = record!.judgments.find((j) => j.expectedIdx === wrongIdx);
   expect(wrong).toMatchObject({ status: 'matched', pitch: 'wrong-pitch' });
 
-  // Tips (when the take earned any), then the next excerpt. One wrong note fires no pattern, and since PLAN ruling 51
-  // a take with a red note gets no clean-read tip either, so this take normally goes straight on to the scan.
+  // Tips, then the next excerpt. One wrong note fires no pattern, and since PLAN ruling 51 a take with a red note gets
+  // no clean-read tip either. The tips interstitial is gone (decision 13: `#/practice/tips` redirects), so Next always
+  // goes straight on to the scan.
   const tipsShown = await page.evaluate(() => (window as unknown as { __sr: { session: { record: { score: { tipsShown: string[] } | null } | null } } }).__sr.session.record?.score?.tipsShown ?? []);
   expect(tipsShown).not.toContain('U18');
   await page.getByRole('button', { name: 'Next excerpt' }).click();
-  if (tipsShown.length > 0) {
-    const tips = page.getByTestId('screen-practice.tips');
-    await expect(tips).toBeVisible({ timeout: 10_000 });
-    await tips.getByRole('button', { name: 'Next excerpt' }).click();
-  }
+  await expect(page.getByTestId('screen-practice.tips')).toHaveCount(0);
   await expect(page.getByTestId('scan-cover')).toBeVisible({ timeout: 30_000 });
   const nextExcerpt = await page.evaluate(() => (window as unknown as { __sr: { session: { prepared: { excerptId: string } | null } } }).__sr.session.prepared?.excerptId);
   expect(nextExcerpt).toBeTruthy();

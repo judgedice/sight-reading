@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import { loadLoopHelpers } from '../loop/bundle.ts';
-import { LOOP_T0_SEC, pagePlan, watchErrors } from '../loop/flow.ts';
+import { chooseMode, chooseOutput, LOOP_T0_SEC, pagePlan, watchErrors } from '../loop/flow.ts';
 
 test.skip(process.env['E2E_TOUR'] !== '1', 'run with -c e2e/tour/playwright.tour.config.ts');
 
@@ -74,21 +74,25 @@ test('first-time user: three takes on three instruments, results, tips, history,
   const home = page.getByTestId('screen-home');
   await expect(home).toBeVisible({ timeout: 15_000 });
 
-  const takes: { instrument: RegExp; mode: 'ranked' | 'practice'; output: string }[] = [
-    { instrument: /^Flute$/, mode: 'ranked', output: 'Wired headphones' },
-    { instrument: /^Cello$/, mode: 'practice', output: 'Wired headphones' },
-    { instrument: /^Trumpet/, mode: 'ranked', output: 'Speakers' },
+  const takes: { instrument: string; mode: 'ranked' | 'practice'; output: string }[] = [
+    { instrument: 'flute', mode: 'ranked', output: 'Wired headphones' },
+    { instrument: 'cello', mode: 'practice', output: 'Wired headphones' },
+    { instrument: 'trumpet-bb', mode: 'ranked', output: 'Speakers' },
   ];
   const done: SessionRecord[] = [];
   for (const [i, t] of takes.entries()) {
     await expect(home).toBeVisible({ timeout: 15_000 });
-    const inst = home.getByRole('combobox', { name: 'Instrument', exact: true });
-    const label = await inst.evaluate((el, src) => Array.from((el as HTMLSelectElement).options).find((o) => new RegExp(src).test(o.label))?.value ?? null, t.instrument.source);
-    expect(label, `instrument ${t.instrument}`).not.toBeNull();
-    await inst.selectOption(label!);
+    // Output lives in Settings > Sound now (05 section 5.1).
+    await chooseOutput(page, t.output);
+    // The instrument changes through the picker (05 section 5.2): "Change instrument", a card, Done.
+    await home.getByRole('button', { name: /Change instrument/ }).first().click();
+    const card = page.locator(`[role="radio"][data-instrument="${t.instrument}"]`);
+    if ((await card.count()) === 0) await page.getByRole('dialog').getByRole('switch', { name: 'Show more instruments (less tested)' }).click();
+    await card.click();
+    await page.getByRole('button', { name: 'Done', exact: true }).click();
+    await expect(card).toHaveCount(0);
     const level = await pickRandom(page, 'Difficulty', rnd);
-    await home.getByRole('combobox', { name: 'Output' }).selectOption({ label: t.output });
-    await home.getByRole('radiogroup', { name: 'Mode' }).getByText(t.mode === 'ranked' ? 'Ranked' : 'Practice', { exact: true }).click();
+    await chooseMode(page, t.mode);
     await check(`home before take ${i + 1}`);
     await page.getByRole('button', { name: 'Start', exact: true }).click();
     const cover = page.getByTestId('scan-cover');

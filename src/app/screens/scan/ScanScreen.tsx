@@ -265,6 +265,7 @@ function DesktopSide({ sounds, coach, onCoachDismiss, onStart, stars }: SideProp
         onPress={sounds.press}
         caption={sounds.caption}
         captionFailed={sounds.captionFailed}
+        headerNote={copy('scan.sounds.silentTake')}
         coach={coach ? <CoachMark onDismiss={onCoachDismiss} /> : undefined}
       />
       <section className="scan-stars-card">{stars}</section>

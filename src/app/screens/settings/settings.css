@@ -135,6 +135,10 @@
 }
 
 @media (max-width: 43.999rem) {
+  /* The list is not on screen while a section is open, so its links leave the tab order too (Back returns to it). */
+  .set-screen:not([data-open='list']) .set-nav {
+    display: none;
+  }
   .set-screen[data-open='list'] .set-nav-link[aria-current='page'] {
     background: none;
     color: var(--text-muted);
@@ -264,6 +268,9 @@
 }
 
 .set-link {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--target-min);
   color: var(--accent);
 }
 
@@ -339,6 +346,7 @@
   display: flex;
   flex: 1 1 0;
   align-items: center;
+  min-block-size: var(--target-min);
   gap: var(--space-3);
   min-inline-size: 0;
   cursor: pointer;

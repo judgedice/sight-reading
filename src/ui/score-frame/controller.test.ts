@@ -294,3 +294,19 @@ describe('insets', () => {
     }
   });
 });
+
+describe('bar taps', () => {
+  it('finds the bar from a tap on the slot: VexFlow gives its svg pointer-events none, so taps land on the slot', () => {
+    const { host, c } = frame();
+    lay(c, barsExcerpt(doc, 12), IPAD);
+    const slot = host.querySelector<HTMLElement>('.sr-slot[data-system="0"]')!;
+    const svg = slot.querySelector<SVGSVGElement>('svg.sr-system')!;
+    expect(svg.getAttribute('pointer-events')).toBe('none');
+    const w = Number(svg.getAttribute('width'));
+    svg.getBoundingClientRect = () => ({ left: 0, top: 0, right: w, bottom: 100, width: w, height: 100, x: 0, y: 0, toJSON: () => ({}) }) as DOMRect;
+    const fromSvg = c.barAtClient(svg, w - 2);
+    expect(fromSvg).not.toBeNull();
+    expect(c.barAtClient(slot, w - 2)).toBe(fromSvg);
+    expect(c.barAtClient(host, w - 2)).toBeNull();
+  });
+});

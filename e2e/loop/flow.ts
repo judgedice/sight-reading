@@ -41,11 +41,27 @@ export async function onboard(page: Page, mic: 'allow' | 'decline'): Promise<voi
   await expect(page.getByTestId('screen-home')).toBeVisible({ timeout: 15_000 });
 }
 
+/** Output lives in Settings > Sound (05 section 5.1): open it, pick `label`, and come back to Practice. */
+export async function chooseOutput(page: Page, label: string): Promise<void> {
+  await page.evaluate(() => (location.hash = '#/settings/audio'));
+  await page.getByRole('combobox', { name: 'Output' }).selectOption({ label });
+  await page.evaluate(() => (location.hash = '#/'));
+  await expect(page.getByTestId('screen-home')).toBeVisible({ timeout: 15_000 });
+}
+
+/** Picks Ranked or Practice in the Practice screen's Mode control. */
+export async function chooseMode(page: Page, mode: 'ranked' | 'practice'): Promise<void> {
+  await page
+    .getByTestId('screen-home')
+    .locator('[data-setup-row="mode"]')
+    .getByRole('radio', { name: mode === 'ranked' ? 'Ranked' : 'Practice' })
+    .click();
+}
+
 /** Home setup: practice mode, wired headphones (no count-in recheck on speakers), then Start. */
 export async function setupAndStart(page: Page): Promise<void> {
-  const home = page.getByTestId('screen-home');
-  await home.getByRole('combobox', { name: 'Output' }).selectOption({ label: 'Wired headphones' });
-  await home.getByRole('radiogroup', { name: 'Mode' }).getByText('Practice', { exact: true }).click();
+  await chooseOutput(page, 'Wired headphones');
+  await chooseMode(page, 'practice');
   await page.getByRole('button', { name: 'Start', exact: true }).click();
   await expect(page.getByTestId('scan-cover')).toBeVisible({ timeout: 30_000 });
 }

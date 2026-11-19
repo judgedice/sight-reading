@@ -29,9 +29,6 @@ const WIDE_QUERY = '(min-width: 64rem)';
 /** Below this the picker's cards use the phone layout (the same switch as the picker dialog). */
 const PHONE_QUERY = '(max-width: 43.6875rem)';
 
-/** Optional extension of the services: eligible-music counts for the difficulty step. */
-type ServicesWithCounts = OnboardingServices & { countEligible?: (instrumentId: string, level: number, meter: string | null) => number };
-
 function Wordmark() {
   return (
     <div className="ob-wordmark">
@@ -70,7 +67,7 @@ function MicProblemBlock({
   );
 }
 
-function Onboarding({ services }: { services: ServicesWithCounts }) {
+function Onboarding({ services }: { services: OnboardingServices }) {
   const navigate = useNavigate();
   const cfg: Configs = useMemo(() => appConfigs(), []);
   const [state, dispatch] = useReducer(onboardingReducer, undefined, initialOnboarding);
@@ -87,7 +84,7 @@ function Onboarding({ services }: { services: ServicesWithCounts }) {
   const micAllowed = state.mic === 'granted';
   // With the microphone off, placement cannot run, so "I'll choose" is already open.
   const choosing = chose ?? !micAllowed;
-  const eligible = services.countEligible ?? assumeServed;
+  const eligible = services.countEligible?.bind(services) ?? assumeServed;
 
   // Welcome puts focus on its one action; every later step puts it on the heading, so keyboard and screen reader
   // users land at the top of the step (WCAG 2.4.3).
@@ -199,6 +196,7 @@ function Onboarding({ services }: { services: ServicesWithCounts }) {
           </h1>
           <p className="ob-lede">{copy('welcome.body')}</p>
           <Button id="ob-start" label={copy('action.getStarted')} variant="primary" size="hero" onClick={() => dispatch({ type: 'next' })} />
+          <p className="ob-privacy">{copy('welcome.privacy')}</p>
         </section>
       ) : null}
 

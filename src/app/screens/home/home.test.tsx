@@ -214,7 +214,7 @@ describe('Practice screen, wide (1024 px and up)', () => {
   it('shows Today with non-breaking parts and the rank line, with the difficulty gate only while unmet', () => {
     render(fixture());
     const today = $('[data-testid="today-line"]');
-    expect(today.getAttribute('aria-label')).toBe('Streak 6 days · 9 takes · 214 XP today');
+    expect(today.querySelector('.ui-visually-hidden')?.textContent).toBe('Streak 6 days · 9 takes · 214 XP today');
     expect($$('.home-nb', today).map((e) => e.textContent)).toEqual(['Streak 6 days', '9 takes', '214 XP today']);
     expect(document.body.textContent).toContain(copy('streak.atRisk', { n: 1, days: 6 }));
     const rank = $('[data-testid="rank-line"]');

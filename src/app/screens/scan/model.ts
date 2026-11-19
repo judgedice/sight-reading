@@ -141,5 +141,5 @@ export function sourceLine(s: ExcerptSource): string | null {
   return s.license === 'CC-BY-4.0' ? copy('credit.source', { encoder: s.encoder ?? s.corpus, corpus: s.corpus }) : null;
 }
 
-/** Accessible name of the toolbar overflow button. TODO(copy): no catalogue key exists yet (reported to the overseer). */
-export const OVERFLOW_LABEL = 'More options';
+/** Accessible name of the toolbar overflow button. */
+export const OVERFLOW_LABEL = copy('action.moreOptions');

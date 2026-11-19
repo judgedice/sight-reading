@@ -425,7 +425,8 @@ export class ScoreFrameController implements Omit<ScoreView<HTMLElement>, 'rende
 
   /** The bar under a client point, from a pointer event on the frame; null when the point is not on a system. */
   barAtClient(target: Element | null, clientX: number): number | null {
-    const svg = target?.closest('svg.sr-system');
+    // VexFlow gives its <svg> `pointer-events="none"`, so a tap on blank staff lands on the slot around it.
+    const svg = target?.closest('svg.sr-system') ?? target?.closest('.sr-slot')?.querySelector('svg.sr-system') ?? null;
     if (!svg || !this.host.contains(svg)) return null;
     const r = svg.getBoundingClientRect();
     const w = Number(svg.getAttribute('width') ?? 0);
