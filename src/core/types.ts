@@ -46,7 +46,10 @@ export type ClockSeconds = number & { readonly __brand: 'ClockSeconds' };
 export type OutputMode = 'speakers' | 'wired' | 'bluetooth';
 
 /** Metronome click sound: Tick 5.5–9 kHz noise burst (speaker default) or Wood 1.5–4 kHz (01 §7.6). */
-export type ClickTimbre = 'tick' | 'wood';
+export type ClickTimbre = 'tick' | 'wood' | MetronomeSound;
+
+/** The metronome sounds a player can choose (06 §9). `tick` and `wood` are the legacy stored names of classic and woodblock. */
+export type MetronomeSound = 'classic' | 'woodblock' | 'beep';
 
 /** Metronome mode. `'visual'` is later (01 §7.6, 02 §5.2). */
 export type MetronomeMode = 'audible' | 'countInOnly';
@@ -1276,6 +1279,8 @@ export interface PracticeSettings {
   listening: boolean;
   metronome: MetronomeMode;
   clickTimbre: ClickTimbre;
+  /** Accent the first beat of each bar. Absent means true; `defaultAppSettings` writes true. Optional until every PracticeSettings literal sets it. */
+  accentFirstBeat?: boolean;
   outputMode: OutputMode;
   /** Concert A4 reference, Hz, 415..446. */
   a4Hz: number;
@@ -1770,7 +1775,9 @@ export type RankedReason =
   | 'calibration'
   | 'measurement'
   | 'familiar'
-  | 'skip-limit';
+  | 'skip-limit'
+  /** The player listened to the reference before playing (decision 7). */
+  | 'listened-first';
 
 /**
  * Why a take was voided (01 §7.9, 05 W4, 02 §5.3). Clipping is a results banner, not a void (01 §7.9).
@@ -2208,6 +2215,8 @@ export interface AppSettings {
     showCentsMs: boolean;
   };
   practicePrefs: { showStars: boolean; showTips: boolean; showBeta: boolean };
+  /** Optional name shown on the home screen; absent until the player sets one. */
+  profile?: { displayName?: string };
   accessibility: {
     reduceMotion: 'system' | 'on' | 'off';
     highContrast: boolean;

@@ -31,30 +31,56 @@ export const RANK_GLYPH_IDS = [
   'rank-10',
 ] as const;
 
-/** Pinned Lucide subset (ISC): 20 px, 1.75 px stroke. */
-export const ICON_GLYPH_IDS = [
-  'mic',
-  'mic-off',
+/** The 06 section 8 icon family (mockups/_build/icons.mjs): 24 grid, round caps, currentColor. */
+export const ICON_FAMILY_IDS = [
+  'home',
   'settings',
-  'dice',
-  'play',
-  'stop',
-  'chevron-down',
   'chevron-left',
   'chevron-right',
-  'x',
+  'chevron-down',
+  'check-ui',
+  'plus',
+  'minus',
   'info',
-  'alert-triangle',
-  'alert-octagon',
-  'check-circle',
-  'download',
-  'upload',
-  'trash',
-  'volume-2',
+  'x',
+  'more',
+  'arrow-right',
+  'play',
+  'stop',
+  'listen',
+  'metronome',
+  'tuning-fork',
+  'pitch',
+  'key-chord',
+  'note',
+  'mic',
+  'speaker',
   'headphones',
-  'bluetooth',
   'flame',
+  'progress',
+  'history',
+  'practice',
+  'skip',
+  'retry',
+  'caution',
+  'lightbulb',
+  'slower',
+  'flute',
+  'clarinet',
+  'sax',
+  'trumpet',
+  'violin',
+  'cello',
+  'piano',
 ] as const;
+
+/** Ids code uses today that now share a family drawing: alert-triangle is the caution drawing, volume-2 the speaker. */
+export const ICON_ALIAS_IDS = ['alert-triangle', 'volume-2'] as const;
+
+/** Ids code uses today with no family drawing yet. They keep their Lucide drawings (ISC). */
+export const ICON_LEGACY_IDS = ['mic-off', 'alert-octagon', 'check-circle', 'download', 'upload', 'trash'] as const;
+
+export const ICON_GLYPH_IDS = [...ICON_FAMILY_IDS, ...ICON_ALIAS_IDS, ...ICON_LEGACY_IDS] as const;
 
 export const GLYPH_IDS = [
   ...VERDICT_GLYPH_IDS,

@@ -178,6 +178,8 @@ const SMOOTH_MAX_SEC = 0.02;
 const NOISE_SPREAD_Q = 0.95;
 const NOISE_SPREAD_MAX_DB = 6;
 const NOISE_BAND_MARGIN_DB = 1;
+/** Voice and bowed pitch changes are measured against the note's frames older than this (`changeRef`). */
+const CHANGE_REF_LAG_SEC = 0.1;
 /** Cumulative-energy ring: about 4 s at 16 kHz. */
 const CUM_RING = 1 << 16;
 
@@ -345,8 +347,7 @@ export class Segmenter {
     this.clickArr = Float64Array.from(arr);
     this.leakEnv = new Float64Array(arr.length).fill(NaN);
     this.leakFrame = new Float64Array(arr.length).fill(NaN);
-    const E = (globalThis as any).process?.env ?? {}; // TEMPDBG
-    this.tol = (o.onsetProfile === 'voice' && E.VOICE_TOL ? Number(E.VOICE_TOL) : o.changeCents) / 100;
+    this.tol = o.changeCents / 100;
     this.soft = o.onsetProfile === 'voice' || o.onsetProfile === 'bowed';
     this.noiseRing = new Float64Array(256);
   }
@@ -490,7 +491,6 @@ export class Segmenter {
     const out: DspEvent[] = [];
     const voiced = sf.midi !== null && sf.clarity >= this.o.clarityThreshold && sf.rmsDb >= this.gateDb;
     const f: Fr = { ...sf, voiced };
-    (globalThis as any).__segTrace?.(f, this); // TEMPDBG
     this.lastFrameT = f.t;
     this.recent.push(f);
     if (this.recent.length > 128) this.recent.splice(0, 64);
@@ -606,15 +606,21 @@ export class Segmenter {
     this.maybeUpdate(cur, out);
   }
 
+  /**
+   * The pitch a new frame is compared with for a pitch change. Voice and bowed slurs glide (portamento, and the
+   * window's overlap of both notes): over 60 to 100 ms the frames move a semitone in steps smaller than
+   * `changeCents`, each joins the note, and the note median follows the glide, so a semitone step on a short note
+   * never reaches `changeCents` from it and the two notes merge. For those profiles the reference is the median of
+   * the note's frames older than CHANGE_REF_LAG_SEC (steady frames when there are at least 3), which the glide in
+   * progress cannot move; a young note uses its median. Vibrato swings around the note's own pitch and moves that
+   * median no more than the plain one, so `changeCents` keeps its margin against it.
+   */
   private changeRef(cur: Note, now: number): number {
-    const E = (globalThis as any).process?.env ?? {}; // TEMPDBG
-    const lag = Number(E.REF_LAG ?? -1);
-    if (lag < 0) return this.noteMedian(cur);
-    const before = cur.frames.filter((x) => x.t <= now - lag);
+    if (!this.soft) return this.noteMedian(cur);
+    const before = cur.frames.filter((x) => x.t <= now - CHANGE_REF_LAG_SEC);
     if (before.length === 0) return this.noteMedian(cur);
     const steady = before.filter((x) => x.t >= cur.onset + this.o.attackExcludeSec);
-    const use = steady.length >= Number(E.REF_MIN ?? 3) ? steady : before;
-    return median(use.map((x) => x.midi as number));
+    return median((steady.length >= 3 ? steady : before).map((x) => x.midi as number));
   }
 
   /**
@@ -891,7 +897,6 @@ export class Segmenter {
     }
     if (iMin < 0) return null;
     const clamp = this.clampDb(iMin);
-    (globalThis as any).__segTrace2?.({ ref, iA: this.envT(iA), iB: this.envT(iB), iMin: this.envT(iMin), minV, clamp, noise: this.noiseFloorDb, envEnd: this.envT(this.envLen - 1), fa: this.floorAttack(iMin, iB, len, clamp), env: Array.from({length: iB - iA + 1}, (_, k) => [this.envT(iA + k).toFixed(3), this.smoothDb(iA + k, len).toFixed(1), (this.envDb[iA + k] as number).toFixed(1)].join(' ')) }); // TEMPDBG
     if (Math.max(clamp, minV) <= clamp + NEAR_FLOOR_DB) return this.floorAttack(iMin, iB, len, clamp)?.t ?? null;
     const i0 = Math.max(iA, iMin - Math.round(DIP_SIDE_SEC / this.envHop));
     const ser = this.series(i0, iB, len, clamp);

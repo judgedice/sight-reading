@@ -1,11 +1,17 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
+import './ui/tokens.css';
+import { applyFontCap } from './ui/fonts/font-loading.ts';
 
 const container = document.getElementById('root');
 if (!container) {
   throw new Error('Missing #root element');
 }
 const root = createRoot(container);
+
+// Tokens and the three self-hosted font faces are in the initial chunk, so the room colour and the faces are there at
+// first paint. Text shows in the fallback stack if a face misses the 300 ms cap (06 section 2.1).
+void applyFontCap(document.documentElement, 'fonts' in document ? document.fonts : undefined);
 
 // `#/dev/notation` loads the notation module as its own lazy chunk (PLAN ruling 39). Dev builds only, or a build
 // made with VITE_NOTATION_DEV=1 (pnpm size). Production builds drop the import and the chunk.

@@ -29,7 +29,10 @@ import type {
   ClickTimbre,
   ClockSeconds,
   MessagePortLike,
+  MetronomeSound,
   OutputMode,
+  PlayNote,
+  PlayNotesOptions,
   PlatformCapabilities,
   TakeSchedule,
   WorkerMessage,
@@ -126,6 +129,10 @@ export class WebAudioBackend implements AudioBackend {
   private srcNode: AudioNodeLike | null = null;
   private zeroGain: GainNodeLike | null = null;
   private clickBus: GainNodeLike | null = null;
+  /** Tone sources not yet ended, so `stopSounds` can cancel them. */
+  private readonly liveTones = new Set<{ stop(): void; disconnect(): void; onended: (() => void) | null }>();
+  /** Context time after which the running take has no more clicks (stopSounds keeps the metronome until then). */
+  private takeEndsAt = 0;
   private metronome: Metronome | null = null;
   private stream: MediaStreamLike | null = null;
   private track: TrackLike | null = null;
@@ -461,10 +468,13 @@ export class WebAudioBackend implements AudioBackend {
     const tc = this.opts.testClockT0AfterCaptureSec;
     const origin = this.captureOrigin();
     if (tc !== undefined && origin !== null) t0 = origin + tc;
-    return m.scheduleTake(p, t0);
+    const r = m.scheduleTake(p, t0);
+    this.takeEndsAt = Math.max(0, ...r.clicks.map((c) => c.t)) + 0.1;
+    return r;
   }
 
   cancelTake(): void {
+    this.takeEndsAt = 0;
     this.metronome?.cancel();
   }
 
@@ -473,6 +483,41 @@ export class WebAudioBackend implements AudioBackend {
   }
 
   async playTone(hz: number, durSec: number, at: ClockSeconds): Promise<void> {
+    this.startTone(hz, durSec, at, 0.5);
+  }
+
+  /** Interface stub until `playback-engine` lands: one sine per note through the same bus as `playTone`. */
+  async playNotes(notes: readonly PlayNote[], opts: PlayNotesOptions): Promise<void> {
+    const ctx = this.requireContext();
+    const origin = opts.at ?? (ctx.currentTime as ClockSeconds);
+    const peak = Math.min(1, Math.max(0, opts.peak));
+    for (const n of notes) this.startTone(n.hz, n.durSec, (origin + n.startSec) as ClockSeconds, peak);
+  }
+
+  /** Interface stub: built on the existing metronome (classic maps to tick, woodblock to wood, beep to tick). */
+  async playClicks(times: ClockSeconds[], sound: MetronomeSound, accents: boolean[]): Promise<void> {
+    const m = this.requireMetronome();
+    const timbre: ClickTimbre = sound === 'woodblock' ? 'wood' : 'tick';
+    m.scheduleClicks(times.filter((_, i) => accents[i]), timbre, 5);
+    m.scheduleClicks(times.filter((_, i) => !accents[i]), timbre, 0);
+  }
+
+  stopSounds(): void {
+    for (const t of [...this.liveTones]) {
+      t.onended = null;
+      try {
+        t.stop();
+      } catch {
+        // Already stopped.
+      }
+      t.disconnect();
+    }
+    this.liveTones.clear();
+    // The metronome holds take and preview clicks together; leave it alone while a take is still sounding.
+    if (this.metronome && (this.ctx?.currentTime ?? 0) >= this.takeEndsAt) this.metronome.cancel();
+  }
+
+  private startTone(hz: number, durSec: number, at: ClockSeconds, peak: number): void {
     const ctx = this.requireContext();
     const sr = ctx.sampleRate;
     const n = Math.max(1, Math.round(durSec * sr));
@@ -484,12 +529,17 @@ export class WebAudioBackend implements AudioBackend {
       let env = 1;
       if (i < fade) env = 0.5 - 0.5 * Math.cos((Math.PI * i) / fade);
       else if (i >= n - fade) env = 0.5 - 0.5 * Math.cos((Math.PI * (n - 1 - i)) / fade);
-      d[i] = 0.5 * env * Math.sin(w * i);
+      d[i] = peak * env * Math.sin(w * i);
     }
     const src = ctx.createBufferSource();
     src.buffer = buf;
     src.connect(this.clickBus as GainNodeLike);
-    src.onended = () => src.disconnect();
+    const live = src as unknown as { stop(): void; disconnect(): void; onended: (() => void) | null };
+    this.liveTones.add(live);
+    src.onended = () => {
+      this.liveTones.delete(live);
+      src.disconnect();
+    };
     src.start(at);
   }
 

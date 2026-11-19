@@ -21,7 +21,7 @@ test('practice loop: onboarding, setup, scan, count-in, live red note, graded re
   await setupAndStart(page);
 
   // Scan: reveal, then render this excerpt's take into the fake microphone's file.
-  await page.getByRole('button', { name: 'Start scan' }).click();
+  await page.getByRole('button', { name: 'Show the music' }).click();
   const scan = page.getByTestId('screen-practice.scan');
   await expect(scan).toHaveAttribute('data-state', 'scanning');
   await expect(scan.locator('.sr-note, [data-expected-idx], svg').first()).toBeVisible({ timeout: 30_000 });

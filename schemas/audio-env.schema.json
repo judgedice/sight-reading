@@ -181,10 +181,18 @@
       "description": "Audio environment of an attempt; platform-neutral, JSON only, never identifies the person or device (05 §5.2)."
     },
     "ClickTimbre": {
-      "type": "string",
-      "enum": [
-        "tick",
-        "wood"
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "tick"
+        },
+        {
+          "type": "string",
+          "const": "wood"
+        },
+        {
+          "$ref": "#/definitions/MetronomeSound"
+        }
       ],
       "description": "Metronome click sound: Tick 5.5–9 kHz noise burst (speaker default) or Wood 1.5–4 kHz (01 §7.6)."
     },
@@ -217,6 +225,15 @@
         "countInOnly"
       ],
       "description": "Metronome mode. `'visual'` is later (01 §7.6, 02 §5.2)."
+    },
+    "MetronomeSound": {
+      "type": "string",
+      "enum": [
+        "classic",
+        "woodblock",
+        "beep"
+      ],
+      "description": "The metronome sounds a player can choose (06 §9). `tick` and `wood` are the legacy stored names of classic and woodblock."
     },
     "OsFamily": {
       "type": "string",

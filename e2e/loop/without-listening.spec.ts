@@ -24,7 +24,7 @@ test('practise without listening: no microphone, a full take, results not graded
   await setupAndStart(page);
   await expect(page.getByTestId('practise-notice')).toBeVisible();
 
-  await page.getByRole('button', { name: 'Start scan' }).click();
+  await page.getByRole('button', { name: 'Show the music' }).click();
   const scan = page.getByTestId('screen-practice.scan');
   await expect(scan).toHaveAttribute('data-state', 'scanning');
   await expect(scan).toHaveAttribute('data-mode', 'practice');

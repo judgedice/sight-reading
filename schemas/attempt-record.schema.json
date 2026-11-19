@@ -212,6 +212,10 @@
             "clickTimbre": {
               "$ref": "#/definitions/ClickTimbre"
             },
+            "accentFirstBeat": {
+              "type": "boolean",
+              "description": "Accent the first beat of each bar. Absent means true; `defaultAppSettings` writes true. Optional until every PracticeSettings literal sets it."
+            },
             "outputMode": {
               "$ref": "#/definitions/OutputMode"
             },
@@ -801,10 +805,18 @@
       ]
     },
     "ClickTimbre": {
-      "type": "string",
-      "enum": [
-        "tick",
-        "wood"
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "tick"
+        },
+        {
+          "type": "string",
+          "const": "wood"
+        },
+        {
+          "$ref": "#/definitions/MetronomeSound"
+        }
       ],
       "description": "Metronome click sound: Tick 5.5–9 kHz noise burst (speaker default) or Wood 1.5–4 kHz (01 §7.6)."
     },
@@ -1208,6 +1220,15 @@
       ],
       "description": "Metronome mode. `'visual'` is later (01 §7.6, 02 §5.2)."
     },
+    "MetronomeSound": {
+      "type": "string",
+      "enum": [
+        "classic",
+        "woodblock",
+        "beep"
+      ],
+      "description": "The metronome sounds a player can choose (06 §9). `tick` and `wood` are the legacy stored names of classic and woodblock."
+    },
     "NoteJudgment": {
       "type": "object",
       "properties": {
@@ -1481,7 +1502,8 @@
         "calibration",
         "measurement",
         "familiar",
-        "skip-limit"
+        "skip-limit",
+        "listened-first"
       ],
       "description": "Why an attempt is unranked: 02's enum (R30). Per-check detail is in `AudioEnv.gateFailures`."
     },

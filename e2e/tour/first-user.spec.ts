@@ -86,7 +86,7 @@ test('first-time user: three takes on three instruments, results, tips, history,
     const label = await inst.evaluate((el, src) => Array.from((el as HTMLSelectElement).options).find((o) => new RegExp(src).test(o.label))?.value ?? null, t.instrument.source);
     expect(label, `instrument ${t.instrument}`).not.toBeNull();
     await inst.selectOption(label!);
-    const level = await pickRandom(page, 'Level', rnd);
+    const level = await pickRandom(page, 'Difficulty', rnd);
     await home.getByRole('combobox', { name: 'Output' }).selectOption({ label: t.output });
     await home.getByRole('radiogroup', { name: 'Mode' }).getByText(t.mode === 'ranked' ? 'Ranked' : 'Practice', { exact: true }).click();
     await check(`home before take ${i + 1}`);
@@ -100,7 +100,7 @@ test('first-time user: three takes on three instruments, results, tips, history,
       await page.getByRole('button', { name: 'Start', exact: true }).click();
       await expect(cover).toBeVisible({ timeout: 30_000 });
     }
-    await page.getByRole('button', { name: 'Start scan' }).click();
+    await page.getByRole('button', { name: 'Show the music' }).click();
     const scan = page.getByTestId('screen-practice.scan');
     await expect(scan.locator('[data-expected-idx]').first()).toBeVisible({ timeout: 30_000 });
     const plan = await pagePlan(page);

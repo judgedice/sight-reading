@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { AudioRouteInfo, CaptureBlock, WorkerMessage } from '../core/platform.ts';
+import type { AudioRouteInfo, CaptureBlock, ClockSeconds, WorkerMessage } from '../core/platform.ts';
 import { PhaseDecimator } from '../dsp/decimator.ts';
 import { HiBandEnergy } from '../dsp/hiband.ts';
 import { FakeAudioBackend } from './fake-backend.ts';
@@ -187,5 +187,25 @@ describe('FakeAudioBackend schedule and scripts', () => {
     await be.close();
     expect(be.log).toMatchObject({ unlocks: 1, closed: true });
     expect(be.log.tones).toHaveLength(1);
+  });
+
+  it('logs playNotes, playClicks and stopSounds, and stopSounds leaves a take scheduled', async () => {
+    const be = new FakeAudioBackend();
+    const take = await be.scheduleTake({
+      leadSec: 1, bpm: 120, beatsPerBar: 4, countInBeats: 4, totalBeats: 4, mode: 'audible',
+      timbre: 'classic', accentDb: 5, accent: false,
+    });
+    expect(take.clicks.some((c) => c.accent)).toBe(false);
+    await be.playNotes([{ hz: 261.63, startSec: 0, durSec: 0.5 }, { hz: 293.66, startSec: 0.5, durSec: 0.5 }], { peak: 0.4 });
+    expect(be.log.notePlays).toHaveLength(1);
+    expect(be.log.notePlays[0]?.notes.map((n) => n.hz)).toEqual([261.63, 293.66]);
+    expect(be.log.notePlays[0]?.opts.peak).toBe(0.4);
+    const times = [be.now() + 1, be.now() + 1.5] as ClockSeconds[];
+    await be.playClicks(times, 'beep', [true, false]);
+    expect(be.log.clickPlays).toEqual([{ times, sound: 'beep', accents: [true, false] }]);
+    be.stopSounds();
+    expect(be.log.stopSounds).toBe(1);
+    expect(be.log.cancelledTakes).toBe(0);
+    expect(be.log.scheduledTakes).toHaveLength(1);
   });
 });

@@ -23,7 +23,7 @@ const served = (page: Page): Promise<Served> =>
 async function startAndReveal(page: Page): Promise<void> {
   await page.getByRole('button', { name: 'Start', exact: true }).click();
   await expect(page.getByTestId('scan-cover')).toBeVisible({ timeout: 30_000 });
-  await page.getByRole('button', { name: 'Start scan' }).click();
+  await page.getByRole('button', { name: 'Show the music' }).click();
   await expect(page.getByTestId('screen-practice.scan').locator('[data-expected-idx]').first()).toBeVisible({ timeout: 30_000 });
 }
 
@@ -77,7 +77,7 @@ for (const instrument of ['flute', 'voice-bass', 'trumpet-bb']) {
 test('every Random-backed row (level, tempo) can be moved directly and turns Random off', async ({ page }) => {
   await onboard(page, 'decline');
   const home = page.getByTestId('screen-home');
-  const levelChip = home.locator('fieldset', { has: page.getByRole('group', { name: 'Level', exact: true }) }).getByRole('button', { name: 'Random' });
+  const levelChip = home.locator('fieldset', { has: page.getByRole('group', { name: 'Difficulty', exact: true }) }).getByRole('button', { name: 'Random' });
   const tempoChip = home.locator('fieldset', { has: page.getByRole('slider', { name: 'Tempo' }) }).getByRole('button', { name: 'Random' });
   await levelChip.click();
   await expect(levelChip).toHaveAttribute('aria-pressed', 'true');

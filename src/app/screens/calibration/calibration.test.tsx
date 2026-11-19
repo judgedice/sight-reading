@@ -104,13 +104,13 @@ describe('CalibrationCard', () => {
     click(button('Continue'));
     expect(done).toHaveBeenCalledWith('calibrated');
   });
-  it('Not really suggests the Wood click and links to Click sound', async () => {
+  it('Not really suggests the Woodblock or Beep sound and links to Metronome sound', async () => {
     const svc = fakeServices();
     current = mount(wrap(<CalibrationCard services={svc} onDone={() => undefined} />));
     await press('Start');
     await press('Not really');
-    expect(document.body.textContent).toContain('Try the Wood click, or wired headphones.');
-    expect(document.querySelector('a[href="#/settings/audio"]')?.textContent).toBe('Click sound');
+    expect(document.body.textContent).toContain('Try the Woodblock or Beep sound, or wired headphones.');
+    expect(document.querySelector('a[href="#/settings/audio"]')?.textContent).toBe('Metronome sound');
     expect(names()).toContain('Continue');
   });
   it('loopback failure names the next steps; Play along instead runs play-along', async () => {

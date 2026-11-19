@@ -63,12 +63,32 @@ function themeLines(group: Obj, theme: 'light' | 'dark', where: string): string[
   return lines;
 }
 
-/** Component sizes: plain numbers are px; { fine, coarse } is px with a coarse-pointer override. */
+const isRecord = (v: Json | undefined): v is Obj => v !== null && v !== undefined && typeof v === 'object' && !Array.isArray(v);
+
+/** Names whose number is a ratio, not a length: staff spaces and line heights are emitted unitless. */
+const isUnitless = (name: string): boolean => /(?:staff-space|line-height)$/.test(name);
+
+/** One component value as CSS text: a number is px (or unitless for ratio names), a string is as written. */
+function componentValue(name: string, v: Json): string | null {
+  if (typeof v === 'number') return isUnitless(name) ? String(v) : px(v);
+  if (typeof v === 'string') return v;
+  return null;
+}
+
+/**
+ * Component sizes. A plain number is px, a string is as written, `{ fine, coarse }` is px with a coarse-pointer
+ * override and `{ desktop, phone }` is the desktop value with a phone override below breakpoints.phoneMax.
+ * Arrays and other objects are read from tokens.ts only.
+ */
 function componentFine(component: Obj): string[] {
   const lines: string[] = [];
   for (const [name, v] of Object.entries(component)) {
-    if (typeof v === 'number') lines.push(decl(name, px(v)));
-    else if (v !== null && typeof v === 'object' && !Array.isArray(v) && 'fine' in v) lines.push(decl(name, px(Number(v.fine))));
+    if (isRecord(v) && 'fine' in v) lines.push(decl(name, px(Number(v.fine))));
+    else if (isRecord(v) && 'desktop' in v && 'phone' in v) lines.push(decl(name, componentValue(name, v.desktop as Json) ?? ''));
+    else {
+      const text = componentValue(name, v);
+      if (text !== null) lines.push(decl(name, text));
+    }
   }
   return lines;
 }
@@ -76,9 +96,39 @@ function componentFine(component: Obj): string[] {
 function componentCoarse(component: Obj): string[] {
   const lines: string[] = [];
   for (const [name, v] of Object.entries(component)) {
-    if (v !== null && typeof v === 'object' && !Array.isArray(v) && 'coarse' in v) lines.push(decl(name, px(Number(v.coarse))));
+    if (isRecord(v) && 'coarse' in v) lines.push(decl(name, px(Number(v.coarse))));
   }
   return lines;
+}
+
+function componentPhone(component: Obj): string[] {
+  const lines: string[] = [];
+  for (const [name, v] of Object.entries(component)) {
+    if (isRecord(v) && 'desktop' in v && 'phone' in v) lines.push(decl(name, componentValue(name, v.phone as Json) ?? ''));
+  }
+  return lines;
+}
+
+/** The stack without its first family: what text falls back to when the web font misses the 300 ms cap. */
+const withoutFirstFamily = (stack: string): string => stack.replace(/^"[^"]+",\s*/, '');
+
+/** @font-face rules for the self-hosted faces. Relative URLs, so Vite hashes them and the service worker precaches them. */
+function fontFaces(font: Obj): string[] {
+  const display = String(font.fontDisplay ?? 'block');
+  const faces = font.faces;
+  if (!Array.isArray(faces)) throw new Error('tokens: font.faces must be an array');
+  return faces.map((f, i) => {
+    const face = asObj(f, `font.faces.${i}`);
+    const lines = [
+      `  font-family: "${String(face.family)}";`,
+      `  src: url("./fonts/${String(face.file)}") format("woff2");`,
+      `  font-weight: ${String(face.weight)};`,
+      '  font-style: normal;',
+      `  font-display: ${display};`,
+    ];
+    if (typeof face.unicodeRange === 'string') lines.push(`  unicode-range: ${face.unicodeRange};`);
+    return block('@font-face', lines);
+  });
 }
 
 /** Produces the CSS and TS text from a parsed (and comment-stripped) token file. */
@@ -98,17 +148,35 @@ export function generateTokens(rawSource: unknown): { css: string; ts: string } 
   const space = asObj(src.space, 'space');
   const radius = asObj(src.radius, 'radius');
   const zIndex = asObj(src.zIndex, 'zIndex');
+  const elevation = asObj(src.elevation, 'elevation');
+  const breakpoints = asObj(src.breakpoints, 'breakpoints');
   const motion = asObj(src.motion, 'motion');
   const pointer = asObj(src.pointer, 'pointer');
   const component = asObj(src.component, 'component');
 
   // Base sizes, type, spacing and motion do not depend on theme or pointer except where noted.
-  const base: string[] = ['  color-scheme: light dark;', decl('font-ui', String(font.ui))];
+  const phoneMax = Number(breakpoints.phoneMax);
+  if (!Number.isFinite(phoneMax)) throw new Error('tokens: breakpoints.phoneMax must be a number');
+  const fontDisplay = String(font.display);
+  const fontUi = String(font.ui);
+  const base: string[] = [
+    '  color-scheme: light dark;',
+    decl('font-display', fontDisplay),
+    decl('font-ui', fontUi),
+    decl('font-text', 'var(--font-ui)'),
+    decl('font-music', String(font.music)),
+    decl('font-features', String(font.featureSettings)),
+  ];
+  const phoneType: string[] = [];
   for (const [name, t] of Object.entries(type)) {
     const s = asObj(t, `type.${name}`);
     base.push(decl(`type-${name}-size`, px(Number(s.size))));
     base.push(decl(`type-${name}-line`, String(s.line)));
     base.push(decl(`type-${name}-weight`, String(s.weight)));
+    base.push(decl(`type-${name}-family`, `var(--font-${s.face === 'display' ? 'display' : 'ui'})`));
+    if (typeof s.tracking === 'string') base.push(decl(`type-${name}-tracking`, s.tracking));
+    if (s.case === 'upper') base.push(decl(`type-${name}-transform`, 'uppercase'));
+    if (typeof s.phoneSize === 'number') phoneType.push(decl(`type-${name}-size`, px(s.phoneSize)));
   }
   for (const [n, v] of Object.entries(space)) base.push(decl(`space-${n}`, px(Number(v))));
   for (const [n, v] of Object.entries(radius)) base.push(decl(`radius-${n}`, px(Number(v))));
@@ -120,10 +188,12 @@ export function generateTokens(rawSource: unknown): { css: string; ts: string } 
   base.push(decl('target-min', px(Number(targetMin.fine))));
   base.push(...componentFine(component));
 
+  const phone: string[] = [...phoneType, ...componentPhone(component)];
   const coarse: string[] = [decl('target-min', px(Number(targetMin.coarse))), ...componentCoarse(component)];
 
-  const light = themeLines(ui, 'light', 'color.ui').concat(themeLines(paper, 'light', 'color.paper'));
-  const dark = themeLines(ui, 'dark', 'color.ui').concat(themeLines(paper, 'dark', 'color.paper'));
+  const elevationLines = (theme: 'light' | 'dark'): string[] => themeLines(elevation, theme, 'elevation');
+  const light = themeLines(ui, 'light', 'color.ui').concat(themeLines(paper, 'light', 'color.paper'), elevationLines('light'));
+  const dark = themeLines(ui, 'dark', 'color.ui').concat(themeLines(paper, 'dark', 'color.paper'), elevationLines('dark'));
   const paperLight = themeLines(paper, 'light', 'color.paper');
   const paperDark = themeLines(paper, 'dark', 'color.paper');
   const hcLight = themeLines(hcUi, 'light', 'color.highContrast.ui').concat(themeLines(hcPaper, 'light', 'color.highContrast.paper'));
@@ -134,8 +204,21 @@ export function generateTokens(rawSource: unknown): { css: string; ts: string } 
   });
 
   const rules: string[] = [];
+  rules.push(...fontFaces(font));
   rules.push(block(':root', base));
+  rules.push(media(`(max-width: ${phoneMax}px)`, [block(':root', phone)]));
   rules.push(media('(pointer: coarse)', [block(':root', coarse)]));
+  // The 300 ms cap (06 section 2.1): src/ui/fonts/font-loading.ts sets data-fonts="fallback" on the root when a web font
+  // misses the cap and removes it when the fonts arrive, so text shows in the fallback stack in between.
+  rules.push(
+    block(':root[data-fonts="fallback"]', [decl('font-display', withoutFirstFamily(fontDisplay)), decl('font-ui', withoutFirstFamily(fontUi))]),
+  );
+  rules.push(block('html', ['  font-family: var(--font-ui);', '  font-feature-settings: var(--font-features);']));
+  // Titles are set in the display face (06 section 2.2) wherever a screen has not chosen otherwise: :where() keeps the
+  // specificity at zero, so a component rule always wins.
+  rules.push(block(':where(h1)', ['  font-family: var(--type-h1-family);', '  letter-spacing: var(--type-h1-tracking);']));
+  rules.push(block(':where(h2)', ['  font-family: var(--type-h2-family);']));
+  rules.push(block('.tabular-nums', ['  font-variant-numeric: tabular-nums;']));
   // Reduced motion (04 section 7.3): every duration token is 0 under the media query or the
   // in-app setting (data-motion="reduced" on the root). Stylelint requires every transition and
   // animation to take its duration from a --dur-* token, so this is the reduced-motion gate

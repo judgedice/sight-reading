@@ -117,7 +117,7 @@ describe('Rank-up card', () => {
     m = mount(<RankUpCard open configs={cfg} rank={4} name="Section player" onContinue={onContinue} />);
     expect(document.body.textContent).toContain(copy('rankup.headline', { rank: 'Section player' }));
     expect(document.querySelector('.dom-rank[data-size="96"]')).toBeTruthy();
-    expect($('[data-testid="rankup-card"]').textContent).toContain('Ensemble player, at 5,000 XP and level 5 on any instrument.');
+    expect($('[data-testid="rankup-card"]').textContent).toContain('Ensemble player, at 5,000 XP and difficulty 5 on any instrument.');
     click(button(copy('action.continue')));
     expect(onContinue).toHaveBeenCalled();
   });

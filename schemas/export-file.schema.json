@@ -83,6 +83,16 @@
           ],
           "additionalProperties": false
         },
+        "profile": {
+          "type": "object",
+          "properties": {
+            "displayName": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "description": "Optional name shown on the home screen; absent until the player sets one."
+        },
         "accessibility": {
           "type": "object",
           "properties": {
@@ -354,6 +364,10 @@
             },
             "clickTimbre": {
               "$ref": "#/definitions/ClickTimbre"
+            },
+            "accentFirstBeat": {
+              "type": "boolean",
+              "description": "Accent the first beat of each bar. Absent means true; `defaultAppSettings` writes true. Optional until every PracticeSettings literal sets it."
             },
             "outputMode": {
               "$ref": "#/definitions/OutputMode"
@@ -1014,6 +1028,63 @@
                 "samples"
               ],
               "additionalProperties": false
+            },
+            "classic": {
+              "type": "object",
+              "properties": {
+                "rate": {
+                  "type": "number"
+                },
+                "samples": {
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  }
+                }
+              },
+              "required": [
+                "rate",
+                "samples"
+              ],
+              "additionalProperties": false
+            },
+            "woodblock": {
+              "type": "object",
+              "properties": {
+                "rate": {
+                  "type": "number"
+                },
+                "samples": {
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  }
+                }
+              },
+              "required": [
+                "rate",
+                "samples"
+              ],
+              "additionalProperties": false
+            },
+            "beep": {
+              "type": "object",
+              "properties": {
+                "rate": {
+                  "type": "number"
+                },
+                "samples": {
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  }
+                }
+              },
+              "required": [
+                "rate",
+                "samples"
+              ],
+              "additionalProperties": false
             }
           },
           "additionalProperties": false,
@@ -1074,10 +1145,18 @@
       ]
     },
     "ClickTimbre": {
-      "type": "string",
-      "enum": [
-        "tick",
-        "wood"
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "tick"
+        },
+        {
+          "type": "string",
+          "const": "wood"
+        },
+        {
+          "$ref": "#/definitions/MetronomeSound"
+        }
       ],
       "description": "Metronome click sound: Tick 5.5–9 kHz noise burst (speaker default) or Wood 1.5–4 kHz (01 §7.6)."
     },
@@ -1763,6 +1842,15 @@
       ],
       "description": "Metronome mode. `'visual'` is later (01 §7.6, 02 §5.2)."
     },
+    "MetronomeSound": {
+      "type": "string",
+      "enum": [
+        "classic",
+        "woodblock",
+        "beep"
+      ],
+      "description": "The metronome sounds a player can choose (06 §9). `tick` and `wood` are the legacy stored names of classic and woodblock."
+    },
     "NoteJudgment": {
       "type": "object",
       "properties": {
@@ -2232,6 +2320,10 @@
         "clickTimbre": {
           "$ref": "#/definitions/ClickTimbre"
         },
+        "accentFirstBeat": {
+          "type": "boolean",
+          "description": "Accent the first beat of each bar. Absent means true; `defaultAppSettings` writes true. Optional until every PracticeSettings literal sets it."
+        },
         "outputMode": {
           "$ref": "#/definitions/OutputMode"
         },
@@ -2272,7 +2364,8 @@
         "calibration",
         "measurement",
         "familiar",
-        "skip-limit"
+        "skip-limit",
+        "listened-first"
       ],
       "description": "Why an attempt is unranked: 02's enum (R30). Per-check detail is in `AudioEnv.gateFailures`."
     },

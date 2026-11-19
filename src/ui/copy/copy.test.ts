@@ -2,7 +2,9 @@
 // the two forms, every template parses, the spec's worked strings come out exactly, and the
 // catalogue carries every enum value the other roles define.
 import { describe, expect, it } from 'vitest';
-import { copy, copyKeys, copyTemplate, formatMessage, isCopyKey, requiredVariables } from './copy.ts';
+import en from './en.json';
+import { copy, copyKeys, copyTemplate, formatMessage, isCopyKey, requiredVariables, type CopyKey } from './copy.ts';
+import { instrumentName, instrumentShortName } from './instrument-names.ts';
 
 describe('formatMessage', () => {
   it('substitutes {name} placeholders and leaves plain text alone', () => {
@@ -110,6 +112,7 @@ describe('en.json catalogue', () => {
       'measurement',
       'familiar',
       'skip-limit',
+      'listened-first',
     ];
     const keys = copyKeys.filter((k) => k.startsWith('ranked.reason.')).map((k) => k.slice('ranked.reason.'.length)).sort();
     expect(keys).toEqual([...enumValues].sort());
@@ -200,10 +203,262 @@ describe('en.json catalogue', () => {
 
   it('places the iOS calibration note and no iOS skip string (PLAN ruling 16)', () => {
     expect(copy('onboarding.calibration.iosNote')).toBe('On iPhone and iPad, takes earn XP only after this check.');
-    expect(copyKeys.some((k) => k.includes('skip') && k.toLowerCase().includes('calibrat'))).toBe(false);
+    expect(copyKeys.some((k) => k !== 'calibrate.skipHint' && k.includes('skip') && k.toLowerCase().includes('calibrat'))).toBe(false);
   });
 
   it('keeps the CC BY credit line in the take (PLAN ruling 26)', () => {
     expect(copy('credit.source', { encoder: 'E', corpus: 'C' })).toMatch(/· CC BY 4\.0$/);
+  });
+});
+
+const SPEC: Readonly<Record<string, string>> = {
+  // Generated from 05 section 13.1, 13.2 and the designer's copy notes. The exact text of every redesign key.
+  "action.startScan": "Show the music",
+  "action.hearReference": "Hear starting pitch",
+  "action.tuningNote": "Check my tuning",
+  "action.stayAt": "Stay at difficulty {level}",
+  "action.goToLevel": "Go to difficulty {level}",
+  "onboarding.level.placement": "Find my difficulty ({count} short excerpts, about {minutes} minutes)",
+  "onboarding.level.title": "Choose a starting difficulty",
+  "onboarding.level.stepper": "Starting difficulty",
+  "onboarding.instrument.body": "We choose music in your range. Pick the card that fits you best.",
+  "scan.practice.timeUp": "Reading time's up. Start when ready.",
+  "scan.chip.ranked": "Ranked · {time} to read",
+  "scan.summary": "Difficulty {level} · {key} · {meter} · {tempo} · {bars} bars",
+  "scan.peek": "Before you play: {n} of {total}",
+  "grade.D": "Rough one. Stay at this difficulty for now.",
+  "grade.F": "This one was a stretch. Try an easier difficulty?",
+  "ranked.reason.practice-mode": "You chose Practice.",
+  "ranked.reason.scan-extended": "The reading time ran past this difficulty's limit.",
+  "ranked.reason.tempo-below-90pct": "The tempo was below this difficulty's range.",
+  "badge.timingOffset": "Not calibrated: timing marks may be a little off",
+  "results.personalBest": "New best at difficulty {level}",
+  "results.drift.behind": "You slowed down slightly by the end",
+  "results.drift.ahead": "You sped up slightly by the end",
+  "component.focus": "{component} is the one to work on.",
+  "xp.factor.levelBase": "Difficulty {level} base {value}",
+  "xp.factor.randomKey": "Any key ×{value}",
+  "xp.factor.randomMeter": "Any time signature ×{value}",
+  "xp.factor.randomTempo": "Any tempo ×{value}",
+  "xp.factor.belowLevel": "Below your difficulty ×{value}",
+  "xp.practice": "+{xp} XP (practice earns {percent}% of the XP)",
+  "xp.randomHint": "Choosing Any: +{percent}% XP",
+  "results.xp.factor.random": "Any settings ×{value}",
+  "rank.bar": "{rank} · Rank {n} of {total} · {xp} of {next} XP to {nextRank}",
+  "rank.bar.needsLevel": "Reach difficulty {level} on any instrument to unlock",
+  "rankup.next": "Next: {rank}, at {xp} XP and difficulty {level} on any instrument.",
+  "level.offer": "You're reading difficulty {level} well. Move up to difficulty {next}?",
+  "level.autoUp": "Moved up to difficulty {level}: {n} takes in a row at {score} or more.",
+  "level.down": "Difficulty {level} has been a stretch lately. A few takes at difficulty {lower} can build the reading back up.",
+  "home.levelNoMusic": "No music yet for {instrument} at difficulty {levels}.",
+  "home.levelFewMusic": "Few pieces here: some may repeat.",
+  "home.keyFootnote": "More keys from difficulty {n}.",
+  "home.selector.noUnseen": "Difficulty {level} has no unseen music in {meter} for {instrument} yet.",
+  "home.selector.setTimeRandom": "Set time to Any",
+  "row.level": "Difficulty",
+  "progress.instrumentLevel": "Difficulty {level}",
+  "progress.ladder.future": "{xp} XP, difficulty {level}",
+  "progress.best": "Best at difficulty {level}: {score}",
+  "progress.window.label": "Recent ranked takes at this difficulty",
+  "empty.progress.body": "Play an excerpt and your score, difficulty and rank show up here.",
+  "settings.placement.hint": "Plays three short excerpts to find your difficulty again.",
+  "settings.section.audio": "Sound",
+  "settings.audio.clickSound": "Metronome sound",
+  "settings.audio.metronomeVolume": "Click volume",
+  "settings.audio.metronome": "Click during the take",
+  "settings.audio.metronome.audible": "On",
+  "settings.audio.metronome.countInOnly": "Count-in only",
+  "settings.audio.a4": "Tuning pitch",
+  "settings.practice.stars": "Show the Before you play checklist",
+  "settings.practice.tips": "Show a tip after each take",
+  "settings.practice.beta": "Show more instruments (less tested)",
+  "tips.showBetween": "Show a tip after each take",
+  "badge.beta": "less tested",
+  "calibrate.audibility.hint": "Try the Woodblock or Beep sound, or wired headphones.",
+  "calibrate.audibility.link": "Open metronome sound settings",
+  "error.clockRate": "Your device's audio clock is running at the wrong speed, so timing can't be measured. Close other apps that play sound, then try again.",
+  "shortcuts.space": "Show the music, then Start playing",
+  "shortcuts.n": "Next excerpt",
+  "instrument.name.voice-soprano": "Soprano voice",
+  "instrument.name.voice-mezzo": "Mezzo-soprano voice",
+  "instrument.name.voice-alto": "Alto voice",
+  "instrument.name.voice-tenor": "Tenor voice",
+  "instrument.name.voice-baritone": "Baritone voice",
+  "instrument.name.voice-bass": "Bass voice",
+  "instrument.short.voice-soprano": "Soprano",
+  "instrument.short.voice-mezzo": "Mezzo",
+  "instrument.short.voice-alto": "Alto",
+  "instrument.short.voice-tenor": "Tenor",
+  "instrument.short.voice-baritone": "Baritone",
+  "instrument.short.voice-bass": "Bass",
+  "instrument.abbr.voice-mezzo": "Mz",
+  "instrument.abbr.voice-baritone": "Bar",
+  "range.full": "Full range: {low} to {high}",
+  "range.atDifficulty": "At difficulty {level}: {low} to {high}",
+  "range.cardText": "{low} to {high}",
+  "range.sounds": "Sounds a {interval} lower: concert {low} to {high}",
+  "range.soundsOctave": "Sounds an octave lower: {low} to {high}",
+  "range.soundsCompound": "Sounds an octave and a {interval} lower: concert {low} to {high}",
+  "range.voiceNote": "Sing in any octave that suits you. Pitch is marked relative to your starting note.",
+  "range.a11y": "{instrument} range: {low} to {high}. At difficulty {level}: {servedLow} to {servedHigh}.",
+  "range.hearNote": "Hear {note}",
+  "instrument.card.a11y": "{instrument}, range {low} to {high}",
+  "setup.title": "Practice",
+  "setup.changeInstrument": "Change instrument",
+  "setup.done": "Done",
+  "setup.firstTimeHint": "Tap any setting to change it.",
+  "setup.chip.a11y": "{row}: {value}. Change",
+  "setup.difficulty.value": "{level} of {max}",
+  "setup.difficulty.chip": "Difficulty {level}",
+  "setup.difficulty.follow": "Follow my progress",
+  "setup.difficulty.followValue": "Difficulty {level} of {max} (follows your progress)",
+  "setup.difficulty.followHint": "Uses your current difficulty and moves up as you do.",
+  "setup.key.any": "Any key",
+  "setup.key.major": "Major",
+  "setup.key.minor": "Minor",
+  "setup.key.concert": "concert {key}",
+  "setup.key.a11y": "{key}, {accidentals}",
+  "setup.key.a11yConcert": "{key}, {accidentals}, sounds {concert}",
+  "accidentals.none": "no sharps or flats",
+  "setup.time.any": "Any",
+  "setup.time.anyChip": "Any time",
+  "setup.time.a11y": "{beats} {unit} time",
+  "setup.time.few": "few pieces",
+  "setup.time.unavailable": "No {meters} music for {instrument} at difficulty {level} yet.",
+  "setup.tempo.any": "Any tempo in range",
+  "setup.tempo.anyChip": "Any tempo",
+  "setup.tempo.anyValue": "Any tempo from {min} to {max}",
+  "setup.length.any": "Any",
+  "setup.length.only": "{bars} bars (the only length at difficulty {level})",
+  "setup.length.chip": "{bars} bars",
+  "setup.xpTag": "+{percent}% XP",
+  "setup.fallback.key": "Key set to Any: {key} isn't used at difficulty {level}.",
+  "setup.fallback.time": "Time set to Any: {meter} isn't available at difficulty {level}.",
+  "setup.fallback.length": "Length set to Any: {bars} bars isn't used at difficulty {level}.",
+  "setup.fallback.difficulty": "Difficulty set to {level}: no music yet for {instrument} at difficulty {from}.",
+  "setup.mode.ranked.hint": "Full XP. Fresh music and timed reading.",
+  "setup.mode.practice.hint": "Less XP. No time limit. Listen first if you like.",
+  "setup.mode.blocked.calibration": "Ranked needs a calibrated setup on this device.",
+  "setup.mode.blocked.mic": "Ranked needs the microphone.",
+  "action.calibrateNow": "Calibrate now",
+  "action.turnOnMic": "Turn on microphone",
+  "home.loadingMusic": "Loading music…",
+  "home.rankLine": "{rank} · {percent}% to {nextRank}",
+  "onboarding.mic.notNowHint": "You can still practise, but takes won't be graded.",
+  "onboarding.mic.continueWithout": "Continue without the microphone",
+  "onboarding.level.needsMic": "Needs the microphone.",
+  "calibrate.skipHint": "Without calibration, takes on this device are practice only. You can calibrate later from Practice or Settings.",
+  "action.hearClick": "Hear the click",
+  "scan.cover.loading": "Getting the music…",
+  "scan.skipFreeHint": "Skip is free before you see the music.",
+  "scan.timeLeft": "{time} left",
+  "stars.heading": "Before you play",
+  "stars.optional": "Optional. Tick as you check.",
+  "scan.coach": "New: hear the tempo, the key and the music before you play.",
+  "scan.sounds.whatAreThese": "What do these do?",
+  "scan.sounds.title": "Sounds",
+  "action.hearTempo.short": "Tempo",
+  "action.hearReference.short": "Starting pitch",
+  "action.hearKey": "Hear the key",
+  "action.hearKey.short": "Key",
+  "hearTempo.caption": "One bar of clicks at {tempo}.",
+  "reference.caption.voice": "Plays the key chord, then your first note.",
+  "reference.caption.instrument": "Plays the key chord, so you hear the key.",
+  "reference.info.voice": "This is your reference. It's the key of the piece: you hear its home chord, then the first note you'll sing. Find your pitch from there. We mark your pitch relative to this start, in any octave that suits your voice. It also plays by itself just before the count-in.",
+  "reference.info.instrument": "The key chord is the home chord of this piece, at concert pitch. It gives away no notes, so you can use it in ranked takes too.",
+  "reference.info.button": "About {control}",
+  "reference.playing.chord": "Key chord: {key}",
+  "reference.playing.first": "First note: {note}",
+  "tuning.caption": "Hold any note for {seconds} seconds. We'll allow for your tuning.",
+  "tuning.listening": "Listening… hold your note.",
+  "tuning.fail": "We couldn't hear a steady note. Hold one note and try again.",
+  "sound.failed": "That sound didn't play. Check your volume and try again.",
+  "sound.playing.tempo": "Tempo: {tempo}",
+  "action.listen": "Listen",
+  "action.listenFirst": "Listen first",
+  "listen.rankedLine": "Makes this practice",
+  "listen.practiceCaption": "Hear how it goes before you play.",
+  "listen.slower": "Slower",
+  "listen.clickAlong": "Click along",
+  "listen.playing": "Playing bar {n} of {total}",
+  "listen.stopped": "Stopped",
+  "listen.confirm.title": "Listen first?",
+  "listen.confirm.body": "Hearing the music before you play makes this a practice take. It earns less XP and doesn't count toward your rank.",
+  "listen.confirm.yes": "Listen, make it practice",
+  "listen.confirm.no": "Keep it ranked",
+  "listen.nowPractice": "Now a practice take",
+  "ranked.reason.listened-first": "You listened first, so this one is practice.",
+  "action.hearBar": "Hear bar {bar}",
+  "shortcuts.l": "Listen or stop",
+  "countIn.reference": "Your starting pitch",
+  "results.tip.title": "One thing to try",
+  "results.tip.more": "Show {n, plural, one {# more tip} other {# more tips}}",
+  "results.badge.notGraded": "Not graded",
+  "results.drift.ms": "({ms} ms)",
+  "results.saveFailed": "This take couldn't be saved on this device.",
+  "action.changeSetup": "Change setup",
+  "action.previousSlip": "Previous slip",
+  "action.nextSlip": "Next slip",
+  "settings.audio.click.classic": "Classic",
+  "settings.audio.click.classic.hint": "A mechanical metronome: a firm, woody click.",
+  "settings.audio.click.woodblock": "Woodblock",
+  "settings.audio.click.woodblock.hint": "Rounder and softer.",
+  "settings.audio.click.beep": "Beep",
+  "settings.audio.click.beep.hint": "A short electronic beep. Cuts through in a loud room.",
+  "settings.audio.click.play": "Play a bar of {sound}",
+  "settings.audio.accent": "Accent the first beat",
+  "settings.audio.a4.hint": "The A above middle C. Most groups tune to 440 Hz.",
+  "settings.about.technical": "Technical details",
+  "error.clockRate.title": "Audio timing problem",
+  "action.backToPractice": "Back to Practice",
+  "reference.info.title.voice": "What is the reference?",
+  "reference.info.title.instrument": "What is the key chord?",
+  "picker.axis": "Bars show the sounding range on one scale, C1 to C8. The tall tick is middle C (C4). The bold part is what you get at your difficulty.",
+  "range.writtenOctave": "Written an octave higher",
+  "range.barsSounding": "bars show sounding pitch",
+  "results.tip.less": "Hide {n, plural, one {tip} other {tips}}",
+  "action.hearBars": "Hear bars {from} to {to}",
+  "listen.fromBar": "From bar {n}",
+  "results.void.cleanScore": "Clean score. Nothing is marked when a take is not graded.",
+  "tips.offToast": "Tips turned off. Turn them on in Settings > Practice.",
+  "calibrate.devicesLocked": "Device choice is locked while we listen.",
+  "settings.audio.click.keepsCalibration": "Changing the sound keeps your calibration.",
+  "settings.audio.click.playing": "Playing: {sound}",
+  "settings.audio.metronomeVolume.hint": "Plays one click when you let go.",
+  "scan.practice.readHint": "Read it through. Start when you are ready.",
+  "setup.empty.title": "No excerpt fits these settings",
+  "scan.sounds.listenRanked": "In a ranked take, this makes it practice. We ask first.",
+};
+
+/** Strings allowed to contain the word "level" (a sound level, say). Expected to stay empty. */
+const LEVEL_ALLOW: readonly string[] = [];
+
+describe('redesign copy (05 sections 13.1, 13.2, designer notes)', () => {
+  it('has every spec key with its exact text', () => {
+    for (const [key, text] of Object.entries(SPEC)) {
+      expect(isCopyKey(key), `missing key ${key}`).toBe(true);
+      expect(copyTemplate(key as CopyKey), key).toBe(text);
+    }
+  });
+
+  it('says "difficulty", never "level", in any player-facing string', () => {
+    // Placeholder names such as {level} are code identifiers, not player-facing words, so they are blanked first.
+    const spoken = (k: CopyKey): string => en[k].replace(/\{\s*[A-Za-z_]+/g, '{');
+    const hits = copyKeys.filter((k) => /\blevel\b/i.test(spoken(k)) && !LEVEL_ALLOW.includes(k));
+    expect(hits).toEqual([]);
+    expect(LEVEL_ALLOW).toEqual([]);
+  });
+
+  it('names the six voices and the two new abbreviations', () => {
+    expect(instrumentName('voice-mezzo')).toBe('Mezzo-soprano voice');
+    expect(instrumentShortName('voice-baritone')).toBe('Baritone');
+    expect(copyTemplate('instrument.abbr.voice-mezzo')).toBe('Mz');
+    expect(copyTemplate('instrument.abbr.voice-baritone')).toBe('Bar');
+  });
+
+  it('falls back to the config label for instruments without a catalogue name', () => {
+    expect(instrumentName({ id: 'clarinet-bb', label: 'Clarinet in B♭' })).toBe('Clarinet in B♭');
+    expect(instrumentShortName('flute', 'Flute')).toBe('Flute');
+    expect(instrumentName({ id: 'voice-tenor', label: 'ignored' })).toBe('Tenor voice');
   });
 });

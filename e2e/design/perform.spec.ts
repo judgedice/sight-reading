@@ -10,7 +10,7 @@ test('performance toolbar: no ellipsis, 44 px targets, no motion when reduced', 
   await onboard(page);
   await page.getByRole('button', { name: 'Start', exact: true }).click();
   await expect(page.getByTestId('scan-cover')).toBeVisible({ timeout: 30_000 });
-  await page.getByRole('button', { name: 'Start scan' }).click();
+  await page.getByRole('button', { name: 'Show the music' }).click();
   await expect(page.getByTestId('screen-practice.scan')).toHaveAttribute('data-state', 'scanning');
   await page.getByRole('button', { name: 'Start playing' }).click();
   const play = page.getByTestId('screen-practice.play');

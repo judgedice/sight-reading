@@ -26,6 +26,7 @@ import type {
   JsonValue,
   LiveJudgment,
   MetronomeMode,
+  MetronomeSound,
   OsFamily,
   PitchFrame,
   PlatformKind,
@@ -41,6 +42,7 @@ export type {
   ClockSeconds,
   DisplayMode,
   MetronomeMode,
+  MetronomeSound,
   OsFamily,
   OutputMode,
   PlatformKind,
@@ -145,6 +147,24 @@ export interface TakeSchedule {
   timbre: ClickTimbre;
   /** Accent gain over normal clicks, dB. */
   accentDb: number;
+  /** Accent the first beat of each bar; absent means true (until every caller sets it). */
+  accent?: boolean;
+}
+
+/** One note for `AudioBackend.playNotes`. */
+export interface PlayNote {
+  /** Sounding frequency, Hz. */
+  hz: number;
+  /** Start, seconds after the start of the call's schedule origin (`opts.at`). */
+  startSec: number;
+  durSec: number;
+}
+
+export interface PlayNotesOptions {
+  /** Context time of the schedule origin; default now. */
+  at?: ClockSeconds;
+  /** Peak level, 0..1. */
+  peak: number;
 }
 
 /** Audio backend (01 §5.2). Web: `WebAudioBackend` in `src/platform/web/`. */
@@ -166,6 +186,12 @@ export interface AudioBackend {
   playCalibrationClicks(times: ClockSeconds[], timbre: ClickTimbre): Promise<void>;
   /** Sanity tone and voice reference (01 §7.8, 02 §4.5). Hz, seconds. */
   playTone(hz: number, durSec: number, at: ClockSeconds): Promise<void>;
+  /** Plays notes at sounding pitch for reference playback (06 §9). Cancelled by `stopSounds`. */
+  playNotes(notes: readonly PlayNote[], opts: PlayNotesOptions): Promise<void>;
+  /** Previews and lead-ins: one click per time; `accents[i]` true accents click i. Cancelled by `stopSounds`. */
+  playClicks(times: ClockSeconds[], sound: MetronomeSound, accents: boolean[]): Promise<void>;
+  /** Cancels everything scheduled by playNotes, playClicks, playTone and playCalibrationClicks; never a running take. */
+  stopSounds(): void;
   /** Counts worklet input frames against wall time (01 §7.8). */
   measureClockRate(durSec: number): Promise<{ framesPerSec: number; expected: number }>;
   onRouteChange(cb: (r: AudioRouteInfo) => void): () => void;

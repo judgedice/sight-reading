@@ -92,7 +92,7 @@ test('screen tour: onboarding, home, scan, take with a wrong and a late note, re
   await shot('scan-cover');
 
   // Scan.
-  await page.getByRole('button', { name: 'Start scan' }).click();
+  await page.getByRole('button', { name: 'Show the music' }).click();
   const scan = page.getByTestId('screen-practice.scan');
   await expect(scan).toHaveAttribute('data-state', 'scanning');
   await expect(scan.locator('[data-expected-idx]').first()).toBeVisible({ timeout: 30_000 });

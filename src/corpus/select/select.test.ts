@@ -10,7 +10,7 @@ import { createRng } from '../../core/rng.ts';
 import { toMidi } from '../../theory/index.ts';
 import { prepareExcerpt } from '../transpose/prepare.ts';
 import { bandFor, levelDef } from './levels.ts';
-import { countEligible, poolOf, selectExcerpt, selectExcerptWith } from './select.ts';
+import { countEligible, METER_MIN_EXCERPTS, poolOf, selectExcerpt, selectExcerptWith, shownMeters } from './select.ts';
 import { selectAndPrepare } from './select-and-prepare.ts';
 import { manifestOf, synthDoc, type SynthSpec } from './testing/synthetic.ts';
 
@@ -91,6 +91,9 @@ describe('pool membership (02 §2.6 rules 1-3)', () => {
   });
 });
 
+/** 5,000 draws take about 4 s alone; under a parallel full run they can pass the default 5 s timeout. */
+const DRAW_TIMEOUT_MS = 30_000;
+
 describe('pool mix and stretch rate over 5,000 draws (P9b acceptance)', () => {
   const big = corpus([
     ...specs('l5-', 40, { level: 5 }),
@@ -118,7 +121,7 @@ describe('pool mix and stretch rate over 5,000 draws (P9b acceptance)', () => {
     expect(Math.abs(c.below! / n - sel.maxFracFromLevelBelow)).toBeLessThanOrEqual(0.05);
     expect(Math.abs(c.stretch! / n - sel.stretchRate)).toBeLessThanOrEqual(0.05);
     expect(Math.abs(c.level! / n - (1 - sel.maxFracFromLevelBelow - sel.stretchRate))).toBeLessThanOrEqual(0.05);
-  });
+  }, DRAW_TIMEOUT_MS);
 
   it('raises the stretch rate to stretchRateLowPool when fewer than lowPoolUnseen unseen L excerpts remain', () => {
     const n = 5000;
@@ -128,7 +131,7 @@ describe('pool mix and stretch rate over 5,000 draws (P9b acceptance)', () => {
     const c = draw(big, n, history({ seenGroups }));
     expect(Math.abs(c.stretch! / n - sel.stretchRateLowPool)).toBeLessThanOrEqual(0.05);
     expect(Math.abs(c.below! / n - sel.maxFracFromLevelBelow)).toBeLessThanOrEqual(0.05);
-  });
+  }, DRAW_TIMEOUT_MS);
 
   it('never serves L-1 alone: an L with only L-1 music is an empty pool', () => {
     const c = corpus(specs('l4-', 10, { level: 4 }));
@@ -396,5 +399,42 @@ describe('fixture corpus and selectAndPrepare', () => {
     }
     expect(before.has(target)).toBe(true);
     expect(after.has(target)).toBe(false);
+  });
+});
+
+describe('time Any draws only the meters the setup shows (redesign 05 section 5.5)', () => {
+  // Level 5: 20 in 4/4, 6 in 3/4 (shown, few), 3 in 2/4 (left out).
+  const c = corpus([
+    ...specs('four', 20, { level: 5, meter: '4/4' }),
+    ...specs('three', 6, { level: 5, meter: '3/4' }),
+    ...specs('two', 3, { level: 5, meter: '2/4' }),
+  ], 4);
+  const counts = (): { meter: string; count: number }[] =>
+    levelDef(cfg, 5).meters.map((meter) => ({ meter, count: countEligible(c.m, 'flute', 5, meter, cfg) }));
+
+  it('shows meters with at least METER_MIN_EXCERPTS, else every meter with music', () => {
+    expect(METER_MIN_EXCERPTS).toBe(5);
+    expect(shownMeters(counts(), METER_MIN_EXCERPTS)).toEqual(['4/4', '3/4']);
+    expect(shownMeters([{ meter: '4/4', count: 2 }, { meter: '3/4', count: 1 }, { meter: '2/4', count: 0 }], 5)).toEqual(['4/4', '3/4']);
+    expect(shownMeters([{ meter: '4/4', count: 0 }], 5)).toEqual([]);
+  });
+
+  it('never serves a hidden meter with time Any; a chosen hidden meter is still served when asked for', () => {
+    const rng = createRng(21);
+    const meters = new Set<string>();
+    for (let i = 0; i < 1000; i++) meters.add(ok(selectExcerpt(c.m, settings(), history(), cfg, rng)).settings.meter);
+    expect([...meters].sort()).toEqual(['3/4', '4/4']);
+    expect(ok(selectExcerpt(c.m, settings({ meter: '2/4' }), history(), cfg, createRng(1))).settings.meter).toBe('2/4');
+  });
+
+  it('without the restriction the same draws would include it (the test can fail)', () => {
+    const rng = createRng(21);
+    const meters = new Set<string>();
+    for (let i = 0; i < 1000; i++) meters.add(ok(selectExcerptWith(c.m, settings(), history(), cfg, rng, { meterMinExcerpts: 0 })).settings.meter);
+    expect(meters.has('2/4')).toBe(true);
+  });
+
+  it('leaves countEligible unchanged', () => {
+    expect(countEligible(c.m, 'flute', 5, null, cfg)).toBe(29);
   });
 });

@@ -151,7 +151,7 @@ describe('OnboardingScreen', () => {
     expect(document.body.textContent).toContain('Step 4 of 5');
     await press('Skip');
     expect(document.body.textContent).toContain('Step 5 of 5');
-    await press('Find my level (3 short excerpts, about 3 minutes)');
+    await press('Find my difficulty (3 short excerpts, about 3 minutes)');
     expect(clicks).toBeLessThanOrEqual(6);
     expect(finished).toHaveLength(1);
     expect(finished[0]).toMatchObject({ displayName: 'Player', instrumentId: 'flute', micAllowed: true, calibration: 'skipped', level: { kind: 'placement' } });
@@ -188,7 +188,7 @@ describe('OnboardingScreen', () => {
     const sw = document.querySelector<HTMLInputElement>('input[role=switch]') as HTMLInputElement;
     act(() => sw.click());
     expect(document.querySelectorAll('input[type=radio]').length).toBe(instruments.length);
-    expect(document.body.textContent).toContain('beta');
+    expect(document.body.textContent).toContain('less tested');
   });
 
   it('a denied microphone shows the denied card inline with Try again and Practise without listening', async () => {
@@ -220,7 +220,7 @@ describe('OnboardingScreen', () => {
     await press('Get started');
     await press('Continue');
     await press('Not now');
-    await press('Find my level (3 short excerpts, about 3 minutes)');
+    await press('Find my difficulty (3 short excerpts, about 3 minutes)');
     expect(finished[0]?.displayName).toBe('Ada');
   });
 
@@ -244,7 +244,7 @@ describe('OnboardingScreen', () => {
     await press('Start');
     await press('Continue');
     expect(document.body.textContent).toContain('Step 5 of 5');
-    await press('Find my level (3 short excerpts, about 3 minutes)');
+    await press('Find my difficulty (3 short excerpts, about 3 minutes)');
     expect(finished[0]?.calibration).toBe('calibrated');
   });
 });

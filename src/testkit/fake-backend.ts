@@ -19,7 +19,10 @@ import type {
   ClickTimbre,
   ClockSeconds,
   MessagePortLike,
+  MetronomeSound,
   PlatformCapabilities,
+  PlayNote,
+  PlayNotesOptions,
   TakeSchedule,
   WorkerMessage,
 } from '../core/platform.ts';
@@ -60,6 +63,9 @@ export interface FakeBackendOptions {
 const QUANTUM = 128;
 const FRAMES_PER_BLOCK = 2 * QUANTUM;
 
+/** The legacy synth knows two timbres; the new sounds map onto them until `metronome` lands. */
+const synthTimbre = (t: ClickTimbre): 'tick' | 'wood' => (t === 'wood' || t === 'woodblock' ? 'wood' : 'tick');
+
 const clock = (s: number): ClockSeconds => s as ClockSeconds;
 
 interface ScriptedEvent { at: number; fire: () => void }
@@ -74,6 +80,9 @@ export class FakeAudioBackend implements AudioBackend {
     cancelledTakes: 0,
     calibrationClicks: [] as { times: ClockSeconds[]; timbre: ClickTimbre }[],
     tones: [] as { hz: number; durSec: number; at: ClockSeconds }[],
+    notePlays: [] as { notes: PlayNote[]; opts: PlayNotesOptions }[],
+    clickPlays: [] as { times: ClockSeconds[]; sound: MetronomeSound; accents: boolean[] }[],
+    stopSounds: 0,
     captureStarts: 0,
     captureStops: 0,
     closed: false,
@@ -230,7 +239,7 @@ export class FakeAudioBackend implements AudioBackend {
     for (let i = 0; i < total; i++) {
       const countIn = i < p.countInBeats;
       if (p.mode === 'countInOnly' && !countIn) break;
-      clicks.push({ beatIndex: i, accent: i % p.beatsPerBar === 0, t: clock(firstClick + i * beatSec), countIn });
+      clicks.push({ beatIndex: i, accent: (p.accent ?? true) && i % p.beatsPerBar === 0, t: clock(firstClick + i * beatSec), countIn });
     }
     this.log.scheduledTakes.push({ params: p, t0: clock(t0), clicks });
     for (const c of clicks) this.pendingClicks.push({ t: c.t, accent: c.accent, timbre: p.timbre });
@@ -272,6 +281,19 @@ export class FakeAudioBackend implements AudioBackend {
 
   async playTone(hz: number, durSec: number, at: ClockSeconds): Promise<void> {
     this.log.tones.push({ hz, durSec, at });
+  }
+
+  async playNotes(notes: readonly PlayNote[], opts: PlayNotesOptions): Promise<void> {
+    this.log.notePlays.push({ notes: notes.map((n) => ({ ...n })), opts: { ...opts } });
+  }
+
+  async playClicks(times: ClockSeconds[], sound: MetronomeSound, accents: boolean[]): Promise<void> {
+    this.log.clickPlays.push({ times: [...times], sound, accents: [...accents] });
+  }
+
+  /** Cancels everything scheduled by the play methods; a running take is untouched. */
+  stopSounds(): void {
+    this.log.stopSounds++;
   }
 
   async measureClockRate(durSec: number): Promise<{ framesPerSec: number; expected: number }> {
@@ -318,7 +340,7 @@ export class FakeAudioBackend implements AudioBackend {
       return;
     }
     for (const c of this.pendingClicks) {
-      const burst = clickBurst(c.timbre ?? lb.timbre ?? 'tick', c.accent, this.sampleRate);
+      const burst = clickBurst(synthTimbre(c.timbre ?? lb.timbre ?? 'tick'), c.accent, this.sampleRate);
       const g = 10 ** (lb.gainDb / 20) * (c.accent ? 10 ** (5 / 20) : 1);
       const samples = new Float32Array(burst.length);
       for (let i = 0; i < burst.length; i++) samples[i] = (burst[i] as number) * g;

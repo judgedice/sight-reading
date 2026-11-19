@@ -75,7 +75,7 @@ describe('rank bar (04 5.5.4): fill = (xp - current) / (next - current)', () => 
   });
 
   it('reads the wireframe line for Student at 2,180 XP', () => {
-    expect(rankBar(cfg, { rank: 3, xp: 2180 }).label).toBe('Student · Rank 3 of 10 · 2,180 / 2,500 XP to Section player · needs level 4');
+    expect(rankBar(cfg, { rank: 3, xp: 2180 }).label).toBe('Student · Rank 3 of 10 · 2,180 of 2,500 XP to Section player');
   });
 
   it('is full and asks for the level when XP is reached but the rank is not', () => {
@@ -116,7 +116,7 @@ describe('model over fixtures/grade', () => {
     expect(stop.diagnostics.stops.length).toBeGreaterThan(0);
     expect(diagnosticLines(stop).some((l) => l.startsWith('Stops:'))).toBe(true);
     const drift = attemptFrom('case04-drift-0.15').score!;
-    expect(diagnosticLines(drift).some((l) => /^Drifted \d+ ms (behind|ahead) by the end$/.test(l))).toBe(true);
+    expect(diagnosticLines(drift).some((l) => /^You (slowed down|sped up) slightly by the end$/.test(l))).toBe(true);
     const restart = attemptFrom('case11-restart').score!;
     expect(diagnosticLines(restart).some((l) => l.startsWith('Restarted at bar'))).toBe(true);
   });
@@ -164,7 +164,7 @@ describe('model over fixtures/grade', () => {
     expect(v.factors[0]).toBe(copy('xp.factor.levelBase', { level: rec.levelServed, value: rec.score!.xp.base }));
     for (const line of v.factors) expect(line).not.toMatch(/×1\.00$/);
     const practice: AttemptRecord = { ...rec, score: { ...rec.score!, xp: { total: 8, base: 34, factors: [{ id: 'practice', value: 0.25 }] } } };
-    expect(xpView(practice, cfg, undefined).headline).toBe('+8 XP (practice, 25%)');
+    expect(xpView(practice, cfg, undefined).headline).toBe('+8 XP (practice earns 25% of the XP)');
     const repeat: AttemptRecord = { ...rec, score: { ...rec.score!, xp: { total: 0, base: 34, factors: [{ id: 'repeat', value: 0 }] } } };
     expect(xpView(repeat, cfg, undefined).headline).toBe(copy('xp.none.repeat'));
     const inc = attemptFrom('case10-incomplete');
@@ -185,9 +185,9 @@ describe('model over fixtures/grade', () => {
     const lines = xpView(withKey, cfg, makeProfile({ streak: { days: 6, lastDay: null } })).factors;
     expect(lines).toContain('Score ×0.85');
     expect(lines).toContain('Streak 6 days ×1.12');
-    expect(lines).toContain('Below your level ×0.25');
+    expect(lines).toContain('Below your difficulty ×0.25');
     expect(lines).toContain('Over 60 takes today ×0.25');
-    expect(lines).toContain('Random key ×1.08');
+    expect(lines).toContain('Any key ×1.08');
   });
 
   it('level cards come from progress events for this instrument only', () => {
@@ -199,9 +199,9 @@ describe('model over fixtures/grade', () => {
     ];
     const cards = levelCards(events, 'flute', cfg);
     expect(cards.map((c) => c.text)).toEqual([
-      "You're reading level 5 well. Move up to level 6?",
-      'Moved up to level 6: 8 takes in a row at 90 or more.',
-      'Level 6 has been a stretch lately. A few takes at level 5 can build the reading back up.',
+      "You're reading difficulty 5 well. Move up to difficulty 6?",
+      'Moved up to difficulty 6: 8 takes in a row at 90 or more.',
+      'Difficulty 6 has been a stretch lately. A few takes at difficulty 5 can build the reading back up.',
     ]);
   });
 
@@ -297,13 +297,13 @@ describe('ResultsPanel', () => {
     const practice: AttemptRecord = { ...rec, score: { ...rec.score!, ranked: false, rankedReasons: ['practice-mode'], xp: { total: 8, base: 34, factors: [{ id: 'practice', value: 0.25 }] } } };
     render({ record: practice });
     expect($('.res-badge[data-kind="practice"]').textContent).toContain(copy('ranked.reason.practice-mode'));
-    expect($('[data-testid="res-xp"]').textContent).toContain('+8 XP (practice, 25%)');
+    expect($('[data-testid="res-xp"]').textContent).toContain('+8 XP (practice earns 25% of the XP)');
   });
 
   it('personal best ribbon and the XP factor list expand', () => {
     const rec = attemptFrom('case01-perfect-flute-l4');
     render({ record: rec, progress: [{ type: 'best', instrumentId: rec.instrumentId, level: 4, score: 100 }] });
-    expect($('[data-testid="res-ribbon"]').textContent).toBe('New best at level 4');
+    expect($('[data-testid="res-ribbon"]').textContent).toBe('New best at difficulty 4');
     const list = $('#res-xp-factors');
     expect(list.hidden).toBe(true);
     click(button(copy('xp.headline', { xp: 0 }) && 'Details'));
@@ -607,7 +607,7 @@ describe('ResultsScreen', () => {
     renderScreen(f);
     expect(document.querySelector('[data-testid="rankup-card"]')).toBeNull();
     settle(350);
-    expect($('[data-testid="rankup-card"]').textContent).toContain('Next: Section player, at 2,500 XP and level 4 on any instrument.');
+    expect($('[data-testid="rankup-card"]').textContent).toContain('Next: Section player, at 2,500 XP and difficulty 4 on any instrument.');
     expect(document.querySelector('[data-testid="install-coach"]')).toBeNull();
     expect(document.body.textContent).toContain(copy('rankup.headline', { rank: 'Student' }));
     click(button(copy('action.continue')));

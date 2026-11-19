@@ -2,7 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { relativeToScope, routeFor } from './policy.ts';
 
 const SCOPE = 'https://example.test/some/sub/path/';
-const PRECACHED = new Set(['index.html', 'assets/main-C2tbDq1h.js', 'icons/icon-192.png', 'manifest.webmanifest']);
+const FONTS = [
+  'assets/source-serif-4-latin-wght-normal-DMe4EKeb.woff2',
+  'assets/inter-latin-wght-normal-Dx4kXJAl.woff2',
+  'assets/music-text-subset-Cwm9nt23.woff2',
+];
+const PRECACHED = new Set(['index.html', 'assets/main-C2tbDq1h.js', 'icons/icon-192.png', 'manifest.webmanifest', ...FONTS]);
 const get = (path: string, mode?: string) => ({ method: 'GET', url: `${SCOPE}${path}`, ...(mode ? { mode } : {}) });
 const route = (req: { method: string; url: string; mode?: string }) => routeFor(req, SCOPE, PRECACHED);
 
@@ -29,6 +34,20 @@ describe('routeFor: hashed files are cache-first', () => {
 
   it('a precached Vite asset is served from the precache, not the hashed cache', () => {
     expect(route(get('assets/main-C2tbDq1h.js'))).toBe('precache');
+  });
+});
+
+describe('routeFor: the self-hosted fonts are part of the precached shell (06 section 2.1)', () => {
+  it.each(FONTS)('%s is served from the precache', (path) => {
+    expect(route(get(path))).toBe('precache');
+  });
+
+  it('a font the install step did not list still falls to the hashed cache, never the network bypass', () => {
+    expect(route(get('assets/inter-latin-wght-normal-ZZZZZZZZ.woff2'))).toBe('hashed');
+  });
+
+  it('a font from another origin is bypassed', () => {
+    expect(route({ method: 'GET', url: 'https://fonts.example.org/some/sub/path/assets/inter-latin-wght-normal-Dx4kXJAl.woff2' })).toBe('bypass');
   });
 });
 

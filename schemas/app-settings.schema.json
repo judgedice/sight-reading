@@ -83,6 +83,16 @@
           ],
           "additionalProperties": false
         },
+        "profile": {
+          "type": "object",
+          "properties": {
+            "displayName": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "description": "Optional name shown on the home screen; absent until the player sets one."
+        },
         "accessibility": {
           "type": "object",
           "properties": {
@@ -147,10 +157,18 @@
       "description": "App settings (04 §5.11; last practice settings kept, 04 §5.2)."
     },
     "ClickTimbre": {
-      "type": "string",
-      "enum": [
-        "tick",
-        "wood"
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "tick"
+        },
+        {
+          "type": "string",
+          "const": "wood"
+        },
+        {
+          "$ref": "#/definitions/MetronomeSound"
+        }
       ],
       "description": "Metronome click sound: Tick 5.5–9 kHz noise burst (speaker default) or Wood 1.5–4 kHz (01 §7.6)."
     },
@@ -183,6 +201,15 @@
         "countInOnly"
       ],
       "description": "Metronome mode. `'visual'` is later (01 §7.6, 02 §5.2)."
+    },
+    "MetronomeSound": {
+      "type": "string",
+      "enum": [
+        "classic",
+        "woodblock",
+        "beep"
+      ],
+      "description": "The metronome sounds a player can choose (06 §9). `tick` and `wood` are the legacy stored names of classic and woodblock."
     },
     "OutputMode": {
       "type": "string",
@@ -267,6 +294,10 @@
         },
         "clickTimbre": {
           "$ref": "#/definitions/ClickTimbre"
+        },
+        "accentFirstBeat": {
+          "type": "boolean",
+          "description": "Accent the first beat of each bar. Absent means true; `defaultAppSettings` writes true. Optional until every PracticeSettings literal sets it."
         },
         "outputMode": {
           "$ref": "#/definitions/OutputMode"

@@ -119,7 +119,7 @@ describe('error and empty states', () => {
   it('error cards carry their action', () => {
     const f = vi.fn();
     current = mount(<ErrorCard kind="clock-rate" onPrimary={f} />);
-    expect(document.body.textContent).toContain('Audio setup problem. Please reload the page.');
+    expect(document.body.textContent).toContain("Your device's audio clock is running at the wrong speed, so timing can't be measured. Close other apps that play sound, then try again.");
     click(buttonNamed('Reload'));
     expect(f).toHaveBeenCalledOnce();
     current.render(<ErrorCard kind="storage-loss" onPrimary={f} onSecondary={f} />);

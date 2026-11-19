@@ -71,12 +71,21 @@ const MARGIN_SATURATION = 4;
 
 export type PoolId = 'level' | 'below' | 'stretch';
 
+/**
+ * A meter is shown on the setup screen when it has at least this many eligible excerpts for the instrument at the
+ * difficulty (redesign 05 section 5.5). Mirrors `tokens.ui.meterChipMinExcerpts`, which this package may not import;
+ * a test keeps the two equal.
+ */
+export const METER_MIN_EXCERPTS = 5;
+
 /** Options beyond the frozen `selectExcerpt` signature. */
 export interface SelectOptions {
   /** Entry ids to skip. */
   excludeIds?: ReadonlySet<string>;
   /** Internal: skip computing suggestions (used while computing them). */
   noSuggestions?: boolean;
+  /** Threshold for the meters "Any" time draws from (default `METER_MIN_EXCERPTS`). */
+  meterMinExcerpts?: number;
 }
 
 interface KeyOption {
@@ -101,6 +110,8 @@ interface Request {
   level: number;
   def: LevelDef;
   meter: string | null;
+  /** With time set to Any: the meters the setup screen shows, the only ones drawn from (05 section 5.5). */
+  anyMeters: ReadonlySet<string> | null;
   writtenKey: KeySig | null;
   bpm: number | null;
   bars: 8 | 10 | 12 | null;
@@ -202,6 +213,7 @@ function spelledKey(entry: ManifestEntry, key: KeySig, t: number, req: Request):
 
 function buildCandidate(entry: ManifestEntry, pool: PoolId, req: Request, h: SelectionHistory, cfg: Configs, blocked: KeySig | null): Candidate | null {
   if (req.meter !== null && entry.meter !== req.meter) return null;
+  if (req.meter === null && req.anyMeters !== null && !req.anyMeters.has(entry.meter)) return null;
   if (!req.def.bars.includes(entry.bars)) return null;
   if (req.ranked && (entry.familiarity >= 2 || entry.dedupeGroup in h.seenGroups)) return null;
   if (!flagAllowed(entry, req)) return null;
@@ -308,12 +320,13 @@ function nearestBars(n: number): 8 | 10 | 12 {
   return n <= 9 ? 8 : n <= 11 ? 10 : 12;
 }
 
-function makeRequest(s: PracticeSettings, level: number, cfg: Configs): Request {
+function makeRequest(s: PracticeSettings, level: number, cfg: Configs, anyMeters: ReadonlySet<string> | null = null): Request {
   return {
     inst: getInstrument(cfg, s.instrumentId),
     level,
     def: levelDef(cfg, level),
     meter: s.meter === 'random' ? null : s.meter,
+    anyMeters: s.meter === 'random' ? anyMeters : null,
     writtenKey: s.writtenKey === 'random' ? null : s.writtenKey,
     bpm: s.bpm === 'random' ? null : s.bpm,
     bars: s.bars === 'random' ? null : s.bars,
@@ -339,7 +352,10 @@ function suggestionsFor(m: CorpusManifest, s: PracticeSettings, h: SelectionHist
   for (const t of tries) {
     const s2: PracticeSettings = { ...s, ...t };
     const lvl = typeof t.level === 'number' ? t.level : level;
-    const p = buildPool(m, makeRequest(s2, lvl, cfg), h, cfg, { ...opts, noSuggestions: true });
+    const p = buildPool(m, makeRequest(s2, lvl, cfg, shownMetersFor(m, s2.instrumentId, lvl, cfg, opts)), h, cfg, {
+      ...opts,
+      noSuggestions: true,
+    });
     if (poolSize(p) > 0) {
       if (t === all && out.length > 0) continue;
       out.push(t);
@@ -360,7 +376,7 @@ export function selectExcerptWith(
   const seed = s.seed ?? rng.int(0, 0x7fffffff);
   const r = createRng(seed);
   const level = resolveLevel(s, h, m, r);
-  const req = makeRequest(s, level, cfg);
+  const req = makeRequest(s, level, cfg, shownMetersFor(m, s.instrumentId, level, cfg, opts));
   const pool = buildPool(m, req, h, cfg, opts);
   const empty = (): SelectExcerptResult => ({
     error: 'empty-pool',
@@ -434,6 +450,39 @@ function buildResult(
 }
 
 export const selectExcerpt: CorpusApi['selectExcerpt'] = (m, s, h, cfg, rng) => selectExcerptWith(m, s, h, cfg, rng);
+
+/**
+ * The meters shown on the setup screen (redesign 05 section 5.5): those in the level's list with at least `min`
+ * eligible excerpts, in `levels.json` order. When none reaches `min`, every meter with any eligible music is shown
+ * (each marked "few pieces"), so a difficulty with music always has a meter to draw from. The setup model in
+ * `src/app/screens/setup/model.ts` applies the same rule to the same counts.
+ */
+export function shownMeters(counts: readonly { meter: string; count: number }[], min: number): string[] {
+  const enough = counts.filter((c) => c.count >= min);
+  return (enough.length > 0 ? enough : counts.filter((c) => c.count > 0)).map((c) => c.meter);
+}
+
+/** `countEligible` per meter is a full manifest scan; cache the shown set per manifest, configs and request. */
+const shownCache = new WeakMap<CorpusManifest, WeakMap<Configs, Map<string, ReadonlySet<string>>>>();
+
+/**
+ * Shown meters for an instrument and level, from the same history-free counts the setup screen uses (`countEligible`),
+ * so "Any" never draws a meter the screen left out. `excludeIds` only narrows the draw afterwards.
+ */
+function shownMetersFor(m: CorpusManifest, instrumentId: string, level: number, cfg: Configs, opts: SelectOptions): ReadonlySet<string> {
+  const min = opts.meterMinExcerpts ?? METER_MIN_EXCERPTS;
+  const slot = `${instrumentId}|${level}|${min}`;
+  let byCfg = shownCache.get(m);
+  if (!byCfg) shownCache.set(m, (byCfg = new WeakMap()));
+  let byKey = byCfg.get(cfg);
+  if (!byKey) byCfg.set(cfg, (byKey = new Map()));
+  const hit = byKey.get(slot);
+  if (hit) return hit;
+  const counts = levelDef(cfg, level).meters.map((meter) => ({ meter, count: countEligible(m, instrumentId, level, meter, cfg) }));
+  const out: ReadonlySet<string> = new Set(shownMeters(counts, min));
+  byKey.set(slot, out);
+  return out;
+}
 
 /**
  * Eligible excerpts for 04's setup screen (04 §5.2): practice-mode pool size (level, L − 1 and stretch) at the level

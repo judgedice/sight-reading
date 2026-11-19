@@ -84,6 +84,63 @@
                 "samples"
               ],
               "additionalProperties": false
+            },
+            "classic": {
+              "type": "object",
+              "properties": {
+                "rate": {
+                  "type": "number"
+                },
+                "samples": {
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  }
+                }
+              },
+              "required": [
+                "rate",
+                "samples"
+              ],
+              "additionalProperties": false
+            },
+            "woodblock": {
+              "type": "object",
+              "properties": {
+                "rate": {
+                  "type": "number"
+                },
+                "samples": {
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  }
+                }
+              },
+              "required": [
+                "rate",
+                "samples"
+              ],
+              "additionalProperties": false
+            },
+            "beep": {
+              "type": "object",
+              "properties": {
+                "rate": {
+                  "type": "number"
+                },
+                "samples": {
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  }
+                }
+              },
+              "required": [
+                "rate",
+                "samples"
+              ],
+              "additionalProperties": false
             }
           },
           "additionalProperties": false,

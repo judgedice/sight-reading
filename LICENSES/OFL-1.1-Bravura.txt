@@ -1,5 +1,7 @@
 Applies to: the ghost-head symbol in src/ui/glyphs.svg, which is the Bravura noteheadBlack (U+E0A4)
 outline as bundled with VexFlow 5, rescaled to a 24-unit viewBox. Source: steinbergmedia/bravura LICENSE.txt.
+Also applies to: src/ui/fonts/music-text-subset.woff2, a subset of Bravura Text (U+2669, U+266A, U+266D to U+266F)
+renamed "Sightread Music Text" because the licence reserves the name "Bravura" for unmodified fonts.
 
 Copyright © 2026, Steinberg Media Technologies GmbH (http://www.steinberg.net/),
 with Reserved Font Name "Bravura".

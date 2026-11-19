@@ -83,7 +83,7 @@ describe('Scan screen', () => {
     render(h);
     await reveal(h);
     expect($('.scan-chip').textContent).toBe(copy('scan.chip.ranked', { time: '0:30' }));
-    expect($('.scan-summary').textContent).toContain('Level 3');
+    expect($('.scan-summary').textContent).toContain('Difficulty 3');
     expect($('.sf-host').getAttribute('data-arrangement')).toBe('all');
   });
 
