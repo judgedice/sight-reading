@@ -255,6 +255,10 @@ describe('OnboardingScreen', () => {
     expect(document.querySelector('[data-testid="ob-level"] [role=group]')).not.toBeNull();
     expect(document.querySelector('[data-testid="picked-range"]')).not.toBeNull();
     expect(document.body.textContent).not.toContain('Follow my progress');
+    // The stepper above already says the difficulty: the picture repeats neither the instrument name nor "Difficulty N".
+    const picked = document.querySelector('[data-testid="ob-level"] [data-testid="picked-range"]')!;
+    expect(picked.querySelector('.pk-picked-head')).toBeNull();
+    expect(picked.querySelector('figure')).not.toBeNull();
   });
 
   it('Back returns to the previous step; the name defaults and there is no name field', async () => {

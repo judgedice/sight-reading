@@ -220,6 +220,32 @@
   border-bottom: 0.0625rem solid var(--border);
 }
 
+/* "Your range" with "Tap a note to hear it" across from it (06 mockup, Practice desktop). */
+.home-range-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.home-range-title {
+  margin: 0;
+  font-family: var(--type-label-family);
+  font-size: var(--type-label-size);
+  font-weight: var(--type-label-weight);
+  line-height: var(--type-label-line);
+}
+
+.home-range-hint {
+  margin: 0;
+  color: var(--text-muted);
+  font-family: var(--type-caption-family);
+  font-size: var(--type-caption-size);
+  line-height: var(--type-caption-line);
+}
+
 .home-setup {
   display: flex;
   flex-direction: column;

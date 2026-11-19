@@ -64,18 +64,25 @@ export interface PickedRangeProps {
   showServed?: boolean;
   /** `column`: the dialog's right column with the keyboard; `panel`: the phone's pinned panel without it. */
   variant: 'column' | 'panel';
+  /**
+   * The name and "Difficulty N" above the picture. Off where the screen already says both (the onboarding difficulty
+   * step, whose stepper sits right above).
+   */
+  head?: boolean;
 }
 
 /** The selection's name, its difficulty, and the large range picture (05 section 6.4, designer's note 6). */
-export function PickedRange({ instrument, data, onHearNote, showServed = true, variant }: PickedRangeProps) {
+export function PickedRange({ instrument, data, onHearNote, showServed = true, variant, head = true }: PickedRangeProps) {
   const name = instrumentName(instrument);
   const hear = onHearNote ? (midi: number) => onHearNote(midi, instrument.id) : undefined;
   return (
     <div className={`pk-picked pk-picked-${variant}`} data-testid="picked-range">
-      <div className="pk-picked-head">
-        <h3 className="pk-picked-name">{name}</h3>
-        <span className="pk-picked-level">{copy('setup.difficulty.chip', { level: data.model.level })}</span>
-      </div>
+      {head ? (
+        <div className="pk-picked-head">
+          <h3 className="pk-picked-name">{name}</h3>
+          <span className="pk-picked-level">{copy('setup.difficulty.chip', { level: data.model.level })}</span>
+        </div>
+      ) : null}
       <RangePicture
         data={data}
         instrumentName={name}

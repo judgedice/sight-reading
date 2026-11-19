@@ -178,6 +178,7 @@ function Onboarding({ services }: { services: OnboardingServices }) {
       data={rangeData(cfg, difficultyInst, level)}
       onHearNote={hear ? (midi) => hear(midi) : undefined}
             variant="column"
+      head={false}
     />
   ) : null;
 

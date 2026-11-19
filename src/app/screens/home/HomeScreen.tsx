@@ -1,11 +1,11 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
-import type { PracticeSettings } from '../../../core/types.ts';
+import type { Clef, PracticeSettings } from '../../../core/types.ts';
 import { copy } from '../../../ui/copy/copy.ts';
 import { instrumentName } from '../../../ui/copy/instrument-names.ts';
 import { Banner } from '../../../ui/components/containers/index.ts';
 import { Button } from '../../../ui/components/form/index.ts';
 import { RankEmblem } from '../../../ui/components/domain/index.ts';
-import { PICKER_GROUPS, type PickerResult } from '../../../ui/components/picker/index.ts';
+import { PICKER_GROUPS, voiceClef, type PickerResult } from '../../../ui/components/picker/index.ts';
 import { RangePicture } from '../../../ui/components/range/index.ts';
 import { ModeControl, XpLine, type RankedBlock } from '../../../ui/components/setup/index.ts';
 import { Glyph } from '../../../ui/primitives/Glyph.tsx';
@@ -73,6 +73,15 @@ function useSessionView(s: HomeServices): { state: string; corpusError: boolean;
   );
   return { state, corpusError, suggestions };
 }
+
+/** The clef named under the instrument, the one its range picture is drawn in ("Voice · bass clef"). */
+const CLEF_NAME = {
+  treble: 'clef.treble',
+  'treble-8vb': 'clef.treble-8vb',
+  bass: 'clef.bass',
+  alto: 'clef.alto',
+  tenor: 'clef.tenor',
+} as const satisfies Record<Clef, string>;
 
 const GROUP_LABEL = {
   voice: 'onboarding.family.voice',
@@ -467,12 +476,20 @@ export function HomeScreen(_props: ScreenProps) {
                 <InstrumentTile instrument={inst} />
                 <div className="home-inst-text">
                   <h2 className="home-inst-name">{name}</h2>
-                  {group ? <p className="home-inst-sub">{copy(GROUP_LABEL[group.id])}</p> : null}
+                  {group ? <p className="home-inst-sub">{copy('home.instrumentSub', { family: copy(GROUP_LABEL[group.id]), clef: copy(CLEF_NAME[range?.staff.firstClef ?? voiceClef(inst)]) })}</p> : null}
                 </div>
                 <Button size="compact" variant="secondary" label={copy('setup.changeInstrument')} onClick={() => setPicking(true)} />
               </div>
             ) : null}
-            {range ? <RangePicture className="home-range" data={range} instrumentName={name} onHearNote={hearNote} /> : null}
+            {range ? (
+              <div className="home-range">
+                <div className="home-range-head">
+                  <h3 className="home-range-title">{copy('home.rangeTitle')}</h3>
+                  {hearNote ? <p className="home-range-hint">{copy('home.rangeHint')}</p> : null}
+                </div>
+                <RangePicture data={range} instrumentName={name} onHearNote={hearNote} />
+              </div>
+            ) : null}
             <RankLine services={services} />
           </section>
           <section className="home-card home-setup" aria-label={copy('action.changeSetup')}>
