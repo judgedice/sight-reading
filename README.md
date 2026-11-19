@@ -121,7 +121,6 @@ The service worker caches the app shell and every corpus file it has fetched, so
 - iOS Safari is beta. WebKit has not been run in this build's own environment, and nothing has been tested on a physical phone.
 - Calibration has been exercised on synthetic loopback and play-along only, not on real devices. A take without a measured calibration is practice (unranked).
 - Not in v1: Web MIDI, polyphony, playback of your own take (Listen plays the written music, never your recording), swing, accounts and sync, and a native iOS app.
-- At difficulties 4 and 5, compound meters (6/8) are served at 40 to 66 dotted beats a minute, but the ranked check compares that tempo with the difficulty's quarter-note range, so such a take comes back as practice ("The tempo was below this difficulty's range"). The fix belongs in `src/grade/ranked.ts` (and the XP tempo factor in `src/grade/xp.ts`), which the redesign was not allowed to touch. See `docs/redesign/09-final-review.md`.
 
 ## Layout
 

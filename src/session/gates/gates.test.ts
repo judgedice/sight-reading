@@ -3,6 +3,7 @@ import Ajv from 'ajv';
 import { describe, expect, it } from 'vitest';
 import { configs } from '../../../fixtures/follow/gen/io.ts';
 import audioEnvSchema from '../../../schemas/audio-env.schema.json';
+import { makeMeter } from '../../core/time.ts';
 import { rankedReasons } from '../../grade/ranked.ts';
 import { exportAll, importAll } from '../../store/index.ts';
 import { MemoryKv, makeAttempt, makeCalibration, memoryRepos } from '../../store/test-data.ts';
@@ -111,6 +112,7 @@ describe('ranked reason mapping', () => {
       cfg,
       level,
       bpm: cfg.levelByNumber[level]!.tempo.minBpm,
+      meter: makeMeter(4, 4),
       calibrationMeasured: false,
       ranking: { mode: 'ranked', seenBefore: false, scanStrict: true, familiarity: 0, skipLimitHit: false, metronome: 'audible', gateFailures: gate.gateFailures },
     } as unknown as GradeInput;

@@ -197,6 +197,31 @@ describe('Practice screen, wide (1024 px and up)', () => {
     expect(document.querySelector('select')).toBeNull();
   });
 
+  it('the instrument card reads "Voice · bass clef" and heads the picture "Your range / Tap a note to hear it"', () => {
+    render(fixture({ practice: { instrumentId: 'voice-baritone', level: 2 } }));
+    const card = $('.home-inst');
+    expect($('.home-inst-sub', card).textContent).toBe(copy('home.instrumentSub', { family: copy('onboarding.family.voice'), clef: copy('clef.bass') }));
+    expect($('.home-inst-sub', card).textContent).toBe('Voice · bass clef');
+    expect($('.home-range-title', card).textContent).toBe('Your range');
+    expect($('.home-range-hint', card).textContent).toBe('Tap a note to hear it');
+    m!.unmount();
+    render(fixture({ practice: { instrumentId: 'cello' } }));
+    expect($('.home-inst-sub').textContent).toBe(`${copy('onboarding.family.strings')} · ${copy('clef.bass')}`);
+  });
+
+  it('Start shows Space as a keycap, and Space starts unless a control has focus', () => {
+    const f = fixture();
+    render(f);
+    const kbd = $('#start-practice kbd');
+    expect(kbd.textContent).toBe(copy('shortcuts.spaceKey'));
+    expect(kbd.getAttribute('aria-hidden')).toBe('true');
+    expect($('#start-practice > span').textContent).toBe(copy('action.start'));
+    key($('[data-setup-slot="key"] [role="radio"]'), ' ');
+    expect(f.started).toHaveLength(0);
+    key(document.body, ' ');
+    expect(f.started).toHaveLength(1);
+  });
+
   it('Start saves the settings, then calls onStart; without onStart it goes to the cover', () => {
     const f = fixture();
     render(f);
@@ -437,6 +462,8 @@ describe('Practice screen, narrow (below 1024 px)', () => {
     expect($('.home-summary-inst').textContent).toContain(copy('instrument.name.voice-baritone'));
     const dock = $('[data-testid="start-dock"]');
     expect(dock.querySelector('#start-practice')).toBeTruthy();
+    // No keyboard on a phone: no keycap on Start (06 mockup, Practice phone).
+    expect(dock.querySelector('#start-practice kbd')).toBeNull();
     expect(dock.querySelector('[data-setup-xp]')!.textContent).toBe(copy('xp.randomHint', { percent: 8 }));
     expect($('.home-mode [data-setup-row="mode"]')).toBeTruthy();
   });

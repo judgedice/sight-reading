@@ -118,7 +118,7 @@
   align-items: center;
   margin-inline-start: var(--space-2);
   padding: 0.0625rem var(--space-1);
-  border: 0.0625rem solid currentColor;
+  border: 0.0625rem solid color-mix(in srgb, currentColor 60%, transparent);
   border-radius: var(--radius-xs);
   font-family: var(--type-caption-family);
   font-size: var(--type-caption-size);
