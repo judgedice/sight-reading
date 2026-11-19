@@ -47,6 +47,10 @@
  *   an early flux peak for filled tongued changes (`earlyFlux`), and a two-frame old side for reverberant
  *   pitch-change gaps (`crossing`). On clean capture these leave the scenario F1 unchanged.
  *
+ * - Pitch changes on the soft profiles (voice, bowed) are measured against the note's frames older than 100 ms
+ *   (`changeRef`), not the whole note: a slurred glide would otherwise drag the note median after it.
+ * - An attack out of a noise-floor trough starts where the envelope leaves the measured noise band (`riseStart`).
+ *
  * Splits can be retroactive: a dip is recognised a few frames after its half-rise, so the frames already given to
  * the old note from the split time on are moved to the new note. The old note's note-on was already sent; its
  * note-off carries offset = the new onset.
@@ -171,6 +175,15 @@ const AM_EXCLUDE_AFTER_SEC = 0.02;
 /** Envelope smoothing for dips: whole periods, at least this long (and at most SMOOTH_MAX_SEC). */
 const SMOOTH_MIN_SEC = 0.004;
 const SMOOTH_MAX_SEC = 0.02;
+/**
+ * Noise band of a floor trough (`riseStart`): the NOISE_SPREAD_Q quantile of the noise envelope above the floor (at
+ * most NOISE_SPREAD_MAX_DB), plus NOISE_BAND_MARGIN_DB.
+ */
+const NOISE_SPREAD_Q = 0.95;
+const NOISE_SPREAD_MAX_DB = 6;
+const NOISE_BAND_MARGIN_DB = 1;
+/** Voice and bowed pitch changes are measured against the note's frames older than this (`changeRef`). */
+const CHANGE_REF_LAG_SEC = 0.1;
 /** Cumulative-energy ring: about 4 s at 16 kHz. */
 const CUM_RING = 1 << 16;
 
@@ -291,6 +304,8 @@ export class Segmenter {
   private noiseHead = 0;
   private noiseSince = 0;
   private noiseFloorDb = ENV_FLOOR_DB;
+  /** Spread of the noise envelope above the floor (NOISE_SPREAD_Q quantile minus the floor), dB. */
+  private noiseSpreadDb = 0;
 
   // dip tracker
   private trkIdx = 0;
@@ -558,7 +573,7 @@ export class Segmenter {
       this.split(p.dip.tOn, p.flux ? 'flux' : null, moved, out, p.dip);
       return;
     }
-    const med = this.noteMedian(cur);
+    const med = this.changeRef(cur, f.t);
     if (Math.abs((f.midi as number) - med) >= this.tol) {
       this.addStable(this.pitchCand, f);
       if (this.pitchCand.length >= this.o.changeConfirmFrames) {
@@ -593,6 +608,23 @@ export class Segmenter {
     cur.frames.push(f);
     cur.lastVoicedT = f.t;
     this.maybeUpdate(cur, out);
+  }
+
+  /**
+   * The pitch a new frame is compared with for a pitch change. Voice and bowed slurs glide (portamento, and the
+   * window's overlap of both notes): over 60 to 100 ms the frames move a semitone in steps smaller than
+   * `changeCents`, each joins the note, and the note median follows the glide, so a semitone step on a short note
+   * never reaches `changeCents` from it and the two notes merge. For those profiles the reference is the median of
+   * the note's frames older than CHANGE_REF_LAG_SEC (steady frames when there are at least 3), which the glide in
+   * progress cannot move; a young note uses its median. Vibrato swings around the note's own pitch and moves that
+   * median no more than the plain one, so `changeCents` keeps its margin against it.
+   */
+  private changeRef(cur: Note, now: number): number {
+    if (!this.soft) return this.noteMedian(cur);
+    const before = cur.frames.filter((x) => x.t <= now - CHANGE_REF_LAG_SEC);
+    if (before.length === 0) return this.noteMedian(cur);
+    const steady = before.filter((x) => x.t >= cur.onset + this.o.attackExcludeSec);
+    return median((steady.length >= 3 ? steady : before).map((x) => x.midi as number));
   }
 
   /**
@@ -783,11 +815,17 @@ export class Segmenter {
     return this.attackOnset(i, clamp) ?? fallback;
   }
 
-  /** Last index of the trough that starts at `iMin` (a floor plateau ends where the rise begins). */
+  /**
+   * Last index of the trough that starts at `iMin` (a floor plateau ends where the rise begins). When the floor is the
+   * measured noise floor, the plateau is the noise band (the floor's measured spread, `noiseSpreadDb`), not 1 dB above
+   * the trough's lowest point: in a noisy gap the lowest point is a noise trough, and a later wiggle of the noise is
+   * not the attack (a damped piano gap under a -50 dBFS floor would otherwise start its attack inside the gap).
+   */
   private riseStart(iMin: number, len: number, clamp: number): number {
     const base = Math.max(clamp, this.smoothDb(iMin, len));
+    const top = clamp <= this.noiseFloorDb ? Math.max(base + 1, clamp + this.noiseSpreadDb + NOISE_BAND_MARGIN_DB) : base + 1;
     let i = iMin;
-    while (i + 1 < this.envLen && Math.max(clamp, this.smoothDb(i + 1, len)) <= base + 1) i++;
+    while (i + 1 < this.envLen && Math.max(clamp, this.smoothDb(i + 1, len)) <= top) i++;
     return i;
   }
 
@@ -1372,6 +1410,7 @@ export class Segmenter {
       this.noiseSince = 0;
       const s = Float64Array.from(this.noiseRing.subarray(0, this.noiseCount)).sort();
       this.noiseFloorDb = s[Math.floor(0.2 * (s.length - 1))] as number;
+      this.noiseSpreadDb = Math.min(NOISE_SPREAD_MAX_DB, (s[Math.floor(NOISE_SPREAD_Q * (s.length - 1))] as number) - this.noiseFloorDb);
     }
   }
 
