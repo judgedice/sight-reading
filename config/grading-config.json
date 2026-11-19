@@ -180,6 +180,61 @@
     "hysteresisCents": 10,
     "wrongAtConfirmMinCents": 80
   },
+  "detection": {
+    "_source": "round 2 detection (docs/redesign/round2/03-detection.md): own playback heard by the mic",
+    "ownPlayback": {
+      "tailMs": 200,
+      "clickMaxMs": 150,
+      "toneCents": 70
+    },
+    "oneNote": [
+      {
+        "profile": "voice",
+        "levels": [
+          1,
+          3
+        ],
+        "scoopMs": 250,
+        "plateauMs": 60,
+        "plateauCents": 35,
+        "tailDropDb": 12,
+        "wrongAtConfirm": false,
+        "extraMinMs": 200,
+        "absorbMs": 350,
+        "absorbGapMs": 120
+      },
+      {
+        "profile": "voice",
+        "levels": [
+          4,
+          6
+        ],
+        "scoopMs": 220,
+        "plateauMs": 60,
+        "plateauCents": 35,
+        "tailDropDb": 12,
+        "wrongAtConfirm": false,
+        "extraMinMs": 170,
+        "absorbMs": 300,
+        "absorbGapMs": 100
+      },
+      {
+        "profile": "voice",
+        "levels": [
+          7,
+          10
+        ],
+        "scoopMs": 180,
+        "plateauMs": 60,
+        "plateauCents": 35,
+        "tailDropDb": 12,
+        "wrongAtConfirm": false,
+        "extraMinMs": 140,
+        "absorbMs": 250,
+        "absorbGapMs": 80
+      }
+    ]
+  },
   "credit": {
     "_source": "02 §4.3, §4.1 (extras), 01 §9.3 (rest intrusion)",
     "duration": {

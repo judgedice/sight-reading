@@ -141,7 +141,7 @@ describe('CalibrationCard', () => {
     const skipped = [...document.querySelectorAll('.cal-check[data-status="skipped"] .cal-check-name')].map((n) => n.textContent);
     expect(skipped).toEqual(['Pitch check', 'Clicks heard', 'Timing confirmed', 'Screen speed']);
     expect(document.body.textContent).toContain("Needs the speakers, so it doesn't run with headphones.");
-    expect(names()).toEqual(['Try again', 'Skip', 'Export diagnostics']);
+    expect(names()).toEqual(['Try again', 'Export diagnostics', 'Skip']);
     await press('Try again');
     expect(document.body.textContent).toContain("Timing can't be trusted with an estimate, so takes won't earn XP until you calibrate.");
     expect(names()).toContain('Use an estimate');

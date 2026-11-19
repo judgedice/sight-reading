@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Instrument sounds: listening page</title>
+<style>
+  :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
+  body { max-width: 860px; margin: 2rem auto; padding: 0 1rem; line-height: 1.45; }
+  h1 { font-size: 1.4rem; margin-bottom: .25rem; }
+  p.note { color: GrayText; margin-top: 0; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { text-align: left; padding: .35rem .5rem; border-bottom: 1px solid color-mix(in srgb, CanvasText 15%, transparent); vertical-align: middle; }
+  th { font-weight: 600; font-size: .85rem; }
+  td.src { font-size: .8rem; color: GrayText; }
+  button { font: inherit; font-size: .85rem; padding: .2rem .6rem; margin: 0 .15rem .15rem 0; border-radius: 6px; border: 1px solid color-mix(in srgb, CanvasText 30%, transparent); background: Canvas; color: CanvasText; cursor: pointer; }
+  button:hover { background: color-mix(in srgb, CanvasText 8%, Canvas); }
+  .controls { display: flex; gap: 1rem; flex-wrap: wrap; align-items: center; margin: 1rem 0; }
+  #status { font-size: .85rem; color: GrayText; }
+  pre { font-size: .75rem; overflow-x: auto; }
+</style>
+</head>
+<body>
+<h1>Instrument sounds</h1>
+<p class="note">Each row plays the lowest, middle and highest sample of the instrument's set, then a short run across its range through the sampler (nearest sample, rate shift, loop, envelope). Sounds load on first use.</p>
+<div class="controls">
+  <label>Length <select id="len"><option value="0.6">0.6 s</option><option value="1.5" selected>1.5 s</option><option value="4">4 s (tests the loop)</option></select></label>
+  <label>A4 <input id="a4" type="number" value="440" min="415" max="466" step="1" style="width:4.5em"> Hz</label>
+  <button id="stop" type="button">Stop</button>
+  <span id="status" role="status">Not loaded.</span>
+</div>
+<table>
+  <thead><tr><th>Instrument</th><th>Play</th><th>Samples</th></tr></thead>
+  <tbody id="rows"></tbody>
+</table>
+<h2 style="font-size:1rem;margin-top:2rem">Self-test</h2>
+<p class="note">Renders each set's low, middle and high note offline in this browser and reports the measured pitch.</p>
+<button id="test" type="button">Run self-test</button>
+<pre id="testout"></pre>
+
+<script type="module">
+// ---------------------------------------------------------------- sampler (the design in 02-sounds.md)
+
+const NAMES = ['C', 'C♯', 'D', 'E♭', 'E', 'F', 'F♯', 'G', 'A♭', 'A', 'B♭', 'B'];
+const noteName = (m) => `${NAMES[m % 12]}${Math.floor(m / 12) - 1}`;
+
+/** Where the sound starts in a decoded buffer: first sample above 3 % of the peak. */
+function onsetSec(buf) {
+  const x = buf.getChannelData(0);
+  let peak = 0;
+  for (let i = 0; i < x.length; i++) peak = Math.max(peak, Math.abs(x[i]));
+  const thr = peak * 0.03;
+  for (let i = 0; i < x.length; i++) if (Math.abs(x[i]) > thr) return i / buf.sampleRate;
+  return 0;
+}
+
+class SampleSet {
+  constructor(base, id, def) { this.base = base; this.id = id; this.def = def; this.buffers = null; this.loading = null; }
+
+  /** Fetch and decode every sample of the set once. */
+  load(ctx) {
+    if (!this.loading) {
+      this.loading = Promise.all(this.def.samples.map(async (s) => {
+        const res = await fetch(`${this.base}${this.id}/${s.file}`);
+        if (!res.ok) throw new Error(`${this.id}/${s.file}: ${res.status}`);
+        const buf = await ctx.decodeAudioData(await res.arrayBuffer());
+        // Decoders that keep the MP3 priming put the sound later than the manifest says; shift by the difference.
+        const shift = Math.max(0, onsetSec(buf) - (s.onset ?? 0));
+        return { s, buf, shift };
+      })).then((list) => { this.buffers = list; return this; });
+    }
+    return this.loading;
+  }
+
+  /** Nearest sample by semitones; on a tie, the one above (shifting down sounds more natural). */
+  pick(midi) {
+    let best = null;
+    for (const b of this.buffers) {
+      const d = Math.abs(b.s.midi - midi);
+      if (!best || d < best.d || (d === best.d && b.s.midi > best.b.s.midi)) best = { b, d };
+    }
+    return best.b;
+  }
+
+  /** Play `midi` (sounding) at `when` for `dur` seconds into `out`. Returns the source node. */
+  play(ctx, out, midi, when, dur, { a4 = 440, gain = 0.8 } = {}) {
+    const { s, buf, shift } = this.pick(midi);
+    const rate = (a4 / 440) * 2 ** ((midi - s.midi - (s.tune ?? 0) / 100) / 12);
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    src.playbackRate.value = rate;
+    const looped = this.def.kind === 'sustain' && s.loopEnd !== undefined;
+    if (looped) {
+      src.loop = true;
+      src.loopStart = s.loopStart + shift;
+      src.loopEnd = s.loopEnd + shift;
+    }
+    const g = ctx.createGain();
+    const { attack, release } = this.def;
+    g.gain.setValueAtTime(0, when);
+    g.gain.linearRampToValueAtTime(gain, when + attack);
+    g.gain.setValueAtTime(gain, when + Math.max(attack, dur));
+    g.gain.linearRampToValueAtTime(0, when + Math.max(attack, dur) + release);
+    src.connect(g).connect(out);
+    src.start(when, shift);
+    src.stop(when + Math.max(attack, dur) + release + 0.02);
+    return src;
+  }
+}
+
+// ---------------------------------------------------------------- page
+
+const BASES = [new URLSearchParams(location.search).get('base'), '/sounds/', '../../../public/sounds/'].filter(Boolean);
+let base = null;
+let manifest = null;
+const sets = new Map();
+let ctx = null;
+let master = null;
+const live = new Set();
+const status = document.getElementById('status');
+
+async function loadManifest() {
+  for (const b of BASES) {
+    try {
+      const r = await fetch(`${b}index.json`);
+      if (r.ok) { base = b; return r.json(); }
+    } catch { /* try the next base */ }
+  }
+  throw new Error('index.json not found. Serve the repository (pnpm exec vite) and open /docs/redesign/round2/sounds-demo.html.');
+}
+
+function audio() {
+  if (!ctx) {
+    ctx = new AudioContext();
+    master = ctx.createGain();
+    master.gain.value = 0.7;
+    master.connect(ctx.destination);
+  }
+  if (ctx.state === 'suspended') void ctx.resume();
+  return ctx;
+}
+
+async function setFor(setId) {
+  const s = sets.get(setId);
+  status.textContent = `Loading ${setId}…`;
+  await s.load(audio());
+  status.textContent = `${setId} ready.`;
+  return s;
+}
+
+function stopAll() { for (const s of live) { try { s.stop(); } catch { /* already stopped */ } } live.clear(); }
+
+async function playList(setId, notes, dur) {
+  const s = await setFor(setId);
+  const c = audio();
+  const a4 = Number(document.getElementById('a4').value) || 440;
+  let t = c.currentTime + 0.05;
+  for (const m of notes) {
+    const src = s.play(c, master, m, t, dur, { a4 });
+    live.add(src);
+    src.onended = () => live.delete(src);
+    t += dur + 0.15;
+  }
+}
+
+function rowFor(label, iid, setId, extra) {
+  const def = manifest.sets[setId];
+  const sm = def.samples.map((x) => x.midi);
+  const low = sm[0];
+  const mid = sm[Math.floor((sm.length - 1) / 2)];
+  const high = sm[sm.length - 1];
+  const [lo, hi] = def.range;
+  const tr = document.createElement('tr');
+  const src = manifest.sources[def.source];
+  tr.innerHTML = `<td>${label}<br><span class="src">${iid}${extra ? ` · ${extra}` : ''}</span></td><td></td>`
+    + `<td class="src">${sm.map(noteName).join(' ')}<br>${src.name}, ${src.licence} · ${Math.round(def.bytes / 1024)} KB</td>`;
+  const cell = tr.children[1];
+  const len = () => Number(document.getElementById('len').value);
+  const add = (text, notes, d) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = text;
+    b.addEventListener('click', () => { stopAll(); void playList(setId, notes, d ?? len()); });
+    cell.append(b);
+  };
+  add(`Low ${noteName(low)}`, [low]);
+  add(`Middle ${noteName(mid)}`, [mid]);
+  add(`High ${noteName(high)}`, [high]);
+  const run = [];
+  for (let m = lo; m <= hi; m += Math.max(1, Math.round((hi - lo) / 8))) run.push(m);
+  if (run[run.length - 1] !== hi) run.push(hi);
+  add('Range run', run, 0.35);
+  return tr;
+}
+
+async function init() {
+  manifest = await loadManifest();
+  for (const [id, def] of Object.entries(manifest.sets)) sets.set(id, new SampleSet(base, id, def));
+  const labels = await fetch('/config/instruments.json').then((r) => (r.ok ? r.json() : null)).catch(() => null)
+    ?? await fetch('../../../config/instruments.json').then((r) => (r.ok ? r.json() : null)).catch(() => null);
+  const labelOf = new Map((labels?.instruments ?? []).map((i) => [i.id, i.label]));
+  const rows = document.getElementById('rows');
+  for (const [iid, e] of Object.entries(manifest.instruments)) {
+    rows.append(rowFor(labelOf.get(iid) ?? iid, iid, e.set, e.substitute ? `uses ${e.substitute}` : `set ${e.set}`));
+  }
+  for (const [kind, setId] of Object.entries(manifest.alternates ?? {})) {
+    rows.append(rowFor(`Alternative ${kind}: ${setId}`, setId, setId, 'comparison only'));
+  }
+  status.textContent = `Manifest loaded from ${base}. ${Math.round(manifest.totalBytes / 1024)} KB in all.`;
+}
+
+document.getElementById('stop').addEventListener('click', stopAll);
+
+// ---------------------------------------------------------------- self-test
+
+function yin(x, sr, fmin, fmax) {
+  const tauMax = Math.min(Math.floor(sr / fmin), Math.floor(x.length / 2));
+  const tauMin = Math.max(2, Math.floor(sr / fmax));
+  const w = x.length - tauMax;
+  const d = new Float64Array(tauMax + 1);
+  for (let tau = 1; tau <= tauMax; tau++) {
+    let s = 0;
+    for (let i = 0; i < w; i++) { const v = x[i] - x[i + tau]; s += v * v; }
+    d[tau] = s;
+  }
+  let run = 0;
+  const cm = new Float64Array(tauMax + 1).fill(1);
+  for (let tau = 1; tau <= tauMax; tau++) { run += d[tau]; cm[tau] = run > 0 ? (d[tau] * tau) / run : 1; }
+  let tau = -1;
+  for (let t = tauMin; t < tauMax; t++) {
+    if (cm[t] < 0.12) { while (t + 1 < tauMax && cm[t + 1] < cm[t]) t++; tau = t; break; }
+  }
+  if (tau < 0) { let m = Infinity; for (let t = tauMin; t < tauMax; t++) if (cm[t] < m) { m = cm[t]; tau = t; } }
+  const a = cm[tau - 1], b = cm[tau], c = cm[tau + 1];
+  const den = a - 2 * b + c;
+  return sr / (tau + (Math.abs(den) > 1e-12 ? (0.5 * (a - c)) / den : 0));
+}
+
+async function selfTest() {
+  if (!manifest) await init();
+  const sr = 44100;
+  const lines = [];
+  const results = [];
+  for (const [id, def] of Object.entries(manifest.sets)) {
+    const [lo, hi] = def.range;
+    const targets = [lo, Math.round((lo + hi) / 2), hi];
+    const dur = def.kind === 'sustain' ? 3.0 : 1.2;
+    for (const target of targets) {
+      const off = new OfflineAudioContext(1, Math.ceil((dur + 0.6) * sr), sr);
+      const s = new SampleSet(base, id, def);
+      await s.load(off);
+      s.play(off, off.destination, target, 0, dur, { gain: 0.8 });
+      const out = (await off.startRendering()).getChannelData(0);
+      const expect = 440 * 2 ** ((target - 69) / 12);
+      // median of YIN over frames from 0.3 s to the end of the note (covers the loop for sustained sets)
+      const frame = Math.floor(Math.max(0.06, 6 / expect) * sr);
+      const est = [];
+      for (let t = 0.3; t + frame / sr < dur - 0.05; t += 0.1) {
+        const i = Math.floor(t * sr);
+        est.push(yin(out.subarray(i, i + frame), sr, expect / 2.3, expect * 2.3));
+      }
+      est.sort((p, q) => p - q);
+      const f = est[Math.floor(est.length / 2)];
+      const cents = 1200 * Math.log2(f / expect);
+      const shiftMs = Math.max(...s.buffers.map((b) => b.shift)) * 1000;
+      results.push({ set: id, target, hz: +f.toFixed(2), cents: +cents.toFixed(1), primingShiftMs: +shiftMs.toFixed(1) });
+      lines.push(`${id.padEnd(15)} ${noteName(target).padEnd(5)} ${f.toFixed(1).padStart(8)} Hz  ${cents.toFixed(1).padStart(6)} cents  shift ${shiftMs.toFixed(1)} ms`);
+    }
+  }
+  document.getElementById('testout').textContent = lines.join('\n');
+  return results;
+}
+window.selfTest = selfTest;
+document.getElementById('test').addEventListener('click', () => { void selfTest(); });
+
+init().catch((e) => { status.textContent = String(e.message ?? e); });
+</script>
+</body>
+</html>

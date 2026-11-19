@@ -34,6 +34,7 @@ export {
   type VoiceReferenceValues,
 } from './final-align.ts';
 export { relabel, type AlignNote } from './relabel.ts';
+export { atClick, extraMinMs, ignoredNote, judgeFromScoreSec, playerNotes, withOwnPlayback } from './own-playback.ts';
 export { liveOutcomeOf, replayLive, type LiveNoteOutcome, type LiveOutcome } from './live-outcome.ts';
 
 /** Compile-time conformance with the frozen `FollowApi`. */

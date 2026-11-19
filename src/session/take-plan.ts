@@ -99,6 +99,8 @@ export interface DspConfigFacts {
   /** Calibration of the route, for the click template and leak floor (speakers only). */
   calibration: Calibration | null;
   repeatHints: DspConfig['repeatHints'];
+  /** The take's difficulty, for the one-note tolerances (round 2 detection); absent: none (the tuning note). */
+  level?: number;
 }
 
 /** DspConfig for a take or a tuning note (01 §5.6). Bleed handling is speakers only (01 §7.6). */
@@ -124,6 +126,7 @@ export function dspConfigFor(inst: Instrument, cfg: Configs, f: DspConfigFacts):
     repeatHints: f.repeatHints,
     attackExcludeMs: cfg.grading.intonation.attackExcludeMsByFamily[inst.family],
     clickLeakDb: speakers && f.calibration && f.calibration.method !== 'reported' ? f.calibration.clickLeakDb : null,
+    oneNote: f.level === undefined ? null : resolveOneNote(cfg, inst, f.level),
   };
 }
 
@@ -141,6 +144,7 @@ export function followConfigFor(plan: TakePlan, prepared: PreparedExcerpt, cfg: 
     voiceReferenceCents: f.tuningCents,
     analysisRate: f.analysisRate,
     writtenKey: prepared.writtenKey,
+    oneNote: resolveOneNote(cfg, plan.inst, plan.level),
   };
 }
 

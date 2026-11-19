@@ -165,7 +165,38 @@ async function clicksUnderStall(): Promise<{ scheduled: number[]; heard: number[
 }
 
 async function clockRate(): Promise<unknown> {
-  return (backend as WebAudioBackend).checkClockRate(1.5);
+  return (backend as WebAudioBackend).checkClockRate();
+}
+
+/**
+ * The clock-rate check with the main thread busy: long tasks of 20 to 80 ms with 0 to 30 ms gaps for the whole
+ * check (a dev build rendering), optionally right after the context was recreated and with a relayed capture
+ * running (blocks through the main thread, as on the owner's machine).
+ */
+async function clockRateBusy(o: { recreate?: boolean; relay?: boolean } = {}): Promise<unknown> {
+  const be = backend as WebAudioBackend;
+  if (o.recreate) await (be as unknown as { recreateContext(rate: number | null): Promise<void> }).recreateContext(null);
+  let relayed = 0;
+  if (o.relay) await be.startCapture(() => void relayed++);
+  let stop = false;
+  let busyMs = 0;
+  const tick = (): void => {
+    if (stop) return;
+    const s = performance.now();
+    const len = 20 + Math.random() * 60;
+    while (performance.now() - s < len) {
+      // busy
+    }
+    busyMs += performance.now() - s;
+    setTimeout(tick, Math.random() * 30);
+  };
+  setTimeout(tick, 0);
+  const t0 = performance.now();
+  const r = await be.checkClockRate();
+  stop = true;
+  const wallMs = performance.now() - t0;
+  if (o.relay) be.stopCapture();
+  return { ...r, busyShare: busyMs / wallMs, wallMs, relayed };
 }
 
 function interruptions(): string[] {
@@ -174,5 +205,5 @@ function interruptions(): string[] {
   return got;
 }
 
-const api = { make, waitUnlocked, capture, clicksUnderStall, clockRate, interruptions, info: () => backend?.audioInfo(), close: () => backend?.close() };
+const api = { make, waitUnlocked, capture, clicksUnderStall, clockRate, clockRateBusy, interruptions, info: () => backend?.audioInfo(), close: () => backend?.close() };
 (window as unknown as { audioTest: typeof api }).audioTest = api;

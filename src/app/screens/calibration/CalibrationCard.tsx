@@ -79,7 +79,11 @@ const STAGE_CHECK: Partial<Record<CalStageId, SelfTestItemId>> = { timing: 'clic
 
 const CHECK_STATUS = { pass: 'calibrate.selfTest.pass', fail: 'calibrate.selfTest.fail', skipped: 'calibrate.selfTest.notRun' } as const;
 
-const SKIP_REASON: Record<string, TextKey> = { headphones: 'calibrate.check.skip.headphones', 'no-probe': 'calibrate.check.skip.noProbe' };
+const SKIP_REASON: Record<string, TextKey> = {
+  headphones: 'calibrate.check.notRun.headphones',
+  'no-probe': 'calibrate.check.notRun.noProbe',
+  unmeasured: 'calibrate.check.notRun.unmeasured',
+};
 
 const SOUND_NAME: Partial<Record<ClickTimbre, TextKey>> = {
   classic: 'settings.audio.click.classic',
@@ -249,7 +253,7 @@ function Checks({ checks, plan }: { checks: SelfTestOutcome; plan: CalPlan }) {
       <h2 className="cal-subtitle">{text('calibrate.selfTest.title')}</h2>
       <ul className="cal-checks">
         {checks.items.filter((i) => !shown.has(i.id)).map((i) => {
-          const why = i.status === 'fail' ? text(CHECK_LABEL[i.id].fail) : i.status === 'skipped' ? text(SKIP_REASON[i.reason ?? ''] ?? 'calibrate.check.skip.other') : null;
+          const why = i.status === 'fail' ? text(CHECK_LABEL[i.id].fail) : i.status === 'skipped' ? text(SKIP_REASON[i.reason ?? ''] ?? 'calibrate.check.notRun.other') : null;
           return (
             <li key={i.id} className="cal-check" data-status={i.status}>
               <span className="cal-check-head">

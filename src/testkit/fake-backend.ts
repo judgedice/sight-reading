@@ -49,8 +49,13 @@ export interface FakeBackendOptions {
   t0AfterCaptureSec?: number;
   capabilities?: Partial<PlatformCapabilities>;
   route?: Partial<AudioRouteInfo>;
-  /** Mix scheduled and calibration clicks into the capture, arriving `rtlSec` after their scheduled time. */
-  loopback?: { rtlSec: number; gainDb: number; timbre?: ClickTimbre };
+  /**
+   * Room bleed of the app's own playback: scheduled and calibration clicks, and with `toneGainDb` the `playTone`
+   * tones (the voice starting-pitch reference), arrive in the capture `rtlSec` after their scheduled time. Tones are
+   * rendered as the real backend plays them (a sine at peak 0.5 with 10 ms fades), scaled by `toneGainDb`. A sound
+   * scheduled before `startCapture` is still heard if it is still sounding once capture runs.
+   */
+  loopback?: { rtlSec: number; gainDb: number; timbre?: ClickTimbre; toneGainDb?: number };
   /** Reported by `measureClockRate`; default exact. */
   clockRateError?: number;
   /** Report the main-thread relay as in use. */
@@ -117,6 +122,8 @@ export class FakeAudioBackend implements AudioBackend {
   private interruptCbs = new Set<(r: InterruptionReason) => void>();
   private clickBuffers: { startFrame: number; samples: Float32Array }[] = [];
   private pendingClicks: { t: number; accent: boolean; timbre: ClickTimbre }[] = [];
+  /** Tones played so far (clock times), for the tone bleed. */
+  private playedTones: { hz: number; durSec: number; at: number }[] = [];
   private dropSeqs: Set<number>;
 
   // capture state
@@ -284,6 +291,7 @@ export class FakeAudioBackend implements AudioBackend {
     this.hiBand.reset();
     this.clickBuffers = [];
     this.mixClicks();
+    for (const t of this.playedTones) this.mixTone(t);
   }
 
   stopCapture(): void {
@@ -303,6 +311,9 @@ export class FakeAudioBackend implements AudioBackend {
   async playTone(hz: number, durSec: number, at: ClockSeconds): Promise<void> {
     this.log.tones.push({ hz, durSec, at });
     this.call('playTone');
+    const tone = { hz, durSec, at: at as number };
+    this.playedTones.push(tone);
+    if (this.capturing) this.mixTone(tone);
   }
 
   async playNotes(notes: readonly PlayNote[], opts: PlayNotesOptions): Promise<void> {
@@ -376,6 +387,27 @@ export class FakeAudioBackend implements AudioBackend {
       this.clickBuffers.push({ startFrame: Math.round((c.t + lb.rtlSec - this.captureOrigin) * this.sampleRate), samples });
     }
     this.pendingClicks = [];
+  }
+
+  /** Renders one played tone's bleed into a buffer on the input frame axis (`loopback.toneGainDb`). */
+  private mixTone(t: { hz: number; durSec: number; at: number }): void {
+    const lb = this.opts.loopback;
+    if (!lb || lb.toneGainDb === undefined) return;
+    const sr = this.sampleRate;
+    const n = Math.max(1, Math.round(t.durSec * sr));
+    const startFrame = Math.round((t.at + lb.rtlSec - this.captureOrigin) * sr);
+    if (startFrame + n <= 0) return;
+    const fade = Math.min(Math.round(0.01 * sr), Math.floor(n / 2));
+    const g = 0.5 * 10 ** (lb.toneGainDb / 20);
+    const w = (2 * Math.PI * t.hz) / sr;
+    const samples = new Float32Array(n);
+    for (let i = 0; i < n; i++) {
+      let env = 1;
+      if (i < fade) env = 0.5 - 0.5 * Math.cos((Math.PI * i) / fade);
+      else if (i >= n - fade) env = 0.5 - 0.5 * Math.cos((Math.PI * (n - 1 - i)) / fade);
+      samples[i] = g * env * Math.sin(w * i);
+    }
+    this.clickBuffers.push({ startFrame, samples });
   }
 
   private inputSample(frame: number): number {

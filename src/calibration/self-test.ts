@@ -94,8 +94,14 @@ export async function runSelfTest(deps: CalibrationDeps, o: SelfTestOptions): Pr
   const clock: ClockRateResult = o.clock ?? (await runClockRateCheck(audio, budget, o.recreate ? { recreate: o.recreate } : {}));
   items.push({
     id: 'clock-rate',
-    status: clock.ok ? 'pass' : 'fail',
-    detail: { errorPct: clock.error === null ? null : round(clock.error * 100, 3), recreated: clock.recreated, state: clock.state },
+    // A clock that could not be measured fails nothing (clock-rate.ts), so it reads as not run, with its reason.
+    status: clock.state === 'unmeasured' ? 'skipped' : clock.ok ? 'pass' : 'fail',
+    detail: {
+      errorPct: clock.error === null ? null : round(clock.error * 100, 3),
+      recreated: clock.recreated,
+      state: clock.state,
+      ...(clock.state === 'unmeasured' ? { reason: 'unmeasured' } : {}),
+    },
   });
 
   // Loopback and sanity tone (speakers).

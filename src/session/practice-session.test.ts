@@ -958,3 +958,49 @@ describe('view store reducer', () => {
     expect(v.countIn).toBeNull();
   });
 });
+
+describe('own playback in the capture (round 2 detection: reference tone and clicks through the speakers)', () => {
+  // The owner (voice, built-in speakers and mic) saw purple marks at the start of the staff as the take began: the
+  // starting-pitch reference played through the speakers, the mic heard it, and the session analysed it as sung notes
+  // drawn as extra ghosts before bar 1. Nothing heard before the first written note's window may be judged or drawn.
+  const cal = (): Calibration => ({ ...makeCalibration(ROUTE), roundTripMs: 50, spreadMs: 1, clicksDetected: 10, templates: {} });
+  /** Note starts and ghosts more than a beat before the first written note (its match window is at most a beat). */
+  const early = (h: Harness): SessionEvent[] => {
+    const prepared = h.session.prepared!;
+    const bpm = prepared.selection.settings.bpm;
+    const firstBeat = (buildExpectedNotes(prepared, bpm, cfg)[0]!.onsetSec * bpm) / 60;
+    return h.events.filter((e) => e.type === 'follower' && (e.event.type === 'note-start' || e.event.type === 'ghost') && (e.event.type === 'note-start' ? e.event.scoreBeat : e.event.ghost.scoreBeat) < firstBeat - 1);
+  };
+
+  for (const bleedDb of [-10, -20, -30]) {
+    it(`voice on speakers, reference and clicks bleeding at ${bleedDb} dB: no note before bar 1 is drawn or judged`, async () => {
+      const h = await harness({ backend: { route: { routeKey: ROUTE, outputMode: 'speakers' }, loopback: { rtlSec: 0.05, gainDb: bleedDb, toneGainDb: bleedDb } }, calibration: cal(), shippedCorpus: true });
+      await h.session.prepare(settings({ instrumentId: 'voice-baritone', mode: 'practice', outputMode: 'speakers', level: 1 }));
+      await h.session.ensureAudio();
+      h.session.revealScan();
+      await h.session.startTake();
+      for (let i = 0; i < 20 && h.be.log.scheduledTakes.length === 0; i++) await flush();
+      play(h, 0.05);
+      await driveTo(h, 'results', 90);
+      const rec = lastRecord(h);
+      expect(h.be.log.tones.length).toBe(4);
+      expect(early(h)).toEqual([]);
+      expect(rec.extras.filter((x) => x.onsetSec < 0)).toEqual([]);
+      // The first note is the singer's, not the reference tone's.
+      const j0 = rec.judgments[0]!;
+      expect(j0.status).toBe('matched');
+      expect(Math.abs(j0.timingErrorMs ?? 0)).toBeLessThan(80);
+    }, 90_000);
+  }
+
+  it('a silent voice take with the reference bleeding at -10 dB: nothing is detected as played', async () => {
+    const h = await harness({ backend: { route: { routeKey: ROUTE, outputMode: 'speakers' }, loopback: { rtlSec: 0.05, gainDb: -10, toneGainDb: -10 } }, calibration: cal(), shippedCorpus: true });
+    await h.session.prepare(settings({ instrumentId: 'voice-baritone', mode: 'practice', outputMode: 'speakers', level: 1 }));
+    await h.session.ensureAudio();
+    h.session.revealScan();
+    await h.session.startTake();
+    await driveTo(h, 'performing', 30);
+    await drive(h, 2);
+    expect(h.events.filter((e) => e.type === 'follower' && (e.event.type === 'note-start' || e.event.type === 'ghost'))).toEqual([]);
+  }, 60_000);
+});

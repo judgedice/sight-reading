@@ -6,6 +6,14 @@ import { expect, test, type Page } from '@playwright/test';
 import { FAKE_WAV_HZ } from './fake-capture-wav.ts';
 import { openAudioPage } from './page.ts';
 
+type ClockCheck = {
+  ok: boolean;
+  error: number | null;
+  recreated: boolean;
+  measured: boolean;
+  diagnostics: { source: string | null; outcome: string; windows: number; consistentErrors: number[]; lastSubErrors: number[]; steadyWaitMs: number; inputDropFraction: number | null };
+};
+
 type Api = {
   make(o?: { forceRelay?: boolean }): void;
   waitUnlocked(): Promise<{ ok: boolean; error?: string; route?: { sampleRate: number; appliedProcessing: unknown } }>;
@@ -18,7 +26,8 @@ type Api = {
     ctxSec: number;
   }>;
   clicksUnderStall(): Promise<{ scheduled: number[]; heard: number[]; t0: number; rate: number; stalledMs: number }>;
-  clockRate(): Promise<{ ok: boolean; error: number; recreated: boolean }>;
+  clockRate(): Promise<ClockCheck>;
+  clockRateBusy(o: { recreate?: boolean; relay?: boolean }): Promise<ClockCheck & { busyShare: number; wallMs: number; relayed: number }>;
 };
 
 /** Measured numbers go to stdout and the test's annotations. */
@@ -117,8 +126,24 @@ test('every click plays at its scheduled time under a 200 ms main-thread stall (
 test('clock-rate check passes on a healthy context (01 §7.8)', async ({ page }) => {
   await unlocked(page);
   const r = await run(page, (api) => api.clockRate());
-  report(`[audio] clock-rate error ${(r.error * 100).toFixed(3)}%`);
-  expect(r.ok).toBe(true);
-  expect(r.recreated).toBe(false);
-  expect(Math.abs(r.error)).toBeLessThan(0.02);
+  report(`[audio] clock-rate error ${((r.error as number) * 100).toFixed(4)}% source ${r.diagnostics.source} windows ${r.diagnostics.windows}`);
+  expect(r).toMatchObject({ ok: true, recreated: false, measured: true });
+  expect(Math.abs(r.error as number)).toBeLessThan(0.005);
 });
+
+// The owner's false failure (-3.7%): replies stamped on arrival at a busy main thread. The fitted check must read
+// the context's clock to well under 0.5% with the main thread busy most of the time, including right after a
+// context recreate and with blocks relayed through the main thread.
+for (const o of [{}, { relay: true }, { recreate: true, relay: true }] as const) {
+  test(`clock-rate error stays under 0.5% with a busy main thread ${JSON.stringify(o)} (01 §7.8)`, async ({ page }) => {
+    await unlocked(page, 'relay' in o ? { forceRelay: true } : {});
+    const r = await page.evaluate((o) => (window as unknown as { audioTest: Api }).audioTest.clockRateBusy(o), o);
+    report(
+      `[audio] busy ${JSON.stringify(o)}: clock-rate error ${((r.error ?? NaN) * 100).toFixed(4)}% source ${r.diagnostics.source} windows ${r.diagnostics.windows} ` +
+        `stretches ${r.diagnostics.lastSubErrors.map((e) => (e * 100).toFixed(3)).join(' ')} busy ${(r.busyShare * 100).toFixed(0)}% of ${r.wallMs.toFixed(0)} ms, steady wait ${r.diagnostics.steadyWaitMs.toFixed(0)} ms`,
+    );
+    expect(r.busyShare).toBeGreaterThan(0.5);
+    expect(r).toMatchObject({ ok: true, measured: true });
+    expect(Math.abs(r.error as number)).toBeLessThan(0.005);
+  });
+}

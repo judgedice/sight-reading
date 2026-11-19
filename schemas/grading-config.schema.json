@@ -339,6 +339,44 @@
           ],
           "description": "Live provisional verdicts (02 §4.8; R19)."
         },
+        "detection": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "ownPlayback": {
+              "type": "object",
+              "properties": {
+                "tailMs": {
+                  "type": "number",
+                  "description": "A sound's room tail: a note starting up to this long after the sound ends is still the sound, ms (200)."
+                },
+                "clickMaxMs": {
+                  "type": "number",
+                  "description": "A note at a click that sounds shorter than this is the click, ms (150)."
+                },
+                "toneCents": {
+                  "type": "number",
+                  "description": "A note within this many cents of a tone's pitch class is the tone (70)."
+                }
+              },
+              "required": [
+                "tailMs",
+                "clickMaxMs",
+                "toneCents"
+              ],
+              "additionalProperties": false,
+              "description": "The app's own playback heard by the mic (`FollowConfig.ownPlayback`)."
+            },
+            "_source": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "_source",
+            "ownPlayback"
+          ],
+          "description": "Detection tolerances beyond the 01 §7.5 defaults (round 2, docs/redesign/round2/03-detection.md)."
+        },
         "credit": {
           "type": "object",
           "additionalProperties": false,
@@ -680,6 +718,7 @@
         "matchWindow",
         "intonation",
         "live",
+        "detection",
         "credit",
         "components",
         "grades",

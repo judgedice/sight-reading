@@ -54,6 +54,7 @@ import {
 import { classifyAgainst, LIVE_SKIP_COST, matchCost, pitchCost, scoreSecondsOf } from './cost.ts';
 import { DISPLACEMENT_WINDOW_NOTES, DisplacementDetector, type WindowNote } from './displacement.ts';
 import { ghostPitch } from './ghost-spelling.ts';
+import { extraMinMs, ignoredNote } from './own-playback.ts';
 
 /** Analysis hop, samples (01 §5.6). */
 const HOP_SAMPLES = 128;
@@ -85,6 +86,8 @@ interface DetState {
   ghost: GhostNote['kind'] | null;
   /** Unmatched notes: the extra ghost has been sent. */
   extraGhosted: boolean;
+  /** Sounding time before an unmatched note is drawn as an extra, ms (longer at a click: `own-playback.ts`). */
+  extraMinMs: number;
   live: LiveIntonation;
   last: LiveJudgment | null;
   sounding: boolean;
@@ -96,6 +99,8 @@ export class LiveFollower implements LiveFollowerInstance {
   private readonly status: ExpStatus[];
   private firstPending = 0;
   private readonly det = new Map<number, DetState>();
+  /** Detected notes that are not the player's (`own-playback.ts`): no events at all. */
+  private readonly ignored = new Set<number>();
   /** Unmatched notes still sounding (for the extra ghost on the clock). */
   private readonly soundingUnmatched = new Set<number>();
   private soundingCount = 0;
@@ -108,7 +113,6 @@ export class LiveFollower implements LiveFollowerInstance {
   private readonly barSec: number;
   private readonly confirmDelaySec: number;
   private readonly attackMs: number;
-  private readonly extraMinMs: number;
   private readonly rests: [number, number][] = [];
   private readonly maxWindowSec: number;
   private delta: number | null = null;
@@ -138,7 +142,6 @@ export class LiveFollower implements LiveFollowerInstance {
     this.barSec = c.beatsPerBar * this.beatSec;
     this.confirmDelaySec = (c.instrument.detection.windowSamples / 2 + CONFIRM_HOPS * HOP_SAMPLES) / c.analysisRate;
     this.attackMs = c.cfg.grading.intonation.attackExcludeMsByFamily[c.instrument.family];
-    this.extraMinMs = c.cfg.grading.credit.extraMinDurMs;
     for (let i = 1; i < this.n; i++) {
       const a = c.expected[i - 1] as ExpectedNote;
       const b = c.expected[i] as ExpectedNote;
@@ -195,7 +198,7 @@ export class LiveFollower implements LiveFollowerInstance {
 
   /** Extra (or replay) ghost once the unmatched note has sounded `extraMinDurMs` (02 §4.1). */
   private maybeExtraGhost(out: FollowerEvent[], st: DetState, soundedMs: number): void {
-    if (st.idx !== null || st.extraGhosted || soundedMs < this.extraMinMs) return;
+    if (st.idx !== null || st.extraGhosted || soundedMs < st.extraMinMs) return;
     st.extraGhosted = true;
     st.ghost = 'extra';
     out.push(this.ghostEvent(st, 'extra', st.note.midi, null));
@@ -256,7 +259,12 @@ export class LiveFollower implements LiveFollowerInstance {
   }
 
   private onNoteOn(out: FollowerEvent[], d: DetectedNote): void {
-    if (this.det.has(d.id)) return;
+    if (this.det.has(d.id) || this.ignored.has(d.id)) return;
+    // Before the music, or one of the app's own tones heard through the speakers: not the player's (own-playback.ts).
+    if (ignoredNote(this.c, d)) {
+      this.ignored.add(d.id);
+      return;
+    }
     const s = this.s(d.onset);
     this.soundingCount++;
     const wn: WindowNote = { s, midi: d.provisionalMidi, clarity: d.clarity, altOctaveClarity: d.altOctaveClarity };
@@ -268,7 +276,7 @@ export class LiveFollower implements LiveFollowerInstance {
     }
     const offset = this.offsetCents();
     const best = this.greedy(s, d, offset);
-    const st: DetState = { note: d, s, idx: null, displaced: false, deltaMs: 0, ghost: null, extraGhosted: false, live: 'none', last: null, sounding: true };
+    const st: DetState = { note: d, s, idx: null, displaced: false, deltaMs: 0, ghost: null, extraGhosted: false, extraMinMs: extraMinMs(this.c, d), live: 'none', last: null, sounding: true };
     this.det.set(d.id, st);
 
     if (this.delta !== null) {

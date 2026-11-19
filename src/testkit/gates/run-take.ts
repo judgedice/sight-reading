@@ -17,12 +17,16 @@ import type { AttemptScore, ClockSeconds, Configs, DetectedNote, DspConfig, Fina
 import { PhaseDecimator } from '../../dsp/decimator.ts';
 import { HiBandEnergy } from '../../dsp/hiband.ts';
 import { buildClickTemplate } from '../../dsp/click.ts';
+import { withOwnPlayback } from '../../follow/index.ts';
 import { gradeWithPatterns } from '../../grade/index.ts';
 import { DspWorkerCore } from '../../platform/web/audio/dsp-worker-core.ts';
 import { resolveTolerances } from '../../rules/index.ts';
 import { scenarioConfigs, type ScenarioBase, type ScenarioRender } from '../scenarios/index.ts';
 import { applyConditions, type CaptureConditions, type SynthRender } from '../synth/index.ts';
 import type { SynthClickTimbre } from '../synth-min.ts';
+
+/** A click as an own sound, seconds (the session's CLICK_SOUND_SEC). */
+const GATE_CLICK_SOUND_SEC = 0.04;
 
 /** Capture block size in input frames (the worklet posts 2 render quanta; the offline runner uses the same). */
 export const GATE_BLOCK_FRAMES = 256;
@@ -141,7 +145,9 @@ export function runTake(r: ScenarioRender, o: RunTakeOptions = {}): TakeRun {
   const tolerances = resolveTolerances(base.expected, { instrument: base.inst, level: base.level, bpm: base.bpm, meter: base.meter }, cfg);
   const dspCfg = gateDspConfig(r, tolerances, analysisRate, cfg);
   const tuning = base.inst.family !== 'voice' && base.inst.pitchKind === 'continuous' ? { used: o.tuningCents !== null && o.tuningCents !== undefined, offsetCents: o.tuningCents ?? 0 } : null;
-  const config: FollowConfig = {
+  // As the session builds it: notes count from the first written note's window, the clicks are the app's own sounds
+  // (src/follow/own-playback.ts).
+  const config: FollowConfig = withOwnPlayback({
     expected: base.expected,
     tolerances,
     t0: r.t0Sec as ClockSeconds,
@@ -153,7 +159,7 @@ export function runTake(r: ScenarioRender, o: RunTakeOptions = {}): TakeRun {
     voiceReferenceCents: tuning?.offsetCents ?? 0,
     analysisRate,
     writtenKey: base.writtenKey,
-  };
+  }, r.clicks.map((k) => ({ t: k.t as ClockSeconds, durSec: GATE_CLICK_SOUND_SEC, hz: null })));
 
   const live: TimedEvent[] = [];
   let done: Extract<WorkerReply, { type: 'done' }> | null = null;

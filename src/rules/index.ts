@@ -24,6 +24,7 @@ export {
   tuningOffsetCents,
 } from './resolve-tolerances.ts';
 export { VoiceDriftReference } from './voice-drift.ts';
+export { resolveOneNote } from './one-note.ts';
 export {
   intonationCredit,
   intonationVerdict,

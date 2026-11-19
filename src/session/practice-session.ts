@@ -61,6 +61,7 @@ import type {
   GateId,
   GradeInput,
   MetronomeSound,
+  OwnSound,
   PlayerProfile,
   PracticeSettings,
   PreparedExcerpt,
@@ -81,7 +82,7 @@ import { createEmitter } from '../core/events.ts';
 import { createRng } from '../core/rng.ts';
 import { CorpusLoadError, loadExcerpt, prepareExcerpt, selectAndPrepare } from '../corpus/index.ts';
 import { DspPipeline } from '../dsp/pipeline.ts';
-import { alignFinalWithReference, liveOutcomeOf } from '../follow/index.ts';
+import { alignFinalWithReference, liveOutcomeOf, withOwnPlayback } from '../follow/index.ts';
 import {
   applyAttemptOnDay,
   createProfile,
@@ -279,6 +280,8 @@ const EMPTY_ALIGNMENT: FinalAlignment = { judgments: [], extras: [], displaced: 
 const SCAN_STRICT_SLACK_SEC = 0.25;
 const VOICE_REFERENCE_LEAD_SEC = 0.1;
 const AFTER_REFERENCE_SEC = 0.5;
+/** A metronome click as an own sound (its burst and the first room reflections), seconds. */
+const CLICK_SOUND_SEC = 0.04;
 
 const defaultTimers = (): SessionTimers => {
   const g = globalThis as unknown as {
@@ -610,9 +613,11 @@ export class PracticeSession implements PracticeSessionInstance {
     let leadSec = leadBase;
 
     // R7: the voice reference plays before every voice count-in, in every mode.
+    let ownTones: OwnSound[] = [];
     if (plan.inst.family === 'voice') {
-      const end = await this.playReference(c);
-      leadSec = Math.max(leadBase, end - (audio.now() as number) + AFTER_REFERENCE_SEC);
+      const ref = await this.playReference(c);
+      ownTones = ref.sounds;
+      leadSec = Math.max(leadBase, ref.end - (audio.now() as number) + AFTER_REFERENCE_SEC);
     }
 
     const stored = (await this.platform.repos.calibrations.get(route.routeKey)) ?? null;
@@ -685,7 +690,10 @@ export class PracticeSession implements PracticeSessionInstance {
       const contextRate = audio.audioInfo().contextSampleRate;
       const analysisRate = contextRate / Math.max(1, Math.round(contextRate / 16000));
       take.analysisRate = analysisRate;
-      const follow = followConfigFor(plan, c.prepared, this.cfg, { t0: take.t0, rtlSec, analysisRate, tuningCents: tuningCents ?? 0 });
+      const follow = withOwnPlayback(
+        followConfigFor(plan, c.prepared, this.cfg, { t0: take.t0, rtlSec, analysisRate, tuningCents: tuningCents ?? 0 }),
+        [...ownTones, ...sched.clicks.map((k) => ({ t: k.t, durSec: CLICK_SOUND_SEC, hz: null }))],
+      );
       take.follow = follow;
       const dsp = dspConfigFor(plan.inst, this.cfg, {
         analysisRate,
@@ -728,14 +736,17 @@ export class PracticeSession implements PracticeSessionInstance {
     this.poll();
   }
 
-  /** Plays the voice reference now (R7); returns the clock time it ends. Its live caption follows it (05 §8.9). */
-  private async playReference(c: Current): Promise<number> {
+  /**
+   * Plays the voice reference now (R7); returns the clock time it ends and its tones as own sounds (the follower
+   * never takes them for the singer's notes). Its live caption follows it (05 §8.9).
+   */
+  private async playReference(c: Current): Promise<{ end: number; sounds: OwnSound[] }> {
     const { tones, request } = this.referenceSound(c);
     const at = (this.audio.now() as number) + VOICE_REFERENCE_LEAD_SEC;
     this.player.follow(request, at);
     await Promise.all(tones.map((t) => this.audio.playTone(t.hz, t.durSec, (at + t.atSec) as ClockSeconds)));
     this.referenceEndsAt = at + referenceLengthSec(tones);
-    return this.referenceEndsAt;
+    return { end: this.referenceEndsAt, sounds: tones.map((t) => ({ t: (at + t.atSec) as ClockSeconds, durSec: t.durSec, hz: t.hz })) };
   }
 
   /** The voice reference's tones (as today, at the excerpt's tuning pitch) and its captions. */

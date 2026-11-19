@@ -32,7 +32,7 @@ import type { ClockSeconds, DetectedNote, DspConfig, DspEvent, DspStats, EndReas
 import { DspPipeline } from '../../../dsp/pipeline.ts';
 // The worker is a composition point of its own (01 §2: live matcher and final alignment run in the DSP worker), so it
 // reaches follow/ although platform/web otherwise may not (needs an eslint composition-root entry, see the S1 report).
-import { LiveFollower, alignFinalWithReference, liveOutcomeOf } from '../../../follow/index.ts';
+import { LiveFollower, alignFinalWithReference, liveOutcomeOf, playerNotes } from '../../../follow/index.ts';
 import { CountInRecheck, recheckResultOf, recheckSpecOf, type RecheckDetail } from '../../../calibration/index.ts';
 
 /** A port-like object the core posts `CaptureReturn`s on. */
@@ -273,7 +273,8 @@ export class DspWorkerCore {
     for (const ev of dsp.flush(t)) this.onDspEvent(ev, follower, out);
     for (const ev of follower.end(t, reason)) out.push(ev);
     for (const e of out) this.liveEvents.push(e);
-    const detected = [...this.latest.values()].sort((a, b) => a.id - b.id);
+    // Notes before the music and the app's own tones are not the player's (follow/own-playback.ts).
+    const detected = playerNotes(follow, [...this.latest.values()].sort((a, b) => a.id - b.id));
     const { alignment, voiceReference } = alignFinalWithReference(follow, detected, liveOutcomeOf(this.liveEvents));
     this.alignment = alignment;
     if (this.recheck && !this.recheckPosted) this.postRecheck(this.recheck.finish());

@@ -341,6 +341,23 @@ export interface GradingConfig {
     /** Wrong pitch at confirmation needs the confirming frames at least this far from the target, cents (80) (01 §9.3). */
     wrongAtConfirmMinCents: number;
   };
+  /** Detection tolerances beyond the 01 §7.5 defaults (round 2, docs/redesign/round2/03-detection.md). */
+  detection: Sourced & {
+    /** The app's own playback heard by the mic (`FollowConfig.ownPlayback`). */
+    ownPlayback: {
+      /** A sound's room tail: a note starting up to this long after the sound ends is still the sound, ms (200). */
+      tailMs: number;
+      /** A note at a click that sounds shorter than this is the click, ms (150). */
+      clickMaxMs: number;
+      /** A note within this many cents of a tone's pitch class is the tone (70). */
+      toneCents: number;
+    };
+    /**
+     * One sung note stays one note: per onset profile and level band (resolved by `rules/resolveOneNote`). A profile
+     * with no band keeps the 01 §7.5 segmenter and the 02 §4.1 extras rule unchanged.
+     */
+    oneNote: OneNoteBand[];
+  };
   /** Per-note credits (02 §4.3). */
   credit: Sourced & {
     duration: {
@@ -1464,6 +1481,8 @@ export interface DspConfig {
    * measures the click's own leak (speakers only; PLAN ruling 44).
    */
   clickLeakDb: number | null;
+  /** One sung note stays one note (round 2 detection, `rules/resolveOneNote`); absent or null: the 01 §7.5 segmenter. */
+  oneNote?: OneNoteTolerance | null;
 }
 
 /** One pitch frame, stamped at the window centre (01 §7.3). */
@@ -1648,6 +1667,63 @@ export interface FollowConfig {
   analysisRate: number;
   /** The written key signature the player reads (R1), for ghost spelling (02 §4.8) (PLAN ruling 44). */
   writtenKey: KeySig;
+  /**
+   * Score seconds from which a detected note may be judged or drawn (round 2 detection): the first written note's
+   * onset minus its match window. A note that starts earlier (the voice starting-pitch reference or a count-in click
+   * heard through the speakers, a breath before the count-in ends) is not the player's attempt at the music: it gets
+   * no event, is not an extra and is left out of the final alignment. Absent: no limit.
+   */
+  judgeFromScoreSec?: number;
+  /**
+   * The app's own playback around the take, at its scheduled (output) times: metronome clicks (`hz` null) and tones
+   * (`hz` set). The mic hears each one RTL later, which is the same score time. A note that starts inside one (plus
+   * `grading.detection.ownPlayback.tailMs`) and, for a tone, at its pitch, is the speakers: never drawn and never an
+   * extra; at a click it is ignored unless it sounds longer than `clickMaxMs`. Absent: none known.
+   */
+  ownPlayback?: OwnSound[];
+  /** One sung note stays one note (round 2 detection, `rules/resolveOneNote`); absent or null: the 02 §4.1 rules. */
+  oneNote?: OneNoteTolerance | null;
+}
+
+/** `grading.detection.oneNote` row: how far one note may wander before it counts as two (round 2 detection). */
+export interface OneNoteBand {
+  profile: OnsetProfile;
+  /** Inclusive difficulty range. */
+  levels: [number, number];
+  /**
+   * Scoop: a pitch change within this long of a note's onset re-pitches the note instead of splitting it, when the
+   * note so far glided towards the new pitch without holding a pitch of its own (ms).
+   */
+  scoopMs: number;
+  /** "Holding a pitch": at least this long (ms) with every frame within `plateauCents` of the run's median. */
+  plateauMs: number;
+  plateauCents: number;
+  /**
+   * Release: frames this far below the note's loudest frame (dB) that read another pitch are the note dying away
+   * (a falling or wobbling end), not a new note: they count towards the offset and never start a split.
+   */
+  tailDropDb: number;
+  /** A wrong pitch may be shown at confirmation (01 §9.3 item 3); false waits for the steady pitch (a scoop). */
+  wrongAtConfirm: boolean;
+  /** An unmatched note is drawn and counted as an extra once it has sounded this long, ms (02 §4.1 uses 100). */
+  extraMinMs: number;
+  /**
+   * Absorbed: an unmatched note that starts within `absorbGapMs` of the end of a matched note of the same pitch class
+   * (or inside it) and sounds less than `absorbMs` is that note's re-articulation: not drawn, not an extra.
+   */
+  absorbMs: number;
+  absorbGapMs: number;
+}
+
+/** A resolved `OneNoteBand` for one take (instrument profile and difficulty). */
+export type OneNoteTolerance = Omit<OneNoteBand, 'profile' | 'levels'>;
+
+/** One sound the app plays (output timeline, the clock the take is scheduled on). */
+export interface OwnSound {
+  t: ClockSeconds;
+  durSec: number;
+  /** Tone frequency, Hz; null for a click. */
+  hz: number | null;
 }
 
 /** What the live follower last showed for one expected note at take end (01 §9.7 `rejudged`). */

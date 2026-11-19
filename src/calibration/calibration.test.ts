@@ -285,6 +285,15 @@ describe('what the player sees matches what they hear (owner feedback: marks and
     expect(Object.fromEntries(self.items.map((i) => [i.id, i.status]))).toMatchObject({ clicks: 'pass', 'sanity-tone': 'pass', recheck: 'pass' });
   });
 
+  it('a clock that could not be measured reads as not run, with its reason, and fails nothing', async () => {
+    const fb = new RoomBackend({ sampleRate: 48000 });
+    const r = await runSelfTest(deps(fb), { route: route(fb, { outputMode: 'wired' }), capabilities: fb.capabilities, timbre: 'tick', clock: { ok: true, error: null, recreated: false, state: 'unmeasured' } });
+    const item = r.items.find((i) => i.id === 'clock-rate');
+    expect(item?.status).toBe('skipped');
+    expect(item?.detail['reason']).toBe('unmeasured');
+    expect(r.passed).toBe(true);
+  });
+
   it('the plan lists the stages a route plays, with counts from config', () => {
     const sp = calibrationPlan(budget, 'speakers');
     expect(sp.stages.map((s) => [s.id, s.sounds, s.accented])).toEqual([

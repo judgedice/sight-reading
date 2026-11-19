@@ -1,0 +1,1754 @@
+{
+  "version": 1,
+  "format": {
+    "container": "mp3",
+    "sampleRate": 44100,
+    "channels": 1,
+    "kbps": 48
+  },
+  "notes": "MIDI numbers are sounding pitch. tune is the measured offset of the sample from its MIDI note, in cents; the sampler plays at rate 2^((target - midi - tune/100)/12). loopStart/loopEnd are seconds from the first decoded sample, onset is where the sound starts (the sampler compares it with its own decode to correct for decoders that keep the MP3 priming).",
+  "sources": {
+    "vsco": {
+      "name": "VSCO-2 Community Edition",
+      "by": "Versilian Studios (Sam Gossner, Simon Dalzell, Elan Hickler)",
+      "licence": "CC0-1.0",
+      "licenceFile": "LICENSES/CC0-1.0.txt",
+      "url": "https://github.com/sgossner/VSCO-2-CE",
+      "via": "tiny-orchestra 0.2.0 on npm (CC0 edits of VSCO-2 CE)"
+    },
+    "fluid": {
+      "name": "Fluid (R3) General MIDI SoundFont",
+      "by": "Frank Wen and contributors",
+      "licence": "MIT (soundfont); CC-BY-3.0 (per-note renders)",
+      "licenceFile": "LICENSES/MIT-FluidR3.txt; LICENSES/CC-BY-3.0.txt",
+      "url": "https://github.com/gleitz/midi-js-soundfonts",
+      "via": "per-note MP3 renders by Benjamin Gleitzman, midi-js-soundfonts"
+    },
+    "salamander": {
+      "name": "Salamander Grand Piano V3",
+      "by": "Alexander Holm",
+      "licence": "CC-BY-3.0",
+      "licenceFile": "LICENSES/CC-BY-3.0.txt",
+      "url": "https://github.com/sfzinstruments/SalamanderGrandPiano",
+      "via": "@audio-samples/piano-mp3-velocity8 1.0.5 on npm (Jan Forst)"
+    },
+    "formant": {
+      "name": "Formant voice",
+      "by": "this project",
+      "licence": "CC0-1.0",
+      "licenceFile": "LICENSES/CC0-1.0.txt",
+      "url": "",
+      "via": "rendered by docs/redesign/round2/sounds-build/build.py"
+    }
+  },
+  "sets": {
+    "flute": {
+      "source": "vsco",
+      "kind": "sustain",
+      "range": [
+        60,
+        96
+      ],
+      "attack": 0.03,
+      "release": 0.2,
+      "samples": [
+        {
+          "file": "C4.mp3",
+          "midi": 60,
+          "tune": -1.0,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.84846,
+          "duration": 1.908
+        },
+        {
+          "file": "A4.mp3",
+          "midi": 69,
+          "tune": 0.1,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.84995,
+          "duration": 1.91
+        },
+        {
+          "file": "E5.mp3",
+          "midi": 76,
+          "tune": 0.2,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.84943,
+          "duration": 1.909
+        },
+        {
+          "file": "C6.mp3",
+          "midi": 84,
+          "tune": 0.5,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.84955,
+          "duration": 1.91
+        },
+        {
+          "file": "A6.mp3",
+          "midi": 93,
+          "tune": 1.4,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.8498,
+          "duration": 1.91
+        }
+      ],
+      "bytes": 59910
+    },
+    "clarinet": {
+      "source": "vsco",
+      "kind": "sustain",
+      "range": [
+        50,
+        89
+      ],
+      "attack": 0.02,
+      "release": 0.2,
+      "samples": [
+        {
+          "file": "D3.mp3",
+          "midi": 50,
+          "tune": 2.9,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.85188,
+          "duration": 1.912
+        },
+        {
+          "file": "As3.mp3",
+          "midi": 58,
+          "tune": 0.6,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.85213,
+          "duration": 1.912
+        },
+        {
+          "file": "F4.mp3",
+          "midi": 65,
+          "tune": 5.5,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.8505,
+          "duration": 1.91
+        },
+        {
+          "file": "D5.mp3",
+          "midi": 74,
+          "tune": 2.5,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.85039,
+          "duration": 1.91
+        },
+        {
+          "file": "As5.mp3",
+          "midi": 82,
+          "tune": 3.3,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.84959,
+          "duration": 1.91
+        },
+        {
+          "file": "F6.mp3",
+          "midi": 89,
+          "tune": 1.6,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.84977,
+          "duration": 1.91
+        }
+      ],
+      "bytes": 71892
+    },
+    "trumpet": {
+      "source": "vsco",
+      "kind": "sustain",
+      "range": [
+        52,
+        82
+      ],
+      "attack": 0.015,
+      "release": 0.2,
+      "samples": [
+        {
+          "file": "F3.mp3",
+          "midi": 53,
+          "tune": 2.0,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.84959,
+          "duration": 1.91
+        },
+        {
+          "file": "C4.mp3",
+          "midi": 60,
+          "tune": -4.7,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.85048,
+          "duration": 1.91
+        },
+        {
+          "file": "G4.mp3",
+          "midi": 67,
+          "tune": 8.0,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.84971,
+          "duration": 1.91
+        },
+        {
+          "file": "D5.mp3",
+          "midi": 74,
+          "tune": 0.4,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.84984,
+          "duration": 1.91
+        },
+        {
+          "file": "A5.mp3",
+          "midi": 81,
+          "tune": -1.9,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.84991,
+          "duration": 1.91
+        }
+      ],
+      "bytes": 59910
+    },
+    "oboe": {
+      "source": "vsco",
+      "kind": "sustain",
+      "range": [
+        58,
+        91
+      ],
+      "attack": 0.02,
+      "release": 0.2,
+      "samples": [
+        {
+          "file": "As3.mp3",
+          "midi": 58,
+          "tune": 3.1,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.85077,
+          "duration": 1.911
+        },
+        {
+          "file": "F4.mp3",
+          "midi": 65,
+          "tune": 3.3,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.84884,
+          "duration": 1.909
+        },
+        {
+          "file": "D5.mp3",
+          "midi": 74,
+          "tune": 2.4,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.85048,
+          "duration": 1.91
+        },
+        {
+          "file": "As5.mp3",
+          "midi": 82,
+          "tune": -0.7,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.84959,
+          "duration": 1.91
+        },
+        {
+          "file": "F6.mp3",
+          "midi": 89,
+          "tune": -0.0,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.84995,
+          "duration": 1.91
+        }
+      ],
+      "bytes": 59910
+    },
+    "bassoon": {
+      "source": "vsco",
+      "kind": "sustain",
+      "range": [
+        34,
+        76
+      ],
+      "attack": 0.03,
+      "release": 0.2,
+      "samples": [
+        {
+          "file": "As1.mp3",
+          "midi": 34,
+          "tune": -0.2,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.84397,
+          "duration": 1.904
+        },
+        {
+          "file": "F2.mp3",
+          "midi": 41,
+          "tune": 0.1,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.85063,
+          "duration": 1.911
+        },
+        {
+          "file": "C3.mp3",
+          "midi": 48,
+          "tune": 0.1,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.84787,
+          "duration": 1.908
+        },
+        {
+          "file": "G3.mp3",
+          "midi": 55,
+          "tune": 0.5,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.84871,
+          "duration": 1.909
+        },
+        {
+          "file": "Ds4.mp3",
+          "midi": 63,
+          "tune": 0.9,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.85091,
+          "duration": 1.911
+        },
+        {
+          "file": "C5.mp3",
+          "midi": 72,
+          "tune": 0.6,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.84952,
+          "duration": 1.91
+        }
+      ],
+      "bytes": 71735
+    },
+    "tuba": {
+      "source": "vsco",
+      "kind": "sustain",
+      "range": [
+        26,
+        65
+      ],
+      "attack": 0.03,
+      "release": 0.3,
+      "samples": [
+        {
+          "file": "F1.mp3",
+          "midi": 29,
+          "tune": -16.7,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.8483,
+          "duration": 1.908
+        },
+        {
+          "file": "As1.mp3",
+          "midi": 34,
+          "tune": -0.5,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.84415,
+          "duration": 1.904
+        },
+        {
+          "file": "Ds2.mp3",
+          "midi": 39,
+          "tune": 0.3,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.85122,
+          "duration": 1.911
+        },
+        {
+          "file": "As2.mp3",
+          "midi": 46,
+          "tune": -0.1,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.85252,
+          "duration": 1.913
+        },
+        {
+          "file": "F3.mp3",
+          "midi": 53,
+          "tune": -4.9,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.84764,
+          "duration": 1.908
+        },
+        {
+          "file": "D4.mp3",
+          "midi": 62,
+          "tune": -2.3,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.85136,
+          "duration": 1.911
+        }
+      ],
+      "bytes": 71735
+    },
+    "double-bass": {
+      "source": "vsco",
+      "kind": "sustain",
+      "range": [
+        28,
+        62
+      ],
+      "attack": 0.04,
+      "release": 0.35,
+      "samples": [
+        {
+          "file": "E1.mp3",
+          "midi": 28,
+          "tune": 0.3,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.84637,
+          "duration": 1.906
+        },
+        {
+          "file": "As1.mp3",
+          "midi": 34,
+          "tune": 0.1,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.84381,
+          "duration": 1.904
+        },
+        {
+          "file": "Fs2.mp3",
+          "midi": 42,
+          "tune": -0.4,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.85161,
+          "duration": 1.912
+        },
+        {
+          "file": "Cs3.mp3",
+          "midi": 49,
+          "tune": -1.1,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.85304,
+          "duration": 1.913
+        },
+        {
+          "file": "B3.mp3",
+          "midi": 59,
+          "tune": -1.7,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.84853,
+          "duration": 1.909
+        }
+      ],
+      "bytes": 59596
+    },
+    "violin": {
+      "source": "fluid",
+      "kind": "sustain",
+      "range": [
+        55,
+        100
+      ],
+      "attack": 0.04,
+      "release": 0.3,
+      "samples": [
+        {
+          "file": "G3.mp3",
+          "midi": 55,
+          "tune": 3.1,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.85238,
+          "duration": 1.912
+        },
+        {
+          "file": "Ds4.mp3",
+          "midi": 63,
+          "tune": -1.2,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.84882,
+          "duration": 1.909
+        },
+        {
+          "file": "B4.mp3",
+          "midi": 71,
+          "tune": -1.6,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.85052,
+          "duration": 1.911
+        },
+        {
+          "file": "G5.mp3",
+          "midi": 79,
+          "tune": 0.8,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.84982,
+          "duration": 1.91
+        },
+        {
+          "file": "Ds6.mp3",
+          "midi": 87,
+          "tune": 4.8,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.85036,
+          "duration": 1.91
+        },
+        {
+          "file": "B6.mp3",
+          "midi": 95,
+          "tune": 0.7,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.85025,
+          "duration": 1.91
+        }
+      ],
+      "bytes": 71892
+    },
+    "viola": {
+      "source": "fluid",
+      "kind": "sustain",
+      "range": [
+        48,
+        88
+      ],
+      "attack": 0.04,
+      "release": 0.3,
+      "samples": [
+        {
+          "file": "C3.mp3",
+          "midi": 48,
+          "tune": 3.5,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.85365,
+          "duration": 1.914
+        },
+        {
+          "file": "Gs3.mp3",
+          "midi": 56,
+          "tune": -6.2,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.85209,
+          "duration": 1.912
+        },
+        {
+          "file": "E4.mp3",
+          "midi": 64,
+          "tune": -1.9,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.85059,
+          "duration": 1.911
+        },
+        {
+          "file": "C5.mp3",
+          "midi": 72,
+          "tune": -4.2,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.85023,
+          "duration": 1.91
+        },
+        {
+          "file": "Gs5.mp3",
+          "midi": 80,
+          "tune": 3.0,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.84946,
+          "duration": 1.909
+        },
+        {
+          "file": "E6.mp3",
+          "midi": 88,
+          "tune": 6.7,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.84968,
+          "duration": 1.91
+        }
+      ],
+      "bytes": 71892
+    },
+    "cello": {
+      "source": "fluid",
+      "kind": "sustain",
+      "range": [
+        40,
+        81
+      ],
+      "attack": 0.05,
+      "release": 0.35,
+      "samples": [
+        {
+          "file": "E2.mp3",
+          "midi": 40,
+          "tune": 1.2,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.84587,
+          "duration": 1.906
+        },
+        {
+          "file": "C3.mp3",
+          "midi": 48,
+          "tune": -0.5,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.84821,
+          "duration": 1.908
+        },
+        {
+          "file": "Gs3.mp3",
+          "midi": 56,
+          "tune": -4.3,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.85109,
+          "duration": 1.911
+        },
+        {
+          "file": "E4.mp3",
+          "midi": 64,
+          "tune": 4.1,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.85034,
+          "duration": 1.91
+        },
+        {
+          "file": "C5.mp3",
+          "midi": 72,
+          "tune": -0.8,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.85025,
+          "duration": 1.91
+        },
+        {
+          "file": "Gs5.mp3",
+          "midi": 80,
+          "tune": 4.6,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.84977,
+          "duration": 1.91
+        }
+      ],
+      "bytes": 71735
+    },
+    "sax-alto": {
+      "source": "fluid",
+      "kind": "sustain",
+      "range": [
+        49,
+        81
+      ],
+      "attack": 0.02,
+      "release": 0.15,
+      "samples": [
+        {
+          "file": "Cs3.mp3",
+          "midi": 49,
+          "tune": -1.2,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.85311,
+          "duration": 1.913
+        },
+        {
+          "file": "A3.mp3",
+          "midi": 57,
+          "tune": -2.9,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.85161,
+          "duration": 1.912
+        },
+        {
+          "file": "F4.mp3",
+          "midi": 65,
+          "tune": -2.4,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.84912,
+          "duration": 1.909
+        },
+        {
+          "file": "Cs5.mp3",
+          "midi": 73,
+          "tune": -6.7,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.8507,
+          "duration": 1.911
+        },
+        {
+          "file": "A5.mp3",
+          "midi": 81,
+          "tune": -4.6,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.85025,
+          "duration": 1.91
+        }
+      ],
+      "bytes": 59910
+    },
+    "sax-tenor": {
+      "source": "fluid",
+      "kind": "sustain",
+      "range": [
+        44,
+        76
+      ],
+      "attack": 0.02,
+      "release": 0.15,
+      "samples": [
+        {
+          "file": "Gs2.mp3",
+          "midi": 44,
+          "tune": -0.2,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.85363,
+          "duration": 1.914
+        },
+        {
+          "file": "E3.mp3",
+          "midi": 52,
+          "tune": -1.3,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.84726,
+          "duration": 1.907
+        },
+        {
+          "file": "C4.mp3",
+          "midi": 60,
+          "tune": -5.5,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.85095,
+          "duration": 1.911
+        },
+        {
+          "file": "Gs4.mp3",
+          "midi": 68,
+          "tune": -0.3,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.84889,
+          "duration": 1.909
+        },
+        {
+          "file": "E5.mp3",
+          "midi": 76,
+          "tune": 1.3,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.85039,
+          "duration": 1.91
+        }
+      ],
+      "bytes": 59910
+    },
+    "sax-bari": {
+      "source": "fluid",
+      "kind": "sustain",
+      "range": [
+        36,
+        69
+      ],
+      "attack": 0.02,
+      "release": 0.15,
+      "samples": [
+        {
+          "file": "C2.mp3",
+          "midi": 36,
+          "tune": -0.2,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.84805,
+          "duration": 1.908
+        },
+        {
+          "file": "Gs2.mp3",
+          "midi": 44,
+          "tune": -3.6,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.84583,
+          "duration": 1.906
+        },
+        {
+          "file": "E3.mp3",
+          "midi": 52,
+          "tune": 5.0,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.84986,
+          "duration": 1.91
+        },
+        {
+          "file": "C4.mp3",
+          "midi": 60,
+          "tune": -1.6,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.84878,
+          "duration": 1.909
+        },
+        {
+          "file": "Gs4.mp3",
+          "midi": 68,
+          "tune": -1.3,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.84941,
+          "duration": 1.909
+        }
+      ],
+      "bytes": 59753
+    },
+    "horn": {
+      "source": "fluid",
+      "kind": "sustain",
+      "range": [
+        35,
+        77
+      ],
+      "attack": 0.04,
+      "release": 0.3,
+      "samples": [
+        {
+          "file": "B1.mp3",
+          "midi": 35,
+          "tune": -8.9,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.84435,
+          "duration": 1.904
+        },
+        {
+          "file": "Fs2.mp3",
+          "midi": 42,
+          "tune": 2.6,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.84995,
+          "duration": 1.91
+        },
+        {
+          "file": "Cs3.mp3",
+          "midi": 49,
+          "tune": 1.7,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.8515,
+          "duration": 1.911
+        },
+        {
+          "file": "Gs3.mp3",
+          "midi": 56,
+          "tune": 3.3,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.85168,
+          "duration": 1.912
+        },
+        {
+          "file": "Ds4.mp3",
+          "midi": 63,
+          "tune": 3.9,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.84923,
+          "duration": 1.909
+        },
+        {
+          "file": "As4.mp3",
+          "midi": 70,
+          "tune": 3.5,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.85052,
+          "duration": 1.911
+        },
+        {
+          "file": "F5.mp3",
+          "midi": 77,
+          "tune": 3.6,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.85009,
+          "duration": 1.91
+        }
+      ],
+      "bytes": 83717
+    },
+    "trombone": {
+      "source": "fluid",
+      "kind": "sustain",
+      "range": [
+        40,
+        74
+      ],
+      "attack": 0.03,
+      "release": 0.25,
+      "samples": [
+        {
+          "file": "E2.mp3",
+          "midi": 40,
+          "tune": -1.5,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.84732,
+          "duration": 1.907
+        },
+        {
+          "file": "B2.mp3",
+          "midi": 47,
+          "tune": -1.2,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.84825,
+          "duration": 1.908
+        },
+        {
+          "file": "Fs3.mp3",
+          "midi": 54,
+          "tune": -1.2,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.85202,
+          "duration": 1.912
+        },
+        {
+          "file": "Cs4.mp3",
+          "midi": 61,
+          "tune": 0.0,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.84882,
+          "duration": 1.909
+        },
+        {
+          "file": "Gs4.mp3",
+          "midi": 68,
+          "tune": -1.0,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.84925,
+          "duration": 1.909
+        },
+        {
+          "file": "D5.mp3",
+          "midi": 74,
+          "tune": -1.4,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.85086,
+          "duration": 1.911
+        }
+      ],
+      "bytes": 71892
+    },
+    "guitar": {
+      "source": "fluid",
+      "kind": "decay",
+      "range": [
+        40,
+        71
+      ],
+      "attack": 0.002,
+      "release": 0.25,
+      "samples": [
+        {
+          "file": "E2.mp3",
+          "midi": 40,
+          "tune": 2.5,
+          "onset": 0.004,
+          "duration": 2.6
+        },
+        {
+          "file": "B2.mp3",
+          "midi": 47,
+          "tune": 0.8,
+          "onset": 0.004,
+          "duration": 2.6
+        },
+        {
+          "file": "Fs3.mp3",
+          "midi": 54,
+          "tune": -0.7,
+          "onset": 0.004,
+          "duration": 2.6
+        },
+        {
+          "file": "Cs4.mp3",
+          "midi": 61,
+          "tune": 0.9,
+          "onset": 0.004,
+          "duration": 2.6
+        },
+        {
+          "file": "Gs4.mp3",
+          "midi": 68,
+          "tune": -0.6,
+          "onset": 0.004,
+          "duration": 2.6
+        },
+        {
+          "file": "Ds5.mp3",
+          "midi": 75,
+          "tune": -0.3,
+          "onset": 0.004,
+          "duration": 2.6
+        }
+      ],
+      "bytes": 96342
+    },
+    "choir-aah": {
+      "source": "fluid",
+      "kind": "sustain",
+      "range": [
+        40,
+        84
+      ],
+      "attack": 0.08,
+      "release": 0.35,
+      "samples": [
+        {
+          "file": "F2.mp3",
+          "midi": 41,
+          "tune": -21.8,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.85111,
+          "duration": 1.911
+        },
+        {
+          "file": "C3.mp3",
+          "midi": 48,
+          "tune": -24.7,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.85381,
+          "duration": 1.914
+        },
+        {
+          "file": "G3.mp3",
+          "midi": 55,
+          "tune": -33.6,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.85195,
+          "duration": 1.912
+        },
+        {
+          "file": "D4.mp3",
+          "midi": 62,
+          "tune": -23.5,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.84923,
+          "duration": 1.909
+        },
+        {
+          "file": "A4.mp3",
+          "midi": 69,
+          "tune": 9.7,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.84921,
+          "duration": 1.909
+        },
+        {
+          "file": "E5.mp3",
+          "midi": 76,
+          "tune": -5.6,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.84959,
+          "duration": 1.91
+        },
+        {
+          "file": "B5.mp3",
+          "midi": 83,
+          "tune": -8.8,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.85039,
+          "duration": 1.91
+        }
+      ],
+      "bytes": 83874
+    },
+    "piano": {
+      "source": "salamander",
+      "kind": "decay",
+      "range": [
+        36,
+        96
+      ],
+      "attack": 0.002,
+      "release": 0.3,
+      "samples": [
+        {
+          "file": "C2.mp3",
+          "midi": 36,
+          "tune": 5.5,
+          "onset": 0.004,
+          "duration": 3.0
+        },
+        {
+          "file": "A2.mp3",
+          "midi": 45,
+          "tune": 1.5,
+          "onset": 0.004,
+          "duration": 3.0
+        },
+        {
+          "file": "Fs3.mp3",
+          "midi": 54,
+          "tune": -0.8,
+          "onset": 0.004,
+          "duration": 3.0
+        },
+        {
+          "file": "Ds4.mp3",
+          "midi": 63,
+          "tune": 5.0,
+          "onset": 0.004,
+          "duration": 3.0
+        },
+        {
+          "file": "C5.mp3",
+          "midi": 72,
+          "tune": 7.9,
+          "onset": 0.004,
+          "duration": 3.0
+        },
+        {
+          "file": "A5.mp3",
+          "midi": 81,
+          "tune": 6.8,
+          "onset": 0.004,
+          "duration": 3.0
+        },
+        {
+          "file": "Fs6.mp3",
+          "midi": 90,
+          "tune": 14.4,
+          "onset": 0.004,
+          "duration": 3.0
+        },
+        {
+          "file": "C7.mp3",
+          "midi": 96,
+          "tune": 25.9,
+          "onset": 0.004,
+          "duration": 3.0
+        }
+      ],
+      "bytes": 147264
+    },
+    "voice-bass": {
+      "source": "formant",
+      "kind": "sustain",
+      "range": [
+        40,
+        65
+      ],
+      "attack": 0.07,
+      "release": 0.25,
+      "vowel": "ah",
+      "samples": [
+        {
+          "file": "E2.mp3",
+          "midi": 40,
+          "tune": 0.0,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.62728,
+          "duration": 1.687
+        },
+        {
+          "file": "Gs2.mp3",
+          "midi": 44,
+          "tune": 0.0,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.62728,
+          "duration": 1.687
+        },
+        {
+          "file": "C3.mp3",
+          "midi": 48,
+          "tune": 0.0,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.62728,
+          "duration": 1.687
+        },
+        {
+          "file": "E3.mp3",
+          "midi": 52,
+          "tune": 0.0,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.62728,
+          "duration": 1.687
+        },
+        {
+          "file": "Gs3.mp3",
+          "midi": 56,
+          "tune": 0.0,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.62728,
+          "duration": 1.687
+        },
+        {
+          "file": "C4.mp3",
+          "midi": 60,
+          "tune": 0.0,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.62728,
+          "duration": 1.687
+        },
+        {
+          "file": "E4.mp3",
+          "midi": 64,
+          "tune": 0.0,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.62728,
+          "duration": 1.687
+        }
+      ],
+      "bytes": 73997
+    },
+    "voice-baritone": {
+      "source": "formant",
+      "kind": "sustain",
+      "range": [
+        43,
+        67
+      ],
+      "attack": 0.07,
+      "release": 0.25,
+      "vowel": "ah",
+      "samples": [
+        {
+          "file": "G2.mp3",
+          "midi": 43,
+          "tune": 0.0,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.62728,
+          "duration": 1.687
+        },
+        {
+          "file": "B2.mp3",
+          "midi": 47,
+          "tune": 0.0,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.62728,
+          "duration": 1.687
+        },
+        {
+          "file": "Ds3.mp3",
+          "midi": 51,
+          "tune": 0.0,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.62728,
+          "duration": 1.687
+        },
+        {
+          "file": "G3.mp3",
+          "midi": 55,
+          "tune": 0.0,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.62728,
+          "duration": 1.687
+        },
+        {
+          "file": "B3.mp3",
+          "midi": 59,
+          "tune": 0.0,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.62728,
+          "duration": 1.687
+        },
+        {
+          "file": "Ds4.mp3",
+          "midi": 63,
+          "tune": 0.0,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.62728,
+          "duration": 1.687
+        },
+        {
+          "file": "G4.mp3",
+          "midi": 67,
+          "tune": 0.0,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.62728,
+          "duration": 1.687
+        }
+      ],
+      "bytes": 73997
+    },
+    "voice-tenor": {
+      "source": "formant",
+      "kind": "sustain",
+      "range": [
+        45,
+        69
+      ],
+      "attack": 0.07,
+      "release": 0.25,
+      "vowel": "ah",
+      "samples": [
+        {
+          "file": "A2.mp3",
+          "midi": 45,
+          "tune": 0.0,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.62728,
+          "duration": 1.687
+        },
+        {
+          "file": "Cs3.mp3",
+          "midi": 49,
+          "tune": 0.0,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.62728,
+          "duration": 1.687
+        },
+        {
+          "file": "F3.mp3",
+          "midi": 53,
+          "tune": 0.0,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.62728,
+          "duration": 1.687
+        },
+        {
+          "file": "A3.mp3",
+          "midi": 57,
+          "tune": 0.0,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.62728,
+          "duration": 1.687
+        },
+        {
+          "file": "Cs4.mp3",
+          "midi": 61,
+          "tune": 0.0,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.62728,
+          "duration": 1.687
+        },
+        {
+          "file": "F4.mp3",
+          "midi": 65,
+          "tune": 0.0,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.62728,
+          "duration": 1.687
+        },
+        {
+          "file": "A4.mp3",
+          "midi": 69,
+          "tune": 0.0,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.62728,
+          "duration": 1.687
+        }
+      ],
+      "bytes": 73997
+    },
+    "voice-alto": {
+      "source": "formant",
+      "kind": "sustain",
+      "range": [
+        52,
+        77
+      ],
+      "attack": 0.07,
+      "release": 0.25,
+      "vowel": "ah",
+      "samples": [
+        {
+          "file": "E3.mp3",
+          "midi": 52,
+          "tune": 0.0,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.62728,
+          "duration": 1.687
+        },
+        {
+          "file": "Gs3.mp3",
+          "midi": 56,
+          "tune": 0.0,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.62728,
+          "duration": 1.687
+        },
+        {
+          "file": "C4.mp3",
+          "midi": 60,
+          "tune": 0.0,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.62728,
+          "duration": 1.687
+        },
+        {
+          "file": "E4.mp3",
+          "midi": 64,
+          "tune": 0.0,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.62728,
+          "duration": 1.687
+        },
+        {
+          "file": "Gs4.mp3",
+          "midi": 68,
+          "tune": 0.0,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.62728,
+          "duration": 1.687
+        },
+        {
+          "file": "C5.mp3",
+          "midi": 72,
+          "tune": 0.0,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.62728,
+          "duration": 1.687
+        },
+        {
+          "file": "E5.mp3",
+          "midi": 76,
+          "tune": 0.0,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.62728,
+          "duration": 1.687
+        }
+      ],
+      "bytes": 73997
+    },
+    "voice-mezzo": {
+      "source": "formant",
+      "kind": "sustain",
+      "range": [
+        55,
+        81
+      ],
+      "attack": 0.07,
+      "release": 0.25,
+      "vowel": "ah",
+      "samples": [
+        {
+          "file": "G3.mp3",
+          "midi": 55,
+          "tune": 0.0,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.62728,
+          "duration": 1.687
+        },
+        {
+          "file": "B3.mp3",
+          "midi": 59,
+          "tune": 0.0,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.62728,
+          "duration": 1.687
+        },
+        {
+          "file": "Ds4.mp3",
+          "midi": 63,
+          "tune": 0.0,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.62728,
+          "duration": 1.687
+        },
+        {
+          "file": "G4.mp3",
+          "midi": 67,
+          "tune": 0.0,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.62728,
+          "duration": 1.687
+        },
+        {
+          "file": "B4.mp3",
+          "midi": 71,
+          "tune": 0.0,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.62728,
+          "duration": 1.687
+        },
+        {
+          "file": "Ds5.mp3",
+          "midi": 75,
+          "tune": 0.0,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.62728,
+          "duration": 1.687
+        },
+        {
+          "file": "G5.mp3",
+          "midi": 79,
+          "tune": 0.0,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.62728,
+          "duration": 1.687
+        }
+      ],
+      "bytes": 73997
+    },
+    "voice-soprano": {
+      "source": "formant",
+      "kind": "sustain",
+      "range": [
+        57,
+        84
+      ],
+      "attack": 0.07,
+      "release": 0.25,
+      "vowel": "ah",
+      "samples": [
+        {
+          "file": "A3.mp3",
+          "midi": 57,
+          "tune": 0.0,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.62728,
+          "duration": 1.687
+        },
+        {
+          "file": "Cs4.mp3",
+          "midi": 61,
+          "tune": 0.0,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.62728,
+          "duration": 1.687
+        },
+        {
+          "file": "F4.mp3",
+          "midi": 65,
+          "tune": 0.0,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.62728,
+          "duration": 1.687
+        },
+        {
+          "file": "A4.mp3",
+          "midi": 69,
+          "tune": 0.0,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.62728,
+          "duration": 1.687
+        },
+        {
+          "file": "Cs5.mp3",
+          "midi": 73,
+          "tune": 0.0,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.62728,
+          "duration": 1.687
+        },
+        {
+          "file": "F5.mp3",
+          "midi": 77,
+          "tune": 0.0,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.62728,
+          "duration": 1.687
+        },
+        {
+          "file": "A5.mp3",
+          "midi": 81,
+          "tune": 0.0,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.62728,
+          "duration": 1.687
+        },
+        {
+          "file": "C6.mp3",
+          "midi": 84,
+          "tune": 0.0,
+          "onset": 0.004,
+          "loopStart": 0.9,
+          "loopEnd": 1.62728,
+          "duration": 1.687
+        }
+      ],
+      "bytes": 84568
+    }
+  },
+  "instruments": {
+    "voice-soprano": {
+      "set": "voice-soprano"
+    },
+    "voice-mezzo": {
+      "set": "voice-mezzo"
+    },
+    "voice-alto": {
+      "set": "voice-alto"
+    },
+    "voice-tenor": {
+      "set": "voice-tenor"
+    },
+    "voice-baritone": {
+      "set": "voice-baritone"
+    },
+    "voice-bass": {
+      "set": "voice-bass"
+    },
+    "flute": {
+      "set": "flute"
+    },
+    "clarinet-bb": {
+      "set": "clarinet"
+    },
+    "sax-alto": {
+      "set": "sax-alto"
+    },
+    "trumpet-bb": {
+      "set": "trumpet"
+    },
+    "violin": {
+      "set": "violin"
+    },
+    "cello": {
+      "set": "cello"
+    },
+    "piano-rh": {
+      "set": "piano"
+    },
+    "sax-tenor": {
+      "set": "sax-tenor"
+    },
+    "sax-bari": {
+      "set": "sax-bari"
+    },
+    "oboe": {
+      "set": "oboe"
+    },
+    "bassoon": {
+      "set": "bassoon"
+    },
+    "horn-f": {
+      "set": "horn"
+    },
+    "trombone": {
+      "set": "trombone"
+    },
+    "euphonium-bc": {
+      "set": "trombone",
+      "substitute": "trombone samples (no free euphonium set found)"
+    },
+    "euphonium-tc": {
+      "set": "trombone",
+      "substitute": "trombone samples (no free euphonium set found)"
+    },
+    "tuba": {
+      "set": "tuba"
+    },
+    "viola": {
+      "set": "viola"
+    },
+    "double-bass": {
+      "set": "double-bass"
+    },
+    "piano-lh": {
+      "set": "piano"
+    },
+    "guitar": {
+      "set": "guitar"
+    }
+  },
+  "alternates": {
+    "voice": "choir-aah"
+  },
+  "totalBytes": 1787422
+}
