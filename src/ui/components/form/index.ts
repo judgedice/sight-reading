@@ -1,7 +1,6 @@
 export { Button } from './Button.tsx';
 export type { ButtonProps, ButtonSize, ButtonVariant } from './Button.tsx';
-export { RandomChip } from './RandomChip.tsx';
-export type { RandomChipProps } from './RandomChip.tsx';
+export { radioGroupHomeEnd } from './radio-keys.ts';
 export { SegmentedControl } from './SegmentedControl.tsx';
 export type { SegmentOption, SegmentedControlProps } from './SegmentedControl.tsx';
 export { Select } from './Select.tsx';

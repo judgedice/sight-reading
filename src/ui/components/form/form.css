@@ -152,7 +152,6 @@
 }
 
 .ui-button:focus-visible,
-.ui-random-chip:focus-visible,
 .ui-stepper-button:focus-visible,
 .ui-select:focus-visible,
 .ui-tempo-range:focus-visible,
@@ -191,41 +190,6 @@
 
 :root[data-motion='reduced'] .ui-form-spinner {
   animation: none;
-}
-
-/* ---- RandomChip ---------------------------------------------------------------------- */
-
-.ui-random-chip {
-  box-sizing: border-box;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: var(--random-chip-height);
-  padding: 0 var(--random-chip-x-padding);
-  border: 0.0625rem solid var(--border-strong);
-  border-radius: var(--radius-s);
-  background: transparent;
-  color: var(--text-muted);
-  font-family: inherit;
-  font-size: var(--type-small-size);
-  line-height: var(--type-small-line);
-  font-weight: 500;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.ui-random-chip[aria-pressed='true'] {
-  border-color: var(--accent);
-  background: var(--surface-2);
-  color: var(--accent);
-}
-
-.ui-random-chip:hover {
-  background: var(--surface-2-hover);
-}
-
-.ui-random-chip:active {
-  background: var(--surface-2-pressed);
 }
 
 /* ---- SegmentedControl ---------------------------------------------------------------- */

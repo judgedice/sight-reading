@@ -8,7 +8,7 @@ import { createStore } from 'zustand/vanilla';
 import type { Calibration, ClickTimbre, MetronomeSound, OutputMode } from '../../../core/types.ts';
 import { idleSoundView } from '../../../session/index.ts';
 import { copy } from '../../../ui/copy/copy.ts';
-import { Button, SegmentedControl, Select, Stepper, Toggle } from '../../../ui/components/form/index.ts';
+import { Button, SegmentedControl, Select, Stepper, Toggle, radioGroupHomeEnd } from '../../../ui/components/form/index.ts';
 import { LiveCaption } from '../../../ui/components/sounds/index.ts';
 import { Glyph } from '../../../ui/primitives/Glyph.tsx';
 import { useNavigate } from '../../router.tsx';
@@ -126,7 +126,7 @@ export function SoundSection() {
             </span>
             <LiveCaption>{playing ? copy('settings.audio.click.playing', { sound: soundLabel(playing) }) : undefined}</LiveCaption>
           </div>
-          <div role="radiogroup" aria-labelledby="set-sound-label" className="set-sounds">
+          <div role="radiogroup" aria-labelledby="set-sound-label" className="set-sounds" onKeyDown={radioGroupHomeEnd}>
             {SOUNDS.map((o) => {
               const isPlaying = playing === o.id;
               const name = copy('settings.audio.click.play', { sound: o.label });

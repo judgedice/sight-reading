@@ -1,6 +1,6 @@
 /**
  * Review interactions on the results screen (04 §5.5.1, §6.5, §6.6, §8.3; work package D8b): the annotated score in
- * review rendering with heat strip, replay brackets and ghost tails; "Show: My take / Clean score" (C); the slip
+ * review rendering with heat strip, replay brackets and ghost tails; the "My take / Clean score" switch (C); the slip
  * stepper (Shift+← / Shift+→) with the counts-line filters; the note inspector (click or Enter); a roving tabindex over
  * the notes (← / →, ↑ / ↓ by system).
  */
@@ -286,7 +286,7 @@ export function Review(props: ReviewProps) {
         {forcedClean ? null : (
           <>
             <SegmentedControl<ShowMode>
-              ariaLabel={rtext('results.show')}
+              ariaLabel={rtext('review.toolbar')}
               value={show}
               onChange={setShow}
               options={[

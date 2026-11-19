@@ -16,7 +16,6 @@ describe('form.css: sizes (7.5 table)', () => {
     expect(formCss).toMatch(/\.ui-tempo-range\s*\{[^}]*height:\s*var\(--tempo-hit-size\)/);
     expect(formCss).toMatch(/\.ui-toggle\s*\{[^}]*min-height:\s*var\(--toggle-hit-size\)/);
     expect(formCss).toMatch(/\.ui-toggle-track\s*\{[^}]*width:\s*var\(--toggle-track-width\)/);
-    expect(formCss).toMatch(/\.ui-random-chip\s*\{[^}]*min-height:\s*var\(--random-chip-height\)/);
     expect(formCss).toMatch(/\.ui-segment\s*\{[^}]*min-height:\s*var\(--segment-height\)/);
   });
 });
@@ -24,7 +23,6 @@ describe('form.css: sizes (7.5 table)', () => {
 describe('form.css: focus, disabled and motion', () => {
   it.each([
     '.ui-button:focus-visible',
-    '.ui-random-chip:focus-visible',
     '.ui-stepper-button:focus-visible',
     '.ui-select:focus-visible',
     '.ui-tempo-range:focus-visible',

@@ -1,11 +1,11 @@
 export { BeatDots, beatPulses, groupBeats, BEAT_PULSE_HALVING_BPM } from './BeatDots.tsx';
 export type { BeatDotsProps } from './BeatDots.tsx';
-export { LevelMeter, meterFraction, meterZone, METER_MIN_DB, METER_CLIP_ZONE_DB } from './LevelMeter.tsx';
-export type { LevelMeterProps, MeterZone } from './LevelMeter.tsx';
 export { DifficultyMeter, difficultySegments, DIFFICULTY_SEGMENTS } from './DifficultyMeter.tsx';
 export type { DifficultyMeterProps, DifficultySegmentState } from './DifficultyMeter.tsx';
 export { ScanTimer, scanFraction } from './ScanTimer.tsx';
 export type { ScanTimerProps } from './ScanTimer.tsx';
+export { meterFraction, meterZone, METER_MIN_DB, METER_CLIP_ZONE_DB } from './meter.ts';
+export type { MeterZone } from './meter.ts';
 export { ChecklistItem } from './ChecklistItem.tsx';
 export type { ChecklistItemProps } from './ChecklistItem.tsx';
 export { GradeBadge } from './GradeBadge.tsx';

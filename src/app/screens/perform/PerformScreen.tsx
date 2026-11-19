@@ -251,11 +251,11 @@ export function PerformScreen(_props: ScreenProps) {
     <section className="perform" data-testid="screen-practice.play" data-route-id="practice.play" data-state={state} data-mode={mode}>
       <header className="perform-toolbar">
         <div ref={stopRef} className="perform-stop">
-          <Button label={copy('play.stop')} variant="secondary" size="compact" icon="stop" onClick={() => setConfirm(true)} disabled={finishing} />
+          <Button label={copy('play.stop')} variant="secondary" size="compact" icon="stop" onClick={() => setConfirm(true)} disabled={finishing} aria-describedby={finishing ? 'perform-centre-text' : undefined} />
         </div>
         <div className="perform-centre">
           <BeatIndicator svc={svc} beatsPerBar={prepared.meter.countsPerBar} grouping={beatGrouping(prepared.meter.beats, prepared.meter.beatType, prepared.meter.countsPerBar)} bpm={bpm} />
-          <span className="perform-centre-text">{centreText}</span>
+          <span id="perform-centre-text" className="perform-centre-text">{centreText}</span>
           <span className="perform-tempo"><BeatUnitText text={copy('tempo.marking', { unit: tempo.unit, bpm })} /></span>
           {finishing ? <span className="perform-indeterminate" aria-hidden="true" /> : null}
         </div>

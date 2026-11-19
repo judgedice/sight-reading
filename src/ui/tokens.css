@@ -123,8 +123,6 @@
   --button-radius: 12px;
   --button-hero-radius: 14px;
   --button-tertiary-x-padding: 8px;
-  --random-chip-height: 32px;
-  --random-chip-x-padding: 12px;
   --segment-height: 40px;
   --segment-track-padding: 4px;
   --segment-radius: 10px;
@@ -140,7 +138,6 @@
   --select-height: 40px;
   --select-x-padding: 12px;
   --stepper-button-size: 44px;
-  --stepper-value-width: 56px;
   --stepper-value-min-width: 96px;
   --difficulty-meter-gap: 4px;
   --toggle-track-width: 40px;
@@ -188,8 +185,6 @@
   --beat-dot-group-gap: 16px;
   --count-band-gap: 36px;
   --count-line-height: 0.74;
-  --level-meter-width: 8px;
-  --level-meter-height: 64px;
   --mode-chip-height: 36px;
   --scan-timer-ring: 26px;
   --scan-timer-stroke: 3px;
@@ -204,7 +199,6 @@
   --component-bar-segment-width: 12px;
   --component-bar-segment-height: 8px;
   --component-bar-segment-gap: 2px;
-  --instrument-circle: 40px;
   --icon-size: 20px;
   --icon-stroke: 1.75px;
   --hero-start-height: 56px;
@@ -230,7 +224,6 @@
     --button-compact-height: 44px;
     --button-default-height: 44px;
     --button-hero-height: 56px;
-    --random-chip-height: 44px;
     --segment-height: 44px;
     --select-height: 44px;
     --stepper-button-size: 44px;
@@ -329,7 +322,6 @@ html {
   --kb-black-full: #3A3833;
   --kb-black-served: #1C1B19;
   --kb-dot: #1C1B19;
-  --elevation-overlay: 0 2px 6px rgba(40,32,20,0.06), 0 10px 28px rgba(40,32,20,0.07);
   --paper: #FFFDF8;
   --ink: #1A1917;
   --staff-line: #77736B;
@@ -341,8 +333,6 @@ html {
   --playhead-bar: rgba(176,124,30,0.13);
   --band: rgba(28,27,25,0.07);
   --metro-active: #94661A;
-  --playhead-next: rgba(176,124,30,0.60);
-  --ink-accent-soft: rgba(176,124,30,0.18);
   --e0: none;
   --e1: 0 1px 2px rgba(40,32,20,0.05), 0 1px 1px rgba(40,32,20,0.03);
   --e2: 0 2px 6px rgba(40,32,20,0.06), 0 10px 28px rgba(40,32,20,0.07);
@@ -390,7 +380,6 @@ html {
   --kb-black-full: #0E0E10;
   --kb-black-served: #0E0E10;
   --kb-dot: #0E0E10;
-  --elevation-overlay: inset 0 1px 0 rgba(255,255,255,0.04), 0 10px 28px rgba(0,0,0,0.45);
   --paper: #24221F;
   --ink: #EEE9DF;
   --staff-line: #8E8981;
@@ -402,8 +391,6 @@ html {
   --playhead-bar: rgba(216,165,72,0.15);
   --band: rgba(238,233,223,0.08);
   --metro-active: #D8A548;
-  --playhead-next: rgba(216,165,72,0.60);
-  --ink-accent-soft: rgba(216,165,72,0.22);
   --e0: none;
   --e1: inset 0 1px 0 rgba(255,255,255,0.03), 0 1px 2px rgba(0,0,0,0.4);
   --e2: inset 0 1px 0 rgba(255,255,255,0.04), 0 10px 28px rgba(0,0,0,0.45);
@@ -452,7 +439,6 @@ html {
     --kb-black-full: #0E0E10;
     --kb-black-served: #0E0E10;
     --kb-dot: #0E0E10;
-    --elevation-overlay: inset 0 1px 0 rgba(255,255,255,0.04), 0 10px 28px rgba(0,0,0,0.45);
     --paper: #24221F;
     --ink: #EEE9DF;
     --staff-line: #8E8981;
@@ -464,8 +450,6 @@ html {
     --playhead-bar: rgba(216,165,72,0.15);
     --band: rgba(238,233,223,0.08);
     --metro-active: #D8A548;
-    --playhead-next: rgba(216,165,72,0.60);
-    --ink-accent-soft: rgba(216,165,72,0.22);
     --e0: none;
     --e1: inset 0 1px 0 rgba(255,255,255,0.03), 0 1px 2px rgba(0,0,0,0.4);
     --e2: inset 0 1px 0 rgba(255,255,255,0.04), 0 10px 28px rgba(0,0,0,0.45);
@@ -486,8 +470,6 @@ html {
   --playhead-bar: rgba(176,124,30,0.13);
   --band: rgba(28,27,25,0.07);
   --metro-active: #94661A;
-  --playhead-next: rgba(176,124,30,0.60);
-  --ink-accent-soft: rgba(176,124,30,0.18);
 }
 
 :root[data-paper="dark"] {
@@ -502,8 +484,6 @@ html {
   --playhead-bar: rgba(216,165,72,0.15);
   --band: rgba(238,233,223,0.08);
   --metro-active: #D8A548;
-  --playhead-next: rgba(216,165,72,0.60);
-  --ink-accent-soft: rgba(216,165,72,0.22);
 }
 
 :root[data-contrast="high"], :root[data-contrast="high"][data-theme="light"] {

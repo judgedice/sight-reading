@@ -160,10 +160,6 @@ export const tokens = {
       "kb-dot": {
         "light": "#1C1B19",
         "dark": "#0E0E10"
-      },
-      "elevation-overlay": {
-        "light": "0 2px 6px rgba(40,32,20,0.06), 0 10px 28px rgba(40,32,20,0.07)",
-        "dark": "inset 0 1px 0 rgba(255,255,255,0.04), 0 10px 28px rgba(0,0,0,0.45)"
       }
     },
     "paper": {
@@ -210,14 +206,6 @@ export const tokens = {
       "metro-active": {
         "light": "#94661A",
         "dark": "#D8A548"
-      },
-      "playhead-next": {
-        "light": "rgba(176,124,30,0.60)",
-        "dark": "rgba(216,165,72,0.60)"
-      },
-      "ink-accent-soft": {
-        "light": "rgba(176,124,30,0.18)",
-        "dark": "rgba(216,165,72,0.22)"
       }
     },
     "highContrast": {
@@ -989,11 +977,6 @@ export const tokens = {
     "button-radius": 12,
     "button-hero-radius": 14,
     "button-tertiary-x-padding": 8,
-    "random-chip-height": {
-      "fine": 32,
-      "coarse": 44
-    },
-    "random-chip-x-padding": 12,
     "segment-height": {
       "fine": 40,
       "coarse": 44
@@ -1018,7 +1001,6 @@ export const tokens = {
       "fine": 44,
       "coarse": 44
     },
-    "stepper-value-width": 56,
     "stepper-value-min-width": 96,
     "difficulty-meter-segment": [
       14,
@@ -1086,8 +1068,6 @@ export const tokens = {
     "beat-dot-group-gap": 16,
     "count-band-gap": 36,
     "count-line-height": 0.74,
-    "level-meter-width": 8,
-    "level-meter-height": 64,
     "mode-chip-height": 36,
     "scan-timer-ring": 26,
     "scan-timer-stroke": 3,
@@ -1102,18 +1082,12 @@ export const tokens = {
     "component-bar-segment-width": 12,
     "component-bar-segment-height": 8,
     "component-bar-segment-gap": 2,
-    "instrument-circle": 40,
     "icon-size": 20,
     "icon-stroke": 1.75,
     "rank-emblem-sizes": [
       24,
       64,
       96
-    ],
-    "verdict-glyph-sizes": [
-      9,
-      12,
-      14
     ],
     "hero-start-height": 56
   },
@@ -1136,14 +1110,7 @@ export const tokens = {
         12
       ]
     },
-    "lane-height": 20,
-    "system-gap": 12,
     "lane-offset-staff-spaces": 2.2,
-    "lane-glyph-size": {
-      "live": 9,
-      "review": 12,
-      "highContrast": 14
-    },
     "lane-glyph-size-staff-spaces": {
       "live": 1.25,
       "review": 1.25,
@@ -1163,7 +1130,6 @@ export const tokens = {
       2
     ],
     "past-mark-opacity": {
-      "oneBeatPast": 0.6,
       "systemLeft": 0.7
     },
     "braked-ghost-opacity": 0.7,

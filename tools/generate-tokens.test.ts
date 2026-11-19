@@ -126,14 +126,14 @@ describe('transcribed values (06 section 5)', () => {
     expect(source.color.highContrast.ui['border-strong']).toEqual({ light: '#5F5A51', dark: '#A9A398' });
   });
 
-  it('keeps the removed paper tokens as deprecated aliases (08-plan decision 12)', () => {
-    expect(source.color.paper['playhead-next']).toBeDefined();
-    expect(source.color.paper['ink-accent-soft']).toBeDefined();
-    expect(source.color.ui['elevation-overlay']).toEqual({ light: source.elevation.e2!.light, dark: source.elevation.e2!.dark });
-    expect(component['random-chip-height']).toEqual({ fine: 32, coarse: 44 });
-    expect(component['instrument-circle']).toBe(40);
-    expect(css).toContain('--playhead-next:');
-    expect(css).toContain('--ink-accent-soft:');
+  it('has deleted the deprecated aliases (08-plan decision 12, package qa)', () => {
+    expect(source.color.paper['playhead-next']).toBeUndefined();
+    expect(source.color.paper['ink-accent-soft']).toBeUndefined();
+    expect(source.color.ui['elevation-overlay']).toBeUndefined();
+    for (const name of ['random-chip-height', 'random-chip-x-padding', 'instrument-circle', 'verdict-glyph-sizes', 'stepper-value-width']) expect((component as Record<string, unknown>)[name], name).toBeUndefined();
+    expect(css).not.toContain('--playhead-next:');
+    expect(css).not.toContain('--ink-accent-soft:');
+    expect(css).not.toContain('--random-chip-');
   });
 
   it('every colour and elevation value in the file is carried by tokens.css, in the right theme block', () => {

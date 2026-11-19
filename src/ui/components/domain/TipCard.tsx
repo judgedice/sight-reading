@@ -18,9 +18,6 @@ export interface TipContent {
 export interface TipCardProps {
   tip: TipContent;
   secondary?: Pick<TipContent, 'headline' | 'body' | 'evidence'> & Partial<Pick<TipContent, 'dimension'>>;
-  /** Position text "(1 of 2)" is shown when total is given. */
-  index?: number;
-  total?: number;
   /** Primary actions, for example "Hear bar 2" buttons. */
   actions?: ReactNode;
   /** Actions inside the expanded secondary tip. */
@@ -28,7 +25,7 @@ export interface TipCardProps {
 }
 
 /** "One thing to try" (06 6.15): brass-wash lightbulb tile, serif title, the tip, evidence, hear buttons, and at most one more tip behind a quiet disclosure. */
-export function TipCard({ tip, secondary, index, total, actions, secondaryActions }: TipCardProps) {
+export function TipCard({ tip, secondary, actions, secondaryActions }: TipCardProps) {
   const [open, setOpen] = useState(false);
   const secId = useId();
   return (
@@ -38,7 +35,6 @@ export function TipCard({ tip, secondary, index, total, actions, secondaryAction
           <Glyph id="lightbulb" size={20} />
         </span>
         <h2 className="dom-tip-title">{copy('results.tip.title')}</h2>
-        {index !== undefined && total !== undefined ? <span className="dom-tip-caption">{copy('tips.count', { n: index, total })}</span> : null}
       </header>
       <p className="dom-tip-caption dom-tip-who">{`${tip.instrumentName} · ${tip.dimension}`}</p>
       <h3 className="dom-tip-headline">{tip.headline}</h3>

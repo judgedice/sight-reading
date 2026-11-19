@@ -189,6 +189,13 @@
   align-items: stretch;
 }
 
+.ob-actions-stack .ui-button {
+  /* A long label ("Find my difficulty (3 short excerpts, about 5 minutes)") wraps inside the button instead of past the card. */
+  white-space: normal;
+  text-align: center;
+  padding-block: var(--space-2);
+}
+
 .ob-actions-stack .ob-hint {
   text-align: center;
 }

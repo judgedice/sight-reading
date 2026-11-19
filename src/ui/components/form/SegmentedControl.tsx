@@ -1,5 +1,6 @@
 import { Fragment, useId } from 'react';
 import { cls } from './cls.ts';
+import { radioGroupHomeEnd } from './radio-keys.ts';
 import './form.css';
 
 export interface SegmentOption<T extends string = string> {
@@ -24,13 +25,14 @@ export interface SegmentedControlProps<T extends string = string> {
 
 /**
  * A single-choice segmented control. Each segment is a native radio, so arrow keys move the
- * selection and Tab enters the group on the selected segment (04 section 7.5, 8.3).
+ * selection, Home and End jump to the first and last, and Tab enters the group on the selected segment (04 section 7.5, 8.3;
+ * 05 section 14 item 3).
  */
 export function SegmentedControl<T extends string = string>({ options, value, onChange, ariaLabel, stretch = false }: SegmentedControlProps<T>) {
   const groupName = useId();
 
   return (
-    <div role="radiogroup" aria-label={ariaLabel} className={cls('ui-segmented', stretch && 'ui-segmented-stretch')}>
+    <div role="radiogroup" aria-label={ariaLabel} className={cls('ui-segmented', stretch && 'ui-segmented-stretch')} onKeyDown={radioGroupHomeEnd}>
       {options.map((option, index) => {
         const checked = option.value === value;
         const tipId = option.tooltip ? `${groupName}-tip-${index}` : undefined;

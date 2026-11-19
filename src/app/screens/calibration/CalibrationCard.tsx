@@ -20,6 +20,9 @@ export interface CalibrationCardProps {
   embedded?: boolean;
 }
 
+/** The "Device choice is locked while we listen." line, named by both device selects while they are disabled. */
+const LOCKED_ID = 'cal-devices-locked';
+
 const OUTPUT_OPTIONS: readonly { value: OutputMode; key: TextKey }[] = [
   { value: 'speakers', key: 'output.speakers' },
   { value: 'wired', key: 'output.wiredHeadphones' },
@@ -164,14 +167,14 @@ export function CalibrationCard({ services, onDone, allowSkip = false, embedded 
       <div className="cal-setup">
         <label className="cal-field">
           <span className="cal-label">{text('calibrate.inputDevice')}</span>
-          <Select ariaLabel={text('calibrate.inputDevice')} options={inputOptions} value={prefs.inputDeviceId ?? ''} disabled={running} onChange={(v) => changePrefs({ inputDeviceId: v === '' ? null : v })} />
+          <Select ariaLabel={text('calibrate.inputDevice')} options={inputOptions} value={prefs.inputDeviceId ?? ''} disabled={running} describedBy={LOCKED_ID} onChange={(v) => changePrefs({ inputDeviceId: v === '' ? null : v })} />
         </label>
         <label className="cal-field">
           <span className="cal-label">{text('calibrate.output')}</span>
-          <Select ariaLabel={text('calibrate.output')} options={outputOptions} value={prefs.outputMode} disabled={running} onChange={(v) => changePrefs({ outputMode: v as OutputMode })} />
+          <Select ariaLabel={text('calibrate.output')} options={outputOptions} value={prefs.outputMode} disabled={running} describedBy={LOCKED_ID} onChange={(v) => changePrefs({ outputMode: v as OutputMode })} />
         </label>
       </div>
-      {running ? <p className="cal-locked">{text('calibrate.devicesLocked')}</p> : null}
+      {running ? <p id={LOCKED_ID} className="cal-locked">{text('calibrate.devicesLocked')}</p> : null}
 
       <div className="cal-stage">
         {running ? (

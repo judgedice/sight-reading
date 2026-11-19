@@ -138,3 +138,31 @@ describe('contrast pairs from design/tokens.json', () => {
     }
   }
 });
+
+/**
+ * High contrast over the take and results screens (designer's checks, 05 notes): every pair is recomputed with the
+ * color.highContrast overrides applied, not only the pairs the table marks `high`. The take draws on paper (ink, staff
+ * line, error, ghost, correct, the playhead bar) and results add the surface, text, brass and border pairs, so a
+ * high contrast override that breaks a pair it does not name is caught here. High contrast never lowers a minimum.
+ */
+describe('contrast pairs under high contrast (take and results)', () => {
+  const TAKE_AND_RESULTS = /^(?:ink|staff-line|error|ghost|correct|ghost-replay|text|text-muted|brass|brass-ink|border-strong|danger|on-danger|on-accent|focus-ring|caution)(?:-|$)/;
+  const pairs = source.contrast.pairs.filter((p) => TAKE_AND_RESULTS.test(p.id));
+
+  it('covers the paper pairs the take draws and the surface pairs results use', () => {
+    const ids = new Set(pairs.map((p) => p.id));
+    for (const id of ['ink-on-paper', 'ink-on-playhead-bar', 'staff-line-on-paper', 'error-on-paper', 'error-on-playhead-bar', 'ghost-on-paper', 'correct-on-paper', 'ghost-replay-on-paper', 'text-on-surface', 'text-muted-on-surface', 'brass-on-surface', 'border-strong-on-surface']) {
+      expect(ids.has(id), `missing ${id}`).toBe(true);
+    }
+  });
+
+  for (const pair of pairs) {
+    for (const theme of themes) {
+      it(`${pair.id} (${theme}, high contrast) meets ${pair.min}:1`, () => {
+        const { fg, bg, text } = resolvePair({ ...pair, high: true }, theme);
+        const ratio = contrastRatio(fg, bg);
+        expect(ratio, `${pair.id} ${theme} high contrast: ${text} is ${ratio}:1`).toBeGreaterThanOrEqual(pair.min);
+      });
+    }
+  }
+});

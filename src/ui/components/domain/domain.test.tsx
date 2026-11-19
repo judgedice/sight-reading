@@ -8,10 +8,11 @@ import {
   ChecklistItem,
   ComponentBar,
   DifficultyMeter,
+  meterFraction,
+  meterZone,
   EmptyState,
   GradeBadge,
   HeatStrip,
-  LevelMeter,
   RankEmblem,
   ScanTimer,
   StarRow,
@@ -21,7 +22,6 @@ import {
   difficultySegments,
   groupBeats,
   heatLevel,
-  meterZone,
   rankGlyphId,
   scanFraction,
 } from './index.ts';
@@ -87,24 +87,18 @@ describe('DifficultyMeter', () => {
   });
 });
 
-describe('LevelMeter', () => {
+describe('meter zones', () => {
   it('classifies the three zones', () => {
     expect(meterZone(-50, -40, false)).toBe('below-gate');
     expect(meterZone(-20, -40, false)).toBe('good');
     expect(meterZone(-2, -40, false)).toBe('clipping');
     expect(meterZone(-20, -40, true)).toBe('clipping');
   });
-  it('shows "!" only while clipping and is decorative by default', () => {
-    const c = m(<LevelMeter levelDb={-20} gateDb={-40} clipping={false} />);
-    expect(c.querySelector('.dom-meter-bang')).toBeNull();
-    expect(c.querySelector('.dom-meter')?.getAttribute('aria-hidden')).toBe('true');
-    current?.render(<LevelMeter levelDb={-1} gateDb={-40} clipping />);
-    expect(c.querySelector('.dom-meter-bang')?.textContent).toBe(copy('play.meter.clip'));
-  });
-  it('exposes a meter role when not decorative', () => {
-    const c = m(<LevelMeter levelDb={-30} gateDb={-40} clipping={false} decorative={false} label="Input" />);
-    const el = c.querySelector('[role=meter]');
-    expect(el?.getAttribute('aria-valuenow')).toBe('-30');
+  it('places a level on the 60 dB scale', () => {
+    expect(meterFraction(0)).toBe(1);
+    expect(meterFraction(-60)).toBe(0);
+    expect(meterFraction(-30)).toBeCloseTo(0.5);
+    expect(meterFraction(Number.NEGATIVE_INFINITY)).toBe(0);
   });
 });
 
@@ -307,8 +301,7 @@ describe('TipCard and EmptyState', () => {
     evidence: 'Seen in bars 1, 3, 4.',
   };
   it('shows header, count, and an expandable secondary tip', () => {
-    const c = m(<TipCard tip={tip} index={1} total={2} secondary={{ headline: 'Fell behind', body: 'Listen.', evidence: 'Seen in bars 2.' }} />);
-    expect(c.textContent).toContain(copy('tips.count', { n: 1, total: 2 }));
+    const c = m(<TipCard tip={tip} secondary={{ headline: 'Fell behind', body: 'Listen.', evidence: 'Seen in bars 2.' }} />);
     expect(c.querySelector('h2')?.textContent).toBe(copy('results.tip.title'));
     expect(c.querySelector('h3')?.textContent).toBe(tip.headline);
     expect(c.querySelector('.dom-tip-tile')?.getAttribute('aria-hidden')).toBe('true');

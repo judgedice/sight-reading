@@ -7,7 +7,7 @@ describe('touch targets and focus ring (stylesheets)', () => {
   const coarse = /@media \(pointer: coarse\) \{\s*:root \{([^}]*)\}/.exec(tokens)?.[1] ?? '';
   const px = (name: string): number => Number(new RegExp(`--${name}:\\s*(\\d+)px`).exec(coarse)?.[1] ?? 0);
 
-  it.each(['target-min', 'button-compact-height', 'button-default-height', 'segment-height', 'select-height', 'stepper-button-size', 'random-chip-height'])(
+  it.each(['target-min', 'button-compact-height', 'button-default-height', 'segment-height', 'select-height', 'stepper-button-size'])(
     'coarse pointer: --%s is at least 44 px',
     (name) => {
       expect(px(name)).toBeGreaterThanOrEqual(44);

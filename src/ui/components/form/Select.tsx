@@ -15,11 +15,13 @@ export interface SelectProps {
   /** Accessible name (the setup row's label). */
   ariaLabel: string;
   disabled?: boolean;
+  /** Id of the visible text that says why the select is disabled (05 section 14: a disabled control names its reason). */
+  describedBy?: string;
   className?: string;
 }
 
 /** A native select, 40 px fine / 44 px coarse, with a chevron (04 section 7.5). */
-export function Select({ options, value, onChange, ariaLabel, disabled = false, className }: SelectProps) {
+export function Select({ options, value, onChange, ariaLabel, disabled = false, describedBy, className }: SelectProps) {
   return (
     <span className="ui-select-wrap">
       <select
@@ -28,6 +30,7 @@ export function Select({ options, value, onChange, ariaLabel, disabled = false, 
         value={value}
         disabled={disabled}
         aria-disabled={disabled ? 'true' : undefined}
+        aria-describedby={disabled ? describedBy : undefined}
         onChange={(event) => onChange(event.target.value)}
       >
         {options.map((option) => (

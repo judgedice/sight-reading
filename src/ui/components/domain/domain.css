@@ -76,55 +76,6 @@
   color: var(--brass-ink);
 }
 
-/* ---- LevelMeter ---- */
-.dom-meter {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-}
-
-.dom-meter-track {
-  position: relative;
-  display: inline-block;
-  inline-size: var(--level-meter-height);
-  block-size: var(--level-meter-width);
-  border-radius: var(--radius-s);
-  background: var(--track);
-  overflow: hidden;
-}
-
-.dom-meter-clip {
-  position: absolute;
-  inset-block: 0;
-  inset-inline-end: 0;
-  background: color-mix(in srgb, var(--danger) 35%, transparent);
-}
-
-.dom-meter-fill {
-  position: absolute;
-  inset-block: 0;
-  inset-inline-start: 0;
-  background: var(--text-muted);
-}
-
-.dom-meter[data-zone='clipping'] .dom-meter-fill {
-  background: var(--danger);
-}
-
-.dom-meter-gate {
-  position: absolute;
-  inset-block: 0;
-  inline-size: 0.0625rem;
-  background: var(--border-strong);
-}
-
-.dom-meter-bang {
-  font-family: var(--font-ui);
-  font-size: var(--type-caption-size);
-  font-weight: 700;
-  color: var(--danger);
-}
-
 /* ---- DifficultyMeter (06 6.4) ---- */
 .dom-diff {
   display: inline-flex;

@@ -1,5 +1,5 @@
 /**
- * STARS highlights drawn inside the system SVGs (04 section 5.3): outlines in `--ink-accent-soft` around chosen notes.
+ * STARS highlights drawn inside the system SVGs (04 section 5.3): outlines in the brass tint around chosen notes.
  * They sit in the frame's own SVGs, so page layout and scaling carry them; the scan screen removes them when a row
  * loses focus and before the count-in.
  */

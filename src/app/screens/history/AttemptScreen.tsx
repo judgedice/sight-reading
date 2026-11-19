@@ -218,7 +218,7 @@ export function AttemptScreen({ route }: ScreenProps) {
 
       <Summary record={record} configs={services.configs} profile={profile} {...(playAgain ? { onPlayAgain: () => playAgain(record) } : {})} />
 
-      <button type="button" className="hist-credit" aria-label={aboutText('source.open')} onClick={() => setSheetOpen(true)}>
+      <button type="button" className="hist-credit" aria-label={`${credit}. ${aboutText('source.open')}`} onClick={() => setSheetOpen(true)}>
         {credit}
       </button>
       <SourceSheet open={sheetOpen} record={record} configs={services.configs} attributions={attributions} onClose={() => setSheetOpen(false)} />

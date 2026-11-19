@@ -171,7 +171,7 @@ export interface PagePlan {
   /** Systems shown in each slot at the start (slot i shows system i while i < N). */
   initialSlots: number[];
   swaps: PlannedSwap[];
-  /** `wrapMarker[s]`: system s + 1 is not in the slot directly below s once swaps for s are done (3 px `--playhead-next` bar). */
+  /** `wrapMarker[s]`: system s + 1 is not in the slot directly below s once swaps for s are done (drawn as a 3 px brass bar). */
   wrapMarker: boolean[];
 }
 
