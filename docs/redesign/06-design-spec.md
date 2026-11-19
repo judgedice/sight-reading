@@ -2,7 +2,7 @@
 
 Author role: principal product designer.
 Reads: `01-design-rating.md` to `05-ux-spec.md`, `docs/spec/04-design.md`, `design/tokens.json`, `src/platform/web/audio/metronome.ts`, `src/calibration/arrivals.ts`, `src/dsp/hiband.ts`.
-Status: binding for visual values. Behaviour and copy come from `05-ux-spec.md`. Where this document and `docs/spec/04-design.md` disagree on a visual value, this document wins.
+Status: binding for visual values, revised after `07-ux-critique.md` (see "Changes after critique" at the end). Behaviour and copy come from `05-ux-spec.md`. Where this document and `docs/spec/04-design.md` disagree on a visual value, this document wins.
 Mockups: `docs/redesign/mockups/` (HTML) and `docs/redesign/mockups/png/` (renders). Section 11 lists them.
 
 ---
@@ -15,12 +15,12 @@ Each point is small. None changes what a control does, what a take counts as, or
 | --- | --- | --- | --- |
 | D1 | 11.1 Classic: a 350 Hz body and a 1.2 kHz sine. Woodblock at 800 Hz. Beep a 1 kHz sine, 40 ms | No tonal energy below 1 kHz. Woodblock at 1,250 Hz. Beep at 2 kHz, 30 ms. Every sound carries the existing Tick burst as its first layer. All clicks stay pre-rendered buffers, never `OscillatorNode` | The metronome module bans oscillators and pitched clicks (05-ios-fork W10, lint rule). A sustained click below 1 kHz sits inside the sung and played range, and the pitch tracker can latch onto it ("zero click-induced extras" gate). The Tick layer keeps the calibration detector exactly as it is. Section 9 gives the recipes. |
 | D2 | 5.4 Key grid: 4 columns on desktop | 3 columns while every group has 3 keys or fewer (difficulty 1 to 4), 4 columns from difficulty 5. "Any key" spans the full row | Major and minor rows line up key for key (G major above E minor). A 4th empty column looked like a missing key. |
-| D3 | 7.2 Ruler bar axis not stated | The bar is drawn in sounding pitch on the shared C1 to C8 axis. The card's text range stays written | Comparison across cards only works in one pitch frame. A tenor's written A3 to A5 sounds A2 to A4; drawn written, it would sit above the alto. |
+| D3 | 7.2 Ruler bar axis not stated | The bar is drawn in sounding pitch on the shared C1 to C8 axis. Voice cards give the sung range in text ("A2 to A4", tenor adds "Written an octave higher"). Transposing instruments keep the written range in text and say "bars show sounding pitch" | Comparison across cards only works in one pitch frame, and text and bar must agree on a card. |
 | D4 | 7.4 Tap a whole note to hear it | Each whole note is tappable, and a labelled pill under it ("▸ C3") is the visible button | A bare notehead does not look pressable. The pill is the 44 px target and carries the name. |
 | D5 | 7.2 Large picture | Adds a keyboard strip under the staff (C2 to C5 for voices; per instrument otherwise), with the same full and served bands | Requested by the owner's brief. Many singers think in keys, not ledger lines. |
 | D6 | 8.10 and 04 6.4 rule 5: past marks fade to 60%, then 40% | Past slips fade to 70% once their system is left, and only the slip marks fade: ink notes never fade | At 40% a vermilion mark fails 3:1 on paper. 70% passes (3.2:1 light, 3.7:1 dark). |
 | D7 | 04 6.5 review: correct notes teal with a check | Correct notes stay ink in review and get no lane mark. Only slips are coloured | Agreed by both reviews ("calm ink, only slips coloured"). The states stay distinct (ink against vermilion, a glyph under every slip). Drawing only, allowed by UX section 15. |
-| D8 | 8.9 count-in in the centre of the screen | The number sits on a raised card in the centre, over the score dimmed to about 20% | A 200 px numeral drawn straight over staff lines is hard to read. The card keeps the music visible behind it. |
+| D8 | 8.9 count-in in the centre of the screen | The number sits in the paper's top margin, above the first system, centred horizontally. The first system stays at full ink; later systems drop to 50% | The count-in is the last look at bar 1. Nothing may cover or dim it (critique C32, C33). |
 
 Brand decision, not a deviation: the text face is Inter, self-hosted, not the system sans. 03 offered "serif display, system sans". On Linux and many Android phones `system-ui` falls back to fonts with poor tabular figures; Inter costs 48 KB and gives the same look everywhere.
 
@@ -113,7 +113,7 @@ Headings are sentence case. Data lines never break inside a phrase: each "·"-se
 | `toast-bg` / `toast-text` | `#1C1B19` / `#FFFDF9` | `#EEEAE2` / `#151517` | |
 | `scrim` | `rgba(28,24,18,0.38)` | `rgba(0,0,0,0.60)` | |
 | `range-full` | `#8C877D` | `#8E8981` | Full-range whole notes |
-| `range-full-bar` | `#CFC8BA` | `#4F4C47` | Full-range band on ruler and keyboard |
+| `range-full-bar` | `#ADA594` | `#5E5A54` | Full-range band on ruler, keyboard bracket and legend swatch |
 
 `accent` keeps its name so components need no rename; only its value moves from blue to ink. Where code used `accent` to mean "now" (scan timer ring, current beat, calibration current mark), switch it to `brass`. Where it meant "link", use `text` with an underline.
 
@@ -178,16 +178,19 @@ Forced colours: unchanged from today (glyphs carry meaning).
 | correct on paper | 3 | 5.17 | 7.83 |
 | ghost-replay on paper | 3 | 5.46 | 5.75 |
 | range-full on paper | 3 | 3.52 | 4.57 |
-| served band (accent) against full band (range-full-bar) | 3 | 10.35 | 7.12 |
+| served band (accent) against full band (range-full-bar) | 3 | 7.04 | 5.71 |
+| full band against ruler track | 1.5 | 1.88 | 1.97 |
+| full band against selected wash | 1.5 | 1.93 | 2.09 |
+| keyboard black key against white key | 3 | 9.95 | 3.59 |
 
-The full band against the card (1.6:1) is decorative: the range is always also given in text. Disabled controls stay at 40% opacity (exempt).
+The full band against the card (2.4:1 light, 2.5:1 dark) is supporting: the range is always also given in text. Disabled controls stay at 40% opacity (exempt).
 
 ---
 
 ## 4. Space, radius, elevation, motion
 
 - **Space:** keep the 4 px scale (`space-1` 4 to `space-8` 64) and add `space-9` 96. Page padding 40 desktop, 16 phone. Card padding 28 desktop, 20 phone. Rows inside a setup card: 22 px above and below, a hairline between.
-- **Radius:** `xs` 4 (ruler, small bars), `s` 8, `m` 12 (buttons, inputs, chips, segments), `l` 20 (cards, paper), `xl` 28 (sheets top corners, dialogs), `full` 999 (switches, pills, badges). Hero button 14. Count-in card 36.
+- **Radius:** `xs` 4 (ruler, small bars), `s` 8, `m` 12 (buttons, inputs, chips, segments), `l` 20 (cards, paper), `xl` 28 (sheets top corners, dialogs), `full` 999 (switches, pills, badges). Hero button 14.
 - **Elevation** (new token group; today only one overlay shadow exists):
 
 | Token | Light | Dark | Use |
@@ -251,7 +254,7 @@ Bump `"version"` to 2. Replace the groups below; groups not listed are unchanged
     "toast-text": { "light": "#FFFDF9", "dark": "#151517" },
     "scrim": { "light": "rgba(28,24,18,0.38)", "dark": "rgba(0,0,0,0.60)" },
     "range-full": { "light": "#8C877D", "dark": "#8E8981" },
-    "range-full-bar": { "light": "#CFC8BA", "dark": "#4F4C47" }
+    "range-full-bar": { "light": "#ADA594", "dark": "#5E5A54" }
     // "elevation-overlay" moves to the elevation group below
   },
   "paper": {
@@ -326,7 +329,7 @@ Bump `"version"` to 2. Replace the groups below; groups not listed are unchanged
 "button-x-padding": 18, "button-hero-x-padding": 28, "button-radius": 12, "button-hero-radius": 14,
 "segment-height": { "fine": 40, "coarse": 44 }, "segment-track-padding": 4, "segment-radius": 10, "segment-track-radius": 14,
 "time-segment-height": 64, "time-segment-min-width": 76, "time-glyph-staff-space": 7.5,
-"key-chip-min-height": 64, "key-chip-staff-space": 6.2, "key-chip-staff-width": 78, "key-grid-gap": 8,
+"key-chip-min-height": 64, "key-chip-staff-space": 6.5, "key-chip-staff-width": "100%", "key-grid-gap": 8,
 "stepper-button-size": { "fine": 44, "coarse": 44 }, "stepper-value-min-width": 96,
 "difficulty-meter-segment": [14, 18], "difficulty-meter-gap": 4,
 "toggle-track-width": 40, "toggle-track-height": 24, "toggle-thumb-size": 18, "toggle-hit-size": 44,
@@ -338,9 +341,9 @@ Bump `"version"` to 2. Replace the groups below; groups not listed are unchanged
 "instrument-card-icon": 40, "instrument-badge": 56, "ruler-height": 22, "ruler-axis": [24, 108],
 "range-staff-space": { "desktop": 12.5, "phone": 10 }, "range-picture-width": { "desktop": 420, "phone": "100%" },
 "keyboard-strip-height": 40,
-"calibration-mark": 26, "calibration-mark-gap": 14,
+"calibration-mark": { "desktop": 26, "phone": 22 }, "calibration-mark-gap": { "desktop": 14, "phone": 7 },
 "beat-dot-downbeat": 14, "beat-dot-other": 10, "beat-dot-outline": 1.5,
-"count-card-padding": [28, 64], "count-card-radius": 36,
+"count-band-gap": 36, "count-line-height": 0.74,
 "star-size-results": 26,
 "component-bar-height": 8,
 "mode-chip-height": 36, "scan-timer-ring": 26, "scan-timer-stroke": 3
@@ -350,8 +353,8 @@ Bump `"version"` to 2. Replace the groups below; groups not listed are unchanged
 `score` group changes:
 
 ```jsonc
-"staff-space": { "takeDesktop": 16.5, "takePhone": 8.6, "readDesktop": 13.5, "readPhone": 8.5, "reviewDesktop": 12.5, "reviewPhone": 8 },
-"page-margin": { "desktop": [40, 72], "phone": [22, 18] },
+"staff-space": { "takeDesktop": 16.5, "takePhone": 11, "readDesktop": 15, "readPhone": 9.5, "reviewDesktop": 12.5, "reviewPhone": 9 },
+"page-margin": { "desktop": [40, 72], "phone": [22, 12] },
 "lane-offset-staff-spaces": 2.2,
 "lane-glyph-size-staff-spaces": { "live": 1.25, "review": 1.25, "highContrast": 1.5 },
 "ghost-stroke": { "live": 1.5, "highContrast": 2.25 },
@@ -389,7 +392,7 @@ Track `surface-2`, 4 px padding, radius 14. Segments 40 / 44 high, radius 10, `t
 
 ### 6.3 Key chip (radio)
 
-Min 64 tall, radius 12, padding 8 10 10, 1 px `border`, `surface`. Top: a mini staff, 78 wide at a 6.2 px staff space, in the instrument's first clef, with the signature. Under it the key name, `label`. Transposing instruments: a third line "concert F major" in `caption`. Selected: `selected` wash, 2 px `text` edge (1 px border plus 1 px inset), a 20 px ink check disc top right. "Any key" spans the grid row: name, hint "Up to 1 sharp or flat", and the "+8% XP" tag right-aligned. Group labels "Major", "Minor" in `caption` 600 above each row. Grid gap 8.
+Min 64 tall, radius 12, padding 8 10 10, 1 px `border`, `surface`. Top: a mini staff at a 6.5 px staff space, in the instrument's first clef, with the signature. The staff lines run the full inner width of the chip (drawn long and clipped), so the signature is never scaled down. 1.6 staff spaces above and below the staff for bass clef; 2.4 above and 2 below for treble. Under it the key name, `label`. Transposing instruments: a third line "concert F major" in `caption`. Selected: `selected` wash, 2 px `text` edge (1 px border plus 1 px inset), a 20 px ink check disc top right. "Any key" spans the grid row: name, hint "Up to 1 sharp or flat", and the "+8% XP" tag right-aligned. Group labels "Major", "Minor" in `caption` 600 above each row. Grid gap 8. Phones always use 3 columns (every chip at least 96 px wide); the 4-column grid is desktop only, from difficulty 5.
 
 ### 6.4 Difficulty stepper and meter
 
@@ -407,16 +410,19 @@ Track 4 px `track`, fill `accent`, thumb 20 px `surface` with a 2 px `accent` ri
 
 - Card: `surface`, 1 px `border`, radius 20, `e1`, padding 28 / 20.
 - Sheet (phone): `surface`, top radius 28, grabber 40 by 5 at 50%, `e3`, scrim. Header row: title left (`h2` or `h3`), primary compact "Done" right.
-- Dialog (desktop): `surface`, radius 28, `e3`, max 920 wide for the instrument picker and 480 for confirms. Actions bottom right; the safe choice is primary and focused ("Keep it ranked").
-- Popover: `surface`, 1 px `border-strong`, radius 16, `e2`, padding 16 18, max 340, 12 px arrow. A bold first line names the topic ("What is the reference?").
+- Dialog (desktop): `surface`, radius 28, `e3`, 1280 wide (24 px from the window edges) and full window height less 48 for the instrument picker, 480 wide for confirms. Long dialogs have a fixed head and a fixed foot; only the body scrolls, so "Done" and "Cancel" are always in view. Actions bottom right; the safe choice is primary and focused ("Keep it ranked").
+- Popover: `surface`, 1 px `border-strong`, radius 16, `e2`, padding 16 18, max 340, 12 px arrow. A bold first line names the topic ("What is the reference?", "What is the key chord?"). The body is the string key verbatim (`reference.info.voice` or `.instrument`), the same string the phone sheet shows. On fine pointers it also opens after a 400 ms hover on the info button and closes on pointer leave; a press pins it open until Escape, an outside click or a second press. Touch: press only.
 - Info button: 36 circle (44 hit), 1 px `border`, `info` icon 16 in `text-muted`. Open: `selected` wash, `text` edge, `aria-expanded="true"`.
 
 ### 6.8 Sounds group (read-through)
 
+- Icons: Listen first uses listen; Hear the tempo the metronome; Hear starting pitch the pitch icon (one notehead and two sound arcs); Hear the key the key-chord icon; Check my tuning the tuning fork.
 - Desktop: a card under "Start playing". Header "Sounds" with "Nothing plays during the take" right. Each sound is a full-width button, min 68 tall, radius 14: a 44 icon tile (`surface-2`), the label (`body` 600) and the caption (`caption` `text-muted`). Order: Listen first, Hear the tempo, Hear starting pitch or Hear the key (with its info button), then Check my tuning for winds, brass and strings.
 - Playing: 1 px plus 1 px inset `brass` edge, the icon tile goes `brass-wash` with a `brass-ink` icon.
 - Live caption: one line above the group, `label` in `brass-ink`, led by three animated brass bars ("Key chord: G major"). On the score: the key signature is drawn in `brass-ink` on a `brass` 16% rounded plate; for the first note, the notehead in `brass-ink` on a 1.5 staff-space brass 18% disc with its name above.
-- Phone dock: fixed at the bottom on `surface` with a top hairline. Row of three dock buttons (min 72 tall, radius 14, icon over a 13 px label; "Listen first" adds "Makes this practice" at 10.5 px) and the 44 px "What do these do?" info button. "Start playing" hero below. Above the dock, the "Before you play: 1 of 5" peek tab (44 tall, `surface-2`, top radius 14).
+- Phone dock: fixed at the bottom on `surface` with a top hairline. Row of three dock buttons (min 72 tall, radius 14, icon over a 13 px label; "Listen first" adds "Makes this practice" at 10.5 px) and the 44 px "What do these do?" info button. "Start playing" hero below. Above the dock, the "Before you play: 1 of 5" peek tab (44 tall, `surface-2`, top radius 14) with an up chevron (it opens upward). The "What do these do?" sheet lists exactly the dock's sounds, with each button's full name as the row title: three rows for voices, four (adding Check my tuning) for winds, brass and strings.
+- Playing "Listen first": the button reads "Stop" with the stop icon and the brass playing state; the live caption reads "Playing bar 3 of 8" and the bar wash sits on bar 3. In Practice the caption stays "Hear how it goes before you play." and there is no confirm.
+- First-time coach mark: an inline `brass-wash` note with a 40% brass edge between "Start playing" and the sounds group (above the dock row on phones): "New: hear the tempo, the key and the music before you play." with "Got it" (secondary compact). It pushes content down; it never overlays "Start playing" or the music.
 
 ### 6.9 Mode chip and timer
 
@@ -426,17 +432,18 @@ Track 4 px `track`, fill `accent`, thumb 20 px `surface` with a 2 px `accent` ri
 
 - Staff: instrument's first clef, staff space 12.5 desktop and 10 phone, width 420 (desktop column) or full width. Served band: `band` fill, radius 0.8 staff spaces, from 2.2 spaces above the top line to 2.2 below the bottom, spanning the two served notes. Whole notes at 8%, 36%, 64% and 92% of the space after the clef: full low and high in `range-full`, served low and high in `ink`. Ledger lines in the note's colour.
 - Note pills under each note: 30 tall, radius full, 13 px 600 with a 12 px play triangle. Served pills are ink-filled; full pills are `surface` with a `border` edge and `text-muted`. Each is a button "Hear C3" (44 hit).
-- Keyboard strip: 40 tall (34 compact), from C2 to C5 for voices (instrument range rounded out to C's otherwise). Above the keys, two bracket bars: full range 4 px `range-full-bar`, served range 5 px `accent`. White keys in the full range tinted `#F1ECE2` / `#34322E`; in the served range `#D9CDB2` / `#6A5D45`. Middle C marked with a 2 px ink dot. C labels below in `caption`.
+- Keyboard strip: 40 tall (34 compact), from C2 to C5 for voices (instrument range rounded out to C's otherwise). Above the keys, two bracket bars: full range 4 px `range-full-bar`, served range 5 px `accent`. White keys `#FFFDF9` / `#6E6A63`; in the full range `#F1ECE2` / `#7C766C`; in the served range `#D9CDB2` / `#A08A5E`. Black keys `#3A3833` / `#0E0E10`. Dark mode keeps the white keys light-toned so black keys hold 3:1. Middle C marked with a 2 px dot in `#1C1B19` / `#0E0E10`. C labels below in `caption`.
 - Legend: two swatch lines ("Full range: G2 to G4", "At difficulty 2: C3 to C4", values in 600), then the voice line or the transposition line in `text-muted`.
 
 ### 6.11 Instrument card and ruler bar
 
-Card radius 16, padding 14 14 12, 1 px `border`. Left a 40 px icon tile; right the name (`body` 600, 15 px) and the written range (`caption`). Full width under it, the ruler: 22 tall, track 6 px `track` with `tick` marks at every C from C1 to C8, full range 6 px `range-full-bar`, served range 8 px `accent` (radius 4). Transposing instruments add "Sounds a major 2nd lower" in 12 px. Selected: as the key chip. Voices: 3 by 2 on every width; on phones the voice card stacks icon, name, range and bar. Picker groups flow in a 4-column grid on desktop (Woodwinds 3 plus Brass 1, then Strings 2 plus Keyboard 1). Above the grid one line explains the bars.
+Card radius 16, padding 14 14 12, 1 px `border`. One skeleton for every card in a row: name, range, ruler (30 tall), second line (16 min); the name area holds two lines in instrument groups, so names, ranges and bars line up across a row. Left a 40 px icon tile; right the name (`body` 600, 15 px) and the range (`caption`): sung range for voices, written range for transposing instruments. Full width under it, the ruler: 22 tall, track 6 px `track` with `tick` marks at every C from C1 to C8, middle C as a full-height 1.5 px `text-muted` tick drawn on top, full range 6 px `range-full-bar`, served range 8 px `accent` (radius 4). Second line in 12 px: tenor "Written an octave higher"; transposing instruments "Sounds a major 2nd lower · bars show sounding pitch". Selected: as the key chip. Voices: 3 by 2 on every width; on phones the voice card stacks icon, name, range and bar. Picker groups flow in a 4-column grid on desktop (Woodwinds 3 plus Brass 1, then Strings 2 plus Keyboard 1). On phones the non-voice groups are one card a row with the bar on the right. Above the grid, on every size, one line explains the bars: "Bars show the sounding range on one scale, C1 to C8. The tall tick is middle C (C4). The bold part is what you get at your difficulty."
 
 ### 6.12 Beat dots and count-in
 
 - Status strip dots: 10 px, downbeat 14 px, 1.5 px `text-muted` ring. Past: filled `text-muted`. Current: filled `brass`.
-- Count-in card: centred on the paper, `surface`, 1 px `border`, radius 36, `e3`, padding 28 64. Number in `count`, `brass-ink`, lining figures. Dots under it at 14 and 20 px (current gets a 6 px `brass-wash` halo). "Bar 1 · ♩ = 72" in 18 px 600. The paper behind is washed with `paper` at 78%.
+- Count-in band: no card. The score sits exactly where it sits during the take (centred in the paper). The number is set in the paper's top margin, above the first system, centred: `count` size, line height 0.74, `brass-ink`, lining figures; to its right the dots at 14 and 20 px (current gets a 6 px `brass-wash` halo) over "Bar 1 · ♩ = 72" in 18 px 600 (15 px phone). The band never overlaps the first system's box, top ledger lines included. The first system stays at full ink; later systems render at 50% opacity. If the top margin is shorter than the band (short laptop windows), the number drops to the phone size (132) before anything moves.
+- Voice, before the count-in: the same band reads "Your starting pitch" (`display`, 28 px on phones) over two steps: "Key chord: G major" (done: `text-muted` with a check) and the live caption "First note: G3". The first notehead is drawn in `brass-ink` on its brass disc with the note name above.
 
 ### 6.13 Take status strip
 
@@ -444,19 +451,21 @@ Card radius 16, padding 14 14 12, 1 px `border`. Left a 40 px icon tile; right t
 
 ### 6.14 Calibration
 
-One card, max 720 wide. Intro in body 16. Two selects side by side (stacked on phones). A `bg` inset panel (radius 18, padding 28) holds "Listening…", the instruction, the marks and "5 of 10 heard" (17 px, the count in 600). Marks: 26 px circles, gap 14. Pending: 2 px `border-strong` ring. Heard: filled `accent`. Missed: ring with a 2 px diagonal stroke. Current: filled `brass` with a pulse ring (section 4). Footer: "Hear the click" (tonal, metronome icon) left, "Skip" (quiet) right, and the skip hint under it in `caption`.
+One card, max 720 wide. Intro in body 16. Two selects side by side (stacked on phones). A `bg` inset panel (radius 18, padding 28) holds "Listening…", the instruction, the marks and "5 of 10 heard" (17 px, the count in 600). Marks: 26 px circles, gap 14. Pending: 2 px `border-strong` ring. Heard: filled `accent`. Missed: ring with a 2 px diagonal stroke. Current: filled `brass` with a pulse ring (section 4). Footer: "Hear the click" (tonal, metronome icon) left, only before Start and after a result, never while listening (removed, not greyed). "Skip" (quiet) right, and the skip hint under it in `caption`, left-aligned with the card text. While listening both selects are disabled (40%) with the line "Device choice is locked while we listen." in `caption`. Phones: marks 22 px with 7 px gaps and a 16 px stage padding, so all ten sit on one row at 390 px.
 
 ### 6.15 Results
 
-- Header: grade letter (`grade`), then the score (`display`, tabular) with "of 100", three 26 px stars (`brass` filled, `border-strong` outline empty) and the grade line. Right: the badge (Ranked: ink pill; Practice: `surface-2` pill), "+12 XP" (`h3`), the rank line and a 220 px, 6 px `brass` progress bar. On phones it stacks; the badge, XP and rank sit on one wrapped line.
+- Header: grade letter (`grade`), then the score (`display`, tabular) with "of 100", three 26 px stars (`brass` filled, `border-strong` outline empty) and the grade line. Right, on one line: the badge (Ranked: ink pill; Practice and Not graded: `surface-2` pill), "+12 XP" (`h3`), the rank line and a 140 px, 6 px `brass` progress bar; the reason line under it; then the three actions at 52 px, so "Next excerpt" is on the first screen on desktop. On phones the header stacks and the actions sit at the end of the page; once the header has scrolled away, a bottom bar pins "Next excerpt" and "Try again (practice)" (52 px, `surface`, top hairline).
+- Void: the header reads "Not graded" in `display`, no grade letter, no stars; the score card shows the clean score in ink with the line "Clean score. Nothing is marked when a take is not graded."; actions "Check microphone" and "Try again".
+- Listen playing: the button reads "Stop" with the stop icon, on `surface` with a brass edge, and the live caption "Playing bar 3 of 8" sits left of the Slower switch. A tapped bar shows the bar wash and "From bar 5" in the same place. On phones each bar's tap target is its full system height (about 100 px at a 9 px staff space).
 - Score card: toolbar (My take / Clean score segmented, Previous slip and Next slip secondary compact, Slower switch, Listen primary compact with the listen icon), then the paper with a 1 px `border` and no shadow.
-- "One thing to try": 40 px `brass-wash` tile with the lightbulb icon, title in `h2`, tip in 17 px, evidence in `small` `text-muted`, "Hear bar n" tonal compact buttons, then "1 more tip" as a quiet disclosure. Expanded tips sit on a `bg` panel, radius 14. When "Show a tip after each take" is reachable here, it is the last row.
+- "One thing to try": 40 px `brass-wash` tile with the lightbulb icon, title in `h2`, tip in 17 px, evidence in `small` `text-muted`, "Hear bar n" tonal compact buttons, then "Show 1 more tip" as a quiet disclosure; open, it reads "Hide tip". Every tip that names bars gets hear buttons; a range longer than two bars gets "Hear bars 3 to 4". Expanded tips sit on a `bg` panel, radius 14. When "Show a tip after each take" is reachable here, it is the last row.
 - Components: label, an 8 px bar (filled `accent`), the number. The weakest bar carries a diagonal hatch so it is marked by shape too; the sentence below names it.
-- Actions: hero size. Next excerpt (primary, arrow), Try again (practice) (secondary), Change setup (quiet). Full width and stacked on phones.
+- Actions: Next excerpt (primary, arrow), Try again (practice) (secondary), Change setup (quiet). In the header on desktop; full width and stacked at the page end on phones, plus the pinned bar.
 
 ### 6.16 Metronome sound option
 
-Radio card, radius 16, padding 14 16: a 22 px radio, the name (`label`) and hint (`small`), a 120 by 36 picture of one bar of that sound (accent beat larger), and a tonal compact "Play a bar" (phones: 44 px play icon only, named "Play a bar of Classic"). Selected: as the key chip, radio filled.
+Radio card, radius 16, padding 14 16: a 22 px radio, the name (`label`) and hint (`small`), a 120 by 36 picture of one bar of that sound (accent beat larger), and a tonal compact "Play a bar" (phones: 44 px play icon only, named "Play a bar of Classic"). Selected: as the key chip, radio filled. Playing: 1 px plus 1 px inset `brass` edge, picture in `brass-ink`, the button reads "Stop" on `brass-wash`, and the live caption "Playing: Woodblock" sits on the row head. Only one option plays at a time. Under the group: "Changing the sound keeps your calibration." Under the volume slider: "Plays one click when you let go."
 
 ---
 
@@ -472,16 +481,16 @@ Live drawing (behaviour and timing unchanged, UX section 15). Staff space `sp` p
 | Correct (review) | `ink` | none | none |
 | Early / late | `error` | Black notehead at the played x, same pitch: 1.5 px `ghost` stroke, `ghost` fill 40% live, 55% review | Filled triangle pointing left (early) or right (late), `error` |
 | Sharp / flat | `error` | Same staff step, offset right 1.1 notehead widths, with a vertical `ghost` arrow 1.6 sp long starting 1 sp above (sharp) or below (flat) the ghost | Filled triangle up or down, `error` |
-| Wrong pitch | `error` | At the played pitch; offset right 0.85 widths when within one step; its accidental in `ghost`, placed left of the written note | ✕, 1.75 px strokes, `error` |
-| Missed | `error` hollow head plus a 1.5 px `error` ring (0.95 sp tall) around it | none | Ring ○, `error` |
+| Wrong pitch | `error` | At the played pitch; offset right 0.85 widths when within one step. A ghost that needs an accidental is drawn at cue size (75%): its accidental 0.2 sp right of the written head, the ghost head 0.95 sp right of it, so nothing reaches into the previous note and the music never moves | ✕, 1.75 px strokes, `error` |
+| Missed | `error` head of the written shape (a quarter or eighth stays filled) plus a 1.5 px `error` ring (0.95 sp tall) around it | none | Ring ○, `error` |
 | Extra | unchanged | `ghost` head | + in `error` |
 | Replay | unchanged | dashed `ghost-replay` outline, no fill | ↺ in `ghost-replay` |
 | Re-judged (review) | final state plus a 2 px dashed `text-muted` ring | | |
 
 - **Playhead:** one `playhead-bar` wash behind the current bar, from 1.8 sp above the staff to below the lane, inset 0.15 sp, radius 0.5 sp. No line, no next-bar marker.
-- **Past:** once a system is left, slip notes, ghosts and lane glyphs drop to 70%. Ink never fades.
+- **Past:** once a system is left, every slip note, ghost and lane glyph in it, correct dots included, drops to 70% together. Ink never fades.
 - **Review ghosts:** add a stem at 75% and use a hollow head for half and whole notes.
-- **Margins:** take view 40 px top and 72 px sides inside the paper on desktop; 22 and 18 on phones. The paper is centred vertically in the viewport. The clef never touches an edge.
+- **Margins:** take view 40 px top and 72 px sides inside the paper on desktop; 22 and 12 on phones. The paper is centred vertically in the viewport. The clef never touches an edge.
 - **Read-through:** no lane; 2.4 sp below the staff before the next system.
 - **Density brake, caps, slots and page turns:** unchanged from 04 6.4.
 - The 1 m legibility check (UX 16 item 19) is run on the take mockup values: at 16.5 px staff space, a notehead is about 19 px wide and a lane glyph about 21 px.
@@ -491,7 +500,7 @@ Live drawing (behaviour and timing unchanged, UX section 15). Staff space `sp` p
 ## 8. Iconography
 
 - One family, drawn for this product: 24 unit grid, 1.75 stroke (1.5 at 28 px and up), round caps and joins, `currentColor`. Shown at 16, 20 and 24 px. Paths are in `docs/redesign/mockups/_build/icons.mjs`.
-- UI set: home, settings, chevron left, right and down, check, plus, minus, info, close, more, arrow right, play (filled), stop (filled square), listen (play with two sound arcs), metronome, tuning fork, starting pitch (a stacked three-note chord), note, mic, speaker, headphones, flame, progress, history, practice (two beamed notes), skip, retry, caution, lightbulb, slower.
+- UI set: home, settings, chevron left, right and down, check, plus, minus, info, close, more, arrow right, play (filled), stop (filled square), listen (play with two sound arcs), metronome, tuning fork, starting pitch (one filled notehead with two sound arcs), key chord (three filled noteheads on one stem with two sound arcs), note, mic, speaker, headphones, flame, progress, history, practice (two beamed notes), skip, retry, caution, lightbulb, slower.
 - "Listen" always uses the listen icon. "Hear the tempo" and "Hear the click" always use the metronome. "Check my tuning" uses the tuning fork, so it is never confused with a sound that plays.
 - Instruments: line icons for flute, clarinet, saxophone, trumpet, violin, cello and piano, on a 40 px `surface-2` tile (56 on the setup card). Voices use the clef they read from, set in Bravura: treble for soprano, mezzo and alto, the treble-8 clef for tenor, bass for baritone and bass. No letter abbreviations anywhere.
 - Wordmark: "Sightread" in Source Serif 4 600 at 21 px, after a 24 px mark of five staff lines with one brass notehead on the third space.
@@ -553,17 +562,29 @@ A hollow, rounded pock. Less click, more tone, still short.
 - The synthetic suite runs each sound with bleed at −20 and −10 dB: onset F1 at least 0.97 and zero click-induced extras, as already required for Tick and Wood. A sound that fails ships in headphone modes only, or not at all; the others ship.
 - Migration: stored `tick` reads as `classic`, `wood` as `woodblock`.
 
+### 9.6 Listen before you build
+
+One bar at ♩ = 90, accent on, of Classic, Woodblock, Beep and today's Tick, rendered from the recipes above (48 kHz, 16-bit mono, click gain 0.5, accent +3 dB):
+
+- `docs/redesign/audio/classic-bar-q90.wav`
+- `docs/redesign/audio/woodblock-bar-q90.wav`
+- `docs/redesign/audio/beep-bar-q90.wav`
+- `docs/redesign/audio/tick-today-bar-q90.wav`
+
+Rebuild with `node docs/redesign/mockups/_build/audio.mjs`. The owner picks or rejects each before build; record the verdict in `docs/PLAN.md`. A rejected sound is retuned inside the ship gate or dropped. Owner's verdict: pending.
+
 ---
 
 ## 10. Screen notes (what the mockups settle)
 
-- **Practice, desktop:** two columns, 5 to 7. Left card: instrument header, "Your range" picture, then Today (streak, takes and XP move to the page header line, right aligned). Right card: rows in the UX order, Start at the foot. The served range shows three times on purpose (staff band, keyboard bracket, the line under Difficulty): one picture, one physical reference, one exact text.
+- **Practice, desktop:** two columns, 5 to 7, filling the window height (minimum 560). Left card: instrument header, "Your range" picture, rank line (streak, takes and XP sit on the page header line, right aligned); it scrolls on its own if needed. Right card: Difficulty, Key, Time, Tempo and Length scroll inside the card; the foot is pinned outside the scroll area with Mode (label, segments, hint) and the XP line beside Start. At 1440 by 900 Start's bottom is at 854; at 1280 by 800, 754. No row can sit under the foot, because the foot is not over the scroll area. The served range shows three times on purpose (staff band, keyboard bracket, the line under Difficulty): one picture, one physical reference, one exact text.
 - **Practice, phone:** Today strip, title, summary card (instrument row with its 88 px ruler, then labelled chips: "Difficulty 2", "Key G major", and so on; each chip shows its row name above the value), the first-time hint in a `brass-wash` strip, Mode, rank card. Start and the XP line sit in a dock above the tab bar. At 390 by 844 Mode and Start are visible without scrolling (`home-phone-*.png`).
 - **Setup sheet, phone:** the same rows as desktop, range picture on top, tempo shown with the switch off so the slider and "Hear the tempo" appear.
-- **Instrument picker:** a 920 px dialog on desktop, a full-height sheet on phones, the large picture for the selection under the voice group on phones and under the grid on desktop.
+- **Instrument picker:** desktop: a 1280 px dialog; the grid scrolls on the left and the large picture for the selection sits in a fixed 440 px right column, so it is in view the moment a card is picked (legend bottom at 608 px at 1440 by 900). Phones: a full-height sheet; a panel pinned to the bottom shows the selection's name, staff, note buttons and legend (no keyboard), and updates on every pick. Its staff top is at 642 px at 390 by 844.
 - **Read-through:** score on paper, left; right column with Start playing, the live caption, Sounds, Before you play. The reference popover is open in the mockup to show its words. Phones: score, peek tab, dock. "What do these do?" opens a sheet with every caption, the reference entry highlighted in `brass-wash`.
 - **Listen first, ranked:** confirm dialog (desktop) or sheet (phone), "Keep it ranked" primary and focused; the time left is stated in the dialog.
-- **Take:** the music fills the page, centred, with the live palette. Status strip on top.
+- **Take:** the music fills the page, centred, with the live palette. Status strip on top. Phones: 11 px staff space, two bars a system, four systems.
+- **Count-in:** same score position as the take; the number in the top margin (section 6.12). Voice: "Your starting pitch" band first.
 - **Results and tips:** the tips screen is gone (UX 3.1); `tips.html` shows "One thing to try" expanded with the second tip and the setting.
 - **Calibration:** same flow and words, new skin. **Settings, Sound:** metronome cards with pictures and preview, accent switch, click volume, click during the take, then calibration, devices and tuning pitch.
 
@@ -571,28 +592,148 @@ A hollow, rounded pock. Less click, more tone, still short.
 
 ## 11. Mockups
 
-Static HTML and CSS, no network. Shared styles in `mockups/mockup.css`; fonts and their licences in `mockups/fonts/`. Theme is chosen by `?dark` in the URL (the app also follows `prefers-color-scheme`). The notation in the mockups comes from a small SVG engraver written for the mockups (`_build/engrave.mjs`); the app keeps VexFlow and applies the values in section 7.
+Static HTML and CSS, no network. Shared styles in `mockups/mockup.css`; fonts and their licences in `mockups/fonts/`. Theme is chosen in the URL: `?dark`, `?hc` (high contrast), `?dark&hc` (the app follows `prefers-color-scheme` and its contrast setting). The notation comes from a small SVG engraver written for the mockups (`_build/engrave.mjs`); the app keeps VexFlow and applies the values in section 7. In the mockups the ♩ of "♩ = 72" is the SMuFL quarter-note glyph from Bravura; the app draws it from the music-text subset (section 2.1), at the same size and spacing.
 
-| Mockup | Shows | PNGs (`png/`, deviceScaleFactor 2) |
+PNGs are in `png/` at deviceScaleFactor 1: `{name}-{desktop,phone}-{light,dark}.png`, plus `-hc-light` and `-hc-dark` where marked HC, and `-scrolled-` where marked S.
+
+| Mockup | Shows | Sizes |
 | --- | --- | --- |
-| `home.html` | Practice and setup, inline (desktop) and summary (phone) | `home-{desktop,phone}-{light,dark}.png` |
-| `setup-sheet.html` | Phone setup sheet | `setup-sheet-phone-{light,dark}.png` |
-| `picker.html` | Instrument picker with ruler bars and the large range picture | `picker-{desktop,phone}-{light,dark}.png` |
-| `scan.html` | Read-through with the sounds group, the reference playing and its explanation | `scan-{desktop,phone}-{light,dark}.png` |
-| `scan-explain.html` | Phone "What do these do?" sheet | `scan-explain-phone-{light,dark}.png` |
-| `scan-confirm.html` | Ranked "Listen first?" confirm | `scan-confirm-{desktop,phone}-{light,dark}.png` |
-| `count-in.html` | Count-in | `count-in-{desktop,phone}-{light,dark}.png` |
-| `performance.html` | Take with live feedback: sharp, wrong note, late, missed, playhead in bar 5 | `performance-{desktop,phone}-{light,dark}.png` |
-| `results.html` | Results with the marked score, Listen, one tip, components, actions | `results-{desktop,phone}-{light,dark}.png` |
-| `tips.html` | "One thing to try" expanded inside results | `tips-{desktop,phone}-{light,dark}.png` |
-| `calibration.html` | Calibration, mid-run | `calibration-{desktop,phone}-{light,dark}.png` |
-| `settings.html` | Settings > Sound with the metronome options | `settings-{desktop,phone}-{light,dark}.png` |
+| `home.html` | Practice: pinned setup foot (desktop), summary chips with chevrons (phone) | desktop, phone |
+| `setup-states.html` | Time 3/4 with "few pieces"; Ranked unavailable with Calibrate now; key fallback note; no excerpt fits; key grid at difficulty 5 for Clarinet in B♭ with concert lines | desktop, phone |
+| `setup-sheet.html` | Phone setup sheet | phone |
+| `setup-sheet-key.html` | Sheet opened from the Key chip, Key row at top, focus on G major | phone |
+| `picker.html` | Instrument picker; picture in view at selection (S on phone) | desktop, phone |
+| `scan.html` | Read-through, voice, starting pitch playing, reference popover | desktop, phone |
+| `scan-explain.html` | Phone "What do these do?" sheet, voice | phone |
+| `scan-confirm.html` | Ranked "Listen first?" confirm, one timer | desktop, phone |
+| `scan-listen.html` | Practice read-through, Listen first playing bar 3 | desktop, phone |
+| `scan-instrument.html` | Clarinet in B♭: Hear the key playing, key-chord popover, Check my tuning | desktop, phone |
+| `scan-coach.html` | First-time coach mark | desktop, phone |
+| `count-in.html` | Count-in, beat 3 | desktop, phone |
+| `count-in-voice.html` | Voice: "Your starting pitch" before the count-in | desktop, phone |
+| `performance.html` | Take with live feedback (HC) | desktop, phone |
+| `results.html` | Results, actions in the header, pinned phone bar (HC, S on phone) | desktop, phone |
+| `results-states.html` | Listen playing; tapped bar; Practice after Listen first; Not graded; tips-off toast | desktop, phone |
+| `tips.html` | "One thing to try" expanded | desktop, phone |
+| `calibration.html` | Calibration listening and result | desktop, phone |
+| `settings.html` | Settings > Sound, Woodblock previewing | desktop, phone |
+| `focus.html` | Keyboard focus on key chip, time segment, range note, info button, instrument card | desktop, phone |
+| `welcome.html` | Welcome | desktop, phone |
+| `cover.html` | Cover, ranked | desktop, phone |
+| `error-clock.html` | Audio timing problem | desktop, phone |
+| `not-found.html` | Page not found | desktop, phone |
 
 Rebuild and re-render:
 
 ```
 node docs/redesign/mockups/_build/build.mjs
 node docs/redesign/mockups/_build/render.cjs        # optional name filter, e.g. "scan"
+node docs/redesign/mockups/_build/audio.mjs         # the metronome WAVs, section 9.6
 ```
 
-Known mockup limits, not design intent: the ♩ in text uses the system fallback (section 2.1 fixes it in the app), and on the phone take view the ghost natural in bar 2 sits close to its neighbour because the mockup engraver does not apply 04's collision rule.
+Known mockup limits, not design intent: the mockup engraver's beams and stems are approximate, and on the phone take view (two bars a system) the cue-size ghost in bar 2 sits close to the next note. The app's collision test (critique C37) is the check.
+
+---
+
+## Changes after critique
+
+Each numbered change from `07-ux-critique.md`, with what was done. "Done" means the mockups and this spec now show it; checks that can only run in the app are listed in `05-ux-spec.md`, "Designer's notes".
+
+**Practice (`home`)**
+
+- C1. Done. Right card splits into a scrolling body and a pinned foot holding Mode, its hint, the XP line and Start. Measured: Start's bottom at 854 px (1440 by 900) and 754 px (1280 by 800).
+- C2. Done. The foot sits outside the scroll area, so no row can pass under it.
+- C3. Done. Chip staff drawn at 6.5 px staff space, never scaled, lines across the chip's full inner width (173 of 175 px).
+- C4. Done. Dark keyboard white keys `#6E6A63`, full range `#7C766C`, served `#A08A5E`; black keys `#0E0E10` hold 3.59:1 or more.
+- C5. Done. Each phone summary chip carries a down chevron, hint or no hint. The five-person test stays manual.
+- C6. Done. `setup-states.html`: Time 3/4 with "Few pieces here: some may repeat." and the "Key set to Any: D major isn't used at difficulty 2." note.
+
+**Setup sheet**
+
+- C7. Done. "+8% XP" on the tempo switch in the sheet.
+- C8. Done. `setup-sheet-key.html`: opened from Key, Key row at the top, focus ring on G major.
+- C9. Done in the mockups (the ♩ is a music glyph, gap 0.2 em). The app check is in Designer's notes.
+
+**Instrument picker**
+
+- C10. Done. Picture in a fixed right column; legend bottom at 608 px at 1440 by 900.
+- C11. Done. Fixed dialog foot; Done's bottom at 858 px (1440 by 900) and 758 px (1280 by 800).
+- C12. Done. Pinned bottom panel on phones with the selection's staff (top at 642 px).
+- C13. Done. Voices show the sung range ("Tenor A2 to A4", "Written an octave higher"); transposing cards add "bars show sounding pitch".
+- C14. Done. "The bold part is what you get at your difficulty."
+- C15. Done. Middle C is a full-height darker tick on every ruler; named once in the axis line.
+- C16. Done. `range-full-bar` `#ADA594` / `#5E5A54`: 1.88 and 1.97 against the track, 1.93 and 2.09 against the selected wash.
+- C17. Done. One card skeleton per row (two-line name area in instrument groups, fixed ruler and second-line rows).
+- C18. Done. Non-voice groups are one card a row on phones, bar on the right.
+- C19. Done. Axis line above the Voice group on phones.
+
+**Read-through**
+
+- C20. Done. Desktop 15 px staff space, eight bars on two systems; phone 9.5 px.
+- C21. Done in drawing: new pitch icon (one notehead, two sound arcs). The five-person icon test stays manual. The key chord got its own icon too, since the stacked outlines read as an 8 there as well.
+- C22. Done. Up chevron on the peek tab.
+- C23. Done. `scan-listen.html`: Practice read-through, "Stop", "Playing bar 3 of 8", wash on bar 3, practice caption.
+- C24. Done. `scan-instrument.html`: Clarinet in B♭ in A major, "Hear the key", key-chord popover, "Check my tuning".
+- C25. Done. `scan-coach.html`: inline coach note under Start playing (above the dock row on phones); it covers nothing.
+- C26. Done in spec (6.7): 400 ms hover opens on fine pointers, a press pins it, touch is press only. Behaviour change listed in Designer's notes, because UX spec 10 said "not on hover alone".
+
+**What do these do? (`scan-explain`)**
+
+- C27. Done. Three rows for voice; Check my tuning only for winds, brass and strings.
+- C28. Done. Popover and sheet both show `reference.info.voice` verbatim, under the same title.
+- C29. Done. Row titles are the full names: Listen first, Hear the tempo, Hear starting pitch.
+
+**Ranked confirm**
+
+- C30. Done. Chip and dialog both read 0:18.
+- C31. Done. Grabber on the phone sheet; swipe-down or scrim tap means "Keep it ranked" (Designer's notes).
+
+**Count-in**
+
+- C32. Done. No card; the number sits above the first system, which stays at full ink. Measured: band bottom 220 px, first system's highest ledger below it.
+- C33. Done. Later systems at 50%. Number at `count` size (200 desktop, 132 phone).
+- C34. Done. `count-in-voice.html`: "Your starting pitch", "Key chord: G major" done, live "First note: G3", first notehead highlighted. The excerpt's first note is G3, so the mockup says G3, not D3.
+
+**Take (`performance`)**
+
+- C35. Done. Phone staff space 11 px (measured scale 1.0), two bars a system.
+- C36. Done. Every mark in the left system, dots included, at 70%.
+- C37. Done in drawing (cue-size ghost with its accidental between the notes). The app check is in Designer's notes.
+- C38. Done. A missed quarter or eighth keeps its filled head; the ring marks it.
+
+**Results**
+
+- C39. Done. Components now make Notes the weakest (76), the same as the first tip; the sentence reads "Notes is the one to work on."
+- C40. Done. Actions in the header on desktop.
+- C41. Done. Pinned bottom bar on phones (`results-phone-scrolled-*.png`).
+- C42. Done. `results-states.html`: Listen playing bar 3, and bar 5 tapped ("From bar 5").
+- C43. Done. Practice badge with "You listened first, so this one is practice." and "+3 XP (practice earns 25% of the XP)"; Not graded with the clean score.
+- C44. Done. Phone review staff space 9 px; each bar's tap target is its full system height, about 100 px.
+
+**Tips**
+
+- C45. Done. "Show 1 more tip" closed, "Hide tip" open. New key `results.tip.less` in Designer's notes.
+- C46. Done. Second tip has "Hear bars 3 to 4".
+- C48. Done. Toast "Tips turned off. Turn them on in Settings > Practice." with Undo, in `results-states.html`.
+
+**Calibration**
+
+- C47. Done. "Hear the click" is absent while listening; shown before Start and on the result.
+- C49. Done. 22 px marks, 7 px gaps: ten on one row at 390 px.
+- C50. Done. Skip hint left-aligned.
+- C51. Done with different words. Both selects disabled while listening, with "Device choice is locked while we listen." "Stop to change devices." points to a Stop button the frozen calibration flow does not have (UX 15), so I did not add one.
+
+**Settings, Sound**
+
+- C52. Done. Four WAVs in `docs/redesign/audio/` (section 9.6). The owner's verdict is pending and must be recorded in `docs/PLAN.md`.
+- C53. Done. "Changing the sound keeps your calibration." This matches the gate today: `isMeasuredFor` in `src/calibration/record.ts` checks route, staleness and method, not the sound. The count-in recheck template is per sound and is built on the next calibration (Designer's notes).
+- C54. Done. Woodblock shown playing with "Stop"; only one option can be playing.
+- C55. Done in spec: releasing the slider plays one click; the hint says so.
+
+**Across all screens**
+
+- C56. Done for the drift found (reference text, tempo caption, tuning row). The automated text test is a build task (Designer's notes).
+- C57. Partly done. Added Welcome, Cover, Ranked unavailable, the no-excerpt card, Audio timing problem and Page not found. Declined for this pass: onboarding steps 2 to 5, Progress, History and attempt detail. Steps 2 to 5 reuse the picker, microphone card, calibration and difficulty control already drawn; Progress and History change only in words (UX 8.12). I will draw them before build if the owner wants to walk them first.
+- C58. Done. Difficulty 5 grid for Clarinet in B♭, 4 columns on desktop, concert lines; phones keep 3 columns, every chip at least 96 px.
+- C59. Done. `focus.html`: key chip, time segment, range note, info button, instrument card.
+- C60. Done. `performance` and `results` rendered in high contrast, light and dark. Adding them to the contrast test is a build task.

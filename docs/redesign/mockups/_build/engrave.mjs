@@ -69,6 +69,8 @@ export function engrave(o) {
   let barIndex = 0;
   systems.forEach((bars, si) => {
     const y0 = si * (sysH + (o.systemGap ?? 0)) + top; // top staff line
+    const sysOp = o.systemOpacity ? o.systemOpacity[si] ?? o.systemOpacity[o.systemOpacity.length - 1] : 1;
+    if (sysOp !== 1) parts.push(`<g opacity="${sysOp}">`);
     const yb = y0 + 4 * sp; // bottom line
     const yOf = (step) => yb - (step * sp) / 2;
     const x0 = marginX;
@@ -157,7 +159,7 @@ export function engrave(o) {
         for (const s of led) g.push(`<line x1="${f(pn.x - 0.4 * sp)}" x2="${f(pn.x + hw + 0.4 * sp)}" y1="${f(yOf(s))}" y2="${f(yOf(s))}" stroke="var(--ink)" stroke-width="${f(Math.max(1, sp * 0.13))}"/>`);
         if (n.acc) g.push(txt(pn.x - 1.25 * sp, y, sp, n.acc === '#' ? G.sharp : n.acc === 'b' ? G.flat : G.natural));
         if (m.state === 'missed') {
-          g.push(txt(pn.x, y, sp, head === 'black' ? G.half : G[head], `fill="var(--error)"`));
+          g.push(txt(pn.x, y, sp, G[head], `fill="var(--error)"`)); // keep the written head (C38)
           over.push(`<ellipse cx="${f(pn.x + hw / 2)}" cy="${f(y)}" rx="${f(hw * 0.95)}" ry="${f(sp * 0.95)}" fill="none" stroke="var(--error)" stroke-width="${f(Math.max(1.5, sp * 0.14))}"/>`);
         } else {
           g.push(txt(pn.x, y, sp, G[head]));
@@ -227,13 +229,18 @@ export function engrave(o) {
           const GP = parsePitch(gh.p);
           const gstep = GP.dn - clef.ref;
           const gy = yOf(gstep);
-          const gxp = pn.x + (gh.dx || 0) * pn.hw;
+          // A ghost that carries an accidental sits further right, with the accidental between the written
+          // note and the ghost, so it never reaches back into the previous note (C37).
+          // Such a ghost and its accidental are drawn at cue size (75%), so both fit before the next note
+          // without moving the music during a take.
+          const cue = gh.acc ? 0.75 : 1;
+          const gxp = gh.acc ? pn.x + pn.hw + 0.95 * sp : pn.x + (gh.dx || 0) * pn.hw;
           const gg = [];
           const ghead = o.ghostStyle === 'review' && pn.n.d !== 'q' && pn.n.d !== 'e' ? (pn.n.d === 'w' ? G.whole : G.half) : G.black;
           for (let s = -2; s >= gstep; s -= 2) gg.push(`<line x1="${f(gxp - 0.4 * sp)}" x2="${f(gxp + pn.hw + 0.4 * sp)}" y1="${f(yOf(s))}" y2="${f(yOf(s))}" stroke="var(--ghost)" stroke-dasharray="2 2" stroke-width="1"/>`);
           for (let s = 10; s <= gstep; s += 2) gg.push(`<line x1="${f(gxp - 0.4 * sp)}" x2="${f(gxp + pn.hw + 0.4 * sp)}" y1="${f(yOf(s))}" y2="${f(yOf(s))}" stroke="var(--ghost)" stroke-dasharray="2 2" stroke-width="1"/>`);
-          if (gh.acc) gg.push(txt(Math.min(gxp - 1.2 * sp, pn.x - 1.35 * sp), gy, sp, gh.acc === '#' ? G.sharp : gh.acc === 'b' ? G.flat : G.natural, 'fill="var(--ghost)"'));
-          gg.push(txt(gxp, gy, sp, ghead, `fill="var(--ghost)" fill-opacity="${o.ghostStyle === 'review' ? 0.55 : 0.4}" stroke="var(--ghost)" stroke-width="${f(Math.max(1.25, sp * 0.1))}"`));
+          if (gh.acc) gg.push(txt(pn.x + pn.hw + 0.2 * sp, gy, sp * cue, gh.acc === '#' ? G.sharp : gh.acc === 'b' ? G.flat : G.natural, 'fill="var(--ghost)"'));
+          gg.push(txt(gxp, gy, sp * cue, ghead, `fill="var(--ghost)" fill-opacity="${o.ghostStyle === 'review' ? 0.55 : 0.4}" stroke="var(--ghost)" stroke-width="${f(Math.max(1.25, sp * 0.1))}"`));
           if (o.ghostStyle === 'review') {
             const st = Math.max(1, sp * 0.12);
             const up = gstep < 4;
@@ -267,6 +274,7 @@ export function engrave(o) {
         parts.push(`<rect x="${f(bx - Math.max(1, sp * 0.16))}" y="${f(y0)}" width="${f(Math.max(1, sp * 0.16))}" height="${f(4 * sp)}" fill="var(--ink)"/>`);
       }
     });
+    if (sysOp !== 1) parts.push('</g>');
   });
   const svg = `<svg class="score-svg" viewBox="0 0 ${f(o.width)} ${f(height)}" width="${f(o.width)}" height="${f(height)}" xmlns="http://www.w3.org/2000/svg" font-family="Bravura" aria-hidden="true"><g class="under">${under.join('')}</g><g fill="var(--ink)" color="var(--ink)">${parts.join('')}</g><g class="over">${over.join('')}</g></svg>`;
   return { svg, height };
@@ -314,18 +322,19 @@ export function rangePicture({ clef, full, served, width = 320, sp = 9, names = 
 }
 
 /** Mini key-signature staff for key chips. */
-export function miniKey({ clef, key, sp = 4.2, width = 52 }) {
+export function miniKey({ clef, key, sp = 6.5, width = 420 }) {
+  // Drawn at its true staff space; lines run long and the chip clips them, so the staff fills the chip (C3).
   const C = CLEF[clef];
-  const top = 3 * sp;
+  const top = (clef === 'bass' ? 1.6 : 2.4) * sp; // the treble clef and its sharps reach higher
   const yb = top + 4 * sp;
   const yOf = (s) => yb - (s * sp) / 2;
   const ks = keySteps(clef, key);
   const parts = [];
-  for (let l = 0; l < 5; l++) parts.push(`<line x1="0" x2="${width}" y1="${f(top + l * sp)}" y2="${f(top + l * sp)}" stroke="currentColor" stroke-opacity="0.55" stroke-width="0.8"/>`);
+  for (let l = 0; l < 5; l++) parts.push(`<line x1="0" x2="${width}" y1="${f(top + l * sp)}" y2="${f(top + l * sp)}" stroke="currentColor" stroke-opacity="0.55" stroke-width="1"/>`);
   parts.push(txt(1.5, yOf(C.step), sp, C.glyph));
   ks.forEach((s, i) => parts.push(txt(4.2 * sp + i * 1.15 * sp, yOf(s), sp, key.type === '#' ? G.sharp : G.flat)));
-  const h = top + 4 * sp + 3 * sp;
-  return `<svg class="mini-key" viewBox="0 0 ${width} ${f(h)}" width="${width}" height="${f(h)}" font-family="Bravura" fill="currentColor" aria-hidden="true">${parts.join('')}</svg>`;
+  const h = top + 4 * sp + (clef === 'bass' ? 1.6 : 2) * sp;
+  return `<span class="mk"><svg class="mini-key" viewBox="0 0 ${width} ${f(h)}" width="${width}" height="${f(h)}" font-family="Bravura" fill="currentColor" aria-hidden="true">${parts.join('')}</svg></span>`;
 }
 
 export function timeSigGlyph(top, bottom, sp = 6) {
@@ -341,9 +350,13 @@ export function rulerBar({ full, served, width = 160, height = 22, ticks = true 
   const parts = [];
   const by = 8;
   parts.push(`<rect x="0" y="${by}" width="${width}" height="6" rx="3" fill="var(--track)"/>`);
-  if (ticks) for (let m = lo; m <= hi; m += 12) parts.push(`<line x1="${f(X(m))}" x2="${f(X(m))}" y1="${by - 3}" y2="${by + 9}" stroke="var(--tick)" stroke-width="1"/>`);
+  // Every C gets a tick; middle C (C4) is taller and darker, the ruler's one landmark (C15).
+  if (ticks) for (let m = lo; m <= hi; m += 12) parts.push(m === 60
+    ? `<line x1="${f(X(m))}" x2="${f(X(m))}" y1="0.5" y2="${height - 0.5}" stroke="var(--text-muted)" stroke-width="1.5"/>`
+    : `<line x1="${f(X(m))}" x2="${f(X(m))}" y1="${by - 3}" y2="${by + 9}" stroke="var(--tick)" stroke-width="1"/>`);
   parts.push(`<rect x="${f(X(full[0]))}" y="${by}" width="${f(X(full[1]) - X(full[0]))}" height="6" rx="3" fill="var(--range-full-bar)"/>`);
   if (served) parts.push(`<rect x="${f(X(served[0]))}" y="${by - 1}" width="${f(Math.max(4, X(served[1]) - X(served[0])))}" height="8" rx="4" fill="var(--ink-ui)"/>`);
+  if (ticks) { const mc = parts.findIndex((q) => q.includes('stroke-width="1.5"')); if (mc >= 0) parts.push(parts.splice(mc, 1)[0]); }
   return `<svg class="ruler" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" aria-hidden="true" preserveAspectRatio="none">${parts.join('')}</svg>`;
 }
 
@@ -359,7 +372,7 @@ export function keyboard({ loM = 36, hiM = 72, full, served, width = 320, height
     const t = tone(m);
     const fill = t === 'served' ? 'var(--kb-served)' : t === 'full' ? 'var(--kb-full)' : 'var(--kb-white)';
     parts.push(`<rect x="${f(i * ww + 0.5)}" y="0.5" width="${f(ww - 1)}" height="${height - 1}" rx="2.5" fill="${fill}" stroke="var(--kb-edge)" stroke-width="1"/>`);
-    if (m === 60) parts.push(`<circle cx="${f(i * ww + ww / 2)}" cy="${height - 7}" r="2" fill="var(--ink-ui)"/>`);
+    if (m === 60) parts.push(`<circle cx="${f(i * ww + ww / 2)}" cy="${height - 7}" r="2" fill="var(--kb-dot)"/>`);
   });
   for (let m = loM; m <= hiM; m++) {
     if (!isBlack(m)) continue;

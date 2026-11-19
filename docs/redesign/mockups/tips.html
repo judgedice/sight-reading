@@ -5,14 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>One thing to try (tips in results)</title>
 <link rel="stylesheet" href="mockup.css">
-<script>if (/dark/.test(location.search)) document.documentElement.dataset.theme = 'dark';</script>
+<script>if (/dark/.test(location.search)) document.documentElement.dataset.theme = 'dark'; if (/hc/.test(location.search)) document.documentElement.dataset.contrast = 'high';</script>
 </head>
 <body class="">
 <style>
-.res { max-width: 1240px; margin: 0 auto; padding: 28px 40px 56px; }
-.grade-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; margin-bottom: 24px; }
+.res { max-width: 1240px; margin: 0 auto; padding: 24px 40px 56px; }
+.grade-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; margin-bottom: 20px; }
 .g-left { display: flex; align-items: flex-end; gap: 24px; }
-.g-right { text-align: right; display: flex; flex-direction: column; align-items: flex-end; }
+.g-right { display: flex; flex-direction: column; align-items: flex-end; gap: 14px; }
+.xp-line { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: flex-end; }
+.reason { margin: -6px 0 0; }
 .score-card { padding: 18px; }
 .score-tools { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
 .nav-slips { display: inline-flex; gap: 8px; }
@@ -22,26 +24,33 @@
 .tip-text { font-size: 17px; line-height: 1.55; margin: 0; }
 .more-tips { margin-top: 14px; }
 .tip2 { margin-top: 10px; padding: 16px; border-radius: 14px; background: var(--bg); }
-.res-actions { display: flex; gap: 10px; margin-top: 24px; }
+.res-actions { display: flex; gap: 10px; }
+.res-actions .btn-hero { --h: 52px; font-size: 16px; padding: 0 22px; }
+.res-bar { display: none; }
+.is-playing-btn { background: var(--surface); color: var(--text); border-color: var(--brass); box-shadow: 0 0 0 1px var(--brass) inset; }
 @media (max-width: 700px) {
-  .res { padding: 18px 14px 40px; }
+  .res { padding: 18px 14px 120px; }
   .grade-head { flex-direction: column; align-items: stretch; gap: 14px; }
   .g-left { gap: 16px; align-items: center; }
-  .g-right { text-align: left; align-items: flex-start; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 4px 12px; }
-  .g-right p { margin: 0 !important; }
-  .g-right .xpbar { width: 100% !important; }
+  .g-right { align-items: flex-start; }
+  .xp-line { justify-content: flex-start; gap: 6px 12px; }
+  .xp-line .xpbar { width: 100% !important; }
   .res-cols { grid-template-columns: 1fr; }
   .score-card { padding: 12px; }
+  .score-card .paper { padding: 12px !important; }
   .score-tools { gap: 8px; }
   .score-tools .seg { width: 100%; } .score-tools .seg .seg-btn { flex: 1; }
   .nav-slips .btn { padding: 0 10px; }
-  .res-actions { flex-direction: column; }
-  .res-actions .btn { width: 100%; height: 52px; }
+  .res-end { flex-direction: column; }
+  .res-end .btn { width: 100%; height: 52px; }
   .t-display { font-size: 40px; }
+  /* Pinned once the header has scrolled away (C41). */
+  .res-bar { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; position: fixed; left: 0; right: 0; bottom: 0; z-index: 10; padding: 10px 14px 24px; background: var(--surface); border-top: 1px solid var(--border); box-shadow: 0 -10px 30px rgba(0,0,0,0.08); }
+  .res-bar .btn { height: 52px; padding: 0 10px; font-size: 15px; }
 }
 </style><header class="loopbar">
   <button class="btn btn-quiet btn-compact"><svg class="icon " viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>Home</button>
-  <p class="summary only-desktop">Difficulty 2 · G major · 4/4 · <span class="nb">♩ = 72</span> · 8 bars</p>
+  <p class="summary only-desktop">Difficulty 2 · G major · 4/4 · <span class="tempo num"><span class="qn" aria-hidden="true"></span>= 72<span class="sr">quarter note equals 72</span></span> · 8 bars</p>
   <span class="only-phone" style="margin-left:auto"></span>
   
 </header>
@@ -53,19 +62,20 @@
   <p class="t-small muted" style="margin:8px 0 0">Seen in bars 2 and 6.</p>
   <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:16px"><button class="btn btn-tonal btn-compact"><svg class="icon sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 6.5v11L13 12z"/><path d="M16.5 8.8a4.5 4.5 0 0 1 0 6.4"/><path d="M19.2 6.2a8.2 8.2 0 0 1 0 11.6"/></svg>Hear bar 2</button><button class="btn btn-tonal btn-compact"><svg class="icon sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 6.5v11L13 12z"/><path d="M16.5 8.8a4.5 4.5 0 0 1 0 6.4"/><path d="M19.2 6.2a8.2 8.2 0 0 1 0 11.6"/></svg>Hear bar 6</button></div>
   <div class="more-tips">
-    <button class="btn btn-quiet btn-compact" style="padding:0"><svg class="icon sm" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>Hide 1 more tip</button>
-    <div class="tip2"><p class="t-label" style="margin:0 0 4px">Rhythm</p><p style="margin:0">You fell behind the click. Keep your eyes at least one beat ahead, and keep moving when a note goes wrong: a wrong note on time beats a right note late.</p><p class="t-small muted" style="margin:6px 0 0">Seen in bars 3 to 8.</p></div>
+    <button class="btn btn-quiet btn-compact" style="padding:0" aria-expanded="true"><svg class="icon sm" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 15 6-6 6 6"/></svg>Hide tip</button>
+    <div class="tip2"><p class="t-label" style="margin:0 0 4px">Rhythm</p><p style="margin:0">You fell behind the click. Keep your eyes at least one beat ahead, and keep moving when a note goes wrong: a wrong note on time beats a right note late.</p><p class="t-small muted" style="margin:6px 0 0">Seen in bars 3 to 8.</p>
+    <div style="margin-top:12px"><button class="btn btn-tonal btn-compact" style="background:var(--surface)"><svg class="icon sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 6.5v11L13 12z"/><path d="M16.5 8.8a4.5 4.5 0 0 1 0 6.4"/><path d="M19.2 6.2a8.2 8.2 0 0 1 0 11.6"/></svg>Hear bars 3 to 4</button></div></div>
     <div class="row-head" style="margin:18px 0 0;border-top:1px solid var(--border);padding-top:16px"><span class="t-small">Show a tip after each take</span><span class="switch is-on"><span class="switch-track"></span></span></div>
   </div>
 </section>
   <div style="height:20px"></div>
   <section class="card card-pad">
   <h2 class="t-h3" style="margin-bottom:8px">How it went</h2>
-  <div class="comp"><span class="t-small" style="font-weight:600">Notes</span><span class="bar"><i class="" style="width:86%"></i></span><span class="v num">86</span></div><div class="comp"><span class="t-small" style="font-weight:600">In tune</span><span class="bar"><i class="" style="width:93%"></i></span><span class="v num">93</span></div><div class="comp"><span class="t-small" style="font-weight:600">Rhythm</span><span class="bar"><i class="weak" style="width:78%"></i></span><span class="v num">78</span></div>
-  <p style="margin:12px 0 0"><b>Rhythm is the one to work on.</b> <span class="muted">You slowed down slightly by the end.</span></p>
+  <div class="comp"><span class="t-small" style="font-weight:600">Notes</span><span class="bar"><i class="weak" style="width:76%"></i></span><span class="v num">76</span></div><div class="comp"><span class="t-small" style="font-weight:600">In tune</span><span class="bar"><i class="" style="width:93%"></i></span><span class="v num">93</span></div><div class="comp"><span class="t-small" style="font-weight:600">Rhythm</span><span class="bar"><i class="" style="width:85%"></i></span><span class="v num">85</span></div>
+  <p style="margin:12px 0 0"><b>Notes is the one to work on.</b> <span class="muted">You slowed down slightly by the end.</span></p>
   <p class="t-small muted counts" style="margin:14px 0 0"><span class="nb">29 notes</span> · <span class="nb">24 right</span> · <span class="nb">1 late</span> · <span class="nb">1 out of tune</span> · <span class="nb">2 wrong notes</span> · <span class="nb">1 missed</span></p>
 </section>
-  <div class="res-actions"><button class="btn btn-primary btn-hero">Next excerpt<svg class="icon sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg></button><button class="btn btn-secondary btn-hero">Try again (practice)</button><button class="btn btn-quiet btn-hero">Change setup</button></div>
 </main>
+<div class="res-bar"><button class="btn btn-primary">Next excerpt<svg class="icon sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg></button><button class="btn btn-secondary">Try again (practice)</button></div>
 </body>
 </html>

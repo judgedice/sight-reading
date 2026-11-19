@@ -992,3 +992,70 @@ Each is a test (unit, component or e2e) unless marked "manual".
 5. **Brand and small screens:** type, colour, icons, welcome, settings, errors, credits, not found.
 
 Each step ships behind no flag and must leave the app working.
+
+---
+
+## Designer's notes
+
+Author role: principal product designer. A review of this spec from the visual side, after the critique pass (`07-ux-critique.md`, `06-design-spec.md` "Changes after critique"). Each note is a behaviour or copy change the design needs. Where a note changes a section above, that section should be edited to match before build; until then, this list wins.
+
+### Behaviour
+
+1. **Info popover on hover (10, 14.1).** The owner asked for "a rollover". Keep the press, and add: on fine pointers, a 400 ms hover on the info button opens the same popover; pointer leave closes it unless a press pinned it. Touch is press only. Hover is an extra route, never the only one, so 14.1 still holds. Change 10 "not on hover alone" to "also on a 400 ms hover with a fine pointer".
+2. **Count-in (8.9).** Replace "the score dimmed slightly behind" with: the first system is never covered and never dimmed; later systems render at 50%; the number sits in the paper's top margin above the first system. The score does not move between read-through layout, count-in and take.
+3. **Voice before the count-in (8.9).** The band shows "Your starting pitch" with two steps, the key chord (marked done) and the live "First note: {note}". The note is the excerpt's real first note; the spec's example "D3" is only an example (the mockup excerpt starts on G3).
+4. **Key chord name for transposing instruments (9.1, 10).** `reference.playing.chord` shows the written key ("Key chord: A major" for a clarinet reading A major). The chord sounds at concert pitch, which is what a clarinettist hears as A major, so the name matches the page. The popover already says "at concert pitch".
+5. **Practice layout on desktop (5.2, 5.11, 16 item 7).** Mode and Start are pinned in the setup card's foot; Difficulty, Key, Time, Tempo and Length scroll inside the card. Add a desktop version of check 7: at 1440 by 900 and 1280 by 800, Start and Mode are in view on load.
+6. **Instrument picker (6.1, 7.2).** Desktop: the large picture lives in a fixed right column of the dialog and updates on every pick. Phones: a panel pinned to the bottom of the sheet shows the selection's staff, note buttons and legend. The phone panel drops the keyboard strip to keep the list usable; the keyboard stays on Practice and in the setup sheet. Dialog head and foot are fixed; only the grid scrolls.
+7. **Card range text (6.3, `range.cardText`).** Voices show the sung range ("Tenor A2 to A4") with "Written an octave higher" for tenor; transposing instruments keep the written range and add "bars show sounding pitch". `instrument.card.a11y` uses the same frame as the visible text.
+8. **Results order (8.11).** "Next excerpt", "Try again (practice)" and "Change setup" move into the header on desktop, under the XP line. On phones they stay at the end of the page, and a bar pinned to the bottom with "Next excerpt" and "Try again (practice)" appears once the header has scrolled out of view. Change the order line in 8.11 to match.
+9. **Void results (8.11).** The header reads "Not graded" as its heading, with no grade letter and no stars. The score card adds the line "Clean score. Nothing is marked when a take is not graded."
+10. **Listen states (9.3).** On results, while Listen plays, the live caption "Playing bar {n} of {total}" shows next to the toolbar; a tapped bar shows "From bar {n}" there until Listen starts. Visual only: the live region still does not announce each bar (14.7). On read-through in Practice, "Listen first" keeps its caption while it reads "Stop".
+11. **Ranked confirm on phones (9.4).** The sheet has a grabber, so it must behave like one: swipe down or a tap on the scrim is "Keep it ranked", with nothing played.
+12. **Calibration controls (8.4, 15).** While listening, "Hear the click" is removed (a click would be heard by the measurement) and both device selects are disabled with "Device choice is locked while we listen." It shows again before Start and on the result. These are control states, not flow changes, so section 15 is kept.
+13. **Metronome sound and calibration (11.2).** Changing the sound keeps the stored calibration: the gate (`isMeasuredFor`) depends on route, staleness and method, not on the sound. The count-in recheck template is stored per sound; until the next calibration with the new sound, the recheck runs without a template. Engineering to confirm the recheck still meets its gates that way; if not, mark the calibration stale on a sound change and show "Recalibrate for the new sound" instead of the line below.
+14. **Click volume (11.2).** Releasing the slider plays one click at the new level.
+15. **Sound previews (11.2).** One preview at a time; the playing option shows "Stop" and the brass playing state.
+16. **First-time coach mark (4.2 step 4).** Inline under "Start playing" (above the dock row on phones), not an overlay. It never covers "Start playing" or the music.
+17. **Tips off from results (8.11).** Turning off "Show a tip after each take" in the results card removes the card and shows a toast for at least 6 seconds with "Undo", which restores it.
+18. **Keys on phones (5.4).** The key grid is 3 columns on phones at every difficulty, so no chip is narrower than 96 px; 4 columns from difficulty 5 on desktop only.
+19. **Owner audition before build (11.1, 17 step 2).** The owner listens to `docs/redesign/audio/*.wav` (Classic, Woodblock, Beep, today's Tick) and accepts or rejects each before the metronome work starts. Record the verdict in `docs/PLAN.md`.
+
+### Checks to add to section 16
+
+- The ♩ in "♩ = 72" sits no more than 0.35 em from "=" wherever the tempo appears (setup, toolbar summary, captions, count-in, status strip).
+- No ghost accidental overlaps another glyph's bounding box in the feedback acceptance suite. The design draws a ghost that needs an accidental at cue size (75%), accidental between the written note and the ghost.
+- A test compares each screen's rendered text with `en.json`, so mockup and app copy cannot drift.
+- The contrast test covers the high-contrast theme for the take and results screens, and the new pairs in design spec 3.3 (full band against track and selected wash, keyboard keys in dark mode).
+
+### Copy
+
+New keys:
+
+| Key | Text |
+| --- | --- |
+| `reference.info.title.voice` | What is the reference? |
+| `reference.info.title.instrument` | What is the key chord? |
+| `picker.axis` | Bars show the sounding range on one scale, C1 to C8. The tall tick is middle C (C4). The bold part is what you get at your difficulty. |
+| `range.writtenOctave` | Written an octave higher |
+| `range.barsSounding` | bars show sounding pitch |
+| `results.tip.less` | Hide {n, plural, one {tip} other {tips}} |
+| `action.hearBars` | Hear bars {from} to {to} |
+| `listen.fromBar` | From bar {n} |
+| `results.void.cleanScore` | Clean score. Nothing is marked when a take is not graded. |
+| `tips.offToast` | Tips turned off. Turn them on in Settings > Practice. |
+| `calibrate.devicesLocked` | Device choice is locked while we listen. |
+| `settings.audio.click.keepsCalibration` | Changing the sound keeps your calibration. |
+| `settings.audio.click.playing` | Playing: {sound} |
+| `settings.audio.metronomeVolume.hint` | Plays one click when you let go. |
+| `scan.practice.readHint` | Read it through. Start when you are ready. |
+| `setup.empty.title` | No excerpt fits these settings |
+| `scan.sounds.listenRanked` | In a ranked take, this makes it practice. We ask first. |
+
+Changed keys:
+
+| Key | New text |
+| --- | --- |
+| `results.tip.more` | Show {n, plural, one {# more tip} other {# more tips}} |
+
+The "Undo" on the toast reuses `action.undo`.

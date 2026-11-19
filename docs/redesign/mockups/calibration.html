@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Calibrate</title>
 <link rel="stylesheet" href="mockup.css">
-<script>if (/dark/.test(location.search)) document.documentElement.dataset.theme = 'dark';</script>
+<script>if (/dark/.test(location.search)) document.documentElement.dataset.theme = 'dark'; if (/hc/.test(location.search)) document.documentElement.dataset.contrast = 'high';</script>
 </head>
 <body class="">
 <header class="appbar">
@@ -17,34 +17,46 @@
 <main class="page" style="max-width:720px">
   <h1 class="t-title" style="margin-bottom:6px">Calibrate</h1>
   <p class="t-small muted" style="margin:0 0 24px">About 20 seconds. Using the Classic metronome sound.</p>
-  <section class="card cal-card">
+  <p class="state-label">State: <b>listening</b></p><section class="card cal-card">
   <p class="t-small" style="margin:0;font-size:16px">Your speakers and mic add a small delay. We'll measure it so “late” really means late.</p>
   <div class="cal-sel">
-    <label><span class="t-label">Input device</span><span class="select">MacBook Pro Microphone <svg class="icon sm" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></span></label>
-    <label><span class="t-label">Output</span><span class="select">Speakers <svg class="icon sm" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></span></label>
-  </div>
+    <label><span class="t-label">Input device</span><span class="select is-disabled" aria-disabled="true">MacBook Pro Microphone <svg class="icon sm" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></span></label>
+    <label><span class="t-label">Output</span><span class="select is-disabled" aria-disabled="true">Speakers <svg class="icon sm" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></span></label>
+  </div><p class="t-caption muted" style="margin:8px 0 0">Device choice is locked while we listen.</p>
   <div class="cal-stage">
     <p class="t-label" style="margin:0 0 4px">Listening…</p>
     <p class="t-small muted" style="margin:0 0 22px">Stay quiet for about 6 seconds while we time the clicks.</p>
     <div class="cal-marks"><span class="cal-mark heard" role="img" aria-label="Click 1 of 10: heard"></span><span class="cal-mark heard" role="img" aria-label="Click 2 of 10: heard"></span><span class="cal-mark heard" role="img" aria-label="Click 3 of 10: heard"></span><span class="cal-mark missed" role="img" aria-label="Click 4 of 10: missed"></span><span class="cal-mark heard" role="img" aria-label="Click 5 of 10: heard"></span><span class="cal-mark heard" role="img" aria-label="Click 6 of 10: heard"></span><span class="cal-mark now" role="img" aria-label="Click 7 of 10: waiting"></span><span class="cal-mark " role="img" aria-label="Click 8 of 10: waiting"></span><span class="cal-mark " role="img" aria-label="Click 9 of 10: waiting"></span><span class="cal-mark " role="img" aria-label="Click 10 of 10: waiting"></span></div>
     <p class="cal-count num"><b>5</b> of 10 heard</p>
   </div>
-  <div class="cal-foot">
-    <button class="btn btn-tonal"><svg class="icon sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.6 4.5h6.8L19 20H5z"/><path d="M12 16.5 16.5 7.5"/><circle cx="12" cy="16.5" r="0.6" fill="currentColor"/><path d="M5 20h14"/></svg>Hear the click</button>
-    <span style="flex:1"></span>
-    <button class="btn btn-quiet">Skip</button>
+  <div class="cal-foot"><span style="flex:1"></span><button class="btn btn-quiet">Skip</button></div>
+  <p class="t-caption muted cal-skip">Without calibration, takes on this device are practice only. You can calibrate later from Practice or Settings.</p>
+</section>
+  <p class="state-label" style="margin-top:28px">State: <b>result</b></p><section class="card cal-card">
+  <div class="cal-sel">
+    <label><span class="t-label">Input device</span><span class="select " aria-disabled="false">MacBook Pro Microphone <svg class="icon sm" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></span></label>
+    <label><span class="t-label">Output</span><span class="select " aria-disabled="false">Speakers <svg class="icon sm" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></span></label>
   </div>
-  <p class="t-caption muted" style="margin:10px 0 0;text-align:right">Without calibration, takes on this device are practice only. You can calibrate later from Practice or Settings.</p>
+  <div class="cal-stage">
+    <div class="cal-marks"><span class="cal-mark heard"></span><span class="cal-mark heard"></span><span class="cal-mark heard"></span><span class="cal-mark missed"></span><span class="cal-mark heard"></span><span class="cal-mark heard"></span><span class="cal-mark heard"></span><span class="cal-mark heard"></span><span class="cal-mark heard"></span><span class="cal-mark heard"></span></div>
+    <p class="cal-count num"><b>9</b> of 10 heard</p>
+    <p style="margin:10px 0 0;font-size:17px;font-weight:600">Your setup adds <span class="num">42</span> ms. We'll correct for it.</p>
+  </div>
+  <div class="cal-foot"><button class="btn btn-tonal"><svg class="icon sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.6 4.5h6.8L19 20H5z"/><path d="M12 16.5 16.5 7.5"/><circle cx="12" cy="16.5" r="0.6" fill="currentColor"/><path d="M5 20h14"/></svg>Hear the click</button><span style="flex:1"></span><button class="btn btn-primary">Continue</button></div>
 </section>
 </main>
 <style>
 .cal-card { padding: 32px; }
 .cal-sel { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 22px; }
+.cal-card > .cal-sel:first-child { margin-top: 0; }
 .cal-sel label { display: grid; gap: 8px; }
-.cal-stage { margin-top: 26px; padding: 28px; border-radius: 18px; background: var(--bg); }
+.select.is-disabled { opacity: 0.4; }
+.cal-stage { margin-top: 22px; padding: 28px; border-radius: 18px; background: var(--bg); }
 .cal-count { margin: 22px 0 0; font-size: 17px; }
 .cal-foot { display: flex; align-items: center; gap: 8px; margin-top: 24px; }
-@media (max-width: 700px) { .cal-card { padding: 20px; } .cal-sel { grid-template-columns: 1fr; } .cal-stage { padding: 20px; } .cal-marks { gap: 10px; } .cal-mark { width: 24px; height: 24px; } .cal-mark.now { box-shadow: 0 0 0 4px var(--brass-wash); } }
+.cal-skip { margin: 10px 0 0; text-align: left; }
+.cal-marks { flex-wrap: nowrap; }
+@media (max-width: 700px) { .cal-card { padding: 20px; } .cal-sel { grid-template-columns: 1fr; } .cal-stage { padding: 20px 16px; } .cal-marks { gap: 7px; } .cal-mark { width: 22px; height: 22px; } .cal-mark.now { box-shadow: 0 0 0 4px var(--brass-wash); } }
 </style>
 </body>
 </html>

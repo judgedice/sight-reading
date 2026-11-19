@@ -45,7 +45,7 @@
   --playhead: rgba(176, 124, 30, 0.13);
   --band: rgba(28, 27, 25, 0.07);
   --range-full: #8C877D;
-  --range-full-bar: #CFC8BA;
+  --range-full-bar: #ADA594;
 
   --kb-white: #FFFDF9;
   --kb-edge: #CFC8BA;
@@ -54,6 +54,7 @@
   --kb-black: #3A3833;
   --kb-black-full: #3A3833;
   --kb-black-served: #1C1B19;
+  --kb-dot: #1C1B19;
 
   --shadow-1: 0 1px 2px rgba(40, 32, 20, 0.05), 0 1px 1px rgba(40, 32, 20, 0.03);
   --shadow-2: 0 2px 6px rgba(40, 32, 20, 0.06), 0 10px 28px rgba(40, 32, 20, 0.07);
@@ -99,15 +100,17 @@
   --playhead: rgba(216, 165, 72, 0.15);
   --band: rgba(238, 233, 223, 0.08);
   --range-full: #8E8981;
-  --range-full-bar: #4F4C47;
+  --range-full-bar: #5E5A54;
 
-  --kb-white: #2B2925;
-  --kb-edge: #45423D;
-  --kb-full: #34322E;
-  --kb-served: #6A5D45;
+  /* Light-toned keys in dark mode so black keys hold at least 3:1 (critique C4). */
+  --kb-white: #6E6A63;
+  --kb-edge: #2E2C29;
+  --kb-full: #7C766C;
+  --kb-served: #A08A5E;
   --kb-black: #0E0E10;
   --kb-black-full: #0E0E10;
   --kb-black-served: #0E0E10;
+  --kb-dot: #0E0E10;
 
   --shadow-1: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 1px 2px rgba(0, 0, 0, 0.4);
   --shadow-2: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 10px 28px rgba(0, 0, 0, 0.45);
@@ -378,6 +381,29 @@ button { font: inherit; color: inherit; }
   .t-title { font-size: 30px; }
   .t-display { font-size: 34px; }
   .card-pad { padding: 20px; }
-  .chip-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .chip-grid { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
   .grade { font-size: 88px; }
 }
+
+/* ---------- High contrast (?hc in the URL; data-contrast="high" in the app) ---------- */
+:root[data-contrast="high"] { --error: #A32100; --ghost: #5523B0; --staff-line: #4F4C46; --brass: #7D5512; --border-strong: #5F5A51; --correct: #005A52; }
+:root[data-contrast="high"][data-theme="dark"] { --error: #FF9A78; --ghost: #CDBBFF; --staff-line: #B3AEA6; --brass: #E9C27A; --border-strong: #A9A398; --correct: #6FE0D0; }
+
+/* ---------- Tempo mark: the quarter note is a SMuFL glyph, so "♩ = 72" never gaps (C9) ---------- */
+.tempo { white-space: nowrap; }
+.tempo .qn { font-family: var(--font-music); font-size: 1.45em; line-height: 0; margin-right: 0.2em; position: relative; top: 0.02em; }
+
+/* ---------- Key chip signature: drawn at its true staff space, staff spans the chip (C3) ---------- */
+.chip .mk { width: 100%; overflow: hidden; display: block; margin: 2px 0 0; }
+.chip .mk svg { display: block; height: auto; max-width: none; }
+
+/* ---------- Focus, shown on demand ---------- */
+.focus-demo, .chip.focus-demo, .seg-btn.focus-demo, .pcard.focus-demo, .note-btn.focus-demo, .info-btn.focus-demo { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+
+/* ---------- Toast ---------- */
+.toast { display: flex; align-items: center; gap: 16px; background: var(--toast-bg, var(--text)); color: var(--toast-text, var(--surface)); border-radius: 14px; padding: 12px 12px 12px 18px; box-shadow: var(--shadow-3); font-size: 14.5px; font-weight: 500; max-width: 560px; }
+.toast .btn { background: transparent; color: inherit; border: 1px solid color-mix(in srgb, currentColor 45%, transparent); }
+
+/* ---------- State labels in multi-state mockups ---------- */
+.state-label { font-size: 12px; font-weight: 600; letter-spacing: 0.09em; text-transform: uppercase; color: var(--text-muted); margin: 0 0 10px; }
+.state-label b { color: var(--brass-ink); }

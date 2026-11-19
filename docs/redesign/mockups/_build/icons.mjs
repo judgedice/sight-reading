@@ -5,6 +5,7 @@ const P = {
   chevL: '<path d="m15 18-6-6 6-6"/>',
   chevR: '<path d="m9 18 6-6-6-6"/>',
   chevD: '<path d="m6 9 6 6 6-6"/>',
+  chevU: '<path d="m6 15 6-6 6 6"/>',
   check: '<path d="M20 6 9 17l-5-5"/>',
   plus: '<path d="M5 12h14M12 5v14"/>',
   minus: '<path d="M5 12h14"/>',
@@ -17,6 +18,10 @@ const P = {
   fork: '<path d="M8.5 3v7a3.5 3.5 0 0 0 7 0V3"/><path d="M12 13.5V21"/>',
   note: '<ellipse cx="8" cy="17.5" rx="3.2" ry="2.4" transform="rotate(-20 8 17.5)"/><path d="M11 16.8V4l6.5 2.6"/>',
   chord: '<ellipse cx="9" cy="18" rx="3" ry="2.2" transform="rotate(-20 9 18)"/><ellipse cx="9" cy="12.5" rx="3" ry="2.2" transform="rotate(-20 9 12.5)"/><ellipse cx="9" cy="7" rx="3" ry="2.2" transform="rotate(-20 9 7)"/><path d="M12 6.4V18"/>',
+  // Starting pitch: one filled notehead with its stem, and two sound arcs. Replaces the stacked chord, which read as an 8.
+  pitch: '<ellipse cx="7.6" cy="17.2" rx="3.5" ry="2.6" transform="rotate(-20 7.6 17.2)" fill="currentColor"/><path d="M10.9 16.4V4.5"/><path d="M14.8 9a4.2 4.2 0 0 1 0 6"/><path d="M17.9 6.4a8 8 0 0 1 0 11.2"/>',
+  // Key chord: three filled noteheads on one stem (a triad), with one sound arc.
+  keychord: '<ellipse cx="7.4" cy="18.4" rx="3" ry="2.1" transform="rotate(-20 7.4 18.4)" fill="currentColor" stroke-width="0"/><ellipse cx="7.4" cy="13.4" rx="3" ry="2.1" transform="rotate(-20 7.4 13.4)" fill="currentColor" stroke-width="0"/><ellipse cx="7.4" cy="8.4" rx="3" ry="2.1" transform="rotate(-20 7.4 8.4)" fill="currentColor" stroke-width="0"/><path d="M10.2 17.6V3.5"/><path d="M15 8.6a5 5 0 0 1 0 7.6"/><path d="M18.4 6a9 9 0 0 1 0 12.8"/>',
   mic: '<rect x="9" y="2.5" width="6" height="12" rx="3"/><path d="M18.5 11a6.5 6.5 0 0 1-13 0"/><path d="M12 17.5V21"/>',
   flame: '<path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.07-2.14-.22-4.05 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.15.43-2.29 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>',
   speaker: '<path d="M11 5 6.5 9H3v6h3.5L11 19z"/><path d="M15.5 9a4 4 0 0 1 0 6"/><path d="M18.5 6.5a7.5 7.5 0 0 1 0 11"/>',
