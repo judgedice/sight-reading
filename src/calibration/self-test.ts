@@ -95,7 +95,7 @@ export async function runSelfTest(deps: CalibrationDeps, o: SelfTestOptions): Pr
   items.push({
     id: 'clock-rate',
     status: clock.ok ? 'pass' : 'fail',
-    detail: { errorPct: round(clock.error * 100, 3), recreated: clock.recreated, state: clock.state },
+    detail: { errorPct: clock.error === null ? null : round(clock.error * 100, 3), recreated: clock.recreated, state: clock.state },
   });
 
   // Loopback and sanity tone (speakers).

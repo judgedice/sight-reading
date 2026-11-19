@@ -8,7 +8,7 @@
  */
 import { createContext, useContext } from 'react';
 import type { PlatformCapabilities } from '../../../core/platform.ts';
-import type { AudioRouteInfo, Calibration, OutputMode } from '../../../core/types.ts';
+import type { AudioRouteInfo, Calibration, ClickTimbre, OutputMode } from '../../../core/types.ts';
 
 /** `CalibrationStageId`: the audible stages, in the order they can play. */
 export type CalStageId = 'timing' | 'template' | 'pitch' | 'count-in' | 'play-along';
@@ -80,6 +80,8 @@ export interface CalibrationServices {
   maxRtlMs: number;
   /** The stages a run on this output plays, their counts (from `measurement-budget.json`) and about how long. */
   plan(outputMode: OutputMode): CalPlan;
+  /** The selected metronome sound: the template and count-in clicks play in it (the timing clicks are always Tick). */
+  clickSound(): ClickTimbre;
   prefs(): AudioPrefs;
   setPrefs(p: Partial<AudioPrefs>): Promise<void>;
   /** Input devices to list; may be empty before the microphone is allowed. */

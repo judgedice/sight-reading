@@ -13,11 +13,23 @@
  * filters still run so the phase and `startT` of later blocks stay exact. Until the first buffer comes back on
  * the port (probe phase), blocks are posted as fresh copies so a slow or non-returning worker cannot drain the
  * pool before the backend decides to fall back to the relay.
+ *
+ * Clock-rate check (01 §7.8): the core stamps `currentFrame` with its own wall clock (`Date.now()`; AudioWorkletGlobalScope
+ * has no `performance`) in the first quantum of each render burst, i.e. the first quantum after a gap of at least
+ * `BURST_GAP_MS`. Browsers render several quanta back to back per device callback, so only a burst's first quantum is
+ * rendered close to its callback time. A `clock` request is answered with the latest stamp, so the pair does not
+ * depend on when the message is delivered. The same reply carries input-presence counters: render quanta with no
+ * input channels (nothing connected, or the source not yet started) and quanta whose input is digitally silent (a
+ * capture FIFO padding with zeros, or a muted microphone). Those describe input frames lost on the way in, a capture
+ * problem distinct from the context clock.
  */
 import type { CaptureBlock, ClockSeconds, WorkerMessage } from '../../../core/platform.ts';
 import { PhaseDecimator } from '../../../dsp/decimator.ts';
 import { HiBandEnergy } from '../../../dsp/hiband.ts';
 import { FRAMES_PER_BLOCK, isCaptureReturn, type FromWorklet, type ToWorklet } from './protocol.ts';
+
+/** A quantum that starts at least this long (ms) after the previous one starts a new render burst. */
+export const BURST_GAP_MS = 2;
 
 /** The part of a `MessagePort` the core uses. */
 export interface CorePort {
@@ -36,11 +48,20 @@ interface BufferPair {
 export class CaptureCore {
   readonly sampleRate: number;
   readonly analysisRate: number;
-  /** Input frames processed since construction (clock-rate check, 01 §7.8). */
+  /** Input frames processed since construction. */
   framesProcessed = 0;
+  /** Render quanta processed, those with no input channels, and those whose input was all exact zeros. */
+  quanta = 0;
+  missingInputQuanta = 0;
+  silentInputQuanta = 0;
 
   private readonly ctl: CorePort;
   private readonly currentFrame: () => number;
+  private readonly wallNowMs: () => number;
+  /** Clock stamp: context frame and wall ms of the latest burst's first quantum (-1 before the first). */
+  private stampFrame = -1;
+  private stampWallMs = -1;
+  private lastQuantumWallMs = -Infinity;
   private readonly decimator: PhaseDecimator;
   private readonly hiBand: HiBandEnergy;
   private readonly inBuf = new Float32Array(FRAMES_PER_BLOCK);
@@ -65,10 +86,11 @@ export class CaptureCore {
   private maxOutstanding = 0;
   private statsEvery = 8;
 
-  constructor(sampleRate: number, ctl: CorePort, currentFrame: () => number) {
+  constructor(sampleRate: number, ctl: CorePort, currentFrame: () => number, wallNowMs: () => number = Date.now) {
     this.sampleRate = sampleRate;
     this.ctl = ctl;
     this.currentFrame = currentFrame;
+    this.wallNowMs = wallNowMs;
     this.decimator = new PhaseDecimator(sampleRate);
     this.hiBand = new HiBandEnergy(sampleRate);
     this.analysisRate = this.decimator.analysisRate;
@@ -97,7 +119,21 @@ export class CaptureCore {
     // The context frame of this quantum's first sample, as an offset from our own frame count. Chromium reports a
     // `currentFrame` one render callback (512 frames) stale in a new node's first quantum, so the origin is fixed
     // from the base read when the first block is emitted (2 quanta in), not from the first quantum's reading.
-    this.frameBase = this.currentFrame() - this.framesProcessed;
+    const frameNow = this.currentFrame();
+    this.frameBase = frameNow - this.framesProcessed;
+    const wall = this.wallNowMs();
+    if (wall - this.lastQuantumWallMs >= BURST_GAP_MS) {
+      this.stampFrame = frameNow;
+      this.stampWallMs = wall;
+    }
+    this.lastQuantumWallMs = wall;
+    this.quanta++;
+    if (!first) this.missingInputQuanta++;
+    else {
+      let k = 0;
+      while (k < first.length && first[k] === 0) k++;
+      if (k === first.length) this.silentInputQuanta++;
+    }
     if (this.mode !== 'idle') {
       if (this.startFp < 0) this.startFp = this.framesProcessed;
       const nch = channels ? channels.length : 0;
@@ -252,8 +288,16 @@ export class CaptureCore {
       case 'return':
         this.accept(m.lowband, m.hiEnergy);
         break;
-      case 'frames':
-        this.post({ type: 'frames', id: m.id, frames: this.framesProcessed });
+      case 'clock':
+        this.post({
+          type: 'clock',
+          id: m.id,
+          frame: this.stampFrame,
+          wallMs: this.stampWallMs,
+          quanta: this.quanta,
+          missingInput: this.missingInputQuanta,
+          silentInput: this.silentInputQuanta,
+        });
         break;
     }
   }

@@ -87,7 +87,7 @@ export class FakeWorkletNode extends FakeNode implements WorkletNodeLike {
     const ch = new MessageChannel();
     this.port = ch.port1;
     this.inner = ch.port2;
-    this.core = new CaptureCore(ctx.sampleRate, this.inner as unknown as CorePort, () => ctx.frame);
+    this.core = new CaptureCore(ctx.sampleRate, this.inner as unknown as CorePort, () => ctx.frame, () => ctx.workletWallMs());
   }
   closePorts(): void {
     this.port.close();
@@ -124,14 +124,33 @@ export class FakeContext extends FakeTarget implements AudioContextLike {
   constructor(private readonly world: FakeAudioWorld, readonly opts: { latencyHint: string; sampleRate?: number }) {
     super();
     this.sampleRate = opts.sampleRate ?? world.contextRate;
+    this.createdAtMs = world.wallMs;
   }
+
+  /** World wall ms at construction. */
+  readonly createdAtMs: number;
 
   get currentTime(): number {
     return this.frame / this.sampleRate;
   }
 
+  /** Wall ms of the latest render burst (live output timestamps), or null before the first. */
+  lastRenderWallMs: number | null = null;
+
   getOutputTimestamp(): { contextTime?: number; performanceTime?: number } {
-    return this.outputTimestamp ?? {};
+    if (this.outputTimestamp) return this.outputTimestamp;
+    // Live: the browser's coherent pair, the frame being played out against the wall time it plays.
+    if (this.world.liveOutputTimestamp && this.lastRenderWallMs !== null) {
+      const lat = this.outputLatency * this.sampleRate;
+      if (this.frame <= lat) return { contextTime: 0, performanceTime: 0 };
+      return { contextTime: (this.frame - lat) / this.sampleRate, performanceTime: this.lastRenderWallMs + this.outputLatency * 1000 };
+    }
+    return {};
+  }
+
+  /** The worklet's own wall clock (`Date.now()` in a browser): whole ms, a different origin from `performance.now()`. */
+  workletWallMs(): number {
+    return Math.floor(this.world.wallMs + 1.7e12);
   }
 
   setState(s: string): void {
@@ -183,6 +202,7 @@ export class FakeContext extends FakeTarget implements AudioContextLike {
 
   /** Render `quanta` 128-frame quanta through every worklet node fed by a live track. */
   render(quanta: number): void {
+    if (this.state === 'running') this.lastRenderWallMs = this.world.wallMs;
     for (let q = 0; q < quanta; q++) {
       if (this.state === 'running') {
         for (const node of this.workletNodes) {
@@ -228,6 +248,10 @@ export interface WorldOptions {
   permission?: string;
   /** `createMediaStreamSource` throws NotSupportedError when the track's rate differs from the context's. */
   strictSourceRate?: boolean;
+  /** `getOutputTimestamp` returns a live coherent pair (default: an empty object, as on browsers without it). */
+  liveOutputTimestamp?: boolean;
+  /** True for wall ms (world clock) at which the current context renders nothing: a render stall (device start, glitch). */
+  stalled?: (wallMs: number, ctx: FakeContext) => boolean;
 }
 
 /** The fake world: contexts, devices, timers and a manual wall clock. */
@@ -237,6 +261,7 @@ export class FakeAudioWorld {
   readonly tracks: FakeTrack[] = [];
   readonly contextRate: number;
   readonly strictSourceRate: boolean;
+  liveOutputTimestamp: boolean;
   /** Context rate at each `createMediaStreamSource`. */
   readonly sourceRates: number[] = [];
   wallMs = 1000;
@@ -247,6 +272,8 @@ export class FakeAudioWorld {
   readonly audioSession: { type: string } | undefined;
   input: (frame: number, n: number, rate: number) => Float32Array[];
   private timers: { at: number; fn: () => void; id: number }[] = [];
+  /** Wall ms since the last render step. */
+  private sinceRenderMs = 0;
   private timerId = 0;
   private readonly opts: WorldOptions;
 
@@ -254,6 +281,7 @@ export class FakeAudioWorld {
     this.opts = opts;
     this.contextRate = opts.contextRate ?? 48000;
     this.strictSourceRate = opts.strictSourceRate ?? false;
+    this.liveOutputTimestamp = opts.liveOutputTimestamp ?? false;
     this.input = opts.input ?? ((_f, n) => [new Float32Array(n)]);
     this.audioSession = opts.audioSession ? { type: 'auto' } : undefined;
     if (this.audioSession) {
@@ -336,9 +364,17 @@ export class FakeAudioWorld {
     while (this.wallMs < end - 1e-9) {
       const ctx = this.contexts[this.contexts.length - 1];
       const rate = (ctx?.sampleRate ?? this.contextRate) * (1 + this.clockRateError());
-      const dt = Math.min((256 / rate) * 1000, end - this.wallMs);
+      // Wall time since the last 2-quantum render carries across calls, so chunk lengths that are not a multiple of
+      // the render period do not leak time (the clock-rate tests need the rendered rate to be exact).
+      const period = (256 / rate) * 1000;
+      const dt = Math.min(period - this.sinceRenderMs, end - this.wallMs);
       this.wallMs += dt;
-      if (ctx && ctx.state === 'running' && dt >= (256 / rate) * 1000 - 1e-9) ctx.render(2);
+      this.sinceRenderMs += dt;
+      if (this.sinceRenderMs >= period - 1e-9) {
+        this.sinceRenderMs = 0;
+        const stalled = ctx ? (this.opts.stalled?.(this.wallMs, ctx) ?? false) : false;
+        if (ctx && ctx.state === 'running' && !stalled) ctx.render(2);
+      }
       this.fireTimers();
       if (++step % flushEvery === 0) await flush();
     }

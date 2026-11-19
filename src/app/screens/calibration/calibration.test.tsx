@@ -4,9 +4,9 @@ import { act, click, mount, type Mounted } from '../../../ui/primitives/test-ren
 import { RouterProvider, type LocationSource } from '../../router.tsx';
 import { createRouteTable } from '../../routes.tsx';
 import { CalibrationCard } from './CalibrationCard.tsx';
-import { SelfTestPanel } from './SelfTestPanel.tsx';
-import { calReducer, calibrationIsMandatoryPath, initialCalState, methodFor, offsetTick, warningsFor } from './flow.ts';
-import { fakeServices, loopbackBad, loopbackOk, playAlongBad, playAlongOk, route } from './test-services.ts';
+import { calReducer, calibrationIsMandatoryPath, initialCalState, methodFor, offsetTick, stageStatuses, warningsFor } from './flow.ts';
+import type { CalProgress, LoopbackOutcome } from './services.ts';
+import { checksSpeakers, fakeServices, headphonePlan, loopbackBad, loopbackOk, playAlongBad, playAlongOk, route, speakerPlan } from './test-services.ts';
 
 const source: LocationSource = { getHash: () => '#/calibrate', subscribe: () => () => undefined, navigate: () => undefined };
 let current: Mounted | null = null;
@@ -42,10 +42,10 @@ describe('flow', () => {
     expect(methodFor('bluetooth')).toBe('play-along');
   });
   it('offers an estimate only after the second play-along failure', () => {
-    let s = calReducer(initialCalState(), { type: 'start-playalong', clicks: 8 });
+    let s = calReducer(initialCalState(), { type: 'start-playalong', plan: headphonePlan() });
     s = calReducer(s, { type: 'playalong-done', outcome: playAlongBad(), warnings: [] });
     expect(s.playAlongFailures).toBe(1);
-    s = calReducer(s, { type: 'start-playalong', clicks: 8 });
+    s = calReducer(s, { type: 'start-playalong', plan: headphonePlan() });
     s = calReducer(s, { type: 'playalong-done', outcome: playAlongBad(), warnings: [] });
     expect(s.playAlongFailures).toBe(2);
     s = calReducer(s, { type: 'use-estimate' });
@@ -54,7 +54,7 @@ describe('flow', () => {
     expect(s.calibration).toBeNull();
   });
   it('a success resets the failure count; dots mirror the offsets', () => {
-    let s = calReducer(initialCalState(), { type: 'start-playalong', clicks: 8 });
+    let s = calReducer(initialCalState(), { type: 'start-playalong', plan: headphonePlan() });
     s = calReducer(s, { type: 'playalong-done', outcome: playAlongBad(), warnings: [] });
     s = calReducer(s, { type: 'playalong-done', outcome: playAlongOk(), warnings: [] });
     expect(s.playAlongFailures).toBe(0);
@@ -85,7 +85,7 @@ describe('CalibrationCard', () => {
     const svc = fakeServices();
     const done = vi.fn();
     current = mount(wrap(<CalibrationCard services={svc} onDone={done} allowSkip />));
-    expect(document.body.textContent).toContain('Stay quiet for about 8 seconds');
+    expect(document.body.textContent).toContain("About 15 seconds: clicks at uneven gaps (on purpose, so an echo can't fool the timing), a short tone, then a one-bar count-in.");
     expect(names()).toEqual(['Hear the click', 'Start', 'Skip']);
     expect(document.body.textContent).toContain('Without calibration, takes on this device are practice only.');
     act(() => button('Start').click());
@@ -119,8 +119,9 @@ describe('CalibrationCard', () => {
     const done = vi.fn();
     current = mount(wrap(<CalibrationCard services={svc} onDone={done} />));
     await press('Start');
-    expect(document.body.textContent).toContain("We couldn't hear the clicks. Turn up the volume, or play along instead.");
-    expect(names()).toEqual(['Try again', 'Play along instead']);
+    expect(document.body.textContent).toContain("Stage 1, Timing, didn't pass.");
+    expect(document.body.textContent).toContain('We heard 2 of 10 ticks, not enough to time them. Turn up the volume, or play along instead.');
+    expect(names()).toEqual(['Try again', 'Play along instead', 'Export diagnostics']);
     await press('Play along instead');
     expect(svc.calls.filter((c) => c === 'playalong')).toHaveLength(1);
     expect(document.body.textContent).toContain('Your setup adds 60 ms');
@@ -131,9 +132,16 @@ describe('CalibrationCard', () => {
     const svc = fakeServices({ output: 'wired', playAlong: [playAlongBad(), playAlongBad()] });
     const done = vi.fn();
     current = mount(wrap(<CalibrationCard services={svc} onDone={done} allowSkip />));
-    expect(document.body.textContent).toContain('Play a short note on each click. 8 clicks.');
+    expect(document.body.textContent).toContain('About 10 seconds: 8 steady clicks. Play one short note on each.');
+    expect(document.body.textContent).toContain("With headphones, sound doesn't reach the mic, so there's no tone or count-in check.");
+    expect([...document.querySelectorAll('.cal-stage-row')].map((r) => r.getAttribute('data-stage'))).toEqual(['play-along']);
     await press('Start');
-    expect(names()).toEqual(['Try again', 'Skip']);
+    expect(document.body.textContent).toContain("Stage 1, Play along, didn't pass.");
+    // Headphones: the speaker checks did not run, and say why.
+    const skipped = [...document.querySelectorAll('.cal-check[data-status="skipped"] .cal-check-name')].map((n) => n.textContent);
+    expect(skipped).toEqual(['Pitch check', 'Clicks heard', 'Timing confirmed', 'Screen speed']);
+    expect(document.body.textContent).toContain("Needs the speakers, so it doesn't run with headphones.");
+    expect(names()).toEqual(['Try again', 'Skip', 'Export diagnostics']);
     await press('Try again');
     expect(document.body.textContent).toContain("Timing can't be trusted with an estimate, so takes won't earn XP until you calibrate.");
     expect(names()).toContain('Use an estimate');
@@ -162,7 +170,12 @@ describe('CalibrationCard', () => {
   it('Hear the click shows before Start and on the result, is absent while listening, and locks the selects', async () => {
     const svc = fakeServices();
     let release: (v: ReturnType<typeof loopbackOk>) => void = () => undefined;
-    svc.runLoopback = () => new Promise((r) => (release = r));
+    svc.runLoopback = (x) =>
+      new Promise((r) => {
+        release = r;
+        x.onStage('timing');
+        x.onSound('timing', 0);
+      });
     current = mount(wrap(<CalibrationCard services={svc} onDone={() => undefined} />));
     expect(names()).toContain('Hear the click');
     await press('Hear the click');
@@ -175,7 +188,8 @@ describe('CalibrationCard', () => {
     expect(names()).not.toContain('Hear the click');
     expect(document.body.textContent).toContain('Device choice is locked while we listen.');
     expect([...document.querySelectorAll('select')].every((x) => x.closest('[aria-disabled="true"]') !== null || x.disabled || x.getAttribute('aria-disabled') === 'true')).toBe(true);
-    expect(document.querySelectorAll('.cal-dot[data-current="true"]')).toHaveLength(1);
+    // The mark of the click that has sounded is lit; the others wait.
+    expect(document.querySelectorAll('.cal-dot[data-state="sounding"], .cal-dot[data-state="heard"]')).toHaveLength(1);
     await act(async () => {
       release(loopbackOk());
       await new Promise((r) => setTimeout(r, 0));
@@ -209,20 +223,86 @@ describe('CalibrationCard', () => {
       sel?.dispatchEvent(new Event('change', { bubbles: true }));
     });
     expect(svc.calls).toContain('prefs:{"outputMode":"wired"}');
-    expect(document.body.textContent).toContain('Play a short note on each click');
+    expect(document.body.textContent).toContain('8 steady clicks. Play one short note on each.');
   });
 });
 
-describe('SelfTestPanel', () => {
-  it('runs the check, lists pass/fail per item and exports diagnostics', async () => {
+describe('stages', () => {
+  it('a mark lights when its click sounds, then settles; the other stages light per sound and settle at the next', () => {
+    let s = calReducer(initialCalState(), { type: 'start-loopback', plan: speakerPlan() });
+    expect(s.dots).toHaveLength(10);
+    expect(s.marks.template).toHaveLength(6);
+    expect(s.marks['count-in']).toHaveLength(4);
+    s = calReducer(s, { type: 'stage', stage: 'timing' });
+    s = calReducer(s, { type: 'sound', stage: 'timing', index: 0 });
+    expect(s.dots[0]).toBe('sounding');
+    s = calReducer(s, { type: 'click', index: 0, heard: true });
+    expect(s.dots[0]).toBe('heard');
+    s = calReducer(s, { type: 'stage', stage: 'template' });
+    s = calReducer(s, { type: 'sound', stage: 'template', index: 0 });
+    s = calReducer(s, { type: 'sound', stage: 'template', index: 1 });
+    expect(s.marks.template?.slice(0, 3)).toEqual(['done', 'sounding', 'pending']);
+    expect(stageStatuses(s)).toEqual(['done', 'now', 'upcoming', 'upcoming']);
+    s = calReducer(s, { type: 'loopback-done', outcome: loopbackOk({ checks: checksSpeakers({ recheck: 'fail' }) }), warnings: [] });
+    expect(s.marks.template?.slice(0, 2)).toEqual(['done', 'done']);
+    expect(stageStatuses(s)).toEqual(['passed', 'done', 'passed', 'failed']);
+  });
+
+  it('shows the stage line in one polite live region, changing per stage, and names the stage a thrown run stopped in', async () => {
     const svc = fakeServices();
-    current = mount(wrap(<SelfTestPanel services={svc} />));
-    expect(names()).toEqual(['Check audio']);
-    await press('Check audio');
-    const rows = [...document.querySelectorAll('.cal-check')].map((r) => r.textContent);
-    expect(rows).toEqual(['Sanity tonePass', 'Clicks heardPass', 'Count-in recheckFail', 'Clock ratePass', 'Mic processing offPass', 'Screen refreshSkipped']);
+    let p: CalProgress | null = null;
+    let fail: (e: Error) => void = () => undefined;
+    svc.runLoopback = (x) =>
+      new Promise<LoopbackOutcome>((_, rej) => {
+        p = x;
+        fail = rej;
+      });
+    current = mount(wrap(<CalibrationCard services={svc} onDone={() => undefined} />));
+    expect([...document.querySelectorAll('.cal-stage-row')].map((r) => r.getAttribute('data-stage'))).toEqual(['timing', 'template', 'pitch', 'count-in']);
+    await press('Start');
+    const now = (): string => document.querySelector('[data-testid="cal-now"]')?.textContent ?? '';
+    expect(document.querySelectorAll('[role="status"]')).toHaveLength(1);
+    expect(now()).toBe('Getting ready. Stay quiet.');
+    act(() => p?.onStage('timing'));
+    expect(now()).toBe('1 of 4 · Timing: 10 ticks at uneven gaps, on purpose');
+    act(() => p?.onStage('template'));
+    expect(now()).toBe('2 of 4 · Learning your click sound: 6 clicks in Classic');
+    act(() => p?.onSound('template', 0));
+    expect(document.querySelector('[data-stage="template"] .cal-mark')?.getAttribute('data-state')).toBe('sounding');
+    expect(document.querySelector('[data-stage="template"]')?.getAttribute('aria-current')).toBe('step');
+    act(() => p?.onStage('count-in'));
+    expect(now()).toBe('4 of 4 · Count-in check: one loud click, then 3 softer, like a count-in');
+    expect(document.querySelectorAll('[data-stage="count-in"] .cal-mark[data-accent="true"]')).toHaveLength(1);
+    await act(async () => {
+      fail(new Error('device gone'));
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    expect(document.body.textContent).toContain('It stopped during stage 4, Count-in check.');
+  });
+
+  it('ends with the delay, what it means, and the audio check in plain words with a line per failure and skip', async () => {
+    const svc = fakeServices({ loopback: [loopbackOk({ checks: checksSpeakers({ 'clock-rate': 'fail', recheck: 'fail' }) })] });
+    current = mount(wrap(<CalibrationCard services={svc} onDone={() => undefined} />));
+    await press('Start');
+    expect(document.body.textContent).toContain("Your setup adds 42 ms. We'll correct for it.");
+    expect(document.body.textContent).toContain('how long a sound takes to leave your speakers and reach the mic');
+    // Stages carry their own results: the count-in stage failed, and says what that means.
+    const status = (id: string): string | null => document.querySelector(`[data-stage="${id}"]`)?.getAttribute('data-status') ?? null;
+    expect(['timing', 'template', 'pitch', 'count-in'].map(status)).toEqual(['passed', 'done', 'passed', 'failed']);
+    expect(document.querySelector('[data-stage="count-in"] .cal-stage-why')?.textContent).toBe("A count-in didn't match the measured delay. Run it again in a quiet room.");
+    // The check list holds what no stage stands for.
+    const rows = [...document.querySelectorAll('.cal-check')].map((r) => [r.querySelector('.cal-check-name')?.textContent, r.querySelector('.cal-check-status')?.textContent, r.querySelector('.cal-check-why')?.textContent ?? null]);
+    expect(rows).toEqual([
+      ['Audio speed', "Didn't pass", "Your device's audio clock seems to run at the wrong speed, which can blur timing. Close other apps that play sound, then reload the page."],
+      ['Mic effects off', 'Passed', null],
+      ['Screen speed', 'Skipped', 'Not measured in the browser yet.'],
+    ]);
     expect(document.body.textContent).toContain('Some checks failed');
     await press('Export diagnostics');
     expect(svc.exported).toEqual(['{"kind":"audio-self-test"}']);
+    // There is no separate audio-check card or button: it ran with the calibration.
+    expect(names()).not.toContain('Check audio');
+    await press('Recalibrate');
+    expect(svc.calls.filter((c) => c === 'loopback')).toHaveLength(2);
   });
 });

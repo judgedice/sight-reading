@@ -23,7 +23,9 @@ import {
   runLoopbackCalibration,
   runPlayAlongCalibration,
   runSelfTest,
+  calibrationPlan,
   type CalibrationDeps,
+  type CalibrationStageId,
 } from './index.ts';
 
 const budget = (budgetJson as unknown as MeasurementBudget).calibration;
@@ -209,6 +211,102 @@ describe('loopback (01 §7.8)', () => {
     const heard: boolean[] = [];
     await runLoopbackCalibration(deps(fb), { route: route(fb), timbre: 'tick', onClick: (i, h) => (heard[i] = h) });
     expect(heard).toEqual([true, true, true, false, true, true, true, true, true, true]);
+  });
+});
+
+describe('what the player sees matches what they hear (owner feedback: marks and clicks did not line up)', () => {
+  type Ev = { kind: 'stage' | 'sound' | 'verdict'; stage: CalibrationStageId | null; index: number; at: number };
+  const record = (fb: FakeAudioBackend): { events: Ev[]; progress: { onStage(s: CalibrationStageId): void; onSound(s: CalibrationStageId, i: number): void }; onClick(i: number, h: boolean): void } => {
+    const events: Ev[] = [];
+    return {
+      events,
+      progress: {
+        onStage: (stage) => events.push({ kind: 'stage', stage, index: -1, at: fb.now() as number }),
+        onSound: (stage, index) => events.push({ kind: 'sound', stage, index, at: fb.now() as number }),
+      },
+      onClick: (index) => events.push({ kind: 'verdict', stage: 'timing', index, at: fb.now() as number }),
+    };
+  };
+
+  it('lights each mark when its click is audible (scheduled time plus output latency), before its verdict, for every stage', async () => {
+    const latency = 0.03;
+    const fb = new RoomBackend({ sampleRate: 48000, loopback: { rtlSec: 0.04, gainDb: -12 }, route: { reportedLatencySec: latency } });
+    const r = record(fb);
+    const run = await runLoopbackCalibration(deps(fb), { route: route(fb), timbre: 'classic', onClick: r.onClick, progress: r.progress });
+    const { ticks, templateClicks, toneAt } = run.schedule;
+    const sounds = (stage: CalibrationStageId): Ev[] => r.events.filter((e) => e.kind === 'sound' && e.stage === stage);
+    // One sound event per click, each at exactly its audible time on the audio clock (not when it was scheduled,
+    // and not when the arrival window closed, which is up to maxRtlMs + 30 ms later).
+    expect(sounds('timing').map((e) => e.index)).toEqual(ticks.map((_, i) => i));
+    sounds('timing').forEach((e, i) => expect(e.at).toBeCloseTo((ticks[i] as number) + latency, 9));
+    sounds('template').forEach((e, i) => expect(e.at).toBeCloseTo((templateClicks[i] as number) + latency, 9));
+    expect(sounds('template')).toHaveLength(budget.loopback.templateClicks);
+    expect(sounds('pitch').map((e) => e.at)).toEqual([toneAt + latency]);
+    // Each verdict comes after its own mark lit, once its window is analysed.
+    for (let i = 0; i < ticks.length; i++) {
+      const lit = r.events.findIndex((e) => e.kind === 'sound' && e.stage === 'timing' && e.index === i);
+      const verdict = r.events.findIndex((e) => e.kind === 'verdict' && e.index === i);
+      expect(lit).toBeLessThan(verdict);
+      expect(r.events[verdict]?.at).toBeCloseTo((ticks[i] as number) + budget.loopback.maxRtlMs / 1000 + 0.03, 9);
+    }
+    // Stage lines come in order, each before its first sound and after the previous stage's last sound.
+    const stages = r.events.filter((e) => e.kind === 'stage');
+    expect(stages.map((e) => e.stage)).toEqual(['timing', 'template', 'pitch']);
+    const lastSound = (stage: CalibrationStageId): number => Math.max(...sounds(stage).map((e) => e.at));
+    const firstSound = (stage: CalibrationStageId): number => Math.min(...sounds(stage).map((e) => e.at));
+    expect(stages[1]?.at).toBeGreaterThan(lastSound('timing'));
+    expect(stages[1]?.at).toBeLessThan(firstSound('template'));
+    expect(stages[2]?.at).toBeGreaterThan(lastSound('template'));
+    expect(stages[2]?.at).toBeLessThan(firstSound('pitch'));
+    // Presentation only: the measurement is the same as without progress.
+    expect(run.loopback.accepted).toBe(true);
+    expect(run.loopback.rtlMs).toBeCloseTo(40, 0);
+  });
+
+  it('without reported latency a mark lights at the scheduled time', async () => {
+    const fb = new RoomBackend({ sampleRate: 48000, loopback: { rtlSec: 0.04, gainDb: -12 }, route: { reportedLatencySec: 0 } });
+    const r = record(fb);
+    const run = await runLoopbackCalibration(deps(fb), { route: route(fb), timbre: 'tick', progress: r.progress });
+    expect(r.events.filter((e) => e.kind === 'sound' && e.stage === 'timing').map((e) => e.at)).toEqual(run.schedule.ticks);
+  });
+
+  it('the self-test reuses the calibration run (no second set of timing clicks) and shows the count-in as its own stage', async () => {
+    const fb = new RoomBackend({ sampleRate: 48000, loopback: { rtlSec: 0.04, gainDb: -12 } }, {}, 40);
+    const r = record(fb);
+    const run = await runLoopbackCalibration(deps(fb), { route: route(fb), timbre: 'tick', progress: r.progress });
+    const clicksBefore = fb.log.calibrationClicks.length;
+    const tonesBefore = r.events.filter((e) => e.stage === 'pitch').length;
+    const self = await runSelfTest(deps(fb), { route: route(fb), capabilities: fb.capabilities, timbre: 'tick', loopback: run, clock: { ok: true, error: 0, recreated: false, state: 'ok' }, progress: r.progress });
+    expect(fb.log.calibrationClicks).toHaveLength(clicksBefore);
+    expect(r.events.filter((e) => e.stage === 'pitch')).toHaveLength(tonesBefore);
+    const countIn = r.events.filter((e) => e.stage === 'count-in');
+    expect(countIn[0]?.kind).toBe('stage');
+    expect(countIn.filter((e) => e.kind === 'sound')).toHaveLength(calibrationPlan(budget, 'speakers').stages.find((s) => s.id === 'count-in')?.sounds ?? -1);
+    expect(Object.fromEntries(self.items.map((i) => [i.id, i.status]))).toMatchObject({ clicks: 'pass', 'sanity-tone': 'pass', recheck: 'pass' });
+  });
+
+  it('the plan lists the stages a route plays, with counts from config', () => {
+    const sp = calibrationPlan(budget, 'speakers');
+    expect(sp.stages.map((s) => [s.id, s.sounds, s.accented])).toEqual([
+      ['timing', budget.loopback.clicks, 0],
+      ['template', budget.loopback.templateClicks, 0],
+      ['pitch', 1, 0],
+      ['count-in', 4, 1],
+    ]);
+    expect(sp.skipped).toEqual([]);
+    expect(sp.seconds).toBe(15);
+    const hp = calibrationPlan(budget, 'wired');
+    expect(hp.stages.map((s) => [s.id, s.sounds])).toEqual([['play-along', budget.playAlong.clicks]]);
+    expect(hp.skipped).toEqual(['timing', 'template', 'pitch', 'count-in']);
+    expect(calibrationPlan({ ...budget, loopback: { ...budget.loopback, templateClicks: 0 } }, 'speakers').stages.map((s) => s.id)).toEqual(['timing', 'pitch', 'count-in']);
+  });
+
+  it('play-along lights each click when it is audible', async () => {
+    const fb = new RoomBackend({ sampleRate: 48000, route: { reportedLatencySec: 0.025 } });
+    const r = record(fb);
+    const run = await runPlayAlongCalibration(deps(fb), { route: route(fb, { outputMode: 'wired' }), timbre: 'classic', progress: r.progress });
+    expect(r.events[0]?.kind).toBe('stage');
+    r.events.filter((e) => e.kind === 'sound').forEach((e, i) => expect(e.at).toBeCloseTo((run.clicks[i] as number) + 0.025, 9));
   });
 });
 
@@ -451,6 +549,17 @@ describe('clock-rate check (01 §7.8, 05 W3)', () => {
     expect(recreated).toBe(1);
     expect(r.state).toBe('failed');
     expect(r.error).toBeCloseTo(0.088, 6);
+  });
+
+  it('reports a clock that could not be measured as unmeasured: not a failure, and nothing is recreated', async () => {
+    let recreated = 0;
+    const r = await runClockRateCheck(new DriftBackend(NaN), budget, { recreate: async () => void recreated++ });
+    expect(r).toMatchObject({ ok: true, error: null, recreated: false, state: 'unmeasured' });
+    expect(recreated).toBe(0);
+    const own = Object.assign(new DriftBackend(0), {
+      checkClockRate: async () => ({ ok: true, error: null, recreated: false, diagnostics: { inputDropFraction: 0.25 } }),
+    });
+    expect(await runClockRateCheck(own, budget)).toMatchObject({ ok: true, error: null, state: 'unmeasured', inputDropFraction: 0.25 });
   });
 
   it("uses the backend's own checkClockRate when it has one", async () => {

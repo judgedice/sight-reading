@@ -1,4 +1,4 @@
-/* Calibration card and self-test (04 section 5.9). Tokens only; rem, never px. */
+/* Calibration card: one run in named stages, then one result with the audio check (04 section 5.9). Tokens only; rem, never px. */
 
 .cal-screen {
   display: flex;
@@ -138,32 +138,36 @@
   transform: translateX(-50%) rotate(45deg);
 }
 
-/* The current mark is brass with a halo; the pulse is a ring that fades, and is off under reduced motion. */
-.cal-dot[data-current='true'] {
+/*
+ * A mark lights brass the moment its sound is heard, with one ring that grows and fades (06 section 4: 320 ms,
+ * ease-out, once per click). Under reduced motion the durations are 0, so the mark only fills.
+ */
+.cal-dot[data-state='sounding'],
+.cal-mark[data-state='sounding'] {
   border-color: var(--brass);
   background: var(--brass);
-  box-shadow: 0 0 0 0.375rem var(--brass-wash);
 }
 
-.cal-dot[data-current='true']::before {
+.cal-dot[data-state='sounding']::before,
+.cal-mark[data-state='sounding']::before {
   content: '';
   position: absolute;
   inset: -0.375rem;
   border-radius: 50%;
   border: 0.125rem solid var(--brass);
   opacity: 0;
-  animation: cal-ring calc(var(--dur-slow) * 4) var(--ease-in-out) infinite;
+  animation: cal-ring var(--dur-slow) var(--ease-out) 1;
 }
 
 @keyframes cal-ring {
   from {
-    opacity: 0.6;
-    transform: scale(0.9);
+    opacity: 0.7;
+    transform: scale(0.7);
   }
 
   to {
     opacity: 0;
-    transform: scale(1.5);
+    transform: scale(1.4);
   }
 }
 
@@ -216,7 +220,7 @@
 }
 
 .cal-count {
-  margin-block-start: var(--space-2);
+  margin: 0;
   font-size: 1.0625rem;
   font-variant-numeric: tabular-nums;
 }
@@ -296,17 +300,250 @@
 
 .cal-check {
   display: flex;
-  justify-content: space-between;
-  gap: var(--space-3);
+  flex-direction: column;
+  gap: var(--space-1);
   padding-block: var(--space-2);
   border-block-end: 0.0625rem solid var(--border);
 }
 
-.cal-check[data-status='fail'] .cal-check-status {
-  color: var(--error);
-  font-weight: 600;
+.cal-check-head {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
 }
 
 .cal-check-status {
   color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* A failed check reads by weight and its own line of text, never by colour alone (vermilion is for slips only). */
+.cal-check[data-status='fail'] .cal-check-name,
+.cal-check[data-status='fail'] .cal-check-status {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.cal-check-why,
+.cal-check-summary {
+  margin: 0;
+  font-size: var(--type-small-size);
+  line-height: var(--type-small-line);
+  color: var(--text-muted);
+}
+
+.cal-check-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.cal-subtitle {
+  margin: 0;
+  font-family: var(--type-label-family);
+  font-size: var(--type-label-size);
+  line-height: var(--type-label-line);
+  font-weight: var(--type-label-weight);
+}
+
+.cal-secondary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-block-start: calc(var(--space-3) * -1);
+  margin-inline-start: calc(var(--space-3) * -1);
+}
+
+/* Stages (owner feedback): each stage names what it plays, shows a mark per sound and its status. */
+.cal-now {
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+  font-weight: 600;
+}
+
+.cal-now[hidden] {
+  display: none;
+}
+
+.cal-stages {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cal-stage-row {
+  display: grid;
+  grid-template-areas:
+    'num head'
+    '. marks';
+  grid-template-columns: 1.5rem minmax(0, 1fr);
+  gap: var(--space-2) var(--space-3);
+  align-items: start;
+}
+
+/* Phones: the marks take the full row, so ten timing marks sit on one line at 390 px. */
+@media (max-width: 40rem) {
+  .cal-stage-row {
+    grid-template-areas:
+      'num head'
+      'marks marks';
+  }
+}
+
+.cal-stage-head {
+  grid-area: head;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-block-size: 1.5rem;
+}
+
+.cal-stage-marks {
+  grid-area: marks;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-inline-size: 0;
+}
+
+.cal-stage-num {
+  grid-area: num;
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  inline-size: 1.5rem;
+  block-size: 1.5rem;
+  border-radius: 50%;
+  border: 0.125rem solid var(--border-strong);
+  font-size: var(--type-caption-size);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+}
+
+.cal-stage-row[data-status='now'] .cal-stage-num {
+  border-color: var(--brass);
+  background: var(--brass-wash);
+  color: var(--brass-ink);
+}
+
+.cal-stage-row[data-status='passed'] .cal-stage-num,
+.cal-stage-row[data-status='done'] .cal-stage-num {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.cal-stage-row[data-status='failed'] .cal-stage-num {
+  border-color: var(--caution);
+  color: var(--text);
+}
+
+.cal-stage-name {
+  margin: 0;
+  font-size: var(--type-small-size);
+  line-height: var(--type-small-line);
+  color: var(--text-muted);
+}
+
+.cal-stage-name b {
+  font-size: var(--type-label-size);
+  font-weight: var(--type-label-weight);
+  color: var(--text);
+}
+
+.cal-stage-row[data-status='upcoming'] .cal-stage-name b {
+  color: var(--text-muted);
+}
+
+.cal-stage-status {
+  font-size: var(--type-caption-size);
+  line-height: var(--type-caption-line);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.cal-stage-row[data-status='now'] .cal-stage-status {
+  color: var(--brass-ink);
+  font-weight: 600;
+}
+
+.cal-stage-row[data-status='failed'] .cal-stage-status {
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* Small marks for the template clicks, the tone and the count-in; the count-in's accented beat is larger (06 beat dots). */
+.cal-marks {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.625rem;
+  min-block-size: 1rem;
+}
+
+.cal-mark {
+  position: relative;
+  box-sizing: border-box;
+  flex: none;
+  inline-size: 0.75rem;
+  block-size: 0.75rem;
+  border-radius: 50%;
+  border: 0.125rem solid var(--border-strong);
+}
+
+.cal-mark[data-accent='true'] {
+  inline-size: 1rem;
+  block-size: 1rem;
+}
+
+.cal-mark[data-state='done'] {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.cal-mark[data-state='sounding']::before {
+  inset: -0.3125rem;
+}
+
+.cal-result {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding-block-start: var(--space-3);
+  border-block-start: 0.0625rem solid var(--border);
+}
+
+.cal-result-main {
+  font-weight: 600;
+}
+
+.cal-result-spread {
+  font-weight: 400;
+}
+
+.cal-stage-why {
+  margin: 0;
+  font-size: var(--type-small-size);
+  line-height: var(--type-small-line);
+  color: var(--text);
+}
+
+.cal-result-meaning,
+.cal-fail-stage {
+  margin: 0;
+  font-size: var(--type-small-size);
+  line-height: var(--type-small-line);
+}
+
+.cal-result-meaning {
+  color: var(--text-muted);
+}
+
+.cal-fail-stage {
+  font-weight: 600;
 }

@@ -206,37 +206,98 @@ describe('unlock (W1, W2, W3)', () => {
 });
 
 describe('clock checks (01 §7.8, W3)', () => {
-  async function check(errors: number[]): Promise<{ world: FakeAudioWorld; be: WebAudioBackend; result: Awaited<ReturnType<WebAudioBackend['checkClockRate']>> }> {
-    const { world, be } = setup({ clockRateErrors: errors });
+  type Check = Awaited<ReturnType<WebAudioBackend['checkClockRate']>>;
+  /** A small seeded generator, so the jitter is the same on every run. */
+  const lcg = (seed: number) => (): number => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 2 ** 32);
+
+  /** Drives the world until `p` settles. `chunkMs` picks each step; messages and continuations run only between steps. */
+  async function drive<T>(world: FakeAudioWorld, p: Promise<T>, chunkMs: () => number = () => 500, flushEvery = 4): Promise<T> {
+    let out: { v: T } | undefined;
+    void p.then((v) => (out = { v }));
+    for (let i = 0; i < 2000 && !out; i++) await world.advance(chunkMs(), { flushEvery });
+    if (!out) throw new Error('did not finish');
+    return out.v;
+  }
+
+  async function check(w: WorldOptions, o: Partial<WebAudioBackendOptions> = {}, chunk?: () => number, flushEvery?: number): Promise<{ world: FakeAudioWorld; be: WebAudioBackend; result: Check }> {
+    const { world, be } = setup(w, o);
     await be.unlock();
-    const p = be.checkClockRate(1.5);
-    let result: Awaited<typeof p> | undefined;
-    void p.then((r) => (result = r));
-    for (let i = 0; i < 20 && !result; i++) await world.advance(500, { flushEvery: 4 });
-    if (!result) throw new Error('checkClockRate did not finish');
+    const result = await drive(world, be.checkClockRate(), chunk, flushEvery);
     return { world, be, result };
   }
 
-  it('passes an exact clock', async () => {
-    const { be, result } = await check([0]);
-    expect(result.ok).toBe(true);
-    expect(result.recreated).toBe(false);
-    // The fake renders in 5.3 ms steps, so the 1.5 s measurement is quantised to about 0.7%.
-    expect(Math.abs(result.error)).toBeLessThan(0.012);
-    expect(Math.abs(be.audioInfo().clockRateError as number)).toBeLessThan(0.012);
+  it('passes an exact clock from the worklet stamps (no getOutputTimestamp)', async () => {
+    const { be, result } = await check({ clockRateErrors: [0] });
+    expect(result).toMatchObject({ ok: true, recreated: false, measured: true });
+    expect(result.diagnostics.source).toBe('worklet');
+    expect(Math.abs(result.error as number)).toBeLessThan(0.002);
+    expect(Math.abs(be.audioInfo().clockRateError as number)).toBeLessThan(0.002);
+  });
+
+  it('prefers getOutputTimestamp pairs where the browser has them', async () => {
+    const { result } = await check({ clockRateErrors: [0], liveOutputTimestamp: true });
+    expect(result.diagnostics.source).toBe('output-timestamp');
+    expect(Math.abs(result.error as number)).toBeLessThan(0.001);
+  });
+
+  it('is not moved by jittery reply timing on a busy main thread', async () => {
+    // Messages and timers run only between steps of 5 to 120 ms: replies land late by a random amount and the
+    // sampling loop is starved, like a dev build rendering. Stamping replies on arrival was off by several percent here.
+    for (const live of [false, true]) {
+      const rnd = lcg(live ? 7 : 3);
+      const { world, result } = await check({ clockRateErrors: [0], liveOutputTimestamp: live }, {}, () => 5 + rnd() * 115, 1e9);
+      expect(result).toMatchObject({ ok: true, recreated: false, measured: true });
+      expect(Math.abs(result.error as number)).toBeLessThan(0.003);
+      expect(world.contexts).toHaveLength(1);
+    }
+  });
+
+  it('waits out a start-up stall instead of measuring it', async () => {
+    // The context reports running but renders nothing for its first 300 ms (a slow output device start).
+    const stalled = (wall: number, ctx: { createdAtMs: number }): boolean => wall - ctx.createdAtMs < 300;
+    for (const live of [false, true]) {
+      const { result } = await check({ clockRateErrors: [0], stalled, liveOutputTimestamp: live });
+      expect(result).toMatchObject({ ok: true, recreated: false, measured: true });
+      expect(Math.abs(result.error as number)).toBeLessThan(0.002);
+      expect(result.diagnostics.steadyWaitMs).toBeGreaterThanOrEqual(300);
+    }
+  });
+
+  it('counts empty-input quanta as dropped input, not as a slow clock', async () => {
+    // The input has no channels for 100 ms out of every 200 (a source not yet delivering, or a FIFO underrun).
+    const sine = tone(440, 48000);
+    const input = (frame: number, n: number): Float32Array[] => (Math.floor(frame / 4800) % 2 ? [] : sine(frame, n));
+    const { result } = await check({ clockRateErrors: [0], input });
+    expect(result).toMatchObject({ ok: true, measured: true });
+    expect(Math.abs(result.error as number)).toBeLessThan(0.002);
+    expect(result.diagnostics.inputDropFraction).toBeGreaterThan(0.45);
+    expect(result.diagnostics.inputDropFraction).toBeLessThan(0.55);
+    const clean = await check({ clockRateErrors: [0], input: sine });
+    expect(clean.result.diagnostics.inputDropFraction).toBe(0);
   });
 
   it('catches a clock running 8.8% fast and recreates the context once; a second failure is fatal', async () => {
-    const { world, result } = await check([0.088, 0.088]);
-    expect(result.ok).toBe(false);
-    expect(result.recreated).toBe(true);
-    expect(result.error).toBeGreaterThan(0.08);
+    const { world, result } = await check({ clockRateErrors: [0.088, 0.088] });
+    expect(result).toMatchObject({ ok: false, recreated: true, measured: true });
+    expect(result.error).toBeGreaterThan(0.085);
+    expect(result.error).toBeLessThan(0.091);
+    // A failure is confirmed by two agreeing windows.
+    expect(result.diagnostics.consistentErrors).toHaveLength(2);
     expect(world.contexts).toHaveLength(2);
   });
 
+  it('still fails a steady 3.7% slow clock, with either source', async () => {
+    for (const live of [false, true]) {
+      const { result } = await check({ clockRateErrors: [-0.037, -0.037], liveOutputTimestamp: live });
+      expect(result).toMatchObject({ ok: false, recreated: true });
+      expect(Math.abs((result.error as number) + 0.037)).toBeLessThan(0.002);
+    }
+  });
+
   it('recovers when the recreated context runs at the right rate', async () => {
-    const { world, be, result } = await check([0.088, 0]);
+    const { world, be, result } = await check({ clockRateErrors: [0.088, 0] });
     expect(result).toMatchObject({ ok: true, recreated: true });
+    expect(Math.abs(result.error as number)).toBeLessThan(0.002);
     expect(world.contexts).toHaveLength(2);
     expect(be.audioInfo().contextRecreated).toBe(true);
     // The recreated context is fully wired: capture still works.
@@ -246,37 +307,61 @@ describe('clock checks (01 §7.8, W3)', () => {
     expect(port.blocks.length).toBeGreaterThan(5);
   });
 
+  it('one stall in one window neither fails nor recreates: that window is discarded', async () => {
+    let at: number | null = null;
+    const stalled = (wall: number, ctx: { createdAtMs: number }): boolean => {
+      at ??= ctx.createdAtMs + 1200; // inside the first window, after the 500 ms settle
+      return wall >= at && wall < at + 60;
+    };
+    for (const live of [false, true]) {
+      at = null;
+      const { world, result } = await check({ clockRateErrors: [0], stalled, liveOutputTimestamp: live });
+      expect(result).toMatchObject({ ok: true, recreated: false, measured: true });
+      expect(Math.abs(result.error as number)).toBeLessThan(0.002);
+      expect(result.diagnostics.windows).toBe(2);
+      expect(world.contexts).toHaveLength(1);
+    }
+  });
+
+  it('reports could-not-measure (null) when every window is inconsistent, and recreates nothing', async () => {
+    // A 60 ms render stall every 700 ms: no window is a straight line.
+    const stalled = (wall: number): boolean => wall % 700 < 60;
+    for (const live of [false, true]) {
+      const { world, be, result } = await check({ clockRateErrors: [0], stalled, liveOutputTimestamp: live });
+      expect(result).toMatchObject({ ok: true, error: null, recreated: false, measured: false });
+      expect(result.diagnostics.outcome).toBe('inconsistent');
+      expect(result.diagnostics.windows).toBe(3);
+      expect(world.contexts).toHaveLength(1);
+      expect(be.audioInfo().clockRateError).toBeNull();
+    }
+  });
+
   it('measureClockRate reports frames per wall second against the context rate', async () => {
     const { world, be } = setup({ clockRateErrors: [-0.03] });
     await be.unlock();
-    const p = be.measureClockRate(1.5);
-    let r: Awaited<typeof p> | undefined;
-    void p.then((x) => (r = x));
-    for (let i = 0; i < 10 && !r; i++) await world.advance(500, { flushEvery: 4 });
-    expect(r?.expected).toBe(48000);
-    expect(Math.abs((r?.framesPerSec as number) / 48000 - 1 + 0.03)).toBeLessThan(0.012);
+    const r = await drive(world, be.measureClockRate(1.5));
+    expect(r.expected).toBe(48000);
+    expect(Math.abs(r.framesPerSec / 48000 - 1 + 0.03)).toBeLessThan(0.002);
   });
 
-  it('a suspended context counts no frames', async () => {
+  it('a suspended context cannot be measured: NaN, not a failure', async () => {
     const { world, be } = setup();
     await be.unlock();
     world.ctx.setState('suspended');
-    const p = be.measureClockRate(0.5);
-    let r: Awaited<typeof p> | undefined;
-    void p.then((x) => (r = x));
-    await world.advance(700);
-    expect(r?.framesPerSec).toBe(0);
+    const r = await drive(world, be.measureClockRate(0.5));
+    expect(r.framesPerSec).toBeNaN();
+    expect(be.clockDiagnostics()?.outcome).toBe('not-steady');
+    expect(be.audioInfo().clockRateError).toBeNull();
   });
 
-  it('fails measureClockRate when the worklet does not answer', async () => {
+  it('a worklet that does not answer, with no output timestamps, cannot be measured', async () => {
     const { world, be } = setup();
     await be.unlock();
     (world.ctx.workletNodes[0] as unknown as { inner: MessagePort }).inner.onmessage = null;
-    const p = be.measureClockRate(0.1);
-    let err: unknown;
-    p.catch((e: unknown) => (err = e));
-    await world.advance(2500);
-    expect(String(err)).toMatch(/not running/);
+    const r = await drive(world, be.checkClockRate(0.5));
+    expect(r).toMatchObject({ ok: true, error: null, measured: false, recreated: false });
+    expect(r.diagnostics.inputDropFraction).toBeNull();
+    expect(world.contexts).toHaveLength(1);
   });
 });
 

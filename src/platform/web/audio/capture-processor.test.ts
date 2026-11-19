@@ -184,8 +184,30 @@ describe('CaptureCore', () => {
     expect(b).toHaveLength(2);
     expect(Array.from((b[0] as CaptureBlock).lowband).every((v) => v === 0)).toBe(true);
     expect(ctl.out[0]).toEqual({ type: 'started', originFrame: 1280, analysisRate: 16000 });
-    ctl.send({ type: 'frames', id: 7 });
-    expect(ctl.out.at(-1)).toEqual({ type: 'frames', id: 7, frames: 1792 });
+    expect(core.framesProcessed).toBe(1792);
+  });
+
+  it("answers clock requests with the stamp of the latest burst's first quantum and the input-presence counters", () => {
+    const ctl = new Ctl();
+    let frame = 0;
+    let wall = 5000;
+    const core = new CaptureCore(48000, ctl, () => frame, () => wall);
+    ctl.send({ type: 'clock', id: 1 });
+    expect(ctl.out.at(-1)).toEqual({ type: 'clock', id: 1, frame: -1, wallMs: -1, quanta: 0, missingInput: 0, silentInput: 0 });
+    const live = (): Float32Array[] => [Float32Array.from({ length: 128 }, (_, i) => 0.1 * Math.sin(i))];
+    // Three bursts of 4 quanta, 10 ms apart; inside a burst the quanta run back to back (same ms or the next one).
+    const kinds: (Float32Array[] | undefined)[] = [live(), [], [new Float32Array(128)], live()];
+    for (let burst = 0; burst < 3; burst++) {
+      for (let q = 0; q < 4; q++) {
+        wall = 5000 + burst * 10 + (q === 3 ? 1 : 0);
+        core.process(kinds[q]);
+        frame += 128;
+      }
+    }
+    // A reply that arrives late still carries the exact pair: frame 1024 rendered at 5020 ms.
+    wall = 9999;
+    ctl.send({ type: 'clock', id: 2 });
+    expect(ctl.out.at(-1)).toEqual({ type: 'clock', id: 2, frame: 1024, wallMs: 5020, quanta: 12, missingInput: 3, silentInput: 3 });
   });
 
   it('drops and counts blocks when the pool is empty, keeping later startT exact', () => {

@@ -42,6 +42,7 @@ import { browserAudioDeps, type AudioContextLike, type GainNodeLike, type TrackL
 import type { ClickBuffer } from './metronome.ts';
 import { ListenVoiceCache, LISTEN_BUS_GAIN } from './listen-voice.ts';
 import { CALIBRATION_ACCENT_DB, Metronome } from './metronome.ts';
+import { fitClockWindow, median, type ClockFit, type ClockSample } from './clock-fit.ts';
 import { CAPTURE_PROCESSOR_NAME, FRAMES_PER_BLOCK, type FromWorklet, type ToWorklet } from './protocol.ts';
 import { appliedProcessingOf, inputKindOf, routeKeyOf } from './route.ts';
 
@@ -84,8 +85,8 @@ export interface WebAudioBackendOptions {
   testClockT0AfterCaptureSec?: number;
   /** Stats cadence from the worklet, blocks (default 8, about 43 ms at 48 kHz). */
   statsEvery?: number;
-  /** Give up waiting for a worklet `frames` reply after this, ms (default 2000). */
-  framesTimeoutMs?: number;
+  /** Clock-rate measurement tuning (tests); defaults `CLOCK_CHECK`. */
+  clockCheck?: Partial<Omit<typeof CLOCK_CHECK, 'windowSec'>>;
 }
 
 export interface CaptureStats {
@@ -95,7 +96,52 @@ export interface CaptureStats {
   relay: boolean;
 }
 
-export type ClockRateCheck = { ok: boolean; error: number; recreated: boolean };
+/**
+ * Result of `checkClockRate`. `error` is null when the clock could not be measured (no steady clock, or windows that
+ * never agreed): `ok` is then true, because an unmeasured clock fails nothing (the gate treats null as not failing).
+ */
+export type ClockRateCheck = { ok: boolean; error: number | null; recreated: boolean; measured: boolean; diagnostics: ClockDiagnostics };
+
+/** How the last clock-rate measurement went (diagnostics export; numbers and labels only). */
+export interface ClockDiagnostics {
+  /** Measured fractional error, or null (could not measure). */
+  error: number | null;
+  /** Which pairs were fitted in the window that decided. */
+  source: 'output-timestamp' | 'worklet' | null;
+  /** Why the result is null, or 'ok'. */
+  outcome: 'ok' | 'not-steady' | 'inconsistent';
+  /** Windows sampled, and the errors of those that were self-consistent, in order. */
+  windows: number;
+  consistentErrors: number[];
+  /** Errors of the last window's stretches (fractions). */
+  lastSubErrors: number[];
+  /** Wall ms waited for a steady clock before sampling. */
+  steadyWaitMs: number;
+  /**
+   * Input frames lost on the way in during the sampled windows, a capture problem distinct from the clock: the
+   * fraction of render quanta with no input channels or all-zero input. Null when no microphone is connected or the
+   * worklet did not answer.
+   */
+  inputDropFraction: number | null;
+}
+
+/** Clock-rate measurement tuning (01 §7.8). */
+export const CLOCK_CHECK = {
+  /** Default sampled window, seconds. */
+  windowSec: 2,
+  /** Interval between samples, ms. */
+  sampleEveryMs: 20,
+  /** The context must have been running this long (and its clock advancing) before sampling, ms. */
+  settleMs: 500,
+  /** Give up waiting for a steady clock after this, ms (could not measure). */
+  steadyTimeoutMs: 4000,
+  /** Windows sampled at most per measurement. */
+  maxWindows: 3,
+  /** Stretch-to-median and window-to-window agreement, fraction (a fifth of the 2% gate). */
+  agreeTol: 0.004,
+  /** Stretches per window. */
+  subWindows: 4,
+} as const;
 
 const GUM_CONSTRAINTS = {
   audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 1 },
@@ -152,14 +198,17 @@ export class WebAudioBackend implements AudioBackend {
 
   private contextRecreated = false;
   private clockRateError: number | null = null;
+  private clockDiag: ClockDiagnostics | null = null;
+  /** Wall ms at which the current context was last seen to enter `running`, or null while it is not running. */
+  private runningSinceMs: number | null = null;
   private audioSessionType: string | null = null;
   private trackSampleRate: number | null = null;
 
   private cap: CaptureState | null = null;
   private lastStats: CaptureStats = { postedBlocks: 0, droppedBlocks: 0, maxQueueMs: 0, relay: false };
   private relayUsed: boolean;
-  private framesId = 0;
-  private readonly framesWaiters = new Map<number, (r: { frames: number; wallMs: number }) => void>();
+  private clockId = 0;
+  private readonly clockWaiters = new Map<number, (r: Extract<FromWorklet, { type: 'clock' }>) => void>();
 
   private readonly routeCbs = new Set<(r: AudioRouteInfo) => void>();
   private readonly interruptCbs = new Set<(r: InterruptionReason) => void>();
@@ -293,11 +342,15 @@ export class WebAudioBackend implements AudioBackend {
     // it would refuse every sound (previews, Listen) until the new clock caught up with a take that no longer exists.
     this.takeEndsAt = 0;
     this.seenRunning = ctx.state === 'running';
+    this.runningSinceMs = this.seenRunning ? this.deps.wallNowMs() : null;
     const onState = (): void => {
       if (ctx !== this.ctx || this.closing) return;
       const st = ctx.state;
-      if (st === 'running') this.seenRunning = true;
-      else if (st === 'interrupted') this.fireInterruption('interrupted');
+      if (st === 'running') {
+        this.seenRunning = true;
+        this.runningSinceMs ??= this.deps.wallNowMs();
+      } else this.runningSinceMs = null;
+      if (st === 'interrupted') this.fireInterruption('interrupted');
       else if ((st === 'suspended' || st === 'closed') && this.seenRunning) this.fireInterruption('interrupted');
     };
     ctx.addEventListener('statechange', onState);
@@ -720,11 +773,11 @@ export class WebAudioBackend implements AudioBackend {
 
   private onWorklet(node: WorkletNodeLike, m: FromWorklet): void {
     if (node !== this.node) return;
-    if (m.type === 'frames') {
-      const w = this.framesWaiters.get(m.id);
+    if (m.type === 'clock') {
+      const w = this.clockWaiters.get(m.id);
       if (w) {
-        this.framesWaiters.delete(m.id);
-        w({ frames: m.frames, wallMs: this.deps.wallNowMs() });
+        this.clockWaiters.delete(m.id);
+        w(m);
       }
       return;
     }
@@ -788,53 +841,187 @@ export class WebAudioBackend implements AudioBackend {
 
   // ---- clock checks (01 §7.8, W3) ----------------------------------------------------------------
 
-  private requestFrames(): Promise<{ frames: number; wallMs: number }> {
-    const node = this.requireContext() && (this.node as WorkletNodeLike);
-    const id = ++this.framesId;
-    return new Promise((resolve, reject) => {
-      const timer = this.deps.setTimeout(() => {
-        if (this.framesWaiters.delete(id)) reject(new Error('capture worklet is not running'));
-      }, this.opts.framesTimeoutMs ?? 2000);
-      this.framesWaiters.set(id, (r) => {
-        this.deps.clearTimeout(timer);
-        resolve(r);
-      });
-      const m: ToWorklet = { type: 'frames', id };
-      node.port.postMessage(m);
-    });
+  private sleep(ms: number): Promise<void> {
+    return new Promise((r) => this.deps.setTimeout(r, ms));
   }
 
-  /** Counts worklet input frames against wall time (01 §7.8). */
-  async measureClockRate(durSec: number): Promise<{ framesPerSec: number; expected: number }> {
-    const ctx = this.requireContext();
-    const a = await this.requestFrames();
-    await new Promise<void>((r) => this.deps.setTimeout(r, durSec * 1000));
-    const b = await this.requestFrames();
-    const wallSec = (b.wallMs - a.wallMs) / 1000;
-    const framesPerSec = wallSec > 0 ? (b.frames - a.frames) / wallSec : 0;
-    const expected = ctx.sampleRate;
-    this.clockRateError = expected > 0 ? framesPerSec / expected - 1 : null;
-    return { framesPerSec, expected };
+  private clockOpts(): Omit<typeof CLOCK_CHECK, 'windowSec'> {
+    return { ...CLOCK_CHECK, ...this.opts.clockCheck };
+  }
+
+  /** One coherent (performance.now ms, context s) pair from `getOutputTimestamp`, or null where it is absent or not yet running. */
+  private outputStamp(ctx: AudioContextLike): ClockSample | null {
+    const ts = ctx.getOutputTimestamp?.();
+    if (!ts || !finite(ts.contextTime) || !finite(ts.performanceTime) || ts.contextTime <= 0 || ts.performanceTime <= 0) return null;
+    return { wallMs: ts.performanceTime, ctxSec: ts.contextTime };
   }
 
   /**
-   * W3 (2): run the clock-rate check; an error above `clockRateMaxError` (2%) recreates the context once and
-   * measures again. `ok: false` after that is the "Audio setup problem; please reload" state.
+   * Waits until the context has been running for `settleMs` and its clock is advancing (01 §7.8: never measure the
+   * start-up of a context, where the first render callbacks can be late or bunched). Returns the wall ms waited, or
+   * null if that did not happen within `steadyTimeoutMs`.
    */
-  async checkClockRate(durSec = 1.5): Promise<ClockRateCheck> {
-    const max = this.budget.clockRateMaxError;
-    const measure = async (): Promise<number> => {
-      const r = await this.measureClockRate(durSec);
-      return r.framesPerSec / r.expected - 1;
-    };
-    let err = await measure();
-    if (Math.abs(err) <= max) return { ok: true, error: err, recreated: false };
-    if (!this.contextRecreated) {
-      await this.recreateContext(null);
-      err = await measure();
-      if (Math.abs(err) <= max) return { ok: true, error: err, recreated: true };
+  private async waitSteadyClock(ctx: AudioContextLike): Promise<number | null> {
+    const o = this.clockOpts();
+    const t0 = this.deps.wallNowMs();
+    let lastCtx = ctx.currentTime;
+    let advancedAt: number | null = null;
+    for (;;) {
+      const now = this.deps.wallNowMs();
+      if (ctx !== this.ctx || ctx.state === 'closed') return null;
+      if (ctx.currentTime > lastCtx) advancedAt ??= now;
+      else if (ctx.currentTime < lastCtx) advancedAt = null;
+      lastCtx = ctx.currentTime;
+      if (ctx.state === 'running') this.runningSinceMs ??= now;
+      const since = this.runningSinceMs;
+      if (ctx.state === 'running' && since !== null && advancedAt !== null && now - since >= o.settleMs && now - advancedAt >= o.sampleEveryMs) return now - t0;
+      if (now - t0 >= o.steadyTimeoutMs) return null;
+      await this.sleep(o.sampleEveryMs);
     }
-    return { ok: false, error: err, recreated: this.contextRecreated };
+  }
+
+  /**
+   * Samples one window: every `sampleEveryMs` it reads `getOutputTimestamp` and asks the worklet for its latest
+   * self-stamped (frame, Date.now) pair. Neither pair depends on when this loop runs or when a reply arrives, so a
+   * busy main thread only thins the samples out.
+   */
+  private async sampleWindow(ctx: AudioContextLike, windowMs: number): Promise<{ ots: ClockSample[]; worklet: ClockSample[]; counters: { first: Extract<FromWorklet, { type: 'clock' }> | null; last: Extract<FromWorklet, { type: 'clock' }> | null } }> {
+    const o = this.clockOpts();
+    const node = this.node;
+    const rate = ctx.sampleRate;
+    const ots: ClockSample[] = [];
+    const worklet: ClockSample[] = [];
+    const counters: { first: Extract<FromWorklet, { type: 'clock' }> | null; last: Extract<FromWorklet, { type: 'clock' }> | null } = { first: null, last: null };
+    const asked = new Set<number>();
+    const onReply = (m: Extract<FromWorklet, { type: 'clock' }>): void => {
+      if (m.frame >= 0 && m.wallMs >= 0) worklet.push({ wallMs: m.wallMs, ctxSec: m.frame / rate });
+      if (!counters.first) counters.first = m;
+      counters.last = m;
+    };
+    const ask = (): void => {
+      if (!node || node !== this.node) return;
+      const id = ++this.clockId;
+      asked.add(id);
+      this.clockWaiters.set(id, onReply);
+      const m: ToWorklet = { type: 'clock', id };
+      node.port.postMessage(m);
+    };
+    const start = this.deps.wallNowMs();
+    for (;;) {
+      if (ctx !== this.ctx) break;
+      const p = this.outputStamp(ctx);
+      if (p) ots.push(p);
+      ask();
+      if (this.deps.wallNowMs() - start >= windowMs) break;
+      await this.sleep(o.sampleEveryMs);
+    }
+    // Let the last replies in (their stamps are exact whenever they land), then forget the rest.
+    await this.sleep(o.sampleEveryMs * 2);
+    for (const id of asked) this.clockWaiters.delete(id);
+    return { ots, worklet, counters };
+  }
+
+  /**
+   * The clock-rate measurement (01 §7.8). After waiting for a steady clock, samples up to `maxWindows` windows of
+   * `durSec`. A window counts only if it is self-consistent (`fitClockWindow`). The first consistent window within the
+   * gate passes; a failure needs two consistent windows that agree with each other. Anything else is "could not
+   * measure" (error null): a stall, a busy machine or a browser without a usable clock pair never fails the gate or
+   * recreates the context.
+   */
+  async measureClock(durSec: number = CLOCK_CHECK.windowSec): Promise<ClockDiagnostics> {
+    const ctx = this.requireContext();
+    const o = this.clockOpts();
+    const max = this.budget.clockRateMaxError;
+    const diag: ClockDiagnostics = { error: null, source: null, outcome: 'not-steady', windows: 0, consistentErrors: [], lastSubErrors: [], steadyWaitMs: 0, inputDropFraction: null };
+    const finish = (): ClockDiagnostics => {
+      this.clockRateError = diag.error;
+      this.clockDiag = diag;
+      return diag;
+    };
+    const waited = await this.waitSteadyClock(ctx);
+    if (waited === null) {
+      diag.steadyWaitMs = o.steadyTimeoutMs;
+      return finish();
+    }
+    diag.steadyWaitMs = waited;
+    diag.outcome = 'inconsistent';
+    const windowMs = durSec * 1000;
+    let quanta = 0;
+    let lost = 0;
+    const fitOpts = { windowMs, agreeTol: o.agreeTol, subWindows: o.subWindows };
+    for (let w = 0; w < o.maxWindows; w++) {
+      if (ctx !== this.ctx) break;
+      const win = await this.sampleWindow(ctx, windowMs);
+      diag.windows++;
+      const { first, last } = win.counters;
+      if (first && last && last.quanta > first.quanta) {
+        quanta += last.quanta - first.quanta;
+        lost += last.missingInput - first.missingInput + (last.silentInput - first.silentInput);
+      }
+      // getOutputTimestamp first: the browser's own coherent pair, about 0.6 ms of scatter in Chromium. The worklet's
+      // self-stamped pairs where it is missing or not advancing.
+      let fit: ClockFit = fitClockWindow(win.ots, fitOpts);
+      let source: ClockDiagnostics['source'] = 'output-timestamp';
+      if (fit.reason === 'too-few-samples' || fit.reason === 'short-span') {
+        fit = fitClockWindow(win.worklet, fitOpts);
+        source = 'worklet';
+      }
+      diag.lastSubErrors = fit.subErrors;
+      if (!fit.consistent) continue;
+      diag.consistentErrors.push(fit.error);
+      diag.source = source;
+      if (Math.abs(fit.error) <= max) {
+        diag.error = fit.error;
+        diag.outcome = 'ok';
+        break;
+      }
+      const errs = diag.consistentErrors;
+      const prev = errs.length >= 2 ? (errs[errs.length - 2] as number) : null;
+      if (prev !== null && Math.abs(prev) > max && Math.abs(prev - fit.error) <= o.agreeTol) {
+        diag.error = median([prev, fit.error]);
+        diag.outcome = 'ok';
+        break;
+      }
+    }
+    diag.inputDropFraction = this.srcNode && quanta > 0 ? lost / quanta : null;
+    return finish();
+  }
+
+  /**
+   * `AudioBackend.measureClockRate` (01 §7.8): `measureClock` expressed as frames per wall second. `framesPerSec` is
+   * NaN when the clock could not be measured (`runClockRateCheck` reads that as null).
+   */
+  async measureClockRate(durSec: number): Promise<{ framesPerSec: number; expected: number }> {
+    const expected = this.requireContext().sampleRate;
+    const d = await this.measureClock(durSec);
+    return { framesPerSec: d.error === null ? NaN : expected * (1 + d.error), expected };
+  }
+
+  /**
+   * W3 (2): run the clock-rate check; an error above `clockRateMaxError` (2%), confirmed by two agreeing windows,
+   * recreates the context once and measures again after it settles. `ok: false` after that is the "Audio setup
+   * problem; please reload" state. A clock that could not be measured is `ok` with `error: null`.
+   */
+  async checkClockRate(durSec: number = CLOCK_CHECK.windowSec): Promise<ClockRateCheck> {
+    const max = this.budget.clockRateMaxError;
+    const result = (d: ClockDiagnostics, recreated: boolean): ClockRateCheck => ({
+      ok: d.error === null || Math.abs(d.error) <= max,
+      error: d.error,
+      recreated,
+      measured: d.error !== null,
+      diagnostics: d,
+    });
+    let d = await this.measureClock(durSec);
+    const first = result(d, false);
+    if (first.ok || this.contextRecreated) return { ...first, recreated: this.contextRecreated };
+    await this.recreateContext(null);
+    d = await this.measureClock(durSec);
+    return result(d, true);
+  }
+
+  /** The last clock-rate measurement's details, or null (diagnostics). */
+  clockDiagnostics(): ClockDiagnostics | null {
+    return this.clockDiag;
   }
 
   /** Track rate reported by `getSettings()` (null when absent) against the context rate (gate (a) input). */
@@ -879,7 +1066,7 @@ export class WebAudioBackend implements AudioBackend {
     for (const t of this.stream?.getAudioTracks() ?? []) if (t !== this.track) t.stop();
     this.track = null;
     this.stream = null;
-    this.framesWaiters.clear();
+    this.clockWaiters.clear();
     const ctx = this.ctx;
     this.ctx = null;
     this.route = null;

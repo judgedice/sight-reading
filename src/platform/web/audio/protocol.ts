@@ -38,8 +38,8 @@ export type ToWorklet =
   | { type: 'relay' }
   /** Relay mode: buffers handed back by the main thread. */
   | { type: 'return'; lowband: ArrayBuffer; hiEnergy: ArrayBuffer }
-  /** Clock-rate check: reply with the number of input frames processed so far. */
-  | { type: 'frames'; id: number };
+  /** Clock-rate check (01 §7.8): reply with the latest clock stamp and the input-presence counters. */
+  | { type: 'clock'; id: number };
 
 /** Worklet -> main, on `node.port`. */
 export type FromWorklet =
@@ -55,7 +55,13 @@ export type FromWorklet =
   | { type: 'stats'; posted: number; dropped: number; outstanding: number; maxOutstanding: number }
   /** The pool was empty and block `seq` was dropped (a capture gap). */
   | { type: 'drop'; seq: number; dropped: number }
-  | { type: 'frames'; id: number; frames: number };
+  /**
+   * Reply to `clock`. `frame` and `wallMs` were read together in the first quantum of the latest render burst
+   * (`currentFrame`, `Date.now()` in the worklet), so the pair is exact whenever the reply arrives; -1 before the
+   * first quantum. The counters are cumulative render quanta: all, those with no input channels, and those whose
+   * input was all exact zeros.
+   */
+  | { type: 'clock'; id: number; frame: number; wallMs: number; quanta: number; missingInput: number; silentInput: number };
 
 export function isCaptureReturn(m: unknown): m is CaptureReturn {
   if (typeof m !== 'object' || m === null) return false;

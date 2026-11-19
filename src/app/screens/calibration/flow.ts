@@ -5,9 +5,16 @@
  */
 import type { PlatformCapabilities } from '../../../core/platform.ts';
 import type { AudioRouteInfo, Calibration, OutputMode } from '../../../core/types.ts';
-import type { LoopbackOutcome, PlayAlongOutcome } from './services.ts';
+import type { CalPlan, CalStageId, LoopbackOutcome, PlayAlongOutcome, SelfTestOutcome } from './services.ts';
 
-export type DotState = 'pending' | 'heard' | 'missed';
+/**
+ * One mark per sound. `sounding`: the sound is audible now (brass, one pulse); a timing or play-along mark then
+ * settles to `heard` or `missed` when that is known; the other stages' marks settle to `done` at the next sound.
+ */
+export type DotState = 'pending' | 'sounding' | 'heard' | 'missed' | 'done';
+
+/** The stages whose marks are measured (heard or missed); the others only show that their sound played. */
+export const isMeasuredStage = (s: CalStageId): boolean => s === 'timing' || s === 'play-along';
 
 export type CalStep =
   | 'idle'
@@ -23,7 +30,19 @@ export type CalWarning = 'bluetooth' | 'airpods' | 'aec';
 
 export interface CalState {
   step: CalStep;
+  /** The run's stages (from the services' plan), in order; empty before a run. */
+  plan: CalPlan | null;
+  /** The stage playing now; null before the first and after the last. */
+  stage: CalStageId | null;
+  /** Marks of the measured stage (timing or play-along). */
   dots: DotState[];
+  /** Marks of the other stages (template, pitch, count-in). */
+  marks: Partial<Record<CalStageId, DotState[]>>;
+  /** The audio check that ran after the measurement. */
+  checks: SelfTestOutcome | null;
+  /** Loopback: why it failed (`LoopbackFailure`), and clicks found of scheduled. */
+  failure: string | null;
+  clicksFound: number | null;
   /** Play-along: offset of each note from its click, ms; null when no note. Filled when the run ends. */
   offsets: (number | null)[];
   method: 'loopback' | 'play-along' | null;
@@ -42,7 +61,13 @@ export interface CalState {
 
 export const initialCalState = (): CalState => ({
   step: 'idle',
+  plan: null,
+  stage: null,
   dots: [],
+  marks: {},
+  checks: null,
+  failure: null,
+  clicksFound: null,
   offsets: [],
   method: null,
   rtlMs: null,
@@ -56,8 +81,10 @@ export const initialCalState = (): CalState => ({
 });
 
 export type CalEvent =
-  | { type: 'start-loopback'; clicks: number }
-  | { type: 'start-playalong'; clicks: number }
+  | { type: 'start-loopback'; plan: CalPlan }
+  | { type: 'start-playalong'; plan: CalPlan }
+  | { type: 'stage'; stage: CalStageId }
+  | { type: 'sound'; stage: CalStageId; index: number }
   | { type: 'click'; index: number; heard: boolean }
   | { type: 'note'; index: number; offsetMs: number | null }
   | { type: 'loopback-done'; outcome: LoopbackOutcome; warnings: CalWarning[] }
@@ -69,12 +96,31 @@ export type CalEvent =
 
 const sized = (n: number): DotState[] => Array.from({ length: n }, () => 'pending');
 
+/** Marks of the unmeasured stages, all pending. */
+const otherMarks = (plan: CalPlan): CalState['marks'] => Object.fromEntries(plan.stages.filter((st) => !isMeasuredStage(st.id)).map((st) => [st.id, sized(st.sounds)]));
+
+/** Every unmeasured mark that was sounding is done (a new sound, a new stage, or the end). */
+const settleOthers = (m: CalState['marks']): CalState['marks'] =>
+  Object.fromEntries(Object.entries(m).map(([k, v]) => [k, (v ?? []).map((d) => (d === 'sounding' ? 'done' : d))]));
+
+const measuredSize = (plan: CalPlan): number => plan.stages.find((st) => isMeasuredStage(st.id))?.sounds ?? 0;
+
 export function calReducer(s: CalState, e: CalEvent): CalState {
   switch (e.type) {
     case 'start-loopback':
-      return { ...initialCalState(), step: 'loopback-running', dots: sized(e.clicks), playAlongFailures: s.playAlongFailures };
-    case 'start-playalong':
-      return { ...initialCalState(), step: 'playalong-running', dots: sized(e.clicks), offsets: e.clicks > 0 ? Array.from({ length: e.clicks }, () => null) : [], playAlongFailures: s.playAlongFailures };
+      return { ...initialCalState(), step: 'loopback-running', plan: e.plan, dots: sized(measuredSize(e.plan)), marks: otherMarks(e.plan), playAlongFailures: s.playAlongFailures };
+    case 'start-playalong': {
+      const n = measuredSize(e.plan);
+      return { ...initialCalState(), step: 'playalong-running', plan: e.plan, dots: sized(n), marks: otherMarks(e.plan), offsets: Array.from({ length: n }, () => null), playAlongFailures: s.playAlongFailures };
+    }
+    case 'stage':
+      return { ...s, stage: e.stage, marks: settleOthers(s.marks) };
+    case 'sound': {
+      if (isMeasuredStage(e.stage)) return { ...s, stage: e.stage, dots: s.dots.map((d, i) => (i === e.index && d === 'pending' ? 'sounding' : d)) };
+      const marks = settleOthers(s.marks);
+      const own = marks[e.stage];
+      return { ...s, stage: e.stage, marks: own ? { ...marks, [e.stage]: own.map((d, i) => (i === e.index ? 'sounding' : d)) } : marks };
+    }
     case 'click':
       return { ...s, dots: s.dots.map((d, i) => (i === e.index ? (e.heard ? 'heard' : 'missed') : d)) };
     case 'note':
@@ -85,18 +131,21 @@ export function calReducer(s: CalState, e: CalEvent): CalState {
       };
     case 'loopback-done': {
       const o = e.outcome;
-      if (!o.accepted) return { ...s, step: 'loopback-failed', rtlMs: o.rtlMs, madMs: o.madMs, warnings: e.warnings, errored: false };
-      return { ...s, step: 'measured', method: 'loopback', rtlMs: o.rtlMs, madMs: o.madMs, warnings: e.warnings, calibration: o.calibration, audibility: 'unanswered', errored: false };
+      const end = { stage: null, marks: settleOthers(s.marks), checks: o.checks, failure: o.failure, clicksFound: o.clicksFound, method: 'loopback' as const, errored: false };
+      if (!o.accepted) return { ...s, ...end, step: 'loopback-failed', rtlMs: o.rtlMs, madMs: o.madMs, warnings: e.warnings };
+      return { ...s, ...end, step: 'measured', rtlMs: o.rtlMs, madMs: o.madMs, warnings: e.warnings, calibration: o.calibration, audibility: 'unanswered' };
     }
     case 'playalong-done': {
       const o = e.outcome;
       const dots: DotState[] = o.offsetsMs.map((v) => (v === null ? 'missed' : 'heard'));
+      const end = { stage: null, marks: settleOthers(s.marks), checks: o.checks, failure: o.failure, clicksFound: o.notesFound, method: 'play-along' as const, errored: false };
       if (!o.accepted) {
-        return { ...s, step: 'playalong-failed', dots, offsets: o.offsetsMs, rtlMs: o.rtlMs, madMs: o.madMs, warnings: e.warnings, playAlongFailures: s.playAlongFailures + 1, errored: false };
+        return { ...s, ...end, step: 'playalong-failed', dots, offsets: o.offsetsMs, rtlMs: o.rtlMs, madMs: o.madMs, warnings: e.warnings, playAlongFailures: s.playAlongFailures + 1 };
       }
-      return { ...s, step: 'measured', method: 'play-along', dots, offsets: o.offsetsMs, rtlMs: o.rtlMs, madMs: o.madMs, warnings: e.warnings, calibration: o.calibration, playAlongFailures: 0, errored: false };
+      return { ...s, ...end, step: 'measured', dots, offsets: o.offsetsMs, rtlMs: o.rtlMs, madMs: o.madMs, warnings: e.warnings, calibration: o.calibration, playAlongFailures: 0 };
     }
     case 'run-error':
+      // `stage` stays set: the failure names the stage it stopped in.
       return { ...s, step: s.step === 'playalong-running' ? 'playalong-failed' : 'loopback-failed', errored: true };
     case 'audibility':
       return { ...s, audibility: e.answer, step: e.answer === 'yes' ? 'finished' : s.step };
@@ -138,3 +187,26 @@ export const calibrationIsMandatoryPath = (c: Pick<PlatformCapabilities, 'osFami
 /** Offset tick position: -1 (far left, early) to 1 (far right, late), clamped at 100 ms either way. */
 export const offsetTick = (offsetMs: number | null, rangeMs = 100): number | null =>
   offsetMs === null ? null : Math.max(-1, Math.min(1, offsetMs / rangeMs));
+
+export type StageStatus = 'upcoming' | 'now' | 'passed' | 'failed' | 'done';
+
+/**
+ * The status of each planned stage. Running: done before the current one, `now`, upcoming after. At the end, the
+ * measured stage passes or fails with the measurement; the tone and count-in pass or fail with their audio-check
+ * items; the template stage is done once played. A run that threw fails the stage it was in.
+ */
+export function stageStatuses(s: CalState): StageStatus[] {
+  const plan = s.plan;
+  if (!plan) return [];
+  const ids = plan.stages.map((st) => st.id);
+  const running = s.step === 'loopback-running' || s.step === 'playalong-running';
+  const cur = s.stage === null ? -1 : ids.indexOf(s.stage);
+  if (running) return ids.map((_, i) => (i < cur ? 'done' : i === cur ? 'now' : 'upcoming'));
+  if (s.errored) return ids.map((_, i) => (i < cur ? 'done' : i === cur ? 'failed' : 'upcoming'));
+  const item = (id: 'sanity-tone' | 'recheck'): StageStatus => {
+    const st = s.checks?.items.find((x) => x.id === id)?.status;
+    return st === 'pass' ? 'passed' : st === 'fail' ? 'failed' : 'done';
+  };
+  const measuredOk = (s.step === 'measured' || s.step === 'finished') && !s.estimate;
+  return ids.map((id) => (isMeasuredStage(id) ? (measuredOk ? 'passed' : 'failed') : id === 'pitch' ? item('sanity-tone') : id === 'count-in' ? item('recheck') : 'done'));
+}

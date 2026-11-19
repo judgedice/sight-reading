@@ -29,7 +29,7 @@ export interface CalibrationBackendExtras {
   setOutputMode?(mode: AppSettings['practice']['outputMode']): void;
   /** Calibration listens: an earlier output-only unlock (a sound preview) or practise without listening turned input off. */
   setInputEnabled?(on: boolean): void;
-  checkClockRate?(): Promise<{ ok: boolean; error: number; recreated: boolean }>;
+  checkClockRate?(): Promise<{ ok: boolean; error: number | null; recreated: boolean }>;
 }
 
 export interface CalibrationServicesDeps {
@@ -97,6 +97,7 @@ export function createCalibrationServices(d: CalibrationServicesDeps): Calibrati
     capabilities: d.capabilities,
     maxRtlMs: d.configs.grading.ranked.maxRtlMs,
     plan: (mode) => calibrationPlan(budget, mode),
+    clickSound: () => d.settings.get().practice.clickTimbre,
     prefs: () => ({ outputMode: d.settings.get().practice.outputMode, inputDeviceId: d.settings.get().audio.inputDeviceId }),
     async setPrefs(p) {
       const s = d.settings.get();
