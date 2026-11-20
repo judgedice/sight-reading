@@ -208,6 +208,7 @@ export function PickedRange({ instrument, data, onHearNote, sound, standIn = nul
     <div className={`pk-picked pk-picked-${variant}`} data-testid="picked-range">
       {head ? (
         <div className="pk-picked-head">
+          {column ? <p className="pk-picked-eyebrow">{copy('picker.selected')}</p> : null}
           <h3 className="pk-picked-name">{name}</h3>
           <span className="pk-picked-level">{copy('setup.difficulty.chip', { level: data.model.level })}</span>
           {!column ? playButton : null}
@@ -320,7 +321,7 @@ function PickerBody({ instruments, value, rangeFor, showLessTested, onDone, onCa
         </>
       }
     >
-      <p className="pk-sub">{copy('onboarding.instrument.body')}</p>
+      <p className="pk-sub">{copy('picker.lead')}</p>
       <div className="pk-body">
         <div className="pk-pane">{grid}</div>
         <aside className="pk-column">{picked}</aside>

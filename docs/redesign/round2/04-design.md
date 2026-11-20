@@ -79,17 +79,17 @@ Owner point 3. Route `#/match`, focused chrome: back, "Match a note", "Note 1 of
 Owner points 10 and 11. The frames board is the build spec: 16 frames, each with its time from Start, what sounds, and what changes.
 
 - **Cue zone**: a fixed band at the top of the score paper, 232 px on desktop and 196 px on phone. The reference card and the count-in track both live there, so the music never moves between the reference, the count-in and bar 1.
-- **Reference** (voice only). Times come from the code: `VOICE_REFERENCE_LEAD_SEC` (0.1 s), `VOICE_REFERENCE` (chord tones 0.5 s with 0.05 s gaps, one more gap, first note 1.0 s) and `AFTER_REFERENCE_SEC` (0.5 s). The build reads them, so the board cannot drift.
-  - R0, 0 s: the card appears with the press of Start; 100 ms later the first tone. Card: pitch glyph, "Your starting pitch", "So you know where to begin: the key chord, then your first note. You don't need to sing yet.", two pending steps "Key chord" and "First note". Score dimmed to 55% (later systems 30%). Status strip: "Starting pitch", "Marks start at bar 1".
-  - R1, 0.1 s: F, A, C at 0.10, 0.65 and 1.20 s, 0.5 s each. Brass band on the key signature of the first system only. Step "Key chord: F major" live.
-  - R2, 1.8 s: F3 for 1.0 s. Band goes; brass ring and "F3" on the first note.
-  - R3, 2.8 s: 0.5 s of silence; the tone's room tail is not counted as the player's. Both steps ticked, "Count-in next".
-- **Count-in** (C1.1 to C2.4, 3.3 s to 10.3 s): a line above a track of eight cells and the word Sing. From the first click every system is at full ink: dimming is for the starting pitch only.
+- **Reference** (voice only). Times come from the code: `VOICE_REFERENCE_LEAD_SEC` (0.6 s), `VOICE_REFERENCE` (chord tones 0.5 s with 0.05 s gaps, one more gap, first note 1.0 s) and the one-beat gap before the first click (`firstClickAt = ref.end + 60 / bpm`, 1.0 s at 60 bpm). The build reads them, so the board cannot drift.
+  - R0, 0 s: the card appears with the press of Start; 600 ms later the first tone. Card: pitch glyph, "Your starting pitch", "So you know where to begin: the key chord, then your first note. You don't need to sing yet.", two pending steps "Key chord" and "First note". Score dimmed to 55% (later systems 30%). Status strip: "Starting pitch", "Marks start at bar 1".
+  - R1, 0.6 s: F, A, C at 0.60, 1.15 and 1.70 s, 0.5 s each. Brass band on the key signature of the first system only. Step "Key chord: F major" live.
+  - R2, 2.3 s: F3 for 1.0 s. Band goes; brass ring and "F3" on the first note.
+  - R3, 3.3 s: one beat (1.0 s at 60 bpm) of silence; the tone's room tail is not counted as the player's. Both steps ticked, "Count-in next".
+- **Count-in** (C1.1 to C2.4, 4.3 s to 11.3 s): a line above a track of eight cells and the word Sing. From the first click every system is at full ink: dimming is for the starting pitch only.
   - Bar 1: dashed grey cells, the current one filled grey with its number large. Line: "Count-in: listen to the beat", "Count-in bar 1 of 2 · ♩ = 60".
   - Bar 2: brass cells, current one solid brass with a glow. Line in brass: "Come in after 4", "Count-in bar 2 of 2 · ♩ = 60". From its first click the first note gets its brass ring and "Sing" label.
   - C2.4, the last beat: cell 4 solid brass, and the word "Sing" gets a brass underline. Sing is a word at the end of the track, not a control: no glyph, no border, `aria-hidden`, and said in the live announcement. Nothing else moves. This is the one frame with an extra highlight, so it is the one the eye cannot miss.
   - No word on any beat. The status strip says "Count-in" with the mic meter (no second set of beat dots).
-- **Music** (M1, 11.3 s): track gone, cue zone empty, the ring on the first note pulses once (300 ms) and fades, status "Bar 1 of 8". M2: the first green dot.
+- **Music** (M1, 12.3 s): track gone, cue zone empty, the ring on the first note pulses once (300 ms) and fades, status "Bar 1 of 8". M2: the first green dot.
 - Instruments skip R0 to R3.
 
 ## 6. Read-through (`scan.html`, `scan-menu.html`)
@@ -228,7 +228,7 @@ Each required change in `05-critique.md` §4, in order. "Done" means the board i
 | 14 | "Marks start at bar 1" | Done | Status strip on `before-reference` and every R and C frame. Key `countIn.marksStart`. |
 | 15 | The Sing cell is not a control | Done | No play glyph, no border, no fill; the last beat underlines the word. `aria-hidden` cell, word in the live announcement. |
 | 16 | Full ink from the first click | Done | `before-countin-last` and the C frames: all systems at 100%. Dimming only in R0 to R3. |
-| 17 | Frame times from `VOICE_REFERENCE` | Done | The build reads `take-plan.ts` and `practice-session.ts`. The times changed: first tone 0.1 s (not 0.6), first note 1.8 s, count-in 3.3 s, bar 1 11.3 s. Note: with a 100 ms lead the card is on screen only a moment before the first tone. If the team wants the card read first, raise `VOICE_REFERENCE_LEAD_SEC` to 0.6; the board follows on the next build. |
+| 17 | Frame times from `VOICE_REFERENCE` | Done | The build reads `take-plan.ts` and `practice-session.ts`. Current times (round 2 wave 4 rebuild): card 0 s, first tone 0.6 s (`VOICE_REFERENCE_LEAD_SEC` is 0.6), first note 2.3 s, first count-in click 4.3 s, bar 1 12.3 s at 60 bpm. The board follows the code on each build. |
 | 18 | No mark before bar 1, re-run the bleed test with voice samples | Done in the boards; test is for engineering | No frame before M1 draws any mark. The re-run of the `03-detection.md` bleed test with the new samples is an engineering task. |
 | 19 | Read-through desktop does not scroll | Done | "Look before you play" moved under the score, one line per row. `scrollHeight` = 900. |
 | 20 | "Not calibrated · Calibrate" | Done | `scan`, `cal-status`. |

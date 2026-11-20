@@ -34,10 +34,15 @@ function Match({ services }: { services: MatchServices }) {
           <span className="mt-back-label">{copy('nav.practice')}</span>
         </button>
         <h1 className="mt-title">{copy('match.title')}</h1>
-        <div className="mt-progress" aria-hidden="true">
-          {dots.map((d, i) => (
-            <span key={i} className="mt-dot" data-done={d} />
-          ))}
+        <div className="mt-progress">
+          <span className="mt-progress-label" data-testid="match-progress">
+            {copy('match.progress', { n: Math.min(state.index + 1, ROUND_SIZE), total: ROUND_SIZE })}
+          </span>
+          <span className="mt-dots" aria-hidden="true">
+            {dots.map((d, i) => (
+              <span key={i} className="mt-dot" data-done={d} />
+            ))}
+          </span>
         </div>
       </header>
       <div className="mt-main">

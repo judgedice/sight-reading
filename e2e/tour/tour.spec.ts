@@ -185,7 +185,8 @@ test('screen tour: onboarding, home, scan, take with a wrong and a late note, re
   await expect.poll(() => page.evaluate(() => document.fonts.check('30pt Bravura')), { timeout: 15_000 }).toBe(true);
   await shot('scan');
   // Round 2: "Look before you play" has no boxes, the status line is still "Not calibrated", and there is no coach mark.
-  await expect(page.getByText('Look before you play').filter({ visible: true }).first().or(page.getByRole('button', { name: /Look before you play/ }).first())).toBeVisible();
+  // On phones the peek is a button whose label span also matches the text, so `.or` can resolve to both: take the first.
+  await expect(page.getByText('Look before you play').filter({ visible: true }).first().or(page.getByRole('button', { name: /Look before you play/ }).first()).first()).toBeVisible();
   await expect(page.locator('[data-coach]')).toHaveCount(0);
   await expect(page.getByTestId('cal-status').first()).toContainText('Not calibrated');
   // The starting pitch: its info, then the sound. Listen first makes this take practice (the take stays unranked).

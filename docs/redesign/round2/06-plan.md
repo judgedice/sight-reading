@@ -25,7 +25,7 @@ This plan turns the owner's 15 points into 22 work packages in 4 waves. Each pac
 6. **The calibration banner is deleted.** The status comes from the same predicate as Ranked availability (`calibrationForRoute` on the current route), so the two never disagree.
 7. **Calmer marks at difficulties 1 to 3.** Live: green and red on written notes only, only when sure. No ghosts or "+" until results. New setting `display.ghostsLive` (`from4` default, `always`, `never`). This amends R11 for difficulties 1 to 3. R2-22 writes it into PLAN as R61, marked "proposed, owner to confirm".
 8. **Support address.** "Send diagnostics" needs an address. It comes from the build variable `VITE_SUPPORT_EMAIL`. Without it, every button and title reads "Save diagnostics" and the send line is absent (05 D3).
-9. **The sound opt-in waits for the owner.** `03-detection.md` built `includeAudio`. The switch is built in the dialog and Settings > Data, but shows only when `VITE_DIAG_SOUND_OPTIN=1`. It stays hidden until the owner rules on the R9 exception (05 D4).
+9. **The sound opt-in is visible, off by default.** `03-detection.md` built `includeAudio`. The switch is in the dialog and Settings > Data and shows in normal builds (docs/PLAN.md ruling 64, which overrides the earlier plan to hide it behind `VITE_DIAG_SOUND_OPTIN`; that variable is no longer read). The owner still rules on the R9 exception (05 D4).
 10. **"Tries today" has one definition:** every try started today that reached bar 1, graded or not. One helper, `src/app/compose/tries.ts`, is used by the Practice header, the streak line and the History day groups.
 11. **Old copy keys are removed last.** `scan.coach`, `scan.practice.timeUp`, `home.keyFootnote`, `banner.calibrateNeeded`, `stars.optional` and `stars.title` stay in `en.json` until wave 3 stops using them. R2-22 deletes them. `error.clockRate` stays, only as a detail line in the diagnostics file.
 
@@ -173,7 +173,7 @@ Acceptance:
 **R2-08 Composition and services** (moderate)
 Depends on: R2-03, R2-05, and the R2-06 and R2-07 contracts.
 Owns: `src/app/compose/app-services.ts`, `src/app/compose/values.ts`, `src/app/compose/tries.ts` (new) and its test, `src/app/screens/{home,scan,results,history,settings,onboarding,states}/services.ts`, `src/app/screens/match/services.ts` (new).
-Task: Wire every field in section 4. Stop emitting the calibrate banner and drop the in-memory dismiss for it. Build the status from the current route when known, else from the output mode. Count tries today with `tries.ts`. Read `VITE_SUPPORT_EMAIL` and `VITE_DIAG_SOUND_OPTIN`.
+Task: Wire every field in section 4. Stop emitting the calibrate banner and drop the in-memory dismiss for it. Build the status from the current route when known, else from the output mode. Count tries today with `tries.ts`. Read `VITE_SUPPORT_EMAIL` (the sound opt-in is not behind a build variable; PLAN ruling 64).
 Acceptance:
 - Seed 2 graded and 1 not-graded try today, plus 1 stopped before bar 1: `today.tries` is 3.
 - No `calibrate` banner is ever emitted. After storing a measured calibration, `calibrationStatus` reads `ok` without a reload.

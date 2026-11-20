@@ -1,6 +1,8 @@
 {
   "_comment": "Round 2 copy (01-ux.md 2 to 16, 04-design.md 10, 02-sounds.md credits). added: keys new this round, expected text. changed: keys whose text changed, expected text. tools/lint-copy.test.ts excuses the added keys until the screens that use them land.",
   "added": {
+    "picker.lead": "We choose music in your range. Pick a card, then press play to hear it.",
+    "picker.selected": "Selected",
     "picker.play.range": "Play my range",
     "picker.play.stop": "Stop",
     "picker.play.caption": "Lowest, your notes at difficulty {level}, highest.",
@@ -12,6 +14,7 @@
     "picker.sound.line.short": "This is how it will sound: a sung “ah” made by the app, in {voice} range.",
     "picker.sound.instrument": "This is how it will sound. The starting pitch, Listen and Match a note use this {instrument} sound.",
     "match.title": "Match a note",
+    "match.progress": "Note {n} of {total}",
     "match.entry": "Match a note",
     "match.entry.phone": "Warm up: match a note",
     "match.lead.voice": "Listen, then sing the note. Hold it until the needle sits in the middle.",

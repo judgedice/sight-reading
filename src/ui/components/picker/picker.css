@@ -322,6 +322,14 @@
   margin: 0;
 }
 
+.pk-picked-eyebrow {
+  margin: 0 0 var(--space-2);
+  color: var(--text-muted);
+  font-size: var(--type-eyebrow-size);
+  letter-spacing: var(--type-eyebrow-tracking);
+  text-transform: uppercase;
+}
+
 .pk-picked-column .pk-picked-name {
   font-family: var(--type-h2-family);
   font-size: var(--type-h2-size);

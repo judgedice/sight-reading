@@ -64,6 +64,19 @@
 .mt-progress {
   justify-self: end;
   display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.mt-progress-label {
+  color: var(--text-muted);
+  font-size: var(--type-small-size);
+  line-height: var(--type-small-line);
+  white-space: nowrap;
+}
+
+.mt-dots {
+  display: flex;
   gap: var(--space-1);
 }
 
@@ -444,7 +457,8 @@
     padding: var(--space-3) var(--space-4);
   }
 
-  .mt-back-label {
+  .mt-back-label,
+  .mt-progress-label {
     position: absolute;
     inline-size: 0.0625rem;
     block-size: 0.0625rem;
