@@ -257,7 +257,8 @@ export function PerformScreen(_props: ScreenProps) {
       timing: () => (svc.session.takeClock !== undefined ? timingOf(svc.session.takeClock) : countInTiming.current),
       facts,
       frame,
-      lineOn: () => beatLineRef.current,
+      // Nothing moves on the staff once the try is being scored.
+      lineOn: () => beatLineRef.current && svc.session.state !== 'finishing',
       reducedMotion: () => svc.reducedMotion?.() ?? false,
       onView: setBeatView,
       requestFrame: (cb) => win.requestAnimationFrame(cb),

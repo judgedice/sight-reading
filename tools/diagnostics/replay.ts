@@ -6,6 +6,7 @@
 //   worker core as capture blocks, so every segmenter and follower change is exercised;
 // - otherwise from the trace: the traced detected notes go through the live follower and the final alignment (the
 //   segmenter is not re-run).
+// The one-note tolerances (`grading.detection.oneNote`) are re-resolved from the current config as well.
 // It prints one row per written note (the stored verdict, the replayed one, and the detected notes near it), the
 // replayed extras and the ignored notes, and marks every row whose verdict changed.
 //
@@ -20,6 +21,7 @@ import type { CaptureBlock, WorkerMessage, WorkerReply } from '../../src/core/pl
 import type { ClockSeconds, DetectedNote, DspConfig, FinalAlignment, FollowConfig, NoteJudgment } from '../../src/core/types.ts';
 import { configs } from '../../fixtures/follow/gen/io.ts';
 import { LiveFollower, alignFinal, ignoredNote, liveOutcomeOf } from '../../src/follow/index.ts';
+import { resolveOneNote } from '../../src/rules/index.ts';
 import { DspWorkerCore } from '../../src/platform/web/audio/dsp-worker-core.ts';
 import { decodePcm16, type DiagnosticsFile, type TryTrace } from '../../src/session/diagnostics.ts';
 
@@ -42,7 +44,9 @@ export function followOf(t: TryTrace): FollowConfig {
   const instrument = cfg.instrumentById[f.instrumentId];
   if (!instrument) throw new Error(`unknown instrument ${f.instrumentId}`);
   const { instrumentId: _id, ...rest } = f;
-  return { ...rest, cfg, instrument } as FollowConfig;
+  // The one-note tolerances are re-resolved too: they are config rows, and the trace carries the row of its build.
+  const oneNote = f.oneNote === undefined ? {} : { oneNote: resolveOneNote(cfg, instrument, t.excerpt.level) };
+  return { ...rest, cfg, instrument, ...oneNote } as FollowConfig;
 }
 
 /** Re-runs the DSP worker core on the try's audio (the analysed low band). */
@@ -50,7 +54,12 @@ export function replayAudio(t: TryTrace, follow: FollowConfig): ReplayResult {
   const a = t.audio;
   const d = t.configs.dsp;
   if (!a || !d) throw new Error('the try has no audio');
-  const cfg: DspConfig = { ...d, clickTemplate: d.clickTemplate ? Float32Array.from(d.clickTemplate) : null, traceAudio: false };
+  const cfg: DspConfig = {
+    ...d,
+    clickTemplate: d.clickTemplate ? Float32Array.from(d.clickTemplate) : null,
+    traceAudio: false,
+    ...(d.oneNote === undefined ? {} : { oneNote: resolveOneNote(follow.cfg, follow.instrument, t.excerpt.level) }),
+  };
   const low = decodePcm16(a.data, a.samples);
   let done: Extract<WorkerReply, { type: 'done' }> | null = null;
   // The worker ends a take when its last block reaches the end time, or when its end timer fires. The block times

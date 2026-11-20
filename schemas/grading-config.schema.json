@@ -887,6 +887,28 @@
         },
         "absorbGapMs": {
           "type": "number"
+        },
+        "glitchMs": {
+          "type": "number",
+          "description": "Real voice (docs/redesign/round2/08-real-voice.md; `follow/consolidate.ts`). Detected notes that meet at a pitch change are joined again when they are one sung note. Written onsets keep two written notes sung legato apart.\n\nGlitch: a note shorter than `glitchMs` that lies `glitchSemitones` or more from every neighbour it meets (a subharmonic or creak reading) is not a note; its time goes to the neighbour."
+        },
+        "glitchSemitones": {
+          "type": "number"
+        },
+        "fragmentMs": {
+          "type": "number",
+          "description": "Fragment: a note shorter than this that meets a neighbour is part of the neighbour nearer in pitch, ms."
+        },
+        "longScoopMs": {
+          "type": "number",
+          "description": "Long scoop: a note shorter than `longScoopMs`, within `scoopMaxCents` of the longer note it runs into, is that note's scoop (onset where the sound starts, pitch the settled pitch)."
+        },
+        "scoopMaxCents": {
+          "type": "number"
+        },
+        "mergeCents": {
+          "type": "number",
+          "description": "Two notes that meet at a pitch change and lie within this of each other are one note, cents."
         }
       },
       "required": [
@@ -899,7 +921,13 @@
         "wrongAtConfirm",
         "extraMinMs",
         "absorbMs",
-        "absorbGapMs"
+        "absorbGapMs",
+        "glitchMs",
+        "glitchSemitones",
+        "fragmentMs",
+        "longScoopMs",
+        "scoopMaxCents",
+        "mergeCents"
       ],
       "additionalProperties": false,
       "description": "`grading.detection.oneNote` row: how far one note may wander before it counts as two (round 2 detection)."
