@@ -67,6 +67,10 @@
             "showHeard": {
               "type": "boolean",
               "description": "Show the notes the app heard under the staff on results (default false)."
+            },
+            "beatLine": {
+              "type": "boolean",
+              "description": "The try's beat line: a thin line that moves through the staff with the beat (default true)."
             }
           },
           "required": [

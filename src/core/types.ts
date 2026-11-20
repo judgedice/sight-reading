@@ -900,6 +900,12 @@ export type Licence = 'PD' | 'CC0-1.0' | 'CC-BY-4.0';
 /** v1 corpus sources, all fetched from GitHub (R4, R27). */
 export type CorpusId = 'openscore-lieder' | 'openscore-quartets' | 'mutopia';
 
+/**
+ * Where an excerpt's notes come from: a corpus, or `generated` drill material made in the app from config (scales,
+ * PLAN ruling 68). The shipped corpus never holds `generated` (the corpus loader rejects it).
+ */
+export type ExcerptOrigin = CorpusId | 'generated';
+
 /** 0 = default, 2 = widely recognisable (practice only). 1 is kept for later; v1 emits 0 and 2 (03 §8.2, 02 §2.5). */
 export type Familiarity = 0 | 1 | 2;
 
@@ -1043,7 +1049,7 @@ export interface ExcerptSource {
   encoder?: string;
   /** Year of the source edition; PD evidence for traditional and anonymous pieces (03 §6.2, §8.2). */
   sourceEditionYear?: number;
-  corpus: CorpusId;
+  corpus: ExcerptOrigin;
   /** `repo@sha:path`. */
   upstreamRef: string;
   sourceUrl: string;
@@ -1189,7 +1195,7 @@ export interface ManifestEntry {
   featureLevels: FeatureLevels;
   flags: ExcerptFlag[];
   dedupeGroup: string;
-  corpus: CorpusId;
+  corpus: ExcerptOrigin;
   license: Licence;
   /**
    * Peak notes per metronome beat in any one-beat window (`DifficultyFeatures.peakNotesPerBeat`), for the NPS clip of
@@ -1414,6 +1420,100 @@ export interface PreparedExcerpt {
   /** Tempo range for this excerpt and level after IOI-floor clipping, bpm. */
   bpmRange: { minBpm: number; maxBpm: number };
   selection: SelectionResult;
+  /** Set when this is a generated scale, not a corpus excerpt (PLAN ruling 68). Absent for every corpus excerpt. */
+  scale?: ScaleRef;
+}
+
+// =====================================================================================
+// Scales (PLAN ruling 68): generated drill material, never part of the excerpt pool
+// =====================================================================================
+
+/** A scale's mode: major, or natural minor. */
+export type ScaleMode = 'major' | 'minor';
+
+/** What an attempt practised: a corpus excerpt (the default) or a generated scale. */
+export type AttemptKind = 'excerpt' | 'scale';
+
+/**
+ * The scale a scale try practised, stored with the attempt (PLAN ruling 68). It holds everything needed to write the
+ * same notes again (History's Listen and marked score), even if `config/scales.json` changes later.
+ */
+export interface ScaleRef {
+  /** The scale's id in `config/scales.json`, unique per instrument, for example "five-note-c". */
+  id: string;
+  /** The pattern's id, for example "five-note", "octave" or "arpeggio" (it names the scale on screen). */
+  pattern: string;
+  /** Scale degrees in order: 1 is the tonic, 8 the tonic an octave up (pattern `degrees`). */
+  degrees: number[];
+  /** The written tonic the scale starts on. */
+  tonic: SpelledPitch;
+  mode: ScaleMode;
+  /** "beats/beatType", for example "4/4". */
+  meter: string;
+  /** Beats of every note but the last. */
+  noteBeats: number;
+  /** The last note is held to the end of its bar, and for at least this many beats. */
+  minLastBeats: number;
+}
+
+/** One shape of scale (`config/scales.json`). */
+export interface ScalePattern {
+  _source?: string;
+  /** For example "five-note"; the copy key `scales.title.<id>` names it. */
+  id: string;
+  /** Scale degrees in order, 1 the tonic and 8 the tonic an octave up (do re mi fa sol fa mi re do is 1 2 3 4 5 4 3 2 1). */
+  degrees: number[];
+}
+
+/** One scale an instrument offers. */
+export interface ScaleDef {
+  /** Unique within its set, for example "five-note-c". */
+  id: string;
+  /** A `ScalePattern` id. */
+  pattern: string;
+  /** The written tonic it starts on, scientific pitch with b or # for flat or sharp: "C3", "Bb2", "F#3". */
+  tonic: string;
+  mode: ScaleMode;
+  /** Default tempo, quarter-note beats per minute; the player can change it within `tempo`. */
+  bpm: number;
+}
+
+/** The scales for one instrument or voice, in order from easy to harder. */
+export interface ScaleSet {
+  _source: string;
+  /** An id from `config/instruments.json`. */
+  instrumentId: string;
+  /**
+   * The lowest and highest written note any scale in the set may use ("A2", "D4"): a comfortable span inside the
+   * instrument's full range.
+   */
+  span: [string, string];
+  scales: ScaleDef[];
+}
+
+/** `config/scales.json`: the scales the app generates (PLAN ruling 68). Adding an instrument is adding a set. */
+export interface ScalesConfig {
+  $schema?: string;
+  configVersion: string;
+  _source: string;
+  /**
+   * The difficulty a scale try is graded at (tolerances, count-in). A scale try never changes the player's
+   * difficulty, XP, rank or streak.
+   */
+  level: number;
+  rhythm: {
+    _source?: string;
+    /** "beats/beatType", for example "4/4". */
+    meter: string;
+    /** Beats of every note but the last. */
+    noteBeats: number;
+    /** The last note is held to the end of its bar, and for at least this many beats. */
+    minLastBeats: number;
+  };
+  /** The tempo range the player may choose, quarter-note bpm. */
+  tempo: { minBpm: number; maxBpm: number };
+  patterns: ScalePattern[];
+  sets: ScaleSet[];
 }
 
 // =====================================================================================
@@ -1734,6 +1834,25 @@ export interface OneNoteBand {
    */
   absorbMs: number;
   absorbGapMs: number;
+  /**
+   * Real voice (docs/redesign/round2/08-real-voice.md; `follow/consolidate.ts`). Detected notes that meet at a pitch
+   * change are joined again when they are one sung note. Written onsets keep two written notes sung legato apart.
+   *
+   * Glitch: a note shorter than `glitchMs` that lies `glitchSemitones` or more from every neighbour it meets (a
+   * subharmonic or creak reading) is not a note; its time goes to the neighbour.
+   */
+  glitchMs: number;
+  glitchSemitones: number;
+  /** Fragment: a note shorter than this that meets a neighbour is part of the neighbour nearer in pitch, ms. */
+  fragmentMs: number;
+  /**
+   * Long scoop: a note shorter than `longScoopMs`, within `scoopMaxCents` of the longer note it runs into, is that
+   * note's scoop (onset where the sound starts, pitch the settled pitch).
+   */
+  longScoopMs: number;
+  scoopMaxCents: number;
+  /** Two notes that meet at a pitch change and lie within this of each other are one note, cents. */
+  mergeCents: number;
 }
 
 /** A resolved `OneNoteBand` for one take (instrument profile and difficulty). */
@@ -1986,7 +2105,7 @@ export interface ExcerptCreditSnapshot {
   catalog?: string;
   movement?: string;
   sourceMeasures: [number, number];
-  corpus: CorpusId;
+  corpus: ExcerptOrigin;
   license: Licence;
 }
 
@@ -2044,6 +2163,10 @@ export interface AttemptRecord {
   /** Counts against the post-reveal skip limit (skip after reveal; interruption void after the first note, R33). */
   countsAsSkip: boolean;
   credit: ExcerptCreditSnapshot;
+  /** What was practised. Absent on every attempt stored before scales existed, and it means `excerpt` (PLAN ruling 68). */
+  kind?: AttemptKind;
+  /** The scale, when `kind` is `scale`. */
+  scale?: ScaleRef;
   /** Dev flag only; pruned after 7 days; never audio. */
   debug?: { live: LiveJudgment[]; frames?: PitchFrame[] };
 }
@@ -2053,6 +2176,8 @@ export interface AttemptQuery {
   instrumentId?: string;
   excerptId?: string;
   rankedOnly?: boolean;
+  /** Only excerpts or only scales (an attempt without `kind` is an excerpt). */
+  kind?: AttemptKind;
   /** ISO 8601 UTC bounds, inclusive. */
   from?: string;
   to?: string;
@@ -2075,6 +2200,9 @@ export interface AttemptSummary {
   xp: number;
   title: string;
   composer: string;
+  /** Set to `scale` for a scale try (PLAN ruling 68); absent for an excerpt. */
+  kind?: AttemptKind;
+  scale?: ScaleRef;
 }
 
 // =====================================================================================
@@ -2318,6 +2446,8 @@ export interface AppSettings {
     ghostsLive?: 'from4' | 'always' | 'never';
     /** Show the notes the app heard under the staff on results (default false). */
     showHeard?: boolean;
+    /** The try's beat line: a thin line that moves through the staff with the beat (default true). */
+    beatLine?: boolean;
   };
   practicePrefs: { showStars: boolean; showTips: boolean; showBeta: boolean };
   /** Optional name shown on the home screen; absent until the player sets one. */

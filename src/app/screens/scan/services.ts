@@ -32,6 +32,8 @@ export interface PracticeSessionPort {
   retry?(): boolean;
   /** 04 section 4.4: a rotation during the count-in cancels and restarts it. Not on `PracticeSession` yet. */
   restartCountIn?(reason: 'rotation'): void;
+  /** The running try's clock (bar 1 beat 1 on the audio clock, tempo, count-in beats); null outside a try. */
+  readonly takeClock?: { t0: number; bpm: number; countInBeats: number } | null;
 }
 
 export interface PracticeFlowServices {
@@ -72,6 +74,14 @@ export interface PracticeFlowServices {
   inputGateDb?: number;
   reducedMotion?: () => boolean;
   highContrast?: () => boolean;
+  /**
+   * The audio clock of what the player hears now (`AudioBackend.audibleNow`): the scheduled time of the click coming
+   * out of the speakers at this moment. Drives the try's beat line, count-in track and beat dots. Absent: they follow
+   * the session's events instead and the beat line is not drawn.
+   */
+  audibleNow?: () => number;
+  /** Turns the beat line on or off from the try screen; remembered in `display.beatLine`. */
+  setBeatLine?: (on: boolean) => void;
 }
 
 const Services = createContext<PracticeFlowServices | null>(null);

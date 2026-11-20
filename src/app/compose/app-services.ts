@@ -511,6 +511,11 @@ export function composeApp(rt: AppRuntime): ComposedApp {
     ...(rt.wakeLockFailed ? { wakeLockFailed: rt.wakeLockFailed } : {}),
     reducedMotion,
     highContrast,
+    audibleNow: () => platform.audio.audibleNow() as number,
+    setBeatLine(on) {
+      const s = settings.get();
+      if (s.display.beatLine !== on) settings.set({ ...s, display: { ...s.display, beatLine: on } });
+    },
     hearTempo: () => session.hearTempo(),
     listenFirst: () => session.listenFirst(),
     hearKey: () => session.hearKey(),

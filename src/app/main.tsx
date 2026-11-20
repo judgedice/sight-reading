@@ -8,7 +8,7 @@
  * `?testClock=1` (01 §13.4; in the query or the hash query): `t0` is the first captured frame plus 2.0 s
  * (`&testClockSec=` overrides it), the RTL is 0, and each take reopens the microphone right before capture starts,
  * so Chromium's fake capture file plays from its start at the capture origin. `window.__sr` then exposes the session
- * for the Playwright loop spec (e2e/loop/).
+ * and the audio backend for the Playwright specs (e2e/loop/, e2e/design/beat-line.spec.ts).
  */
 import { StrictMode, useSyncExternalStore } from 'react';
 import type { Root } from 'react-dom/client';
@@ -245,7 +245,7 @@ export async function boot(root: Root): Promise<void> {
     const start = composed.initialPath(pathFromHash(window.location.hash));
     if (start !== null) window.history.replaceState(window.history.state, '', hashFromPath(start));
 
-    if (testClock) (window as unknown as { __sr: unknown }).__sr = { session: composed.session, configs };
+    if (testClock) (window as unknown as { __sr: unknown }).__sr = { session: composed.session, configs, audio };
 
     // Offline shell and corpus cache (P19). Production builds only: dev has no worker. A new build waits and takes
     // over on the next launch (all tabs closed); there is no in-app update prompt in v1, so a take is never reloaded.

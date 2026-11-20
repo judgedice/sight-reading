@@ -14,16 +14,19 @@ describe('settings read (round 2 defaults)', () => {
     delete old.practice.autoReference;
     delete old.display.ghostsLive;
     delete old.display.showHeard;
+    delete old.display.beatLine;
     const read = normaliseSettings(old);
     expect(read.practice.autoReference).toBe(true);
     expect(read.display.ghostsLive).toBe('from4');
     expect(read.display.showHeard).toBe(false);
+    expect(read.display.beatLine).toBe(true);
   });
   it('keeps stored values and returns the same object when complete', () => {
     const s = defaultAppSettings();
     s.practice.autoReference = false;
     s.display.ghostsLive = 'never';
     s.display.showHeard = true;
+    s.display.beatLine = false;
     expect(normaliseSettings(s)).toBe(s);
   });
   it('rejects an unknown ghostsLive value', () => {

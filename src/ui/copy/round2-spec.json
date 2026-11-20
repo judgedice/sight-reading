@@ -180,7 +180,6 @@
     "sure.mostly": "We heard most of it. {n, plural, one {# mark} other {# marks}} may be wrong.",
     "sure.unsure": "We weren't sure about many notes. Treat these marks as a rough guide.",
     "sure.unsure.help": "Move the mic away from the speakers, or use headphones, and sing a little louder.",
-    "play.status.barAhead": "Bar {n} of {total} · reading bar {next}",
     "setup.time.a11yFew": "{beats}/{unit}, few pieces",
     "credits.sounds.title": "Sounds",
     "credits.sounds.winds": "Woodwind, brass and double bass samples: VS Chamber Orchestra 2 Community Edition by Versilian Studios (Sam Gossner, Simon Dalzell; sample cutting by Elan Hickler), CC0 1.0, as edited by tiny-orchestra (Marian Becher), CC0 1.0.",

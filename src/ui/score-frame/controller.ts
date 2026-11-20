@@ -26,6 +26,52 @@ export const GUTTER_PX = 24;
 /** The first note's ring pulse at the downbeat, ms (04-design §5, M1: about 300 ms; the slow motion token). */
 export const FIRST_NOTE_PULSE_MS = tokens.motion.dur.slow;
 
+/** The beat line reaches this many staff spaces past the outer staff lines. */
+export const BEAT_LINE_OVERHANG_SP = 1;
+/** Stroke of the beat line, staff spaces (about 1.5 px at the take's staff space), never under 1 px. */
+export const BEAT_LINE_WIDTH_SP = 0.14;
+
+const num2 = (v: number): string => String(Math.round(v * 100) / 100);
+
+/** Each event's onset beat and half its notehead (or rest) width, px, in beat order. */
+interface HeadHalves {
+  beats: number[];
+  half: number[];
+}
+
+function headHalves(p: PreparedExcerpt, layout: ScoreLayout): HeadHalves {
+  const out: HeadHalves = { beats: [], half: [] };
+  const unit = p.meter.countUnitTicks;
+  for (const m of p.measures) {
+    for (const e of m.events) {
+      const box = layout.noteBoxes.get(e.id);
+      if (!box || !(box.w > 0)) continue;
+      const beat = (e.tick - p.pickupTicks) / unit;
+      if (out.beats.length && beat <= out.beats[out.beats.length - 1]!) continue;
+      out.beats.push(beat);
+      out.half.push(box.w / 2);
+    }
+  }
+  return out;
+}
+
+/** Half width at a beat: exact on an onset, linear between onsets, held before the first and after the last. */
+function headHalfAt(h: HeadHalves, beat: number): number {
+  const n = h.beats.length;
+  if (n === 0) return 0;
+  if (beat <= h.beats[0]!) return h.half[0]!;
+  if (beat >= h.beats[n - 1]!) return h.half[n - 1]!;
+  let lo = 0;
+  let hi = n - 1;
+  while (hi - lo > 1) {
+    const mid = (lo + hi) >> 1;
+    if (h.beats[mid]! <= beat) lo = mid;
+    else hi = mid;
+  }
+  const f = (beat - h.beats[lo]!) / (h.beats[hi]! - h.beats[lo]!);
+  return h.half[lo]! + f * (h.half[hi]! - h.half[lo]!);
+}
+
 /** 'slots': the take's fixed slots with page turns. 'all': every system in reading order (scan and review on phones). */
 export type Arrangement = 'slots' | 'all';
 
@@ -230,6 +276,9 @@ export class ScoreFrameController implements Omit<ScoreView<HTMLElement>, 'rende
     };
     this.laid = { excerpt: p, args, tickables: tickablesPerBar, info, swaps: timeSwaps(pages, spans, args.bpm) };
     this.playhead = null;
+    this.slotsKey = '';
+    this.beatLine = null;
+    this.heads = headHalves(p, layout);
     this.setScale(1);
 
     const sp = plan.spPx;
@@ -284,12 +333,63 @@ export class ScoreFrameController implements Omit<ScoreView<HTMLElement>, 'rende
     return this.view.getSlotSystems();
   }
 
-  /** The playhead drives the bar tint (overlay) and the page turns (4.3); null clears it and resets the slots. */
+  /**
+   * The playhead drives the page turns (4.3) and the fading of systems already played (overlay); null clears it and
+   * resets the slots. Cheap to call every frame: the slots and the gutter are only touched when they change.
+   */
   setPlayhead(scoreBeat: Beats | null): void {
     if (this.clean) scoreBeat = null;
     this.playhead = scoreBeat;
     this.view.setPlayhead(scoreBeat);
     if (this.laid) this.applySlots(true);
+  }
+
+  /**
+   * The beat line (round 2, "Beat line"): one thin vertical line through the staff at a score beat, crossing each note
+   * at its written time (the notehead's centre) and moving to the next system at a system break. Null hides it. The
+   * caller drives it from the audio clock once per frame; each call is a transform write, and a system change moves
+   * the one line element to that system's underlay.
+   */
+  setBeatLine(scoreBeat: Beats | null): void {
+    const l = this.laid;
+    if (!l || scoreBeat === null || !Number.isFinite(scoreBeat) || this.clean) {
+      this.beatLine?.el.setAttribute('visibility', 'hidden');
+      return;
+    }
+    const pt = l.info.layout.beatToPoint(scoreBeat);
+    const x = pt.x + headHalfAt(this.heads, scoreBeat);
+    let b = this.beatLine;
+    const u = b && b.system === pt.system && b.el.parentNode ? (b.el.parentNode as SVGGElement) : this.underlay(pt.system);
+    if (!u) return;
+    if (!b) {
+      b = { el: this.svgEl('line', { class: 'sf-beat-line', x1: 0, x2: 0, stroke: 'var(--metro-active)', 'stroke-linecap': 'round', 'pointer-events': 'none' }), system: -1, x: NaN };
+      this.beatLine = b;
+    }
+    if (b.system !== pt.system || b.el.parentNode !== u) {
+      const sys = l.info.layout.systems.find((s) => s.index === pt.system);
+      const sp = sys?.lineSpacing ?? l.info.plan.spPx;
+      const top = (sys?.staffTopY ?? 0) - BEAT_LINE_OVERHANG_SP * sp;
+      b.el.setAttribute('y1', num2(top));
+      b.el.setAttribute('y2', num2(top + (4 + 2 * BEAT_LINE_OVERHANG_SP) * sp));
+      b.el.setAttribute('stroke-width', num2(Math.max(1, BEAT_LINE_WIDTH_SP * sp)));
+      b.el.setAttribute('data-system', String(pt.system));
+      u.appendChild(b.el);
+      b.system = pt.system;
+      b.x = NaN;
+    }
+    if (b.el.getAttribute('visibility') !== 'visible') b.el.setAttribute('visibility', 'visible');
+    if (Math.abs(x - b.x) >= 0.01) {
+      b.el.setAttribute('transform', `translate(${num2(x)} 0)`);
+      b.x = x;
+    }
+  }
+
+  /** Where the beat line sits for a score beat: its system and x in that system's SVG (tests and tools). */
+  beatLineAt(scoreBeat: Beats): { system: number; x: number } | null {
+    const l = this.laid;
+    if (!l) return null;
+    const pt = l.info.layout.beatToPoint(scoreBeat);
+    return { system: pt.system, x: pt.x + headHalfAt(this.heads, scoreBeat) };
   }
 
   setNoteState(expectedIdx: number, s: NoteVisualState): void {
@@ -504,6 +604,11 @@ export class ScoreFrameController implements Omit<ScoreView<HTMLElement>, 'rende
   private clean = false;
   private recoloured: SVGElement[] = [];
   private bandEl: HTMLElement | null = null;
+  private beatLine: { el: SVGLineElement; system: number; x: number } | null = null;
+  /** Half of each event's notehead (or rest) width by beat: the line goes through its centre, the layout's x is its left edge. */
+  private heads: HeadHalves = { beats: [], half: [] };
+  /** The slots and current system last applied (setPlayhead runs every frame; nothing is written when unchanged). */
+  private slotsKey = '';
 
   private get band(): HTMLElement {
     if (!this.bandEl) {
@@ -705,6 +810,10 @@ export class ScoreFrameController implements Omit<ScoreView<HTMLElement>, 'rende
   private applySlots(animate: boolean): void {
     const l = this.laid!;
     const next = this.targetSlots();
+    const current = this.playhead === null || this.mode === 'all' ? null : systemAtBeat(l.info.spans, this.playhead);
+    const key = `${this.mode}|${next.join(',')}|${current}`;
+    if (animate && key === this.slotsKey) return;
+    this.slotsKey = key;
     const prev = this.view.getSlotSystems();
     const same = prev.length === next.length && prev.every((s, i) => s === next[i]);
     if (!same) {

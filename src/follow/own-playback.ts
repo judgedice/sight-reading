@@ -11,6 +11,7 @@
  * Every threshold is in `grading.detection.ownPlayback`.
  */
 import type { DetectedNote, ExpectedNote, FollowConfig, OwnSound, ResolvedTolerance } from '../core/types.ts';
+import { consolidateNotes } from './consolidate.ts';
 import { scoreSecondsOf } from './cost.ts';
 
 const MS = 1000;
@@ -87,9 +88,15 @@ export function holdWrongAtConfirm(c: FollowConfig): boolean {
   return c.oneNote?.wrongAtConfirm === false;
 }
 
-/** The detected notes the follower and the final alignment may use. */
+/**
+ * The detected notes the final alignment and the stored try use: the player's notes, with the pieces of one sung note
+ * joined again (`consolidate.ts`, voice only). Idempotent, so the worker's list can go through it again.
+ */
 export function playerNotes(c: FollowConfig, detected: readonly DetectedNote[]): DetectedNote[] {
-  return detected.filter((d) => !ignoredNote(c, d));
+  return consolidateNotes(
+    c,
+    detected.filter((d) => !ignoredNote(c, d)),
+  );
 }
 
 /** Score second from which notes count: the earliest written onset minus its match window (-Infinity without notes). */

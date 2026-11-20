@@ -1,0 +1,192 @@
+{
+  "$id": "scales.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/ScalesConfig",
+  "definitions": {
+    "ScaleDef": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique within its set, for example \"five-note-c\"."
+        },
+        "pattern": {
+          "type": "string",
+          "description": "A `ScalePattern` id."
+        },
+        "tonic": {
+          "type": "string",
+          "description": "The written tonic it starts on, scientific pitch with b or # for flat or sharp: \"C3\", \"Bb2\", \"F#3\"."
+        },
+        "mode": {
+          "$ref": "#/definitions/ScaleMode"
+        },
+        "bpm": {
+          "type": "number",
+          "description": "Default tempo, quarter-note beats per minute; the player can change it within `tempo`."
+        }
+      },
+      "required": [
+        "id",
+        "pattern",
+        "tonic",
+        "mode",
+        "bpm"
+      ],
+      "additionalProperties": false,
+      "description": "One scale an instrument offers."
+    },
+    "ScaleMode": {
+      "type": "string",
+      "enum": [
+        "major",
+        "minor"
+      ],
+      "description": "A scale's mode: major, or natural minor."
+    },
+    "ScalePattern": {
+      "type": "object",
+      "properties": {
+        "_source": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string",
+          "description": "For example \"five-note\"; the copy key `scales.title.<id>` names it."
+        },
+        "degrees": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "description": "Scale degrees in order, 1 the tonic and 8 the tonic an octave up (do re mi fa sol fa mi re do is 1 2 3 4 5 4 3 2 1)."
+        }
+      },
+      "required": [
+        "id",
+        "degrees"
+      ],
+      "additionalProperties": false,
+      "description": "One shape of scale (`config/scales.json`)."
+    },
+    "ScaleSet": {
+      "type": "object",
+      "properties": {
+        "_source": {
+          "type": "string"
+        },
+        "instrumentId": {
+          "type": "string",
+          "description": "An id from `config/instruments.json`."
+        },
+        "span": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 2,
+          "maxItems": 2,
+          "description": "The lowest and highest written note any scale in the set may use (\"A2\", \"D4\"): a comfortable span inside the instrument's full range."
+        },
+        "scales": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ScaleDef"
+          }
+        }
+      },
+      "required": [
+        "_source",
+        "instrumentId",
+        "span",
+        "scales"
+      ],
+      "additionalProperties": false,
+      "description": "The scales for one instrument or voice, in order from easy to harder."
+    },
+    "ScalesConfig": {
+      "type": "object",
+      "properties": {
+        "$schema": {
+          "type": "string"
+        },
+        "configVersion": {
+          "type": "string"
+        },
+        "_source": {
+          "type": "string"
+        },
+        "level": {
+          "type": "number",
+          "description": "The difficulty a scale try is graded at (tolerances, count-in). A scale try never changes the player's difficulty, XP, rank or streak."
+        },
+        "rhythm": {
+          "type": "object",
+          "properties": {
+            "_source": {
+              "type": "string"
+            },
+            "meter": {
+              "type": "string",
+              "description": "\"beats/beatType\", for example \"4/4\"."
+            },
+            "noteBeats": {
+              "type": "number",
+              "description": "Beats of every note but the last."
+            },
+            "minLastBeats": {
+              "type": "number",
+              "description": "The last note is held to the end of its bar, and for at least this many beats."
+            }
+          },
+          "required": [
+            "meter",
+            "noteBeats",
+            "minLastBeats"
+          ],
+          "additionalProperties": false
+        },
+        "tempo": {
+          "type": "object",
+          "properties": {
+            "minBpm": {
+              "type": "number"
+            },
+            "maxBpm": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "minBpm",
+            "maxBpm"
+          ],
+          "additionalProperties": false,
+          "description": "The tempo range the player may choose, quarter-note bpm."
+        },
+        "patterns": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ScalePattern"
+          }
+        },
+        "sets": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ScaleSet"
+          }
+        }
+      },
+      "required": [
+        "configVersion",
+        "_source",
+        "level",
+        "rhythm",
+        "tempo",
+        "patterns",
+        "sets"
+      ],
+      "additionalProperties": false,
+      "description": "`config/scales.json`: the scales the app generates (PLAN ruling 68). Adding an instrument is adding a set."
+    }
+  }
+}

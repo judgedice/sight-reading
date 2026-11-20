@@ -1,5 +1,6 @@
-// P15: the notation overlay (01 section 5.8, 04 section 6). Draws note colours, ghost notes, verdict-lane glyphs,
-// the bar tint and the playhead as plain SVG on the groups P7 hands over. No React, no VexFlow: every call is a
+// P15: the notation overlay (01 section 5.8, 04 section 6). Draws note colours, ghost notes, verdict-lane glyphs
+// and the (invisible) playhead marker as plain SVG on the groups P7 hands over. The try's bar tint is gone (round 2,
+// "Beat line": the score frame draws a beat line instead). No React, no VexFlow: every call is a
 // handful of attribute writes, idempotent, and skipped when nothing changed.
 
 import { TPQ, type Beats, type Clef, type GhostNote, type NoteBox, type NoteVisualState, type OverlayMode, type PreparedNoteEvt, type ScoreLayout } from '../../core/types.ts';
@@ -33,8 +34,6 @@ import {
   MISSED_RING,
   PAST_OPACITY,
   PITCH_ARROW,
-  PLAYHEAD_PAD_SP,
-  PLAYHEAD_RADIUS_SP,
   REPLAY_DASH,
   REVIEW_STEM_OPACITY,
   RING,
@@ -145,8 +144,8 @@ export class SvgOverlay implements NotationOverlay {
 
   private playheadBeat: Beats | null = null;
   private playheadLine: SVGLineElement | null = null;
-  private tint: SVGRectElement | null = null;
-  private tintBar: number | null = null;
+  /** The system `fadePast` last ran for (it runs again only when the playhead changes system, or the mode or marks change). */
+  private fadedSystem: number | null = null;
 
   constructor(private readonly opts: OverlayOptions = {}) {}
 
@@ -199,7 +198,7 @@ export class SvgOverlay implements NotationOverlay {
     this.events.clear();
     this.headsBySystem.clear();
     this.playheadLine = null;
-    this.tint = null;
+    this.fadedSystem = null;
     this.host = null;
     this.doc = null;
     this.table = null;
@@ -835,7 +834,7 @@ export class SvgOverlay implements NotationOverlay {
     );
   }
 
-  // ---- playhead wash, fading of the past ------------------------------------------------------------------
+  // ---- playhead marker, fading of the past -----------------------------------------------------------------
 
   setPlayhead(scoreBeat: Beats | null): void {
     this.playheadBeat = scoreBeat;
@@ -844,9 +843,8 @@ export class SvgOverlay implements NotationOverlay {
     const doc = this.doc;
     if (!host || !table || !doc) return;
     if (scoreBeat === null) {
+      this.fadedSystem = null;
       this.playheadLine?.setAttribute('visibility', 'hidden');
-      this.tint?.setAttribute('visibility', 'hidden');
-      this.tintBar = null;
       for (const b of this.barGroups.values()) this.setBarOpacity(b, 1);
       this.syncAllNoteOpacity();
       return;
@@ -856,56 +854,24 @@ export class SvgOverlay implements NotationOverlay {
     const lsys = host.layout.systems.find((s) => s.index === pt.system);
     if (!osys || !lsys) return;
 
-    // The playhead position is kept as an invisible marker for tests and tools: 06 section 7 draws no line.
+    // The playhead position is kept as an invisible marker for tests and tools: no bar wash and no visible line here
+    // (round 2: the try's beat line is the score frame's, driven by the audible clock).
     if (!this.playheadLine) {
       this.playheadLine = el(doc, 'line', { class: 'sr-playhead', stroke: 'none', 'pointer-events': 'none', visibility: 'hidden' });
     }
     const line = this.playheadLine;
     if (line.parentNode !== osys.overlay) osys.overlay.appendChild(line);
-    line.setAttribute('x1', num(pt.x));
-    line.setAttribute('x2', num(pt.x));
+    const x = num(pt.x);
+    if (line.getAttribute('x1') !== x) {
+      line.setAttribute('x1', x);
+      line.setAttribute('x2', x);
+    }
     line.setAttribute('y1', num(lsys.staffTopY));
     line.setAttribute('y2', num(lsys.staffTopY + 4 * lsys.lineSpacing));
-
-    // One wash behind the current bar, only while the beat lies inside the excerpt. No next-bar marker.
-    const bi = barIndexOfBeat(table, scoreBeat);
-    const inside = bi >= 0 && scoreBeat >= table.startBeat[bi]! && scoreBeat < table.endBeat[bi]!;
-    if (!inside) {
-      this.tint?.setAttribute('visibility', 'hidden');
-      this.tintBar = null;
-    } else if (this.tintBar !== table.bars[bi]) this.placeTint(bi);
-    this.fadePast(table, pt.system);
-  }
-
-  private placeTint(bi: number): void {
-    const host = this.host!;
-    const table = this.table!;
-    const doc = this.doc!;
-    const start = host.layout.beatToPoint(table.startBeat[bi]!);
-    const osys = this.sysByIndex.get(start.system);
-    const lsys = host.layout.systems.find((s) => s.index === start.system);
-    if (!osys || !lsys) return;
-    const end = host.layout.beatToPoint(table.endBeat[bi]!);
-    const svgW = Number(osys.svg.getAttribute('width') ?? start.x);
-    const x1 = end.system === start.system && bi + 1 < table.bars.length ? end.x : svgW;
-    const sp = lsys.lineSpacing;
-    const [above, inset] = PLAYHEAD_PAD_SP;
-    if (!this.tint) {
-      this.tint = el(doc, 'rect', { class: 'sr-bar-tint', fill: 'var(--playhead-bar)', stroke: 'none', 'pointer-events': 'none' });
+    if (this.fadedSystem !== pt.system) {
+      this.fadedSystem = pt.system;
+      this.fadePast(table, pt.system);
     }
-    const r = this.tint;
-    if (r.parentNode !== osys.underlay) osys.underlay.appendChild(r);
-    const top = lsys.staffTopY - above * sp;
-    // Down to below the lane: the lane line sits 2.2 sp under the staff; the wash ends a glyph's height past it.
-    const bottom = lsys.staffTopY + (4 + LANE_OFFSET_SP + LANE_GLYPH_SP.live) * sp;
-    r.setAttribute('visibility', 'visible');
-    r.setAttribute('data-bar', String(table.bars[bi]));
-    r.setAttribute('x', num(start.x + inset * sp));
-    r.setAttribute('width', num(Math.max(0, x1 - start.x - 2 * inset * sp)));
-    r.setAttribute('y', num(top));
-    r.setAttribute('height', num(bottom - top));
-    r.setAttribute('rx', num(PLAYHEAD_RADIUS_SP * sp));
-    this.tintBar = table.bars[bi]!;
   }
 
   /** 06 section 7: once the playhead has left a system, every slip mark in it drops to 70% together. */
@@ -955,6 +921,7 @@ export class SvgOverlay implements NotationOverlay {
     for (const n of this.ghostNodes.values()) n.g.remove();
     this.ghostNodes.clear();
     for (const bar of bars) this.syncBarGhosts(bar);
+    this.fadedSystem = null;
     if (this.playheadBeat !== null) this.setPlayhead(this.playheadBeat);
     else {
       for (const b of this.barGroups.values()) this.setBarOpacity(b, 1);

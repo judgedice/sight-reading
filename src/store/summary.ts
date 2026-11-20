@@ -16,5 +16,7 @@ export function summarizeAttempt(a: AttemptRecord): AttemptSummary {
     xp: a.score?.xp.total ?? 0,
     title: credit.movement ? `${credit.work}: ${credit.movement}` : credit.work,
     composer: credit.composer,
+    // A scale try (PLAN ruling 68): the screens name it from `scale`, never from the credit.
+    ...(a.kind === 'scale' && a.scale ? { kind: 'scale' as const, scale: a.scale } : {}),
   };
 }

@@ -201,7 +201,13 @@
         "wrongAtConfirm": false,
         "extraMinMs": 200,
         "absorbMs": 350,
-        "absorbGapMs": 120
+        "absorbGapMs": 120,
+        "glitchMs": 200,
+        "glitchSemitones": 10,
+        "fragmentMs": 150,
+        "longScoopMs": 350,
+        "scoopMaxCents": 300,
+        "mergeCents": 100
       },
       {
         "profile": "voice",
@@ -216,7 +222,13 @@
         "wrongAtConfirm": false,
         "extraMinMs": 170,
         "absorbMs": 300,
-        "absorbGapMs": 100
+        "absorbGapMs": 100,
+        "glitchMs": 170,
+        "glitchSemitones": 10,
+        "fragmentMs": 120,
+        "longScoopMs": 300,
+        "scoopMaxCents": 300,
+        "mergeCents": 100
       },
       {
         "profile": "voice",
@@ -231,7 +243,13 @@
         "wrongAtConfirm": false,
         "extraMinMs": 140,
         "absorbMs": 250,
-        "absorbGapMs": 80
+        "absorbGapMs": 80,
+        "glitchMs": 140,
+        "glitchSemitones": 10,
+        "fragmentMs": 90,
+        "longScoopMs": 250,
+        "scoopMaxCents": 300,
+        "mergeCents": 100
       }
     ]
   },

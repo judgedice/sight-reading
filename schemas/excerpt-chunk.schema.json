@@ -429,6 +429,18 @@
         "bass-line"
       ]
     },
+    "ExcerptOrigin": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/CorpusId"
+        },
+        {
+          "type": "string",
+          "const": "generated"
+        }
+      ],
+      "description": "Where an excerpt's notes come from: a corpus, or `generated` drill material made in the app from config (scales, PLAN ruling 68). The shipped corpus never holds `generated` (the corpus loader rejects it)."
+    },
     "ExcerptSource": {
       "type": "object",
       "properties": {
@@ -478,7 +490,7 @@
           "description": "Year of the source edition; PD evidence for traditional and anonymous pieces (03 §6.2, §8.2)."
         },
         "corpus": {
-          "$ref": "#/definitions/CorpusId"
+          "$ref": "#/definitions/ExcerptOrigin"
         },
         "upstreamRef": {
           "type": "string",

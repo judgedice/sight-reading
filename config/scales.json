@@ -1,0 +1,49 @@
+{
+  "$schema": "../schemas/scales.schema.json",
+  "configVersion": "scales-1.0.0",
+  "_source": "PLAN ruling 68 (scales are generated drill material, never excerpts); 02 §1.4 (tiers); 02 §2.3 (difficulty 1: quarters and halves, 4/4)",
+  "level": 1,
+  "rhythm": {
+    "_source": "02 §2.3 difficulty 1 cells: quarter notes, the last note held (a half or a whole) so the scale lands",
+    "meter": "4/4",
+    "noteBeats": 1,
+    "minLastBeats": 2
+  },
+  "tempo": {
+    "minBpm": 48,
+    "maxBpm": 100
+  },
+  "patterns": [
+    {
+      "_source": "do re mi fa sol fa mi re do",
+      "id": "five-note",
+      "degrees": [1, 2, 3, 4, 5, 4, 3, 2, 1]
+    },
+    {
+      "_source": "one octave up and down",
+      "id": "octave",
+      "degrees": [1, 2, 3, 4, 5, 6, 7, 8, 7, 6, 5, 4, 3, 2, 1]
+    },
+    {
+      "_source": "do mi sol do sol mi do",
+      "id": "arpeggio",
+      "degrees": [1, 3, 5, 8, 5, 3, 1]
+    }
+  ],
+  "sets": [
+    {
+      "_source": "02 §1.4 voice-baritone tier B (A2 to D4): the difficulty 1 band (C3 to C4) widened by a third below and a tone above, inside the full range G2 to G4. B-flat and A scales need the notes below C3.",
+      "instrumentId": "voice-baritone",
+      "span": ["A2", "D4"],
+      "scales": [
+        { "id": "five-note-c", "pattern": "five-note", "tonic": "C3", "mode": "major", "bpm": 66 },
+        { "id": "five-note-d", "pattern": "five-note", "tonic": "D3", "mode": "major", "bpm": 66 },
+        { "id": "five-note-bb", "pattern": "five-note", "tonic": "Bb2", "mode": "major", "bpm": 66 },
+        { "id": "octave-c", "pattern": "octave", "tonic": "C3", "mode": "major", "bpm": 66 },
+        { "id": "octave-bb", "pattern": "octave", "tonic": "Bb2", "mode": "major", "bpm": 66 },
+        { "id": "arpeggio-c", "pattern": "arpeggio", "tonic": "C3", "mode": "major", "bpm": 60 },
+        { "id": "octave-a-minor", "pattern": "octave", "tonic": "A2", "mode": "minor", "bpm": 60 }
+      ]
+    }
+  ]
+}

@@ -34,6 +34,7 @@ export const SCHEMA_TARGETS: Readonly<Record<string, string>> = {
   tips: 'TipsConfig',
   'measurement-budget': 'MeasurementBudget',
   'trumpet-valves': 'TrumpetValveTable',
+  scales: 'ScalesConfig',
   // Persistence (01 §11)
   'attempt-record': 'AttemptRecord',
   'player-profile': 'PlayerProfile',

@@ -72,6 +72,7 @@ import type {
   RankedReason,
   RecheckResult,
   Rng,
+  ScalesConfig,
   SelectionHistory,
   SelectionResult,
   SessionErrorCode,
@@ -83,7 +84,7 @@ import type {
 import { metronomeSoundOf } from '../core/click-sounds.ts';
 import { createEmitter } from '../core/events.ts';
 import { createRng } from '../core/rng.ts';
-import { CorpusLoadError, buildExpectedNotes, loadExcerpt, prepareExcerpt, selectAndPrepare } from '../corpus/index.ts';
+import { CorpusLoadError, buildExpectedNotes, loadExcerpt, nextScaleId, prepareExcerpt, prepareScale, scaleExcerpt, scaleSetFor, selectAndPrepare } from '../corpus/index.ts';
 import { soundSetFor } from '../instruments/sound-sets.ts';
 import { DspPipeline } from '../dsp/pipeline.ts';
 import { alignFinalWithReference, ignoredNote, liveOutcomeOf, withOwnPlayback } from '../follow/index.ts';
@@ -193,6 +194,8 @@ export interface PracticeSessionOptions {
    * beat", tuning pitch and the listening setting. Absent: the excerpt's settings, else Classic, accented, 440 Hz.
    */
   soundPrefs?: () => SoundPrefs;
+  /** `config/scales.json`, validated (corpus `loadScales`). Without it `prepareScale` refuses (PLAN ruling 68). */
+  scales?: ScalesConfig | null;
 }
 
 /** What every "Hear it" sound reads from the player's settings. */
@@ -255,8 +258,11 @@ interface Current {
   mode: 'ranked' | 'practice';
   selection: SelectionResult;
   prepared: PreparedExcerpt;
-  doc: ExcerptDoc;
+  /** The corpus document; null for a scale, which has none (PLAN ruling 68). */
+  doc: ExcerptDoc | null;
   plan: TakePlan;
+  /** A scale try: its id and tempo (always practice, no progression; PLAN ruling 68). Null for an excerpt. */
+  scale: { scaleId: string; bpm: number } | null;
   /** Revealed before this reveal (02 §5.3), fixed at reveal. */
   seenBefore: boolean;
   /** A replacement served after the post-reveal skip limit (02 §5.3). */
@@ -411,6 +417,8 @@ export class PracticeSession implements PracticeSessionInstance {
   private pendingUnlock: Promise<AudioRouteInfo | null> | null = null;
   /** The settings of the last `prepare`, for `retry` after a failed prepare. */
   private lastSettings: PracticeSettings | null = null;
+  /** The last `prepareScale` request, for `retry` (null after an excerpt's `prepare`). */
+  private lastScale: { scaleId: string; bpm?: number } | null = null;
   private _lastError: SessionError | null = null;
   /** The audio clock at the last poll, to notice a context that was reopened (its clock starts at 0). */
   private lastPollClock: number | null = null;
@@ -480,6 +488,17 @@ export class PracticeSession implements PracticeSessionInstance {
   }
 
   /**
+   * The running try's clock for the screen (beat line, count-in track, beat dots): bar 1 beat 1 on the audio clock,
+   * the tempo and the count-in length. Null before the clicks are scheduled, once the try is ending and outside a try.
+   */
+  get takeClock(): { t0: ClockSeconds; bpm: number; countInBeats: number } | null {
+    const t = this.take;
+    const plan = this.current?.plan;
+    if (!t || t.ending || t.t0 === 0 || !plan) return null;
+    return { t0: t.t0 as ClockSeconds, bpm: plan.bpm, countInBeats: t.countIn.length };
+  }
+
+  /**
    * Drops the cached profile so the next `prepare` reads it from the store again. The composition root calls this
    * after it saves a profile change the session did not make (level offers, placement, settings, import).
    */
@@ -492,6 +511,7 @@ export class PracticeSession implements PracticeSessionInstance {
   async prepare(s: PracticeSettings): Promise<PreparedExcerpt> {
     if (this.inTake()) throw new SessionError('unknown', 'prepare during a take');
     this.lastSettings = s;
+    this.lastScale = null;
     this.setState('loading');
     try {
       const profile = await this.loadProfile(s.instrumentId);
@@ -521,6 +541,7 @@ export class PracticeSession implements PracticeSessionInstance {
         stopsBeforeFirstNote: 0,
         firstClickRestarts: 0,
         listenedFirst: false,
+        scale: null,
       };
       this.emit({ type: 'prepared', excerpt: r.prepared });
       this.setState('covered');
@@ -529,6 +550,71 @@ export class PracticeSession implements PracticeSessionInstance {
     } catch (e) {
       throw this.fail(e instanceof CorpusLoadError ? new SessionError('corpus-load', e.message, { cause: e }) : e);
     }
+  }
+
+  /**
+   * A scale try (PLAN ruling 68): the scale from `config/scales.json`, written as a prepared excerpt, at `bpm` (the
+   * scale's default when absent, kept inside the config's tempo range). It goes straight to the read-through: there is
+   * no cover, since nothing is ranked or burned. Always practice; the try never changes XP, rank, streak or
+   * difficulty. Grading, tolerances, the starting pitch, the count-in, Listen and diagnostics are the excerpt's own.
+   */
+  async prepareScale(scaleId: string, s: PracticeSettings, bpm?: number): Promise<PreparedExcerpt> {
+    if (this.inTake()) throw new SessionError('unknown', 'prepareScale during a take');
+    this.lastSettings = s;
+    this.lastScale = { scaleId, ...(bpm !== undefined ? { bpm } : {}) };
+    this.stopPolling();
+    this.setState('loading');
+    try {
+      const scales = this.opts.scales;
+      if (!scales) throw new SessionError('unknown', 'no scales are configured');
+      await this.loadProfile(s.instrumentId);
+      const prepared = prepareScale(scales, this.cfg, s.instrumentId, scaleId, bpm);
+      const plan = planTake(prepared, this.cfg);
+      const settings: PracticeSettings = { ...s, mode: 'practice' };
+      const c: Current = {
+        settings,
+        mode: 'practice',
+        selection: prepared.selection,
+        prepared,
+        doc: null,
+        plan,
+        seenBefore: false,
+        skipLimitHit: false,
+        placement: false,
+        revealed: false,
+        scanStart: null,
+        scanSec: this.cfg.levelByNumber[prepared.levelServed]?.scanSec ?? 30,
+        scanExpired: false,
+        lastTick: null,
+        stopsBeforeFirstNote: 0,
+        firstClickRestarts: 0,
+        listenedFirst: false,
+        scale: { scaleId, bpm: plan.bpm },
+      };
+      this.current = c;
+      this.emit({ type: 'prepared', excerpt: prepared });
+      this.setState('covered');
+      this.syncMode(c);
+      // Straight to the read-through (no cover): the scale is shown at once.
+      this.reveal(c);
+      this.startScan(c);
+      return prepared;
+    } catch (e) {
+      throw this.fail(e instanceof RangeError ? new SessionError('unknown', e.message, { cause: e }) : e);
+    }
+  }
+
+  /** "Next scale" on results (PLAN ruling 68): the scale after this one in the instrument's set, at the same tempo. */
+  nextScale(): Promise<PreparedExcerpt> {
+    const c = this.current;
+    const set = c?.scale ? scaleSetFor(this.opts.scales, c.settings.instrumentId) : null;
+    if (!c?.scale || !set) return Promise.reject(new SessionError('unknown', 'nextScale without a scale on screen'));
+    return this.prepareScale(nextScaleId(set, c.scale.scaleId), c.settings, c.scale.bpm);
+  }
+
+  /** The scale on screen (its id and tempo), or null for an excerpt or nothing. */
+  get scale(): { scaleId: string; bpm: number } | null {
+    return this.current?.scale ?? null;
   }
 
   ensureAudio(): Promise<AudioRouteInfo> {
@@ -591,7 +677,9 @@ export class PracticeSession implements PracticeSessionInstance {
     }
     const s = this.lastSettings;
     if (!s) return false;
-    void this.prepare(s).catch(() => undefined);
+    const scale = this.lastScale;
+    if (scale) void this.prepareScale(scale.scaleId, s, scale.bpm).catch(() => undefined);
+    else void this.prepare(s).catch(() => undefined);
     return true;
   }
 
@@ -626,6 +714,8 @@ export class PracticeSession implements PracticeSessionInstance {
   private reveal(c: Current): void {
     if (c.revealed) return;
     c.revealed = true;
+    // A scale is drill material: it is never "seen" for ranked play and never touches the profile (PLAN ruling 68).
+    if (c.scale) return;
     c.seenBefore = this.profile ? hasSeen(this.profile, c.prepared.dedupeGroup) : c.seenBefore;
     // 02 §5.3: seen at reveal, per player, by dedupeGroup, across instruments; persisted now, not at take end.
     const p = this.requireProfile();
@@ -1232,6 +1322,13 @@ export class PracticeSession implements PracticeSessionInstance {
   }
 
   private async prepareRecord(record: AttemptRecord): Promise<PreparedExcerpt | null> {
+    if (record.scale) {
+      // A scale is written again from the stored reference, so it plays and marks as it was sung.
+      const inst = this.cfg.instrumentById[record.instrumentId];
+      if (!inst) return null;
+      const tempo = this.opts.scales?.tempo ?? { minBpm: record.bpm, maxBpm: record.bpm };
+      return scaleExcerpt(record.scale, inst, this.cfg, { level: record.levelServed, bpm: record.bpm, tempo });
+    }
     const entry = this.manifest.entries.find((e) => e.id === record.excerptId);
     const inst = this.cfg.instrumentById[record.instrumentId];
     if (!entry || !inst) return null;
@@ -1508,6 +1605,11 @@ export class PracticeSession implements PracticeSessionInstance {
     const c = this.current;
     if (!c) throw new SessionError('unknown', 'no excerpt to skip');
     if (this.inTake()) throw new SessionError('unknown', 'skip during a take');
+    if (c.scale) {
+      // A scale is free to skip: the next one in the set.
+      await this.nextScale();
+      return;
+    }
     let skipLimitHit = false;
     if (this._state === 'covered') {
       // Free before reveal (02 §5.3): keep it out of the next draws without marking it seen.
@@ -1714,6 +1816,8 @@ export class PracticeSession implements PracticeSessionInstance {
         catalog: cfg.tips,
       });
       score = { ...score, tipsShown: tips.map((x) => x.id), ...(c.listenedFirst ? { rankedReasons: listenedFirstReasons(score.rankedReasons) } : {}) };
+      // PLAN ruling 68: a scale try is scored and graded like any try, but earns nothing.
+      if (c.scale) score = { ...score, xp: { total: 0, base: 0, factors: [] } };
     }
 
     const interruption = isVoid && (reason.voidReason === 'interrupted' || reason.voidReason === 'device-change');
@@ -1756,21 +1860,26 @@ export class PracticeSession implements PracticeSessionInstance {
       score,
       endReason: reason.reason,
       ...(reason.reason === 'void' ? { voidReason: reason.voidReason } : {}),
-      // Revealed means seen (02 §5.3), so every take burns the excerpt for ranked play.
-      excerptBurned: c.revealed,
+      // Revealed means seen (02 §5.3), so every take burns the excerpt for ranked play. A scale is never burned.
+      excerptBurned: c.revealed && !c.scale,
       // R33: an interruption void after the first note counts against the post-reveal skip limit (ranked only).
       countsAsSkip: interruption && t.firstNoteHeard && c.mode === 'ranked',
-      credit: creditOf(c.doc),
+      credit: creditOf(c.doc ?? c.prepared),
+      ...(c.scale && c.prepared.scale ? { kind: 'scale' as const, scale: c.prepared.scale } : {}),
       ...(this.opts.dev && done ? { debug: { live: done.live } } : {}),
     };
 
     // ---- progression (02 §5) and persistence (01 §11) -----------------------------------------------
-    const applied = applyAttemptOnDay(profile, record, cfg, today, c.prepared.meter);
-    this.profile = applied.profile;
-    const events: ProgressEvent[] = applied.events;
+    // A scale try leaves the profile as it was: no XP, rank, streak, level window or difficulty change (PLAN ruling 68).
+    let events: ProgressEvent[] = [];
+    if (!c.scale) {
+      const applied = applyAttemptOnDay(profile, record, cfg, today, c.prepared.meter);
+      this.profile = applied.profile;
+      events = applied.events;
+    }
     await this.persistChain;
     await this.platform.repos.attempts.add(record);
-    await this.platform.repos.profile.put(this.profile);
+    if (!c.scale) await this.platform.repos.profile.put(this.requireProfile());
     if (markStale && t.stored) {
       await this.platform.repos.calibrations.put(applyRecheckToCalibration(t.stored, { recheck: recheck as AttemptRecheck, latencyMs, markStale }));
     }
@@ -1890,7 +1999,7 @@ export class PracticeSession implements PracticeSessionInstance {
       seenGroups,
       recentExcerptIds: recent.map((a) => a.excerptId),
       recentWorks: recent.map((a) => a.credit.work),
-      recentWrittenKeys: recent.filter((a) => a.instrumentId === s.instrumentId).map((a) => a.writtenKey),
+      recentWrittenKeys: recent.filter((a) => a.instrumentId === s.instrumentId && a.kind !== 'scale').map((a) => a.writtenKey),
       playerLevel: p.instruments[s.instrumentId]?.level ?? (typeof s.level === 'number' ? s.level : 1),
     };
   }

@@ -3,6 +3,17 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$ref": "#/definitions/AttemptRecord",
   "definitions": {
+    "Alter": {
+      "type": "number",
+      "enum": [
+        -2,
+        -1,
+        0,
+        1,
+        2
+      ],
+      "description": "Chromatic alteration in semitones. Triple accidentals do not exist (03 §7.5)."
+    },
     "AppliedProcessing": {
       "type": "object",
       "properties": {
@@ -32,6 +43,14 @@
       ],
       "additionalProperties": false,
       "description": "Input processing flags as read back from `track.getSettings()`; null when not reported (05 W5)."
+    },
+    "AttemptKind": {
+      "type": "string",
+      "enum": [
+        "excerpt",
+        "scale"
+      ],
+      "description": "What an attempt practised: a corpus excerpt (the default) or a generated scale."
     },
     "AttemptRecheck": {
       "type": "object",
@@ -389,6 +408,14 @@
         },
         "credit": {
           "$ref": "#/definitions/ExcerptCreditSnapshot"
+        },
+        "kind": {
+          "$ref": "#/definitions/AttemptKind",
+          "description": "What was practised. Absent on every attempt stored before scales existed, and it means `excerpt` (PLAN ruling 68)."
+        },
+        "scale": {
+          "$ref": "#/definitions/ScaleRef",
+          "description": "The scale, when `kind` is `scale`."
         },
         "debug": {
           "type": "object",
@@ -985,7 +1012,7 @@
           "maxItems": 2
         },
         "corpus": {
-          "$ref": "#/definitions/CorpusId"
+          "$ref": "#/definitions/ExcerptOrigin"
         },
         "license": {
           "$ref": "#/definitions/Licence"
@@ -1000,6 +1027,18 @@
       ],
       "additionalProperties": false,
       "description": "Excerpt credit snapshot stored with the attempt, for history rows and the results header (03 §9.1 item 5)."
+    },
+    "ExcerptOrigin": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/CorpusId"
+        },
+        {
+          "type": "string",
+          "const": "generated"
+        }
+      ],
+      "description": "Where an excerpt's notes come from: a corpus, or `generated` drill material made in the app from config (scales, PLAN ruling 68). The shipped corpus never holds `generated` (the corpus loader rejects it)."
     },
     "ExtraNote": {
       "type": "object",
@@ -1534,9 +1573,102 @@
       "additionalProperties": false,
       "description": "A restart or skip (one displaced segment) (02 §4.6)."
     },
+    "ScaleMode": {
+      "type": "string",
+      "enum": [
+        "major",
+        "minor"
+      ],
+      "description": "A scale's mode: major, or natural minor."
+    },
+    "ScaleRef": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "The scale's id in `config/scales.json`, unique per instrument, for example \"five-note-c\"."
+        },
+        "pattern": {
+          "type": "string",
+          "description": "The pattern's id, for example \"five-note\", \"octave\" or \"arpeggio\" (it names the scale on screen)."
+        },
+        "degrees": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "description": "Scale degrees in order: 1 is the tonic, 8 the tonic an octave up (pattern `degrees`)."
+        },
+        "tonic": {
+          "$ref": "#/definitions/SpelledPitch",
+          "description": "The written tonic the scale starts on."
+        },
+        "mode": {
+          "$ref": "#/definitions/ScaleMode"
+        },
+        "meter": {
+          "type": "string",
+          "description": "\"beats/beatType\", for example \"4/4\"."
+        },
+        "noteBeats": {
+          "type": "number",
+          "description": "Beats of every note but the last."
+        },
+        "minLastBeats": {
+          "type": "number",
+          "description": "The last note is held to the end of its bar, and for at least this many beats."
+        }
+      },
+      "required": [
+        "id",
+        "pattern",
+        "degrees",
+        "tonic",
+        "mode",
+        "meter",
+        "noteBeats",
+        "minLastBeats"
+      ],
+      "additionalProperties": false,
+      "description": "The scale a scale try practised, stored with the attempt (PLAN ruling 68). It holds everything needed to write the same notes again (History's Listen and marked score), even if `config/scales.json` changes later."
+    },
     "ScoreSeconds": {
       "type": "number",
       "description": "Seconds from bar 1 beat 1; negative in the pickup and the count-in (01 §5.1)."
+    },
+    "SpelledPitch": {
+      "type": "object",
+      "properties": {
+        "step": {
+          "$ref": "#/definitions/Step"
+        },
+        "alter": {
+          "$ref": "#/definitions/Alter"
+        },
+        "octave": {
+          "type": "number",
+          "description": "Scientific octave number (C4 = middle C)."
+        }
+      },
+      "required": [
+        "step",
+        "alter",
+        "octave"
+      ],
+      "additionalProperties": false,
+      "description": "A spelled pitch. C4 = MIDI 60 (01 §5.3)."
+    },
+    "Step": {
+      "type": "string",
+      "enum": [
+        "C",
+        "D",
+        "E",
+        "F",
+        "G",
+        "A",
+        "B"
+      ]
     },
     "StopDiagnostic": {
       "type": "object",

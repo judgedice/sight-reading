@@ -14,3 +14,19 @@ export {
 } from './select/index.ts';
 export { prepareExcerpt, TranspositionError, fitsInKey, type TranspositionErrorCode } from './transpose/index.ts';
 export { buildExpectedNotes } from './expected/index.ts';
+export {
+  isScaleExcerptId,
+  loadScales,
+  nextScaleId,
+  prepareScale,
+  scaleBpm,
+  scaleExcerpt,
+  scaleExcerptId,
+  scaleKey,
+  scalePitches,
+  scaleRange,
+  scaleRefOf,
+  scaleRhythm,
+  scaleSetFor,
+  ScalesConfigError,
+} from './scales/index.ts';

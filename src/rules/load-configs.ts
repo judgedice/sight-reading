@@ -149,6 +149,17 @@ function validateAgainstSchema(file: ConfigFileKey, value: unknown): void {
   if (errors.length > 0) throw new ConfigError(file, errors);
 }
 
+/**
+ * The problems of `value` against one of the generated schemas, with the interpreter `loadConfigs` uses (for config
+ * documents outside `Configs`, such as `config/scales.json`). Empty when the value is valid.
+ */
+export function schemaProblems(schema: object, value: unknown, label = '$'): string[] {
+  const root = schema as SchemaNode;
+  const errors: string[] = [];
+  validateNode(root, root, value, label, errors);
+  return errors;
+}
+
 // ---- invariants across and within documents ------------------------------------------------
 
 const near = (a: number, b: number): boolean => Math.abs(a - b) < 1e-9;

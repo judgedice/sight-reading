@@ -87,5 +87,19 @@ export {
   type SummaryPattern,
 } from '../tips/index.ts';
 
+// Scales (PLAN ruling 68) live in corpus/; app/ reaches them through session/ (01 §4.2 boundaries).
+export {
+  isScaleExcerptId,
+  loadScales,
+  nextScaleId,
+  scaleKey,
+  scalePitches,
+  scaleRange,
+  scaleRefOf,
+  scaleRhythm,
+  scaleSetFor,
+  ScalesConfigError,
+} from '../corpus/index.ts';
+
 /** Compile-time conformance with the frozen `SessionApi`. */
 export const sessionApi: SessionApi = { PracticeSession };
