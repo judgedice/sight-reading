@@ -408,6 +408,13 @@ export interface GradingConfig {
     /** Clipping above this fraction of frames shows a results banner, never a void (0.2) (01 §7.9). */
     clippingBannerFrac: number;
   };
+  /** Player-facing thresholds (round 2). */
+  ui: Sourced & {
+    /** How sure the grade reads: clear and mostly bands by agreement fraction and notes changed after the try. */
+    sure: { clearAgree: number; clearMaxChanged: number; mostlyAgree: number; mostlyMaxChanged: number };
+    /** Live feedback stays calm up to and including this many notes (3). */
+    calmLiveUpTo: number;
+  };
   /** Stops and the come-in hint (02 §4.6, 01 §9.3). */
   stops: Sourced & {
     /** A stop is a silence of at least max(minBeats beats, minMs) not covered by rests (1 beat, 600 ms). */
@@ -1303,6 +1310,8 @@ export interface PracticeSettings {
   a4Hz: number;
   /** Selection seed; drawn from the injected RNG when absent. */
   seed?: number;
+  /** Play the starting-note reference automatically before a try (default true). */
+  autoReference?: boolean;
 }
 
 /** Player history the selector needs (01 §6.3, 02 §2.6). */
@@ -2296,6 +2305,10 @@ export interface AppSettings {
     /** "After the take" hides the overlay during the take (R11). */
     liveFeedback: 'full' | 'after-take';
     showCentsMs: boolean;
+    /** When ghost notes show during a try: from the fourth note, always, or never (default `from4`). */
+    ghostsLive?: 'from4' | 'always' | 'never';
+    /** Show the notes the app heard under the staff on results (default false). */
+    showHeard?: boolean;
   };
   practicePrefs: { showStars: boolean; showTips: boolean; showBeta: boolean };
   /** Optional name shown on the home screen; absent until the player sets one. */

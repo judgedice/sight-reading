@@ -302,7 +302,7 @@ describe('stages', () => {
     expect(svc.exported).toEqual(['{"kind":"audio-self-test"}']);
     // There is no separate audio-check card or button: it ran with the calibration.
     expect(names()).not.toContain('Check audio');
-    await press('Recalibrate');
+    await press('Calibrate again');
     expect(svc.calls.filter((c) => c === 'loopback')).toHaveLength(2);
   });
 });

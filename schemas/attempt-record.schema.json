@@ -222,6 +222,10 @@
             "a4Hz": {
               "type": "number",
               "description": "Concert A4 reference, Hz, 415..446."
+            },
+            "autoReference": {
+              "type": "boolean",
+              "description": "Play the starting-note reference automatically before a try (default true)."
             }
           },
           "required": [

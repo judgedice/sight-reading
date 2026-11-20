@@ -208,8 +208,8 @@ describe('model over fixtures/grade', () => {
     const cards = levelCards(events, 'flute', cfg);
     expect(cards.map((c) => c.text)).toEqual([
       "You're reading difficulty 5 well. Move up to difficulty 6?",
-      'Moved up to difficulty 6: 8 takes in a row at 90 or more.',
-      'Difficulty 6 has been a stretch lately. A few takes at difficulty 5 can build the reading back up.',
+      'Moved up to difficulty 6: 8 tries in a row at 90 or more.',
+      'Difficulty 6 has been hard lately. A few tries at difficulty 5 can build the reading back up.',
     ]);
   });
 

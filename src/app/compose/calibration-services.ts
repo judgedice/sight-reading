@@ -6,8 +6,8 @@
  * A run is one flow: the clock-rate check (silent), the calibration, then the audio self-test on the same route,
  * reusing the calibration's loopback and clock-rate result so nothing is played or measured twice.
  */
-import type { AudioBackend, PlatformCapabilities } from '../../core/platform.ts';
-import type { AppSettings, Calibration, Configs, Rng } from '../../core/types.ts';
+import type { AudioBackend, KeyValue, PlatformCapabilities, StoreRepos } from '../../core/platform.ts';
+import type { AppSettings, Calibration, Configs, JsonValue, Rng } from '../../core/types.ts';
 import {
   calibrationPlan,
   exportDiagnostics,
@@ -23,6 +23,7 @@ import {
 } from '../../calibration/index.ts';
 import type { CalibrationServices, SelfTestItemId, SelfTestOutcome } from '../screens/calibration/services.ts';
 import type { Readable } from '../screens/home/services.ts';
+import { KV_CAL_LAST_FAILURE, type CalFailure } from './calibration-status.ts';
 
 /** Backend members beyond the frozen seam that calibration uses when present (WebAudioBackend has them). */
 export interface CalibrationBackendExtras {
@@ -45,6 +46,33 @@ export interface CalibrationServicesDeps {
   inputDevices(): Promise<{ id: string; label: string }[]>;
   download(name: string, text: string): void;
   appBuild: string;
+  /** Where `cal:lastFailure` is kept (write on a failed run, clear on a stored one). Absent: nothing is recorded. */
+  kv?: KeyValue;
+}
+
+/** Copy key (and its placeholder values) that explains a failed run; the status popover shows it. */
+function failureReason(method: CalFailure['method'], failure: string | null, found: number, total: number): Pick<CalFailure, 'reason' | 'vars'> {
+  if (method === 'play-along') return { reason: failure === null ? 'calibrate.fail.error' : 'calibrate.fail.playAlong' };
+  if (failure === 'too-few-clicks') return { reason: 'calibrate.fail.loopback.few', vars: { found, total } };
+  if (failure === 'spread') return { reason: 'calibrate.fail.loopback.spread' };
+  if (failure === 'rtl-range') return { reason: 'calibrate.fail.loopback.range' };
+  return { reason: 'calibrate.fail.error' };
+}
+
+/**
+ * A calibration stored before round 2 under a key made from a prefixed label ("Default - MacBook Pro Microphone
+ * (Built-in)") is this route's too (`routeKeyAliasesOf`, current key first). Copies the newest one to the current key
+ * when the current key has none; the old record stays. Returns what was copied, or null.
+ */
+export async function adoptLegacyCalibrations(repos: Pick<StoreRepos, 'calibrations'>, aliases: readonly string[]): Promise<Calibration | null> {
+  const [current, ...legacy] = aliases;
+  if (current === undefined || (await repos.calibrations.get(current))) return null;
+  const found = (await Promise.all(legacy.map((k) => repos.calibrations.get(k)))).filter((c): c is Calibration => c !== undefined);
+  const newest = found.sort((a, b) => b.measuredAt.localeCompare(a.measuredAt))[0];
+  if (!newest) return null;
+  const adopted: Calibration = { ...newest, routeKey: current };
+  await repos.calibrations.put(adopted);
+  return adopted;
 }
 
 export function createCalibrationServices(d: CalibrationServicesDeps): CalibrationServices {
@@ -70,6 +98,18 @@ export function createCalibrationServices(d: CalibrationServicesDeps): Calibrati
       return null;
     }
   };
+  /** Never throws into the run: a store that fails must not turn a finished measurement into an error. */
+  const recordFailure = async (f: CalFailure | null): Promise<void> => {
+    try {
+      if (!d.kv) return;
+      if (f) await d.kv.set(KV_CAL_LAST_FAILURE, f as unknown as JsonValue);
+      else await d.kv.delete(KV_CAL_LAST_FAILURE);
+    } catch {
+      /* the status falls back to "not calibrated" */
+    }
+  };
+  const failed = (method: CalFailure['method'], failure: string | null, found: number, total: number): Promise<void> =>
+    recordFailure({ at: d.clockWall(), method, ...failureReason(method, failure, found, total) });
   const outcome = (res: SelfTestResult): SelfTestOutcome => ({
     passed: res.passed,
     items: res.items.map((i) => ({ id: i.id as SelfTestItemId, status: i.status, reason: typeof i.detail['reason'] === 'string' ? i.detail['reason'] : null })),
@@ -92,6 +132,45 @@ export function createCalibrationServices(d: CalibrationServicesDeps): Calibrati
     } catch {
       return null;
     }
+  };
+  const runLoopbackInner = async (o: Parameters<CalibrationServices['runLoopback']>[0]) => {
+    const r = await route();
+    const clock = await clockRate();
+    const progress: CalibrationProgress = { onStage: o.onStage, onSound: o.onSound };
+    const run = await runLoopbackCalibration(deps, { route: r, timbre: d.settings.get().practice.clickTimbre, clockRateError: clock?.error ?? null, onClick: o.onClick, progress });
+    const lb = run.loopback;
+    if (!lb.accepted || !run.calibration) await failed('loopback', lb.failure, lb.clicksFound, lb.clicksScheduled);
+    return {
+      accepted: lb.accepted,
+      failure: lb.failure,
+      rtlMs: lb.rtlMs,
+      madMs: lb.madMs,
+      clicksFound: lb.clicksFound,
+      clicksScheduled: lb.clicksScheduled,
+      aecSuspected: run.aec.suspected,
+      calibration: run.calibration,
+      checks: await checks(r, clock, run, progress),
+    };
+  };
+  const runPlayAlongInner = async (o: Parameters<CalibrationServices['runPlayAlong']>[0]) => {
+    const r = await route();
+    const clock = await clockRate();
+    const progress: CalibrationProgress = { onStage: o.onStage, onSound: o.onSound };
+    const run = await runPlayAlongCalibration(deps, { route: r, timbre: d.settings.get().practice.clickTimbre, clockRateError: clock?.error ?? null, progress });
+    run.playAlong.offsetsMs.forEach((ms, i) => o.onNote(i, ms));
+    const pa = run.playAlong;
+    if (!pa.accepted || !run.calibration) await failed('play-along', pa.failure, pa.notesFound, pa.clicks);
+    return {
+      accepted: pa.accepted,
+      failure: pa.failure,
+      rtlMs: pa.rtlMs,
+      madMs: pa.madMs,
+      notesFound: pa.notesFound,
+      clicks: pa.clicks,
+      offsetsMs: pa.offsetsMs,
+      calibration: run.calibration,
+      checks: await checks(r, clock, null, progress),
+    };
   };
   return {
     capabilities: d.capabilities,
@@ -117,43 +196,25 @@ export function createCalibrationServices(d: CalibrationServicesDeps): Calibrati
       return unlocked;
     },
     async runLoopback(o) {
-      const r = await route();
-      const clock = await clockRate();
-      const progress: CalibrationProgress = { onStage: o.onStage, onSound: o.onSound };
-      const run = await runLoopbackCalibration(deps, { route: r, timbre: d.settings.get().practice.clickTimbre, clockRateError: clock?.error ?? null, onClick: o.onClick, progress });
-      const lb = run.loopback;
-      return {
-        accepted: lb.accepted,
-        failure: lb.failure,
-        rtlMs: lb.rtlMs,
-        madMs: lb.madMs,
-        clicksFound: lb.clicksFound,
-        clicksScheduled: lb.clicksScheduled,
-        aecSuspected: run.aec.suspected,
-        calibration: run.calibration,
-        checks: await checks(r, clock, run, progress),
-      };
+      try {
+        return await runLoopbackInner(o);
+      } catch (e) {
+        await failed('loopback', null, 0, 0);
+        throw e;
+      }
     },
     async runPlayAlong(o) {
-      const r = await route();
-      const clock = await clockRate();
-      const progress: CalibrationProgress = { onStage: o.onStage, onSound: o.onSound };
-      const run = await runPlayAlongCalibration(deps, { route: r, timbre: d.settings.get().practice.clickTimbre, clockRateError: clock?.error ?? null, progress });
-      run.playAlong.offsetsMs.forEach((ms, i) => o.onNote(i, ms));
-      const pa = run.playAlong;
-      return {
-        accepted: pa.accepted,
-        failure: pa.failure,
-        rtlMs: pa.rtlMs,
-        madMs: pa.madMs,
-        notesFound: pa.notesFound,
-        clicks: pa.clicks,
-        offsetsMs: pa.offsetsMs,
-        calibration: run.calibration,
-        checks: await checks(r, clock, null, progress),
-      };
+      try {
+        return await runPlayAlongInner(o);
+      } catch (e) {
+        await failed('play-along', null, 0, 0);
+        throw e;
+      }
     },
-    save: (c) => d.saveCalibration(c),
+    async save(c) {
+      await d.saveCalibration(c);
+      await recordFailure(null);
+    },
     exportDiagnostics: (json) => d.download('sightread-diagnostics.json', json),
   };
 }

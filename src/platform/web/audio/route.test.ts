@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { appliedProcessingOf, fnv1a, inputKindOf, routeKeyOf } from './route.ts';
+import { appliedProcessingOf, fnv1a, inputKindOf, legacyRouteKeyOf, normalizeInputLabel, routeKeyAliasesOf, routeKeyOf } from './route.ts';
 
 describe('route identity', () => {
   it('hashes the route stably and changes with each component (01 §5.2)', () => {
@@ -37,5 +37,48 @@ describe('route identity', () => {
     expect(appliedProcessingOf({ echoCancellation: true, noiseSuppression: false })).toEqual({ echoCancellation: true, noiseSuppression: false, autoGainControl: null });
     expect(appliedProcessingOf({ echoCancellation: 'none' })).toEqual({ echoCancellation: false, noiseSuppression: null, autoGainControl: null });
     expect(appliedProcessingOf({ echoCancellation: 'all' }).echoCancellation).toBe(true);
+  });
+});
+
+describe('route key under Chrome virtual-device label prefixes (round 2, cause 5)', () => {
+  const PLAIN = 'MacBook Pro Microphone (Built-in)';
+  const args = ['speakers', 48000, 'macos'] as const;
+
+  it('old behaviour: the prefix changed the key, so a calibration under one label did not apply under another', () => {
+    const before = (l: string) => legacyRouteKeyOf(l, ...args);
+    expect(before(`Default - ${PLAIN}`)).not.toBe(before(PLAIN));
+    expect(before(`Communications - ${PLAIN}`)).not.toBe(before(PLAIN));
+  });
+
+  it('fix: the same microphone gets one key whatever prefix Chrome puts on it', () => {
+    const k = routeKeyOf(PLAIN, ...args);
+    expect(routeKeyOf(`Default - ${PLAIN}`, ...args)).toBe(k);
+    expect(routeKeyOf(`Communications - ${PLAIN}`, ...args)).toBe(k);
+    expect(routeKeyOf(`default - ${PLAIN}`, ...args)).toBe(k);
+  });
+
+  it('a different microphone, output, rate or platform still gets a different key', () => {
+    const k = routeKeyOf(`Default - ${PLAIN}`, ...args);
+    expect(routeKeyOf('Default - AirPods Pro', ...args)).not.toBe(k);
+    expect(routeKeyOf(`Default - ${PLAIN}`, 'wired', 48000, 'macos')).not.toBe(k);
+    expect(routeKeyOf(`Default - ${PLAIN}`, 'speakers', 44100, 'macos')).not.toBe(k);
+  });
+
+  it('strips one leading prefix only, and leaves other text alone', () => {
+    expect(normalizeInputLabel('Default - Default - X')).toBe('Default - X');
+    expect(normalizeInputLabel('My Default - Mic')).toBe('My Default - Mic');
+    expect(normalizeInputLabel('')).toBe('');
+  });
+
+  it('old keys stay readable: the aliases of the plain label include the key the old code made for "Default - <label>"', () => {
+    const oldDefault = legacyRouteKeyOf(`Default - ${PLAIN}`, ...args);
+    const oldComms = legacyRouteKeyOf(`Communications - ${PLAIN}`, ...args);
+    const oldPlain = legacyRouteKeyOf(PLAIN, ...args);
+    for (const label of [PLAIN, `Default - ${PLAIN}`, `Communications - ${PLAIN}`]) {
+      const aliases = routeKeyAliasesOf(label, ...args);
+      expect(aliases[0]).toBe(routeKeyOf(label, ...args));
+      expect(aliases).toEqual(expect.arrayContaining([oldDefault, oldComms, oldPlain]));
+      expect(new Set(aliases).size).toBe(aliases.length);
+    }
   });
 });

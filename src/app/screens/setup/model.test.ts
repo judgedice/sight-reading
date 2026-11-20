@@ -223,7 +223,7 @@ describe('fallback notes (5.9)', () => {
     expect(r.next.bars).toBe('random');
     expect(r.notes.map((n) => [n.row, t(n.note)])).toEqual([
       ['key', "Key set to Any: E minor isn't used at difficulty 1."],
-      ['time', "Time set to Any: 6/8 isn't available at difficulty 1."],
+      ['time', "Time signature set to Any: 6/8 isn't available at difficulty 1."],
       ['length', "Length set to Any: 10 bars isn't used at difficulty 1."],
     ]);
   });

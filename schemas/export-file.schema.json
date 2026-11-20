@@ -54,6 +54,19 @@
             },
             "showCentsMs": {
               "type": "boolean"
+            },
+            "ghostsLive": {
+              "type": "string",
+              "enum": [
+                "from4",
+                "always",
+                "never"
+              ],
+              "description": "When ghost notes show during a try: from the fourth note, always, or never (default `from4`)."
+            },
+            "showHeard": {
+              "type": "boolean",
+              "description": "Show the notes the app heard under the staff on results (default false)."
             }
           },
           "required": [
@@ -375,6 +388,10 @@
             "a4Hz": {
               "type": "number",
               "description": "Concert A4 reference, Hz, 415..446."
+            },
+            "autoReference": {
+              "type": "boolean",
+              "description": "Play the starting-note reference automatically before a try (default true)."
             }
           },
           "required": [
@@ -2334,6 +2351,10 @@
         "seed": {
           "type": "number",
           "description": "Selection seed; drawn from the injected RNG when absent."
+        },
+        "autoReference": {
+          "type": "boolean",
+          "description": "Play the starting-note reference automatically before a try (default true)."
         }
       },
       "required": [

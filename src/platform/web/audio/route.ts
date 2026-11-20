@@ -1,5 +1,5 @@
 /**
- * Route identity (01 §5.2, §7.8; 05 W5, W7, W8). `routeKey = hash(inputLabel | outputMode | sampleRate | uaFamily)`;
+ * Route identity (01 §5.2, §7.8; 05 W5, W7, W8). `routeKey = hash(normalised inputLabel | outputMode | sampleRate | uaFamily)`;
  * the label itself is never stored, only its hash and the coarse `inputKind` (05 §5.2: nothing identifies the
  * person or the device).
  */
@@ -15,8 +15,42 @@ export function fnv1a(s: string): string {
   return h.toString(16).padStart(8, '0');
 }
 
-export function routeKeyOf(inputLabel: string, outputMode: OutputMode, sampleRate: number, uaFamily: OsFamily): string {
+/**
+ * Chrome (macOS, Windows, ChromeOS) names the system default input "Default - <device>" and the communications
+ * device "Communications - <device>". The prefix changes when the player changes the system default, though the
+ * microphone is the same. Hashing it made a calibration made under one label not apply under another (round 2,
+ * cause 5), so it is stripped before hashing. Only these two prefixes, once, at the start.
+ */
+const VIRTUAL_PREFIXES = ['Default - ', 'Communications - '] as const;
+
+export function normalizeInputLabel(label: string): string {
+  const t = label.trim();
+  for (const p of VIRTUAL_PREFIXES) if (t.slice(0, p.length).toLowerCase() === p.toLowerCase()) return t.slice(p.length).trim();
+  return t;
+}
+
+/** The key as before round 2: the label hashed as the browser reported it. Kept so stored calibrations stay readable. */
+export function legacyRouteKeyOf(inputLabel: string, outputMode: OutputMode, sampleRate: number, uaFamily: OsFamily): string {
   return `r-${fnv1a(`${inputLabel}|${outputMode}|${sampleRate}|${uaFamily}`)}`;
+}
+
+export function routeKeyOf(inputLabel: string, outputMode: OutputMode, sampleRate: number, uaFamily: OsFamily): string {
+  return legacyRouteKeyOf(normalizeInputLabel(inputLabel), outputMode, sampleRate, uaFamily);
+}
+
+/**
+ * Every key a calibration for this route may have been stored under, current key first: the normalised key, then
+ * the keys the old code produced for the plain label and for each prefixed form of it. A calibration stored under
+ * any of them is this route's (see `adoptLegacyCalibrations` in app/compose/calibration-services.ts).
+ */
+export function routeKeyAliasesOf(inputLabel: string, outputMode: OutputMode, sampleRate: number, uaFamily: OsFamily): string[] {
+  const plain = normalizeInputLabel(inputLabel);
+  const keys = [routeKeyOf(inputLabel, outputMode, sampleRate, uaFamily)];
+  for (const l of [plain, ...VIRTUAL_PREFIXES.map((p) => p + plain)]) {
+    const k = legacyRouteKeyOf(l, outputMode, sampleRate, uaFamily);
+    if (!keys.includes(k)) keys.push(k);
+  }
+  return keys;
 }
 
 /** Coarse input class from the track label (W8 uses the Bluetooth pattern). */

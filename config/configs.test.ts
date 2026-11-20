@@ -260,7 +260,7 @@ describe('tips.json (02 §6)', () => {
   it('marks assertsCause tips per 02 §6.4 and quotes the tip text verbatim', () => {
     const c = tips.tips.filter((t) => t.assertsCause).map((t) => t.id).sort();
     expect(c).toEqual(['CL01', 'CL05', 'FL05', 'FL07', 'KB02', 'KB03', 'KB07', 'LS02', 'SX04', 'US02', 'US03', 'US05']);
-    expect(tips.tips.find((t) => t.id === 'U18')?.text).toBe('Clean read. Try the next one 8 bpm faster, or take a stretch excerpt at the next level.');
+    expect(tips.tips.find((t) => t.id === 'U18')?.text).toBe('Clean read. Try the next one 8 bpm faster, or a harder piece at the next difficulty.');
     expect(tips.tips.find((t) => t.id === 'SX04')?.condition).toBe('bflat-involved');
     expect(tips.tips.find((t) => t.id === 'U22')?.text).toContain('{offset}');
     expect(tips.tips.find((t) => t.id === 'U20')?.patterns).toEqual(['E28', 'E29']);

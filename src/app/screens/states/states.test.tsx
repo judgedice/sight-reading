@@ -103,8 +103,8 @@ describe('void cards', () => {
     expect(document.body.textContent).toContain("We couldn't hear you, so this try wasn't graded.");
     expect(buttons()).toEqual(['Check microphone', 'Try again']);
     current.render(<VoidCard reason="device-change" {...fns} />);
-    expect(buttons()).toEqual(['Recalibrate']);
-    click(buttonNamed('Recalibrate'));
+    expect(buttons()).toEqual(['Calibrate again']);
+    click(buttonNamed('Calibrate again'));
     expect(fns.onRecalibrate).toHaveBeenCalledOnce();
     current.render(<VoidCard reason="backlog" {...fns} />);
     expect(document.body.textContent).toContain('This device fell behind while listening');

@@ -552,6 +552,50 @@
           ],
           "description": "Gates (02 §4.7)."
         },
+        "ui": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "sure": {
+              "type": "object",
+              "properties": {
+                "clearAgree": {
+                  "type": "number"
+                },
+                "clearMaxChanged": {
+                  "type": "number"
+                },
+                "mostlyAgree": {
+                  "type": "number"
+                },
+                "mostlyMaxChanged": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "clearAgree",
+                "clearMaxChanged",
+                "mostlyAgree",
+                "mostlyMaxChanged"
+              ],
+              "additionalProperties": false,
+              "description": "How sure the grade reads: clear and mostly bands by agreement fraction and notes changed after the try."
+            },
+            "calmLiveUpTo": {
+              "type": "number",
+              "description": "Live feedback stays calm up to and including this many notes (3)."
+            },
+            "_source": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "_source",
+            "calmLiveUpTo",
+            "sure"
+          ],
+          "description": "Player-facing thresholds (round 2)."
+        },
         "stops": {
           "type": "object",
           "additionalProperties": false,
@@ -731,6 +775,7 @@
         "components",
         "grades",
         "gates",
+        "ui",
         "stops",
         "displacement",
         "ranked",

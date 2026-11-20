@@ -141,7 +141,7 @@ describe('OnboardingScreen', () => {
     expect(document.body.textContent).toContain('Step 4 of 5');
     await press('Skip');
     expect(document.body.textContent).toContain('Step 5 of 5');
-    await press('Find my difficulty (3 short excerpts, about 3 minutes)');
+    await press('Find my difficulty (3 short pieces, about 3 minutes)');
     expect(clicks).toBeLessThanOrEqual(6);
     expect(finished).toHaveLength(1);
     expect(finished[0]).toMatchObject({ displayName: 'Player', instrumentId: 'flute', micAllowed: true, calibration: 'skipped', level: { kind: 'placement' } });
@@ -248,9 +248,9 @@ describe('OnboardingScreen', () => {
     await press('Continue');
     await press('Not now');
     expect(document.body.textContent).toContain('Needs the microphone.');
-    const placement = button('Find my difficulty (3 short excerpts, about 3 minutes)');
+    const placement = button('Find my difficulty (3 short pieces, about 3 minutes)');
     expect(placement.getAttribute('aria-disabled')).toBe('true');
-    await press('Find my difficulty (3 short excerpts, about 3 minutes)');
+    await press('Find my difficulty (3 short pieces, about 3 minutes)');
     expect(finished).toHaveLength(0);
     expect(document.querySelector('[data-testid="ob-level"] [role=group]')).not.toBeNull();
     expect(document.querySelector('[data-testid="picked-range"]')).not.toBeNull();
@@ -310,7 +310,7 @@ describe('OnboardingScreen', () => {
     await press('Start');
     await press('Continue');
     expect(document.body.textContent).toContain('Step 5 of 5');
-    await press('Find my difficulty (3 short excerpts, about 3 minutes)');
+    await press('Find my difficulty (3 short pieces, about 3 minutes)');
     expect(finished[0]?.calibration).toBe('calibrated');
   });
 });
