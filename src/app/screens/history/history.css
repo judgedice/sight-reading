@@ -487,7 +487,7 @@
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-1) var(--space-3);
-  min-block-size: var(--type-small-line);
+  min-block-size: 1.5rem;
 }
 
 .hist-caption .sd-live-cap {
@@ -519,4 +519,30 @@
   color: var(--text-muted);
   font-size: var(--type-small-size);
   line-height: var(--type-small-line);
+}
+
+/* The day heading is a quiet label, not a serif heading. */
+.hist-day-heading {
+  font-family: var(--font-ui);
+}
+
+.hist-filters .ui-toggle {
+  flex: none;
+  inline-size: auto;
+}
+
+/* Phone: Slower and Listen on one line, "Hear what we heard" under them at full width; nothing leaves the card. */
+@media (max-width: 40rem) {
+  .hist-listen,
+  .hist-listen-row {
+    inline-size: 100%;
+  }
+
+  .hist-listen-row {
+    flex-wrap: wrap;
+  }
+
+  .hist-listen-row [data-testid='hear-button'] {
+    flex: 1 1 100%;
+  }
 }

@@ -19,7 +19,7 @@ import { creditLine } from '../results/model.ts';
 import type { HeardTraceSource, ReviewExtras } from '../results/review/index.ts';
 import { reachedBarOne } from '../../compose/tries.ts';
 import { Summary } from './Summary.tsx';
-import { ListenControls, SoundCaptionLine, isHearing, isListening, useAttemptSound } from './ListenControls.tsx';
+import { ListenControls, SoundCaptionLine, isHearing, isListening, soundAnnouncement, useAttemptSound } from './ListenControls.tsx';
 import { MetaLine } from './MetaLine.tsx';
 import { attemptTitle, dayLabel, localDayOf, rowDetail, timeLabel, tryPosition, type TryPosition } from './model.ts';
 import { listOf } from './HistoryScreen.tsx';
@@ -230,7 +230,10 @@ export function AttemptScreen({ route }: ScreenProps) {
       onHear={services.playHeard ? () => hear(record) : undefined}
     />
   ) : null;
-  const caption = canListen ? <SoundCaptionLine sound={sound} fromBar={startBar} meter={detail.meter} heardNone={heardNone} /> : null;
+  // The reserved line under the toolbar says what is sounding; when quiet it is left to the review (the trace's key).
+  const announce = soundAnnouncement(sound, startBar, detail.meter, heardNone);
+  const captionActive = sound.playing !== null || sound.failed || announce !== '';
+  const caption = canListen && captionActive ? <SoundCaptionLine sound={sound} fromBar={startBar} meter={detail.meter} heardNone={heardNone} /> : null;
   const review =
     prepared && services.renderReview
       ? services.renderReview(record, {
@@ -312,6 +315,12 @@ export function AttemptScreen({ route }: ScreenProps) {
           {controls}
           <div className="hist-caption-line">{caption}</div>
         </Card>
+      ) : null}
+
+      {canListen ? (
+        <p className="ui-visually-hidden" role="status" aria-live="polite">
+          {announce}
+        </p>
       ) : null}
 
       <Summary

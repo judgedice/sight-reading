@@ -171,7 +171,8 @@
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2) var(--space-3);
-  min-block-size: var(--type-small-line);
+  /* The live caption's own height (sounds.css), so a caption arriving moves nothing. */
+  min-block-size: 1.5rem;
   color: var(--text-muted);
   font-size: var(--type-small-size);
   line-height: var(--type-small-line);

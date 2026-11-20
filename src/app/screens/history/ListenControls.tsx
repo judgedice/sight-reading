@@ -132,8 +132,13 @@ export interface SoundCaptionLineProps {
  * The reserved line under the toolbar: "What we heard, bar 3 of 8" with "The notes we detected, in your instrument's
  * sound. Not a recording.", "Playing bar n of m", "From bar n", a failure, or nothing.
  */
+/** What the screen's polite region reads for the sounds (always mounted, so each change is announced). */
+export function soundAnnouncement(sound: SoundView, fromBar: number | null, meter: string | null, heardNone: boolean): string {
+  return (heardNone && sound.playing === null ? copy('heard.none') : listenCaption(sound, fromBar, meter)) ?? '';
+}
+
 export function SoundCaptionLine({ sound, fromBar, meter, heardNone = false }: SoundCaptionLineProps) {
-  const caption = heardNone && sound.playing === null ? copy('heard.none') : listenCaption(sound, fromBar, meter);
+  const caption = soundAnnouncement(sound, fromBar, meter, heardNone) || null;
   const live = sound.playing !== null || sound.failed;
   return (
     <span className="hist-caption" data-testid="sound-caption">
@@ -143,9 +148,6 @@ export function SoundCaptionLine({ sound, fromBar, meter, heardNone = false }: S
         <span className="hist-from-bar">{caption}</span>
       ) : null}
       {isHearing(sound) ? <span className="hist-heard-note">{copy('heard.caption.note')}</span> : null}
-      <span className="ui-visually-hidden" role="status" aria-live="polite">
-        {caption ?? ''}
-      </span>
     </span>
   );
 }
