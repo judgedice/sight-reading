@@ -35,6 +35,9 @@ test('a baritone picks a voice, sees the range, sets key and time, hears the pit
   await page.getByRole('button', { name: 'Allow microphone' }).click();
   await expect(page.getByTestId('calibration-card')).toBeVisible({ timeout: 15_000 });
   await page.getByTestId('calibration-card').getByRole('button', { name: 'Skip' }).click();
+  // Step 5, Sing one note (round 2): skipped here.
+  await expect(page.getByTestId('ob-match')).toBeVisible();
+  await page.locator('.ob-head').getByRole('button', { name: 'Skip' }).click();
   await page.getByRole('button', { name: "I'll choose" }).click();
   await page.getByRole('button', { name: 'Start practising' }).click();
   await expect(page.getByTestId('screen-home')).toBeVisible({ timeout: 15_000 });

@@ -216,6 +216,48 @@ describe('OnboardingScreen', () => {
     expect(finished[0]).toMatchObject({ instrumentId: 'voice-baritone' });
   });
 
+  it('the picked card offers Play my range in the instrument sound; picking a card plays nothing; leaving stops it', async () => {
+    const { svc } = services();
+    svc.initial.instrumentId = 'voice-tenor';
+    const played: [string, readonly number[]][] = [];
+    let stops = 0;
+    let state = { playing: null as string | null, index: null as number | null, failed: false };
+    const listeners = new Set<() => void>();
+    svc.pickerSound = {
+      play: (id, midis) => {
+        played.push([id, midis]);
+        return Promise.resolve();
+      },
+      stop: () => {
+        stops++;
+      },
+      prepare: () => undefined,
+      state: {
+        get: () => state,
+        subscribe: (l) => {
+          listeners.add(l);
+          return () => listeners.delete(l);
+        },
+      },
+    };
+    render(svc);
+    await press('Get started');
+    act(() => document.querySelector<HTMLElement>('[data-instrument="voice-baritone"]')?.click());
+    expect(played).toEqual([]);
+    await press('Play my range');
+    expect(played).toHaveLength(1);
+    expect(played[0]![0]).toBe('voice-baritone');
+    expect(played[0]![1]).toHaveLength(4);
+    act(() => {
+      state = { playing: 'voice-baritone', index: 0, failed: false };
+      listeners.forEach((l) => l());
+    });
+    expect(names()).toContain('Stop');
+    const before = stops;
+    await press('Continue');
+    expect(stops).toBeGreaterThan(before);
+  });
+
   it('beta toggle shows beta cards with a badge', async () => {
     const { svc } = services();
     render(svc);

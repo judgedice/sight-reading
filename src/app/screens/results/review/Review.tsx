@@ -144,6 +144,12 @@ export function Review(props: ReviewProps) {
     [record, prepared, expected, instrument, spell, source],
   );
   const traceShown = showHeard && trace !== null;
+  // With a trace loader the switch shows once the stored track has loaded; without a track, the line under the toolbar
+  // says why and is the switch's description, so the switch is never disabled without a visible reason.
+  const traceLoaded = loadTrace !== undefined && source !== undefined;
+  const noTrack = traceLoaded && trace === null;
+  const switchShown = loadTrace === undefined || traceLoaded;
+  const noTrackId = useId();
   // 01-ux 15.1: on an Unsure try at the calm difficulties, extras and ghosts are drawn at 50%.
   const calm = record.levelServed <= configs.grading.ui.calmLiveUpTo && sureLevel(record, configs.grading.ui.sure) === 'unsure';
   const eventIdOf = useCallback((idx: number) => expected[idx]?.eventIds[0], [expected]);
@@ -326,8 +332,8 @@ export function Review(props: ReviewProps) {
         </svg>
         {rtext('results.showHeard.key')}
       </span>
-    ) : loadTrace && source === null ? (
-      <span className="rv-no-track" data-testid="show-heard-none">
+    ) : noTrack ? (
+      <span id={noTrackId} className="rv-no-track" data-testid="show-heard-none">
         {rtext('diagnostics.noTrack')}
       </span>
     ) : null);
@@ -400,9 +406,11 @@ export function Review(props: ReviewProps) {
           </div>
         ) : null}
         <div className="rv-toolbar-end">
-          <span className="rv-show-heard" data-testid="show-heard" data-available={trace ? 'true' : 'false'} title={source !== undefined && !trace ? rtext('diagnostics.noTrack') : undefined}>
-            <Toggle checked={traceShown} label={rtext('results.showHeard')} disabled={!trace} onChange={setShowHeard} />
-          </span>
+          {switchShown ? (
+            <span className="rv-show-heard" data-testid="show-heard" data-available={trace ? 'true' : 'false'} title={noTrack ? rtext('diagnostics.noTrack') : undefined}>
+              <Toggle checked={traceShown} label={rtext('results.showHeard')} disabled={!trace} describedBy={noTrack && !props.caption ? noTrackId : undefined} onChange={setShowHeard} />
+            </span>
+          ) : null}
           {props.toolbarEnd}
         </div>
       </div>

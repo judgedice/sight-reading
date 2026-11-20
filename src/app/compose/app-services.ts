@@ -30,7 +30,7 @@ import { tipsScreenOverrides, type TipsServices } from '../screens/sheets/index.
 import { classifyMicError, type MicBrowser } from '../screens/states/index.ts';
 import type { DiagnosticsServices } from '../screens/states/services.ts';
 import type { SettingsDiagnosticsServices } from '../screens/settings/services.ts';
-import type { MatchServices } from '../screens/match/services.ts';
+import { matchScreenOverrides, type MatchServices } from '../screens/match/index.ts';
 import { createCalibrationServices, type CalibrationBackendExtras } from './calibration-services.ts';
 import { calibrationStatus as computeCalStatus, KV_CAL_LAST_FAILURE, type CalFailure, type CalStatus } from './calibration-status.ts';
 import { countTries, reachedBarOne } from './tries.ts';
@@ -454,6 +454,8 @@ export function composeApp(rt: AppRuntime): ComposedApp {
     requestMic,
     calibration,
     openMatch,
+    match: { service: matchService, cfg, micAllowed: () => platform.audio.permissionState().then((p) => p === 'granted'), requestMic },
+    pickerSound,
     playNote,
     stopSounds,
     async finish(r: OnboardingResult) {
@@ -558,7 +560,18 @@ export function composeApp(rt: AppRuntime): ComposedApp {
         setPracticeLevel(id, level);
       },
     },
-    renderReview: createReviewRenderer({ configs: cfg, session: session.view, settings, loadNotation, spell: ghostPitch }),
+    renderReview: createReviewRenderer({
+      configs: cfg,
+      session: session.view,
+      settings,
+      loadNotation,
+      spell: ghostPitch,
+      // "Show what we heard": the try's stored trace, from its diagnostics file (as on the try detail in History).
+      loadTrace: async (id) => {
+        const out = await session.exportAttempt(id);
+        return out?.file.tries.find((t) => t.attemptId === id) ?? out?.file.tries[0] ?? null;
+      },
+    }),
     listen: (o) => session.listen(o),
     hearBar: (from, to, o) => session.hearBar(from, to, o),
     // "Change setup" draws the setup sheet over results (05 section 3.1).
@@ -678,6 +691,7 @@ export function composeApp(rt: AppRuntime): ComposedApp {
     ...tipsScreenOverrides(tips),
     ...progressScreenOverrides({ configs: cfg, profile, playNote, stopSounds }),
     ...historyScreenOverrides(history),
+    ...matchScreenOverrides(matchServices),
     ...creditsScreenOverrides({ configs: cfg, loadAttributions, ...(rt.rightsContact ? { rightsContact: rt.rightsContact } : {}) }),
     welcome: withProvider(OnboardingServicesProvider, onboarding, OnboardingScreen),
     calibrate: withProvider(CalibrationServicesProvider, calibration, CalibrationScreen),

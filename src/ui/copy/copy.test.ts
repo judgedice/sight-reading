@@ -184,7 +184,6 @@ describe('en.json catalogue', () => {
       'scan.cover',
       'scan.ranked.notice',
       'scan.startingIn',
-      'scan.practice.timeUp',
       'play.status.bar',
       'results.scoring',
       'results.rejudged',
@@ -263,10 +262,13 @@ describe('round 2 vocabulary and new copy (01-ux.md 2 to 16, 04-design.md 10, 02
   });
 
   it('keeps the old keys the code still uses, with the variables the code passes', () => {
-    expect(copyTemplate('setup.mode.blocked.calibration')).toBe('Ranked needs a calibrated setup on this device.');
     expect(copyTemplate('a11y.countIn.announce')).toBe('Count-in, then play. Press Escape to stop.');
-    for (const k of ['scan.coach', 'scan.practice.timeUp', 'home.keyFootnote', 'banner.calibrateNeeded', 'stars.optional', 'stars.title', 'error.clockRate']) {
+    for (const k of ['banner.calibrateNeeded', 'error.clockRate']) {
       expect(isCopyKey(k), k).toBe(true);
+    }
+    // Decision 11: the keys wave 3 stopped using are gone.
+    for (const k of ['scan.coach', 'scan.practice.timeUp', 'home.keyFootnote', 'stars.optional', 'stars.title']) {
+      expect(isCopyKey(k), k).toBe(false);
     }
   });
 });
@@ -282,7 +284,6 @@ const SPEC: Readonly<Record<string, string>> = {
   "onboarding.level.title": "Choose a starting difficulty",
   "onboarding.level.stepper": "Starting difficulty",
   "onboarding.instrument.body": "We choose music in your range. Pick the card that fits you best.",
-  "scan.practice.timeUp": "Reading time's up. Start when ready.",
   "scan.chip.ranked": "Ranked · {time} to read",
   "scan.summary": "Difficulty {level} · {key} · {meter} · {tempo} · {bars} bars",
   "scan.peek": "Look before you play",
@@ -302,7 +303,6 @@ const SPEC: Readonly<Record<string, string>> = {
   "xp.factor.randomTempo": "Any tempo ×{value}",
   "xp.factor.belowLevel": "Below your difficulty ×{value}",
   "xp.practice": "+{xp} XP (practice earns {percent}% of the XP)",
-  "xp.randomHint": "Choosing Any: +{percent}% XP",
   "results.xp.factor.random": "Any settings ×{value}",
   "rank.bar": "{rank} · Rank {n} of {total} · {xp} of {next} XP to {nextRank}",
   "rank.bar.needsLevel": "Reach difficulty {level} on any instrument to unlock",
@@ -312,7 +312,6 @@ const SPEC: Readonly<Record<string, string>> = {
   "level.down": "Difficulty {level} has been hard lately. A few tries at difficulty {lower} can build the reading back up.",
   "home.levelNoMusic": "No music yet for {instrument} at difficulty {levels}.",
   "home.levelFewMusic": "Few pieces here: some may repeat.",
-  "home.keyFootnote": "More keys from difficulty {n}.",
   "home.selector.noUnseen": "Difficulty {level} has no unseen music in {meter} for {instrument} yet.",
   "home.selector.setTimeRandom": "Set time to Any",
   "row.level": "Difficulty",
@@ -366,7 +365,6 @@ const SPEC: Readonly<Record<string, string>> = {
   "setup.title": "Practice",
   "setup.changeInstrument": "Change instrument",
   "setup.done": "Done",
-  "setup.firstTimeHint": "Tap any setting to change it.",
   "setup.chip.a11y": "{row}: {value}. Change",
   "setup.difficulty.value": "{level} of {max}",
   "setup.difficulty.chip": "Difficulty {level}",
@@ -383,8 +381,6 @@ const SPEC: Readonly<Record<string, string>> = {
   "setup.time.any": "Any",
   "setup.time.anyChip": "Any",
   "setup.time.a11y": "{beats} {unit} time",
-  "setup.time.few": "few pieces",
-  "setup.time.unavailable": "No {meters} music for {instrument} at difficulty {level} yet.",
   "setup.tempo.any": "Any tempo in range",
   "setup.tempo.anyChip": "Any tempo",
   "setup.tempo.anyValue": "Any tempo from {min} to {max}",
@@ -398,7 +394,6 @@ const SPEC: Readonly<Record<string, string>> = {
   "setup.fallback.difficulty": "Difficulty set to {level}: no music yet for {instrument} at difficulty {from}.",
   "setup.mode.ranked.hint": "Full XP. Fresh music and timed reading.",
   "setup.mode.practice.hint": "Less XP. No time limit. Listen first if you like.",
-  "setup.mode.blocked.calibration": "Ranked needs a calibrated setup on this device.",
   "setup.mode.blocked.mic": "Ranked needs the microphone.",
   "action.calibrateNow": "Calibrate now",
   "action.turnOnMic": "Turn on microphone",
@@ -413,8 +408,6 @@ const SPEC: Readonly<Record<string, string>> = {
   "scan.skipFreeHint": "Skip is free before you see the music.",
   "scan.timeLeft": "{time} left",
   "stars.heading": "Look before you play",
-  "stars.optional": "Optional. Tick as you check.",
-  "scan.coach": "New: hear the tempo, the key and the music before you play.",
   "scan.sounds.whatAreThese": "What do these do?",
   "scan.sounds.title": "Sounds",
   "action.hearTempo.short": "Tempo",
@@ -469,7 +462,6 @@ const SPEC: Readonly<Record<string, string>> = {
   "settings.audio.accent": "Accent the first beat",
   "settings.audio.a4.hint": "The A above middle C. Most groups tune to 440 Hz.",
   "settings.about.technical": "Technical details",
-  "error.clockRate.title": "Audio timing problem",
   "action.backToPractice": "Back to Practice",
   "reference.info.title.voice": "What is the reference?",
   "reference.info.title.instrument": "What is the key chord?",

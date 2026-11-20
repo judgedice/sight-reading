@@ -1,10 +1,9 @@
 /** Pure helpers for the scan screen (04 section 5.3): summary text, "Look before you play" rows, accidentals, credits. */
 import type { Configs, ExcerptSource, KeySig, PreparedExcerpt } from '../../../core/types.ts';
 import { countInBarsFor } from '../../../session/index.ts';
-import { copy, formatMessage } from '../../../ui/copy/copy.ts';
+import { copy } from '../../../ui/copy/copy.ts';
 import { beatUnit } from '../setup/model.ts';
 import { keyName } from '../setup/key-names.ts';
-import { LOOK_TEXT } from './look-text.ts';
 
 export type StarsId = 'signatures' | 'tempo' | 'accidentals' | 'rhythms' | 'signs';
 
@@ -134,7 +133,13 @@ export interface LookRow {
   advice: string | null;
 }
 
-const ADVICE_KEY = { signatures: 'adviceSignatures', tempo: 'adviceTempo', accidentals: 'adviceAccidentals', rhythms: 'adviceRhythm', signs: 'adviceSigns' } as const;
+const ADVICE_KEY = {
+  signatures: 'look.advice.signatures',
+  tempo: 'look.advice.tempo',
+  accidentals: 'look.advice.accidentals',
+  rhythms: 'look.advice.rhythm',
+  signs: 'look.advice.signs',
+} as const;
 
 const SIGN: Record<number, string> = { [-2]: '𝄫', [-1]: '♭', 0: '', 1: '♯', 2: '𝄪' };
 const noteName = (w: { step: string; alter: number; octave: number }): string => `${w.step}${SIGN[w.alter] ?? ''}${w.octave}`;
@@ -166,14 +171,14 @@ export function lookRows(p: PreparedExcerpt): LookRow[] {
     id,
     label: copy(`look.label.${id === 'rhythms' ? 'rhythm' : id}` as 'look.label.tempo'),
     fact,
-    advice: advice ? LOOK_TEXT[ADVICE_KEY[id]] : null,
+    advice: advice ? copy(ADVICE_KEY[id]) : null,
   });
   return [
     row('signatures', signatureDetail(p)),
-    row('tempo', formatMessage(LOOK_TEXT.tempo, { tempo })),
-    row('accidentals', accidentals === 0 ? LOOK_TEXT.accidentalsNone : formatMessage(LOOK_TEXT.accidentalsSome, { n: accidentals }), accidentals > 0),
-    row('rhythms', formatMessage(LOOK_TEXT.rhythm, { bar: rhythm.bar, n: rhythm.notes })),
-    row('signs', high && low && last ? formatMessage(LOOK_TEXT.shape, { low: noteName(low.writtenPitch), high: noteName(high.writtenPitch), last: noteName(last.writtenPitch) }) : '', Boolean(high && low && last)),
+    row('tempo', copy('look.fact.tempo', { tempo })),
+    row('accidentals', accidentals === 0 ? copy('look.fact.accidentals.none') : copy('look.fact.accidentals.some', { n: accidentals }), accidentals > 0),
+    row('rhythms', copy('look.fact.rhythm', { bar: rhythm.bar, n: rhythm.notes })),
+    row('signs', high && low && last ? copy('look.fact.shape', { low: noteName(low.writtenPitch), high: noteName(high.writtenPitch), last: noteName(last.writtenPitch) }) : '', Boolean(high && low && last)),
   ];
 }
 

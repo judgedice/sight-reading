@@ -632,7 +632,8 @@
 }
 
 .pk-picked-panel .pk-play {
-  min-height: 2.5rem;
+  /* 40 px on a desktop panel; the 44 px touch target on touch screens. */
+  min-height: max(2.5rem, var(--target-min));
   margin-left: auto;
 }
 

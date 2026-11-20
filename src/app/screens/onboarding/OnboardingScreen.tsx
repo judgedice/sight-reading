@@ -1,7 +1,8 @@
 import './onboarding.css';
-import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import { useEffect, useMemo, useReducer, useRef, useState, useSyncExternalStore } from 'react';
 import type { Configs } from '../../../core/types.ts';
-import { InstrumentGrid, PickedRange } from '../../../ui/components/picker/index.ts';
+import { InstrumentGrid, PickedRange, type PickerSoundView } from '../../../ui/components/picker/index.ts';
+import { hasSoundSet, soundSetFor } from '../../../instruments/sound-sets.ts';
 import { Card } from '../../../ui/components/containers/index.ts';
 import { Button, Toggle } from '../../../ui/components/form/index.ts';
 import { DifficultyControl } from '../../../ui/components/setup/index.ts';
@@ -68,6 +69,8 @@ function MicProblemBlock({
   );
 }
 
+const NO_SOUND = { get: () => null, subscribe: () => () => undefined };
+
 function Onboarding({ services }: { services: OnboardingServices }) {
   const navigate = useNavigate();
   const cfg: Configs = useMemo(() => appConfigs(), []);
@@ -117,6 +120,26 @@ function Onboarding({ services }: { services: OnboardingServices }) {
     [cfg, instruments],
   );
   const hear = services.playNote ? (midi: number): void => void services.playNote?.(midi) : undefined;
+  // "Play my range" on the picked card: the session's sound state, read as the picker's snapshot.
+  const pickerSound = services.pickerSound;
+  const soundSrc = pickerSound?.state ?? NO_SOUND;
+  const soundState = useSyncExternalStore<{ playing: string | null; index: number | null; failed: boolean } | null>(soundSrc.subscribe, soundSrc.get, soundSrc.get);
+  const sound = useMemo<PickerSoundView | undefined>(
+    () =>
+      pickerSound
+        ? {
+            play: (id, midis) => pickerSound.play(id, midis),
+            stop: () => pickerSound.stop(),
+            prepare: (id) => pickerSound.prepare(id),
+            playing: soundState?.playing ?? null,
+            index: soundState?.index ?? null,
+            failed: soundState?.failed ?? false,
+          }
+        : undefined,
+    [pickerSound, soundState],
+  );
+  const standInId = selected && hasSoundSet(selected.id) ? soundSetFor(selected.id).standIn : null;
+  const standIn = standInId ? (cfg.instrumentById[standInId] ?? null) : null;
 
   const finish = (choice: LevelChoice): void => {
     setSaving(true);
@@ -182,7 +205,9 @@ function Onboarding({ services }: { services: OnboardingServices }) {
       instrument={selected}
       data={rangeFor(selected.id)}
       onHearNote={hear ? (midi) => hear(midi) : undefined}
-            variant={wide ? 'column' : 'panel'}
+      sound={sound}
+      standIn={standIn}
+      variant={wide ? 'column' : 'panel'}
     />
   ) : null;
 
@@ -192,7 +217,7 @@ function Onboarding({ services }: { services: OnboardingServices }) {
       instrument={difficultyInst}
       data={rangeData(cfg, difficultyInst, level)}
       onHearNote={hear ? (midi) => hear(midi) : undefined}
-            variant="column"
+      variant="column"
       head={false}
     />
   ) : null;

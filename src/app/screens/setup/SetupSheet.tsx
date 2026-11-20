@@ -3,7 +3,8 @@ import type { Clef, Configs, Instrument, PracticeSettings } from '../../../core/
 import { keyboardSpan, pictureNotes, rangeModel, staffPlan } from '../../../instruments/range.ts';
 import { copy } from '../../../ui/copy/copy.ts';
 import { instrumentName } from '../../../ui/copy/instrument-names.ts';
-import { InstrumentPicker, instrumentIcon, voiceClef, type PickerResult } from '../../../ui/components/picker/index.ts';
+import { InstrumentPicker, instrumentIcon, voiceClef, type PickerResult, type PickerSoundView } from '../../../ui/components/picker/index.ts';
+import { hasSoundSet, soundSetFor } from '../../../instruments/sound-sets.ts';
 import { RangePicture, type RangeData } from '../../../ui/components/range/index.ts';
 import { Glyph } from '../../../ui/primitives/Glyph.tsx';
 import { Sheet } from '../../../ui/primitives/Sheet.tsx';
@@ -47,13 +48,18 @@ export interface SetupInstrumentPickerProps {
   onDone: (result: PickerResult) => void;
   onCancel: () => void;
   onHearNote?: ((midi: number) => void) | undefined;
+  /** "Play my range" on the picked card (round 2, 01-ux section 2). Without it the picker has no Play button. */
+  sound?: PickerSoundView | undefined;
 }
+
+/** The instrument whose samples stand in for this one (euphonium: trombone), or null. */
+const standInFor = (id: string): string | null => (hasSoundSet(id) ? soundSetFor(id).standIn : null);
 
 /**
  * "Change instrument" (05 section 6.1): the instrument picker as a dialog on desktop and a full-height sheet on
  * phones, each card at the player's current difficulty for that instrument.
  */
-export function SetupInstrumentPicker({ open, value, ctx, onDone, onCancel, onHearNote }: SetupInstrumentPickerProps) {
+export function SetupInstrumentPicker({ open, value, ctx, onDone, onCancel, onHearNote, sound }: SetupInstrumentPickerProps) {
   const { cfg } = ctx;
   // One cache per config: a new config (a new build) draws every card afresh.
   const cache = useMemo(() => ({ cfg, data: new Map<string, RangeData>() }), [cfg]).data;
@@ -79,6 +85,8 @@ export function SetupInstrumentPicker({ open, value, ctx, onDone, onCancel, onHe
       onDone={onDone}
       onCancel={onCancel}
       onHearNote={onHearNote ? (midi) => onHearNote(midi) : undefined}
+      sound={sound}
+      standInFor={sound ? standInFor : undefined}
     />
   );
 }

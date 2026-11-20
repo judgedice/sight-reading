@@ -470,6 +470,27 @@ describe('Practice screen states', () => {
     expect(stopped).toBe(1);
   });
 
+  it('the instrument picker offers Play my range through the same picker sound, and never plays on selection', () => {
+    const f = fixture({ practice: { instrumentId: 'flute', level: 1 } });
+    const state = store<{ playing: string | null; index: number | null; failed: boolean }>({ playing: null, index: null, failed: false });
+    const played: string[] = [];
+    f.services.pickerSound = {
+      play: (id) => {
+        played.push(id);
+        return Promise.resolve();
+      },
+      stop: () => undefined,
+      prepare: () => undefined,
+      state,
+    };
+    render(f);
+    click(button(copy('setup.changeInstrument')));
+    click($('[data-instrument="voice-baritone"]'));
+    expect(played).toEqual([]);
+    click(button(copy('picker.play.range'), $('[role="dialog"]')));
+    expect(played).toEqual(['voice-baritone']);
+  });
+
   it('the Match a note row on the instrument card opens Match a note', () => {
     const f = fixture({ practice: { instrumentId: 'voice-baritone' } });
     render(f);

@@ -67,6 +67,9 @@ test('first-time user: three takes on three instruments, results, tips, history,
   await page.getByRole('button', { name: 'Allow microphone' }).click();
   await expect(page.getByTestId('calibration-card')).toBeVisible({ timeout: 15_000 });
   await page.getByTestId('calibration-card').getByRole('button', { name: 'Skip' }).click();
+  // Step 5, Sing or Play one note (round 2): skipped here.
+  await expect(page.getByTestId('ob-match')).toBeVisible();
+  await page.locator('.ob-head').getByRole('button', { name: 'Skip' }).click();
   await expect(page.getByTestId('ob-level')).toBeVisible();
   await page.getByRole('button', { name: "I'll choose" }).click();
   await check('onboarding');

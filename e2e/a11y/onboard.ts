@@ -20,6 +20,11 @@ export async function onboardWithVisits(page: Page, visit: (name: string) => Pro
   await expect(page.getByTestId('calibration-card')).toBeVisible({ timeout: 15_000 });
   await visit('onboarding-calibration');
   await page.getByTestId('calibration-card').getByRole('button', { name: 'Skip' }).click();
+  // Step 5, Play one note (round 2): visited, then skipped.
+  await expect(page.getByTestId('ob-match')).toBeVisible();
+  await page.waitForTimeout(300);
+  await visit('onboarding-note');
+  await page.locator('.ob-head').getByRole('button', { name: 'Skip' }).click();
   await expect(page.getByTestId('ob-level')).toBeVisible();
   await visit('onboarding-difficulty');
   await page.getByRole('button', { name: "I'll choose" }).click();

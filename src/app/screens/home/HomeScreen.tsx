@@ -6,7 +6,7 @@ import { Banner } from '../../../ui/components/containers/index.ts';
 import { CalStatusPill } from '../../../ui/components/calibration-status/index.ts';
 import { Button } from '../../../ui/components/form/index.ts';
 import { RankEmblem } from '../../../ui/components/domain/index.ts';
-import { PICKER_GROUPS, voiceClef, type PickerResult } from '../../../ui/components/picker/index.ts';
+import { PICKER_GROUPS, voiceClef, type PickerResult, type PickerSoundView } from '../../../ui/components/picker/index.ts';
 import { RangePicture } from '../../../ui/components/range/index.ts';
 import { ModeControl, XpLine, lineText, type RankedBlock } from '../../../ui/components/setup/index.ts';
 import { splitAt } from '../../../ui/components/setup/text.ts';
@@ -327,6 +327,21 @@ export function HomeScreen(_props: ScreenProps) {
   const lastTry = useOptionalReadable(services.lastTry);
   const pickerSound = services.pickerSound;
   const rangeSound = useOptionalReadable(pickerSound?.state);
+  // "Play my range" inside the instrument picker: the same session sound as the card's button.
+  const pickerView = useMemo<PickerSoundView | undefined>(
+    () =>
+      pickerSound
+        ? {
+            play: (id, midis) => pickerSound.play(id, midis),
+            stop: () => pickerSound.stop(),
+            prepare: (id) => pickerSound.prepare(id),
+            playing: rangeSound?.playing ?? null,
+            index: rangeSound?.index ?? null,
+            failed: rangeSound?.failed ?? false,
+          }
+        : undefined,
+    [pickerSound, rangeSound],
+  );
   const view = useSessionView(services);
   const fallback = useFallbackNotes();
   const [stalePool, setStalePool] = useState<Partial<PracticeSettings>[] | null>(null);
@@ -592,7 +607,7 @@ export function HomeScreen(_props: ScreenProps) {
             </div>
           </section>
         </div>
-        <SetupInstrumentPicker open={picking} value={practice} ctx={ctx} onDone={pickInstrument} onCancel={() => setPicking(false)} onHearNote={hearNote} />
+        <SetupInstrumentPicker open={picking} value={practice} ctx={ctx} onDone={pickInstrument} onCancel={() => setPicking(false)} onHearNote={hearNote} sound={pickerView} />
       </section>
     );
   }
@@ -636,7 +651,8 @@ export function HomeScreen(_props: ScreenProps) {
                 aria-label={copy('setup.chip.a11y', { row: label, value })}
                 onClick={() => openRow(row)}
               >
-                <span className="home-chip-label">{label}</span>
+                {/* The space keeps the visible text "Difficulty 1" inside the accessible name (axe label-content-name-mismatch). */}
+                <span className="home-chip-label">{label}</span>{' '}
                 <span className="home-chip-line">
                   <span className="home-chip-value">{value}</span>
                   <Glyph id="chevron-down" size={16} className="home-chip-chevron" />
@@ -672,7 +688,7 @@ export function HomeScreen(_props: ScreenProps) {
         }}
         returnFocus={() => (lastRow.current ? (chipRefs.current[lastRow.current] ?? null) : null)}
       />
-      <SetupInstrumentPicker open={picking} value={practice} ctx={ctx} onDone={pickInstrument} onCancel={() => setPicking(false)} onHearNote={hearNote} />
+      <SetupInstrumentPicker open={picking} value={practice} ctx={ctx} onDone={pickInstrument} onCancel={() => setPicking(false)} onHearNote={hearNote} sound={pickerView} />
     </section>
   );
 }

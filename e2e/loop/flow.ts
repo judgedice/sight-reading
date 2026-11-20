@@ -32,6 +32,9 @@ export async function onboard(page: Page, mic: 'allow' | 'decline'): Promise<voi
     // Calibration: skipped (the fake microphone hears no clicks). The test clock runs with RTL 0.
     await expect(page.getByTestId('calibration-card')).toBeVisible({ timeout: 15_000 });
     await page.getByTestId('calibration-card').getByRole('button', { name: 'Skip' }).click();
+    // Step 5, Sing or Play one note (round 2): skipped here.
+    await expect(page.getByTestId('ob-match')).toBeVisible();
+    await page.locator('.ob-head').getByRole('button', { name: 'Skip' }).click();
   } else {
     await page.getByRole('button', { name: 'Not now' }).click();
   }

@@ -98,7 +98,23 @@ describe('Show what we heard', () => {
     expect(sw.checked).toBe(false);
     expect(root.querySelector('[data-testid="show-heard-none"]')!.textContent).toBe(copy('diagnostics.noTrack'));
     expect(root.querySelector('[data-testid="show-heard"]')!.getAttribute('title')).toBe(copy('diagnostics.noTrack'));
+    // The visible line is the disabled switch's description (no disabled control without a visible reason).
+    expect(document.getElementById(sw.getAttribute('aria-describedby') ?? '')?.textContent).toBe(copy('diagnostics.noTrack'));
     expect(root.querySelector('.sr-trace')).toBeNull();
+  });
+
+  it('with a trace loader, the switch appears only once the track has loaded', async () => {
+    let resolve: (v: null) => void = () => undefined;
+    const pending = new Promise<null>((r) => {
+      resolve = r;
+    });
+    const { root } = await render({ loadTrace: () => pending });
+    expect(root.querySelector('[data-testid="show-heard"]')).toBeNull();
+    await act(async () => {
+      resolve(null);
+      await pending;
+    });
+    expect(heardSwitch(root).disabled).toBe(true);
   });
 
   it('is disabled when the stored trace has no frames (a try from before round 2)', async () => {

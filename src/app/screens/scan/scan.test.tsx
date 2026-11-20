@@ -275,7 +275,7 @@ describe('Read-through', () => {
     render(h);
     await reveal(h);
     expect($('.sd-group-lead').textContent).toMatch(/^When you start: .*clicks\.$/);
-    expect(document.body.textContent).not.toContain(copy('scan.sounds.silentTake'));
+    expect(document.body.textContent).not.toContain('Nothing plays during the try');
   });
 
   it('hides the checklist when the setting is off but keeps the sounds', async () => {

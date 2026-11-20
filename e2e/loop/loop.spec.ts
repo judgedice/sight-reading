@@ -41,7 +41,11 @@ test('practice loop: onboarding, setup, scan, count-in, live red note, graded re
   await expect(play).toHaveAttribute('data-state', 'performing', { timeout: LOOP_T0_SEC * 1000 + 10_000 });
   const wrongNote = play.locator(`[data-expected-idx="${wrongIdx}"]`).first();
   await expect(wrongNote).toHaveClass(/n-error/, { timeout: (plan.endSec + 5) * 1000 });
-  await expect(play.locator('.sr-ghost').first()).toBeAttached();
+  // PLAN ruling 61: at difficulties 1 to 3 (onboarding's default starts at 1) no ghost is drawn live; the
+  // wrong-pitch judgment is checked in the record below.
+  const served = await page.evaluate(() => (window as unknown as { __sr: { session: { prepared: { levelServed: number } | null } } }).__sr.session.prepared?.levelServed);
+  expect(served).toBeLessThanOrEqual(3);
+  await expect(play.locator('.sr-ghost')).toHaveCount(0);
 
   // Results with a grade.
   const results = page.getByTestId('results-panel');

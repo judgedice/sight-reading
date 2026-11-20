@@ -7,10 +7,12 @@ export interface ToggleProps {
   label: string;
   onChange: (checked: boolean) => void;
   disabled?: boolean;
+  /** Id of the visible text that says why the switch is off or what it does. */
+  describedBy?: string | undefined;
 }
 
 /** An on/off switch: a native checkbox with role="switch". Track 40 x 24, thumb 18, a check on the track when on, 44 px hit row (06 section 6.5). */
-export function Toggle({ checked, label, onChange, disabled = false }: ToggleProps) {
+export function Toggle({ checked, label, onChange, disabled = false, describedBy }: ToggleProps) {
   return (
     <label className="ui-toggle">
       <input
@@ -20,6 +22,7 @@ export function Toggle({ checked, label, onChange, disabled = false }: TogglePro
         checked={checked}
         disabled={disabled}
         aria-disabled={disabled ? 'true' : undefined}
+        aria-describedby={describedBy}
         onChange={(event) => onChange(event.target.checked)}
       />
       <span className="ui-toggle-track" aria-hidden="true">

@@ -384,15 +384,15 @@
 }
 
 .scan-cal .cs-link {
+  order: 2;
   margin: 0;
 }
 
-.scan-cal[data-state='none'] .cs-link::before,
-.scan-cal[data-state='failed'] .cs-link::before {
+/* The dot between the text and the link is the line's own flex item, so the button's name stays "Calibrate". */
+.scan-cal[data-state='none']::after,
+.scan-cal[data-state='failed']::after {
   content: '·';
-  display: inline-block;
-  margin-inline-end: var(--space-2);
-  text-decoration: none;
+  order: 1;
 }
 
 .scan-cal-phone {

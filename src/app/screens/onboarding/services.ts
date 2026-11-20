@@ -58,6 +58,18 @@ export interface OnboardingServices {
     /** Runs the permission request. Call synchronously from the click. */
     requestMic(): Promise<MicOutcome>;
   };
+  /**
+   * "Play my range" on the picked card (round 2, 01-ux section 2): the same session sound as Practice. Omitted: the
+   * picture alone.
+   */
+  pickerSound?: {
+    /** Call from the click. Plays the concert MIDI notes in order in the instrument's sound. */
+    play(instrumentId: string, midis: readonly number[]): Promise<void>;
+    stop(): void;
+    /** Starts loading the instrument's samples (hover or focus). Never plays. */
+    prepare(instrumentId: string): void;
+    state: { get(): { playing: string | null; index: number | null; failed: boolean }; subscribe(l: () => void): () => void };
+  };
   /** Opens "Match a note" inside onboarding. Omitted: the row is not shown. */
   openMatch?(): void;
   /** Stops any sound at once (leaving the step). */

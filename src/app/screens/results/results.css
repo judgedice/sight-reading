@@ -538,7 +538,19 @@
   padding-inline: 0.3em;
 }
 
+.res-count-button::before {
+  /* An inline text link with a 44 px touch box (the line keeps its height). */
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: max(100%, var(--target-min));
+  height: var(--target-min);
+  transform: translate(-50%, -50%);
+}
+
 .res-count-button {
+  position: relative;
   margin: 0;
   padding: 0;
   border: 0;

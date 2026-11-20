@@ -101,6 +101,9 @@ test('screen tour: onboarding, home, scan, take with a wrong and a late note, re
   await expect(page.getByTestId('calibration-card')).toBeVisible({ timeout: 15_000 });
   await shot('onboarding-calibration');
   await page.getByTestId('calibration-card').getByRole('button', { name: 'Skip' }).click();
+  // Step 5, Sing or Play one note (round 2): skipped here.
+  await expect(page.getByTestId('ob-match')).toBeVisible();
+  await page.locator('.ob-head').getByRole('button', { name: 'Skip' }).click();
   await expect(page.getByTestId('ob-level')).toBeVisible();
   await shot('onboarding-level');
   await page.getByRole('button', { name: "I'll choose" }).click();
