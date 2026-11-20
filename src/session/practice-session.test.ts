@@ -1287,6 +1287,12 @@ describe('round 2: sampled sounds, the starting pitch, what we heard, start erro
       expect(n.hz).toBeCloseTo(midiToFreq(d.midi, 440), 6);
     });
     expect(h.session.sounds.getState()).toMatchObject({ playing: 'heard', attemptId: rec.id });
+    // The sounding-note highlight: each heard note matched to a written note lights that note while it sounds.
+    const matched = new Map(rec.judgments.filter((j) => j.detectedId !== null).map((j) => [j.detectedId!, j.expectedIdx]));
+    const spans = h.session.sounds.getState().notes!.spans;
+    const lit = heard.filter((d) => matched.has(d.id));
+    expect(spans.map((s) => s.idx)).toEqual(lit.map((d) => matched.get(d.id)));
+    spans.forEach((s, i) => expect(s.startsAt).toBeCloseTo((p.opts.at as number) + (lit[i]!.onset as number) - (heard[0]!.onset as number), 3));
     await drive(h, Math.max(...p.notes.map((n) => n.startSec + n.durSec)) + 0.2);
     expect(captions.length).toBeGreaterThan(1);
     for (const c of captions) expect(c).toMatchObject({ kind: 'heard-bar', of: src.totalBars });
