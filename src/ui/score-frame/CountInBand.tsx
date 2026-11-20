@@ -32,7 +32,8 @@ export function CountInBand({ click, beatsPerBar, bars, title, detail, entry, en
   const k = Math.max(0, Math.min(click, total));
   const bar = k === 0 ? 1 : Math.ceil(k / bpb);
   const last = bar === n;
-  const entryClick = (n - 1) * bpb + Math.max(1, Math.min(bpb, entryAfter ?? bpb));
+  const entryCount = Math.max(1, Math.min(bpb, entryAfter ?? bpb));
+  const entryClick = (n - 1) * bpb + entryCount;
   const groups = Array.from({ length: n }, (_, b) => b + 1);
   const state = (i: number): CellState => (i < k ? 'past' : i === k ? 'current' : 'pending');
   return (
@@ -45,7 +46,9 @@ export function CountInBand({ click, beatsPerBar, bars, title, detail, entry, en
         {groups.map((b) => (
           <span key={b} className="sf-count-group" data-tone={b === n ? 'last' : 'listen'}>
             {b > 1 ? <span className="sf-count-sep" /> : null}
-            {Array.from({ length: bpb }, (_, j) => {
+            {/* A pickup comes in before the bar ends: the last bar shows only the counts before the entry, so the
+                entry word sits right after the count the title names ("Come in after 3": 1 2 3, then "Sing"). */}
+            {Array.from({ length: b === n ? entryCount : bpb }, (_, j) => {
               const i = (b - 1) * bpb + j + 1;
               const s = state(i);
               return (

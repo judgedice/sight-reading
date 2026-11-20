@@ -60,6 +60,27 @@ describe('absorbed: a short note right after the last matched note at its pitch 
   });
 });
 
+describe('a held note split in two is one note (final review, owner point 15)', () => {
+  const detected = finalDetected(fx.stream);
+  const base = alignFinal(voice, detected, null);
+  // The longest matched note: split it at 40% into two segments at the same pitch, the second longer than absorbMs.
+  const matchedIds = new Set(base.judgments.map((j) => j.detectedId).filter((id): id is number => typeof id === 'number'));
+  const held = detected.filter((d) => matchedIds.has(d.id) && d.offset !== null).sort((a, b) => ((b.offset as number) - b.onset) - ((a.offset as number) - a.onset))[0]!;
+  const mid = held.onset + 0.4 * ((held.offset as number) - held.onset);
+  const split: DetectedNote[] = detected.flatMap((d) =>
+    d.id === held.id
+      ? [{ ...d, offset: mid as ClockSeconds }, { ...d, id: 9998, onset: (mid + 0.03) as ClockSeconds, provisionalMidi: d.midi }]
+      : [d],
+  );
+  it('the second half is longer than absorbMs, yet not an extra with the voice tolerances', () => {
+    expect((held.offset as number) - (mid + 0.03)).toBeGreaterThan(voice.oneNote!.absorbMs / 1000);
+    expect(alignFinal(voice, split, null).extras.map((x) => x.detectedId)).not.toContain(9998);
+  });
+  it('without the voice tolerances it is still reported, as before', () => {
+    expect(alignFinal(plain, split, null).extras.map((x) => x.detectedId)).toContain(9998);
+  });
+});
+
 describe('own playback: before the music and the app tones', () => {
   const first = fx.expected[0]!;
   const c = withOwnPlayback(plain, [{ t: (fx.t0 - 3) as ClockSeconds, durSec: 1, hz: 440 }, { t: (fx.t0 + first.onsetSec + 4) as ClockSeconds, durSec: 0.5, hz: 220 }]);

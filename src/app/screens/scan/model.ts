@@ -53,7 +53,7 @@ export function signatureNotes(k: KeySig): string[] {
 /** The Signatures row detail: "E major, 4 sharps: F♯ C♯ G♯ D♯. 6/8, felt in 2." */
 export function signatureDetail(p: PreparedExcerpt): string {
   const k = p.writtenKey;
-  const accidentals = k.fifths < 0 ? copy('accidentals.flats', { n: -k.fifths }) : copy('accidentals.sharps', { n: k.fifths });
+  const accidentals = k.fifths === 0 ? copy('accidentals.none') : k.fifths < 0 ? copy('accidentals.flats', { n: -k.fifths }) : copy('accidentals.sharps', { n: k.fifths });
   const text = copy('stars.signatures.detail', {
     key: keyName(k),
     accidentals,

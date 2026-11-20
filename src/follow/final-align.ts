@@ -345,8 +345,23 @@ export function alignFinalWithReference(
   const byOnset = [...notes].sort((a, b) => a.note.onset - b.note.onset || a.note.id - b.note.id);
   const prevOf = new Map<number, AlignNote | null>(byOnset.map((n, k) => [n.note.id, byOnset[k - 1] ?? null]));
   const reported = (n: AlignNote): boolean => soundedSec(n.note, attackMs) >= extraMinMs(c, n.note, absorbedBy(c, n.note, prevOf.get(n.note.id)?.note ?? null)) / MS;
+  // A held note that the detector split in two (a dip in a long sung note, a breath of the level) is still that note:
+  // with `oneNote` on, a re-articulation at the same pitch class that starts before the written end of the note the
+  // previous detected note matched is a continuation, not an extra, however long it lasts (final review, owner
+  // point 15).
+  const writtenOf = new Map<number, ExpectedNote>();
+  for (const [i, n] of byExpected) {
+    const e = c.expected.find((x) => x.idx === i);
+    if (e) writtenOf.set(n.note.id, e);
+  }
+  const continues = (n: AlignNote): boolean => {
+    const prev = prevOf.get(n.note.id) ?? null;
+    if (!prev || !absorbedBy(c, n.note, prev.note)) return false;
+    const e = writtenOf.get(prev.note.id);
+    return !!e && n.s < (e.onsetSec as number) + e.durSec;
+  };
   const extras: ExtraNote[] = unmatched
-    .filter((n) => n.extraEligible && reported(n))
+    .filter((n) => n.extraEligible && reported(n) && !continues(n))
     .sort((a, b) => a.note.id - b.note.id)
     .map((n) => {
       const dur = soundedSec(n.note, attackMs);

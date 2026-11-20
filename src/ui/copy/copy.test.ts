@@ -215,7 +215,7 @@ describe('en.json catalogue', () => {
 describe('round 2 vocabulary and new copy (01-ux.md 2 to 16, 04-design.md 10, 02-sounds.md)', () => {
   const blank = (t: string): string => t.replace(/\{\s*[A-Za-z_]+/g, '{');
   /** Keys where "take" is the ordinary verb ("a sound takes time", "Take a moment"), not the noun for a try. */
-  const TAKE_VERB = ['calibrate.result.meaning.loopback', 'calibrate.result.meaning.playAlong', 'scan.cover', 'banner.calibrateNeeded', 'calStatus.none.detail', 'calStatus.ok.detail'];
+  const TAKE_VERB = ['calibrate.result.meaning.loopback', 'calibrate.result.meaning.playAlong', 'scan.cover', 'calStatus.none.detail', 'calStatus.ok.detail'];
 
   it('has no value that says take(s) for a try, excerpt(s), slip(s), scan or "a stretch"', () => {
     const hits = (re: RegExp, skip: readonly string[] = []): string[] =>
@@ -263,11 +263,11 @@ describe('round 2 vocabulary and new copy (01-ux.md 2 to 16, 04-design.md 10, 02
 
   it('keeps the old keys the code still uses, with the variables the code passes', () => {
     expect(copyTemplate('a11y.countIn.announce')).toBe('Count-in, then play. Press Escape to stop.');
-    for (const k of ['banner.calibrateNeeded', 'error.clockRate']) {
+    for (const k of ['error.clockRate']) {
       expect(isCopyKey(k), k).toBe(true);
     }
     // Decision 11: the keys wave 3 stopped using are gone.
-    for (const k of ['scan.coach', 'scan.practice.timeUp', 'home.keyFootnote', 'stars.optional', 'stars.title']) {
+    for (const k of ['banner.calibrateNeeded', 'scan.coach', 'scan.practice.timeUp', 'home.keyFootnote', 'stars.optional', 'stars.title']) {
       expect(isCopyKey(k), k).toBe(false);
     }
   });

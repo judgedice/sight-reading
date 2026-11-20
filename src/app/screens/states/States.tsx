@@ -269,19 +269,6 @@ export function RecheckShiftBanner({ onRecalibrate }: { onRecalibrate: () => voi
   return <Banner tone="caution" text={text('results.banner.recheckShift')} action={{ label: text('action.recalibrate'), onClick: onRecalibrate }} />;
 }
 
-/** Home banner when no fresh calibration exists. `seconds` comes from the calibration run's length. Never blocks Start. */
-export function CalibrationMissingBanner({ seconds, onCalibrate, onDismiss }: { seconds: number; onCalibrate: () => void; onDismiss?: () => void }) {
-  return (
-    <Banner
-      tone="info"
-      text={text('banner.calibrateNeeded', { seconds })}
-      action={{ label: text('action.calibrate'), onClick: onCalibrate }}
-      dismissible
-      {...(onDismiss ? { onDismiss } : {})}
-    />
-  );
-}
-
 export function BluetoothBanner({ onRecalibrate }: { onRecalibrate: () => void }) {
   return <Banner tone="caution" text={text('banner.bluetooth')} action={{ label: text('action.recalibrate'), onClick: onRecalibrate }} />;
 }

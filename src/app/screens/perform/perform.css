@@ -51,6 +51,34 @@
   white-space: nowrap;
 }
 
+/* Phones: a status message ("Keep going: come in at bar 3") wraps inside the strip's own height instead of being
+   cut off; up to three caption lines fit in the 4rem strip, so nothing below moves. */
+@media (max-width: 40rem) {
+  /* The centre takes the room the sides do not need, so a message has the whole middle of the strip. */
+  .perform-toolbar {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: var(--space-3);
+  }
+
+  .perform-centre {
+    gap: var(--space-2);
+  }
+
+  .perform-mic-label {
+    display: none;
+  }
+
+  .perform-centre-text {
+    display: -webkit-box;
+    font-size: var(--type-caption-size);
+    line-height: var(--type-caption-line);
+    text-align: center;
+    white-space: normal;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+  }
+}
+
 .perform-tempo {
   color: var(--text-muted);
   font-size: var(--type-small-size);

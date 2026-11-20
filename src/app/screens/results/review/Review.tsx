@@ -148,6 +148,8 @@ export function Review(props: ReviewProps) {
   // says why and is the switch's description, so the switch is never disabled without a visible reason.
   const traceLoaded = loadTrace !== undefined && source !== undefined;
   const noTrack = traceLoaded && trace === null;
+  // A stored track with no pitch in it (nothing heard) is not an old try: say so plainly.
+  const noTrackKey = source?.frames && source.frames.t.length > 1 ? 'diagnostics.noTrack.silent' : 'diagnostics.noTrack';
   const switchShown = loadTrace === undefined || traceLoaded;
   const noTrackId = useId();
   // 01-ux 15.1: on an Unsure try at the calm difficulties, extras and ghosts are drawn at 50%.
@@ -334,7 +336,7 @@ export function Review(props: ReviewProps) {
       </span>
     ) : noTrack ? (
       <span id={noTrackId} className="rv-no-track" data-testid="show-heard-none">
-        {rtext('diagnostics.noTrack')}
+        {rtext(noTrackKey)}
       </span>
     ) : null);
   const captionLine =
@@ -407,7 +409,7 @@ export function Review(props: ReviewProps) {
         ) : null}
         <div className="rv-toolbar-end">
           {switchShown ? (
-            <span className="rv-show-heard" data-testid="show-heard" data-available={trace ? 'true' : 'false'} title={noTrack ? rtext('diagnostics.noTrack') : undefined}>
+            <span className="rv-show-heard" data-testid="show-heard" data-available={trace ? 'true' : 'false'} title={noTrack ? rtext(noTrackKey) : undefined}>
               <Toggle checked={traceShown} label={rtext('results.showHeard')} disabled={!trace} describedBy={noTrack && !props.caption ? noTrackId : undefined} onChange={setShowHeard} />
             </span>
           ) : null}

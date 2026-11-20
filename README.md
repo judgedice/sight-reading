@@ -12,11 +12,17 @@ Everything runs in the browser. There is no server, no account and no stored aud
 
 **Calibration status** stays on screen. The pill on Practice and in the read-through reads "Calibrated for {output}" once you have calibrated, and "Not calibrated" until then. Calibration lives at `#/calibrate`. Tries count as practice until you calibrate, and calibration never blocks a try. Once measured, the app takes the setup's delay off every note, so early and late are fair.
 
+**Starting pitch and count-in.** For a voice, the app first plays your starting pitch (the key chord, then your first note) on a labelled card, with the score dimmed and "Marks start at bar 1" in the strip; nothing is marked while it plays. Settings > Practice can turn it off. Then the count-in: two bars at difficulties 1 to 3, one bar above that. A track over the music has one cell per beat. The first bar is grey ("Count-in: listen to the beat"), the last is brass ("Come in after 4", or after 3, 2 or 1 when the piece starts on a pickup), then the word "Sing" or "Play".
+
+**Previous tries.** Every try is saved on the device. Practice shows the last try with "All tries", and the results show "See all tries". Both open History, where a try opens its detail: the marked score, Listen, "Hear what we heard" and the diagnostics button. The read-through has no timer in Practice mode, and "Look before you play" lists five things to spot, with no boxes to tick.
+
 **Sounds and credits.** Each instrument plays its own sampled sound. The four voice types sing an open "ah" that the app synthesises for each voice type; it is not a recording of a singer. The samples come from VSCO 2 Community Edition (CC0), Fluid R3 (MIT, with per-note renders under CC BY 3.0) and Salamander Grand Piano (CC BY 3.0). The credits screen names every source. The licence texts are in `LICENSES/`, and `docs/redesign/round2/02-sounds.md` records how each licence was checked.
 
 **Diagnostics and replay.** On the results, "Marks look wrong?" offers a button that saves a JSON file of what the app heard in that try: every note, every mark and the marks that changed after the try, and your settings and device with no names. The button reads "Send diagnostics" when a support address is set at build time (`VITE_SUPPORT_EMAIL`). The app never sends the file itself. "Share…" uses the system share sheet where the browser allows it. Settings > Data exports the last 20 tries as one file. A switch, "Keep the sound of my next tries for diagnostics", is off by default and applies from the next try. When it is on, those files include the microphone audio of the tries. This is the only stored audio the app keeps, and it is the exception to the no-stored-audio rule (PLAN R64). To replay a file with the current detector and follower, run `pnpm exec tsx tools/diagnostics/replay.ts <file.json> [--try N] [--fixture out.json]`. It prints the stored verdict and the replayed one for each written note, and marks every row that changed. A file with audio runs through the DSP worker core. A file without audio replays the traced notes through the follower and final alignment only.
 
 Eight instrument families are the launch set and are covered by the accuracy gates: flute, B♭ clarinet, alto saxophone, B♭ trumpet, violin, cello, voice (soprano, mezzo-soprano, alto, tenor, baritone and bass) and piano (single line). Sixteen more ship as data with a beta label, behind "Show more instruments (less tested)".
+
+The round 2 redesign answers the owner's fifteen points from his first real use; `docs/redesign/round2/07-final-review.md` goes through them one by one with evidence, and lists what still needs his voice and his Mac to verify.
 
 The specification is in `docs/spec/`. `docs/PLAN.md` holds the rulings that override it, and `docs/BUILD-NOTES.md` records what each work package did and what it left open.
 
@@ -140,6 +146,8 @@ The service worker caches the app shell and every corpus file it has fetched, so
 - Not in v1: Web MIDI, polyphony, playback of your own try (Listen plays the written music, never your recording), swing, accounts and sync, and a native iOS app. The one exception is the optional diagnostics sound described above.
 - Live marks at difficulties 1 to 3 are calmer on purpose (PLAN R61). The owner has not yet confirmed that rule.
 - Voices are synthesised, not sampled from a singer (PLAN R62). The owner has not yet chosen between the formant voices and the choir set.
+- The sounds were checked by what the audio graph schedules and by pitch analysis of rendered samples, not by ear.
+- The real-time browser tests that sing through the fake microphone (`e2e/loop`, `e2e/tour`) can fail under heavy CPU load. Run them on a quiet machine before reading a failure as a regression.
 
 ## Layout
 

@@ -29,7 +29,7 @@ describe('scan model', () => {
     const e4 = testExcerpt({ writtenKey: k(4), meter: { beats: 6, beatType: 8, countUnitTicks: 36, countsPerBar: 2 } });
     expect(signatureDetail(e4)).toBe('E major, 4 sharps: F♯ C♯ G♯ D♯. 6/8, felt in 2.');
     const c = testExcerpt({ writtenKey: k(0) });
-    expect(signatureDetail(c)).toBe('C major, 0 sharps. 4/4, felt in 4.');
+    expect(signatureDetail(c)).toBe('C major, no sharps or flats. 4/4, felt in 4.');
   });
 
   it('finds written accidentals against the key signature and in-bar memory', () => {

@@ -103,6 +103,13 @@ describe('Show what we heard', () => {
     expect(root.querySelector('.sr-trace')).toBeNull();
   });
 
+  it('a stored track with no pitch in it (nothing heard) says so, not that the try is old', async () => {
+    const silent: HeardTraceSource = { frames: { t: [T0, T0 + 0.02, T0 + 0.04], midi: [null, null, null] }, playback: { t0: T0 } };
+    const { root } = await render({ loadTrace: () => Promise.resolve(silent) });
+    expect(heardSwitch(root).disabled).toBe(true);
+    expect(root.querySelector('[data-testid="show-heard-none"]')!.textContent).toBe(copy('diagnostics.noTrack.silent'));
+  });
+
   it('with a trace loader, the switch appears only once the track has loaded', async () => {
     let resolve: (v: null) => void = () => undefined;
     const pending = new Promise<null>((r) => {

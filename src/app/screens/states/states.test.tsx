@@ -4,7 +4,6 @@ import type { VoidReason } from '../../../core/types.ts';
 import { copyKeys, requiredVariables } from '../../../ui/copy/copy.ts';
 import { click, mount, type Mounted } from '../../../ui/primitives/test-render.ts';
 import {
-  CalibrationMissingBanner,
   ErrorCard,
   ErrorKindScreen,
   ErrorScreen,
@@ -141,14 +140,6 @@ describe('error and empty states', () => {
     current.render(<SelectorEmpty body="Level 2 has no unseen music in 3/4 for flute yet." suggestions={[{ label: 'Set time to Random', onSelect: f }, { label: 'Practise a piece you\'ve seen', onSelect: f }]} />);
     expect(buttons()).toEqual(['Set time to Random', 'Practise a piece you\'ve seen']);
     expect(document.body.textContent).toContain('No piece fits these settings');
-  });
-  it('calibration banner never blocks: it is dismissible and carries Calibrate', () => {
-    const f = vi.fn();
-    current = mount(<CalibrationMissingBanner seconds={8} onCalibrate={f} />);
-    expect(document.body.textContent).toContain('It takes 8 seconds.');
-    click(buttonNamed('Calibrate'));
-    expect(f).toHaveBeenCalledOnce();
-    expect(document.querySelector('[aria-label="Dismiss"]')).not.toBeNull();
   });
 });
 
