@@ -533,7 +533,7 @@
         {
           "file": "B6.mp3",
           "midi": 95,
-          "tune": 0.7,
+          "tune": -5.3,
           "onset": 0.004,
           "loopStart": 0.9,
           "loopEnd": 1.85025,
@@ -1070,7 +1070,7 @@
         {
           "file": "C3.mp3",
           "midi": 48,
-          "tune": -24.7,
+          "tune": -20.6,
           "onset": 0.004,
           "loopStart": 0.9,
           "loopEnd": 1.85381,
