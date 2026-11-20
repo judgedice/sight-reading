@@ -101,6 +101,17 @@ The owner asked for a designer and a UX expert to review the built app. Their sp
 59. Listening to the excerpt before a take makes that take practice, recorded with the reason `listened-first`. The session sets this; `src/grade` is not changed. Listening after results is free.
 60. The redesign build may not touch `src/dsp`, `src/follow`, or `src/grade`.
 
+## Round 2 (R61 to R66)
+
+Specs are in `docs/redesign/round2/`. They override earlier documents for what they cover.
+
+61. At difficulties 1 to 3, only green and red marks show live, and only when the app is sure. Ghost notes and extras wait for results. This amends ruling 11 for those difficulties. Setting: `display.ghostsLive`, default from difficulty 4.
+62. Voices use the synthesised formant sets until the owner hears them and rules otherwise. No licensed solo voice recordings were found.
+63. "Try" and "tries" replace "take" and "takes" in everything the player reads. "Time signature" replaces "Time".
+64. The diagnostics export may include the try's microphone audio when the player turns the setting on. It is off by default, local, and never sent automatically. This is the only exception to ruling 9. The setting is visible in normal builds, not hidden behind a build variable. The results button saves a file; there is no email sending.
+65. The count-in stays 2 bars at difficulties 1 to 3, with a visual that makes the last bar and the entry clear.
+66. Size limits: 150 KB initial and 560 KB total of JavaScript and CSS (gzip). Sound files load per instrument on demand and are outside this limit, at most 150 KB per instrument.
+
 ## What the owner should know
 
 - Early, late, and wrong-note marks appear within about 150 ms of the note. Sharp and flat marks appear about 260 to 350 ms after the note starts, because pitch needs roughly 100 ms of steady tone after the attack before it can be measured to the cent.
