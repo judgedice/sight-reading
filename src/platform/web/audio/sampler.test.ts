@@ -87,11 +87,11 @@ describe('pick, rate and loop points', () => {
     expect(cents(at440)).toBeCloseTo(1.6, 6);
   });
 
-  it('4. below the set: tuba D1 plays the F1 sample 3 semitones down, correcting its -16.7 cent tune', () => {
+  it('4. below the set: tuba D1 plays the F1 sample 3 semitones down, correcting its -8.2 cent tune (measured over the part a held note plays)', () => {
     const s = pickSample(set('tuba').samples, 26);
     expect(s.midi).toBe(29);
-    expect(s.tune).toBeCloseTo(-16.7, 6);
-    expect(cents(playbackRateFor(26, s))).toBeCloseTo(-300 + 16.7, 6);
+    expect(s.tune).toBeCloseTo(-8.2, 6);
+    expect(cents(playbackRateFor(26, s))).toBeCloseTo(-300 + 8.2, 6);
   });
 
   it('5. a stretch-tuned piano C7 (+25.9 cents) plays at its own pitch less the stretch', () => {

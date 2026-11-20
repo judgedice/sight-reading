@@ -101,7 +101,7 @@ Measured `tune` values are mostly within ±7 cents. The exceptions:
 
 - Salamander's upper notes are stretch-tuned, by +14 cents at F♯6 and +26 at C7.
 - The choir is ±20 to 34 cents, which is ensemble detuning.
-- The tuba's F1 is −17 cents.
+- The tuba's F1 is −17 cents over 0.25 to 1.5 s, but its pitch wanders from −30 cents in the attack to +5 in the loop; the manifest now holds −8.2, measured from 0.3 s to the loop end, the part a held note plays (Listen playback review).
 
 The sampler corrects all of these.
 

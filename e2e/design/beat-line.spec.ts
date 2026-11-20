@@ -61,7 +61,7 @@ test('the beat line crosses each note when its click is heard', async ({ page },
   const onsets = await readOnsets();
   expect(onsets.length).toBeGreaterThan(4);
 
-  // Record every frame from the count-in until 5 bars into the music.
+  // Record every frame from the count-in until 7 bars into the music.
   await page.evaluate(() => {
     type Sr = { audio: { audibleNow(): number; now(): number }; session: { takeClock: { t0: number; bpm: number; countInBeats: number } | null; plan: { beatsPerBar: number } | null } };
     const w = window as unknown as { __sr: Sr; __beatLine: { samples: unknown[]; clock: unknown; done: boolean } };
@@ -88,7 +88,7 @@ test('the beat line crosses each note when its click is heard', async ({ page },
         system: shown ? Number(el.closest('svg')?.getAttribute('data-system')) : null,
       });
       const bpb = sr.session.plan?.beatsPerBar ?? 4;
-      if (c && sr.audio.audibleNow() > c.t0 + (5 * bpb * 60) / c.bpm) rec.done = true;
+      if (c && sr.audio.audibleNow() > c.t0 + (7 * bpb * 60) / c.bpm) rec.done = true;
       else requestAnimationFrame(frame);
     };
     requestAnimationFrame(frame);
@@ -146,14 +146,16 @@ test('the beat line crosses each note when its click is heard', async ({ page },
   for (const s of waiting) if (Math.abs(s.x! - first.x) > 1.5) problems.push(`count-in: line at ${s.x!.toFixed(1)}, first note at ${first.x.toFixed(1)}`);
 
   if (info.project.name.includes('reduced-motion')) {
-    // Stepping: within a beat the line does not move.
-    for (let i = 1; i < samples.length; i++) {
+    // Stepping: within a beat the line does not move. The recorder and the app's frame loop are two callbacks of the
+    // same frame and may run in either order, so the step may show one frame after the beat's first sample.
+    const beatOf = (f: Sample): number => Math.floor((f.a - clock.t0) / beatSec + 1e-6);
+    for (let i = 2; i < samples.length; i++) {
+      const o = samples[i - 2]!;
       const p = samples[i - 1]!;
       const s = samples[i]!;
       if (p.x === null || s.x === null || p.system !== s.system) continue;
-      const pb = Math.floor((p.a - clock.t0) / beatSec + 1e-6);
-      const sb = Math.floor((s.a - clock.t0) / beatSec + 1e-6);
-      if (pb === sb && Math.abs(s.x - p.x) > 0.5) problems.push(`reduced motion: moved ${(s.x - p.x).toFixed(1)} px inside beat ${sb}`);
+      const sb = beatOf(s);
+      if (beatOf(p) === sb && beatOf(o) === sb && Math.abs(s.x - p.x) > 0.5) problems.push(`reduced motion: moved ${(s.x - p.x).toFixed(1)} px inside beat ${sb}`);
     }
   }
 
