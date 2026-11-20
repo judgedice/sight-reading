@@ -1923,7 +1923,7 @@ export class PracticeSession implements PracticeSessionInstance {
     const err = e instanceof SessionError ? e : new SessionError('unknown', e instanceof Error ? e.message : String(e), { cause: e });
     this._lastError = err;
     this.stopPolling();
-    this.emit({ type: 'error', code: err.code, detail: err.message });
+    this.emit({ type: 'error', code: err.code, detail: err.message, ...(err.kind ? { kind: err.kind } : {}) });
     this.setState('error');
     return err;
   }

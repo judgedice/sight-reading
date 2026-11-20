@@ -149,6 +149,12 @@ export class MatchNoteService {
     const gen = ++this.gen;
     this.closeCapture();
     const audio = this.d.audio;
+    // After `stop` released the input and the graph, the sound needs the audio again (as `listen` does).
+    if (this.inputReleased) {
+      await audio.unlock();
+      if (gen !== this.gen) return;
+      this.inputReleased = false;
+    }
     audio.stopSounds();
     const sound: SoundSetId | undefined = hasSoundSet(instrumentId) ? soundSetFor(instrumentId).set : undefined;
     if (sound !== undefined) await audio.prepareSound(sound);

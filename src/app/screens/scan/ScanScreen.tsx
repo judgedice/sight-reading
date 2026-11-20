@@ -15,6 +15,7 @@ import { useNavigate } from '../../router.tsx';
 import type { ScreenProps } from '../../route-types.ts';
 import type { Readable } from '../home/services.ts';
 import type { CalStatus } from '../../compose/calibration-status.ts';
+import { ErrorKindScreen } from '../states/index.ts';
 import { CoverSignature } from './CoverSignature.tsx';
 import { clearHighlights, drawHighlights } from './highlights.ts';
 import { useReadable, useStoreSlice } from './hooks.ts';
@@ -452,6 +453,15 @@ export function ScanScreen(_props: ScreenProps) {
       if (svc.session.prepared && error.code !== 'corpus-load') svc.session.ensureAudio().catch(() => undefined);
       if (svc.session.retry?.() !== true) navigate('/');
     };
+    // A try that could not start (01-ux §9, 04-design §9a): the sound or the microphone screen. A blocked microphone
+    // keeps its own line, which says what to change.
+    if (error.kind && error.code !== 'mic-denied') {
+      return (
+        <section className="scan" {...routeAttrs} data-state="error" data-error={error.code} data-error-kind={error.kind}>
+          <ErrorKindScreen kind={error.kind} onTryAgain={tryAgain} onBackToPractice={() => navigate('/')} {...(svc.diagnostics ? { diagnostics: svc.diagnostics } : {})} />
+        </section>
+      );
+    }
     return (
       <section className="scan" {...routeAttrs} data-state="error" data-error={error.code}>
         <div className="scan-error" role="alert">

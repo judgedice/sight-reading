@@ -15,6 +15,8 @@ export interface StateAction {
   label: string;
   onClick: () => void;
   primary?: boolean;
+  /** A glyph before the label (Try again on the error screens). */
+  icon?: GlyphId;
 }
 
 function StateCard({ icon, tone, heading, body, steps, actions, testId }: {
@@ -175,7 +177,7 @@ export function ErrorScreen({ icon = 'caution', heading, body, steps, note, acti
       ) : null}
       <div className="err-screen-actions">
         {actions.map((a) => (
-          <Button key={a.label} label={a.label} size="hero" variant={a.primary ? 'primary' : 'secondary'} onClick={a.onClick} />
+          <Button key={a.label} label={a.label} size="hero" variant={a.primary ? 'primary' : 'secondary'} onClick={a.onClick} {...(a.icon ? { icon: a.icon } : {})} />
         ))}
       </div>
       {footer ? <div className="err-screen-footer">{footer}</div> : null}
@@ -214,7 +216,7 @@ export function ErrorKindScreen({ kind, onTryAgain, onBackToPractice, diagnostic
       body={text(t.body)}
       {...(t.kept ? { note: text('error.kept') } : {})}
       actions={[
-        { label: text('action.tryAgain'), onClick: onTryAgain, primary: true },
+        { label: text('action.tryAgain'), onClick: onTryAgain, primary: true, icon: 'retry' },
         { label: text('action.backToPractice'), onClick: onBackToPractice },
       ]}
       {...(t.diagnostics && diagnostics

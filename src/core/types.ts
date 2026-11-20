@@ -2379,7 +2379,8 @@ export type SessionEvent =
   | { type: 'progress'; events: ProgressEvent[] }
   | { type: 'tips'; tips: Tip[] }
   | { type: 'recalibrate-prompt'; routeKey: string }
-  | { type: 'error'; code: SessionErrorCode; detail?: string };
+  /** `kind`: a try that could not start because the sound did not start or the microphone did not open (round 2, 01-ux §9). */
+  | { type: 'error'; code: SessionErrorCode; detail?: string; kind?: 'audio-start' | 'mic-start' };
 
 // =====================================================================================
 // Small injected utilities (01 §4.3; implemented in P0c)

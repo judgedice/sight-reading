@@ -313,4 +313,19 @@ describe('MatchNoteService: stop', () => {
     expect(r.audio.log.captureStarts).toBe(2);
     expect(r.workers).toHaveLength(2);
   });
+
+  it('after stop, the next playTarget opens the audio again before the note plays', async () => {
+    const r = rig({});
+    const first = await playThenListen(r, 'cello');
+    await r.runTo(first.listenFrom + 0.2);
+    r.service.stop();
+    const from = r.audio.log.calls.length;
+    const start = r.audio.now() as number;
+    const played = r.service.playTarget(E3, 'cello');
+    await r.runTo(start + MATCH_NOTE.leadSec + MATCH_NOTE.durSec + MATCH_NOTE.releaseSec + 0.01);
+    await played;
+    const after = r.audio.log.calls.slice(from).map((c) => c.method);
+    expect(after.filter((m) => m === 'unlock')).toHaveLength(1);
+    expect(after.indexOf('unlock')).toBeLessThan(after.indexOf('playNotes'));
+  });
 });

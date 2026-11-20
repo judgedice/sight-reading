@@ -517,6 +517,11 @@
   margin: 0;
 }
 
+/* The sound and microphone screens: the read-through route has no page padding, so give them the page margin. */
+.scan[data-error-kind] {
+  padding: var(--space-5) max(var(--page-margin), var(--sai-right)) var(--space-5) max(var(--page-margin), var(--sai-left));
+}
+
 /* The underlying message, small, so the player can report it. */
 .scan-error-detail {
   margin: 0;

@@ -1211,11 +1211,14 @@ describe('round 2: sampled sounds, the starting pitch, what we heard, start erro
     h.be.startCapture = () => Promise.reject(named('NotReadableError'));
     await expect(h.session.startTake()).rejects.toMatchObject({ kind: 'mic-start' });
     expect(h.session.state).toBe('error');
+    // The view carries the kind, so the read-through shows the microphone screen (01-ux §9).
+    expect(h.session.view.getState().error).toMatchObject({ code: 'audio-setup', kind: 'mic-start' });
     // Audio closed between tries: the sound did not start.
     const g = await harness();
     await g.session.prepare(settings({ mode: 'practice' }));
     g.session.revealScan();
     await expect(g.session.startTake()).rejects.toMatchObject({ code: 'audio-setup', kind: 'audio-start' });
+    expect(g.session.view.getState().error).toMatchObject({ code: 'audio-setup', kind: 'audio-start' });
   }, 30_000);
 
   it('every note plays in the instrument\'s sampled sound: range note, key chord, Listen, Hear bar', async () => {

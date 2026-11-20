@@ -42,7 +42,8 @@ export interface SessionView {
   tips: Tip[];
   progress: ProgressEvent[];
   voidReason: VoidReason | null;
-  error: { code: SessionErrorCode; detail?: string } | null;
+  /** `kind` is set when a try could not start: the sound (`audio-start`) or the microphone (`mic-start`). */
+  error: { code: SessionErrorCode; detail?: string; kind?: 'audio-start' | 'mic-start' } | null;
   emptyPoolSuggestions: Partial<PracticeSettings>[] | null;
   /** Route key whose calibration the results screen should offer to redo (R31). */
   recalibrateRouteKey: string | null;
@@ -111,7 +112,7 @@ export function reduceSessionView(v: SessionView, e: SessionEvent): SessionView 
     case 'recalibrate-prompt':
       return { ...v, recalibrateRouteKey: e.routeKey };
     case 'error':
-      return { ...v, error: e.detail !== undefined ? { code: e.code, detail: e.detail } : { code: e.code } };
+      return { ...v, error: { code: e.code, ...(e.detail !== undefined ? { detail: e.detail } : {}), ...(e.kind ? { kind: e.kind } : {}) } };
   }
 }
 

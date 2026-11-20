@@ -516,6 +516,7 @@ export function composeApp(rt: AppRuntime): ComposedApp {
     hearKey: () => session.hearKey(),
     hearStartingPitch: () => session.playVoiceReference(),
     calibrationStatus,
+    diagnostics,
     stopSounds,
     sounds,
   };

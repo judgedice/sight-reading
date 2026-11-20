@@ -150,6 +150,37 @@ describe('Cover', () => {
     expect($('[data-testid="screen-practice.scan"]').getAttribute('data-state')).toBe('scanning');
   });
 
+  it.each([
+    ['audio-start', 'audio-setup', 'error.audioStart.title', 'error.audioStart.body'],
+    ['mic-start', 'mic-not-found', 'error.micStart.title', 'error.micStart.body'],
+  ] as const)('a try whose %s failed shows its own screen; Try again retries the start', async (kind, code, title, body) => {
+    const h = harness();
+    render(h);
+    await reveal(h);
+    act(() => {
+      h.session.emitState('error');
+      h.view.setState({ error: { code, detail: 'x', kind } });
+    });
+    const screen = $(`[data-testid="error-screen-${kind}"]`);
+    expect(screen.textContent).toContain(copy(title));
+    expect(screen.textContent).toContain(copy(body));
+    expect(screen.textContent).toContain(copy('error.kept'));
+    expect(document.body.textContent).not.toMatch(/wrong speed/i);
+    const calls = h.session.ensureAudio.mock.calls.length;
+    click(button(copy('action.tryAgain')));
+    expect(h.session.ensureAudio).toHaveBeenCalledTimes(calls + 1);
+    expect(h.session.retry).toHaveBeenCalledTimes(1);
+    expect($('[data-testid="screen-practice.scan"]').getAttribute('data-state')).toBe('scanning');
+  });
+
+  it('a blocked microphone keeps its own line, not the microphone-didn\'t-open screen', () => {
+    const h = harness();
+    act(() => h.view.setState({ error: { code: 'mic-denied', kind: 'mic-start' } }));
+    render(h);
+    expect($('[role="alert"]').textContent).toContain(copy('permission.denied.title'));
+    expect(document.querySelector('[data-testid="error-screen-mic-start"]')).toBeNull();
+  });
+
   it('Start playing reopens audio inside the tap before it starts the take', async () => {
     const h = harness();
     render(h);
