@@ -4,7 +4,8 @@
 //   total   = every .js and .css file
 // Font assets (PLAN ruling 53): every .woff2 is reported separately by its file size (already compressed) and must be at
 // most 260 KB each; fonts do not count toward the JavaScript and CSS budgets.
-// Limits: 150 KB gzip initial, 500 KB gzip total (1 KB = 1000 bytes). Pass --dist <dir> to measure an existing build.
+// Limits (PLAN ruling 66): 150 KB gzip initial, 560 KB gzip total (1 KB = 1000 bytes). Sound files under
+// public/sounds load per instrument on demand and are not counted. Pass --dist <dir> to measure an existing build.
 // Exits 1 over budget.
 
 import { execFileSync } from 'node:child_process';
@@ -13,7 +14,7 @@ import { join, posix } from 'node:path';
 import { gzipSync } from 'node:zlib';
 
 export const INITIAL_LIMIT = 150_000;
-export const TOTAL_LIMIT = 500_000;
+export const TOTAL_LIMIT = 560_000;
 export const FONT_LIMIT = 260_000;
 
 function walk(dir: string): string[] {

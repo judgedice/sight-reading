@@ -5,6 +5,7 @@ import type { KeyValue, StoreRepos } from '../../../core/platform.ts';
 import { defaultAppSettings } from '../../../store/defaults.ts';
 import { summarizeAttempt } from '../../../store/summary.ts';
 import { KV_SETTINGS } from '../../../store/keys.ts';
+import { normaliseSettings } from '../../../store/settings-read.ts';
 
 export const DB_NAME = 'srt';
 export const DB_VERSION = 1;
@@ -126,9 +127,10 @@ export class IdbRepos implements StoreRepos {
   };
 
   readonly settings: StoreRepos['settings'] = {
+    /** Older records read with the round-2 defaults and the player's metronome sound (settings-read.ts). */
     get: async () => {
       const v = await this.db.get('kv', KV_SETTINGS);
-      return v === undefined ? defaultAppSettings() : (v as unknown as AppSettings);
+      return v === undefined ? defaultAppSettings() : normaliseSettings(v as unknown as AppSettings);
     },
     put: async (s) => {
       await this.db.put('kv', s as unknown as JsonValue, KV_SETTINGS);

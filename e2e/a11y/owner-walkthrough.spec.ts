@@ -53,7 +53,7 @@ test('a baritone picks a voice, sees the range, sets key and time, hears the pit
   if (phone) await page.getByRole('button', { name: /^Difficulty:/ }).click();
   for (let i = 0; i < 3; i++) await page.getByRole('button', { name: /Increase Difficulty/ }).click();
   if (phone) await page.getByRole('button', { name: 'Done' }).click();
-  if (phone) await page.getByRole('button', { name: /^Time:/ }).click();
+  if (phone) await page.getByRole('button', { name: /^Time signature:/ }).click();
   const time = page.locator('[data-setup-row="time"]').getByRole('radio');
   const timeCount = await time.count();
   expect(timeCount).toBeGreaterThanOrEqual(2);

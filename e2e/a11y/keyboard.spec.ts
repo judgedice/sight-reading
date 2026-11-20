@@ -136,7 +136,7 @@ test('radio groups: one Tab stop, arrows, Home and End (onboarding, Practice, se
 test('radio groups in the phone setup sheet', async ({ page }, info) => {
   test.skip(!isPhone(info.project.name), 'the sheet is the phone layout');
   await onboardWithVisits(page, async () => undefined);
-  for (const row of [/^Key:/, /^Time:/, /^Length:/]) {
+  for (const row of [/^Key:/, /^Time signature:/, /^Length:/]) {
     await page.getByRole('button', { name: row }).click();
     await expect(page.getByRole('dialog')).toBeVisible();
     await page.waitForTimeout(500);
@@ -179,7 +179,7 @@ test('the instrument dialog and the phone setup sheet move focus in and give it 
   if (!phone) return;
 
   // The setup sheet, from each chip: focus lands on the chosen row's control, and Escape returns it to the chip.
-  for (const [name, row] of [[/^Key:/, 'key'], [/^Time:/, 'time'], [/^Difficulty:/, 'difficulty'], [/^Length:/, 'length']] as const) {
+  for (const [name, row] of [[/^Key:/, 'key'], [/^Time signature:/, 'time'], [/^Difficulty:/, 'difficulty'], [/^Length:/, 'length']] as const) {
     const chip = page.getByRole('button', { name });
     await chip.focus();
     await page.keyboard.press('Enter');

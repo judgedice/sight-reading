@@ -9,7 +9,7 @@ import { makeAttempt, makeCalibration, makeProfile, makeScore } from '../../../s
 import { LocalStorageMirror } from './local-mirror.ts';
 import { openStore, type OpenedStore } from './idb-repos.ts';
 import { requestPersistOnce } from './persist.ts';
-import type { AttemptRecord } from '../../../core/types.ts';
+import type { AppSettings, AttemptRecord } from '../../../core/types.ts';
 
 let s: OpenedStore;
 beforeEach(async () => {
@@ -32,6 +32,18 @@ describe('profile and settings', () => {
     const next = { ...defaultAppSettings(), onboardingDone: true };
     await s.repos.settings.put(next);
     expect(await s.repos.settings.get()).toEqual(next);
+  });
+  it('a record stored before round 2 reads with the round-2 defaults and the mapped metronome sound', async () => {
+    const d = defaultAppSettings();
+    const { autoReference: _a, ...practice } = d.practice;
+    const { ghostsLive: _g, showHeard: _h, ...display } = d.display;
+    const old = { ...d, practice: { ...practice, clickTimbre: 'tick' }, display } as unknown as AppSettings;
+    await s.repos.settings.put(old);
+    const got = await s.repos.settings.get();
+    expect(got.practice.autoReference).toBe(true);
+    expect(got.practice.clickTimbre).toBe('classic');
+    expect(got.display.ghostsLive).toBe('from4');
+    expect(got.display.showHeard).toBe(false);
   });
 });
 

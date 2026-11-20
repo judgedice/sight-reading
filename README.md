@@ -44,7 +44,7 @@ pnpm lint            # ESLint with module boundaries, Stylelint, dependency cycl
 pnpm lint:copy       # every copy key in src/ui/copy is used
 pnpm test            # Vitest unit and integration tests, plus a fast subset of the accuracy gates
 pnpm test:bare       # pure packages bundled and run with only ES2022 globals, compared byte for byte with Node
-pnpm size            # bundle budget: 150 KB gzip initial, 500 KB gzip total, music font 260 KB
+pnpm size            # bundle budget: 150 KB gzip initial, 560 KB gzip total, music font 260 KB
 pnpm gates           # full synthetic accuracy gates, about 6 minutes on 4 cores
 pnpm corpus:check    # validates the shipped corpus in public/corpus/v1
 pnpm validators:check  # the precompiled backup-file validator matches schemas/ (`pnpm validators` regenerates it)
