@@ -21,21 +21,25 @@ export function readMetronomeSound(stored: unknown): MetronomeSound {
 export function normaliseSettings(s: AppSettings): AppSettings {
   const sound = readMetronomeSound(s.practice.clickTimbre);
   const d = defaultAppSettings();
-  const ghosts = s.display.ghostsLive === 'from4' || s.display.ghostsLive === 'always' || s.display.ghostsLive === 'never';
-  const practiceOk = s.practice.clickTimbre === sound && typeof s.practice.autoReference === 'boolean';
-  const displayOk = ghosts && typeof s.display.showHeard === 'boolean';
-  if (practiceOk && displayOk) return s;
+  const g = s.display.ghostsLive;
+  const ghostsLive = g === 'from4' || g === 'always' || g === 'never' ? g : d.display.ghostsLive;
+  const showHeard = typeof s.display.showHeard === 'boolean' ? s.display.showHeard : d.display.showHeard;
+  const autoReference = typeof s.practice.autoReference === 'boolean' ? s.practice.autoReference : d.practice.autoReference;
+  if (
+    s.practice.clickTimbre === sound &&
+    s.practice.autoReference === autoReference &&
+    s.display.ghostsLive === ghostsLive &&
+    s.display.showHeard === showHeard
+  ) {
+    return s;
+  }
   return {
     ...s,
-    practice: practiceOk
-      ? s.practice
-      : { ...s.practice, clickTimbre: sound, autoReference: typeof s.practice.autoReference === 'boolean' ? s.practice.autoReference : d.practice.autoReference },
-    display: displayOk
-      ? s.display
-      : {
-          ...s.display,
-          ghostsLive: ghosts ? s.display.ghostsLive : d.display.ghostsLive,
-          showHeard: typeof s.display.showHeard === 'boolean' ? s.display.showHeard : d.display.showHeard,
-        },
+    practice: { ...s.practice, clickTimbre: sound, ...(autoReference === undefined ? {} : { autoReference }) },
+    display: {
+      ...s.display,
+      ...(ghostsLive === undefined ? {} : { ghostsLive }),
+      ...(showHeard === undefined ? {} : { showHeard }),
+    },
   };
 }
