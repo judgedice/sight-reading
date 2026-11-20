@@ -2,11 +2,15 @@
 // settings, results and tips after each, history, settings, export and import, and a reload. Checks that every take
 // ends and lands on a graded result, that no raw copy key or console error appears, that a ranked request without a
 // measured calibration is recorded as unranked, and that history and settings survive a reload and an import.
+// Round 2 additions: the difficulty stepper, "tries today" counted the same on Practice and in History, the words round 2
+// replaced (e2e/a11y/copy-match.ts `oldWordsIn`) on every screen, and the diagnostics for the recent tries saved from
+// Settings > Data.
 // Run with -c e2e/tour/playwright.tour.config.ts (the tour's fake microphone and production build).
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import { loadLoopHelpers } from '../loop/bundle.ts';
+import { oldWordsIn } from '../a11y/copy-match.ts';
 import { chooseMode, chooseOutput, LOOP_T0_SEC, pagePlan, watchErrors } from '../loop/flow.ts';
 
 test.skip(process.env['E2E_TOUR'] !== '1', 'run with -c e2e/tour/playwright.tour.config.ts');
@@ -31,15 +35,27 @@ interface SessionRecord {
 const record = (page: Page): Promise<SessionRecord | null> =>
   page.evaluate(() => (window as unknown as { __sr: { session: { record: SessionRecord | null } } }).__sr.session.record);
 
-/** Picks a random enabled option of a select (by accessible name) other than the current one, when there is one. */
-async function pickRandom(page: Page, name: string, rnd: () => number): Promise<string | null> {
-  const sel = page.getByTestId('screen-home').getByRole('combobox', { name, exact: true });
-  if ((await sel.count()) === 0 || !(await sel.isEnabled())) return null;
-  const values = await sel.evaluate((el) => Array.from((el as HTMLSelectElement).options).filter((o) => !o.disabled).map((o) => o.value));
-  if (values.length === 0) return null;
-  const v = values[Math.floor(rnd() * values.length)]!;
-  await sel.selectOption(v);
-  return v;
+/** Moves the Difficulty stepper by a random 0 to 3 steps up (the phone's stepper is in the setup sheet). */
+async function pickDifficulty(page: Page, rnd: () => number): Promise<number> {
+  const phone = (page.viewportSize()?.width ?? 1280) < 1024;
+  const home = page.getByTestId('screen-home');
+  let scope: Locator = home;
+  if (phone) {
+    await page.locator('[data-chip="difficulty"]').click();
+    scope = page.getByTestId('setup-sheet');
+  }
+  const steps = Math.floor(rnd() * 4);
+  for (let i = 0; i < steps; i++) {
+    const up = scope.getByRole('button', { name: /Increase Difficulty/ });
+    if (!(await up.isEnabled())) break;
+    await up.click();
+  }
+  const shown = await scope.getByText(/^\d+\s*of 10$|^\d+$/).first().innerText().catch(() => '');
+  if (phone) {
+    await page.getByRole('dialog').getByRole('button', { name: 'Done', exact: true }).click();
+    await expect(page.getByTestId('setup-sheet')).toHaveCount(0);
+  }
+  return Number.parseInt(shown, 10) || steps;
 }
 
 test('first-time user: three takes on three instruments, results, tips, history, settings, export, import, reload', async ({ page }, info) => {
@@ -50,6 +66,12 @@ test('first-time user: three takes on three instruments, results, tips, history,
   const issues: string[] = [];
   const check = async (where: string): Promise<void> => {
     for (const k of await rawKeys(page)) issues.push(`${where}: raw copy key ${k}`);
+    const lines = await page.evaluate(() => {
+      const out = document.body.innerText.split('\n');
+      for (const el of Array.from(document.querySelectorAll('[aria-label], [title]'))) for (const a of ['aria-label', 'title']) if (el.getAttribute(a)) out.push(el.getAttribute(a)!);
+      return out.map((l) => l.replace(/\s+/g, ' ').trim()).filter(Boolean);
+    });
+    for (const line of lines) for (const what of oldWordsIn(line)) issues.push(`${where}: ${what} on screen: ${line}`);
   };
   let seed = 20261118 + info.project.name.length;
   const rnd = (): number => {
@@ -94,7 +116,7 @@ test('first-time user: three takes on three instruments, results, tips, history,
     await card.click();
     await page.getByRole('button', { name: 'Done', exact: true }).click();
     await expect(card).toHaveCount(0);
-    const level = await pickRandom(page, 'Difficulty', rnd);
+    const level = await pickDifficulty(page, rnd);
     await chooseMode(page, t.mode);
     await check(`home before take ${i + 1}`);
     await page.getByRole('button', { name: 'Start', exact: true }).click();
@@ -173,6 +195,24 @@ test('first-time user: three takes on three instruments, results, tips, history,
     return -1;
   };
   expect(attemptsIn(exported)).toBe(3);
+
+  // "Tries today" is one number everywhere: Practice's line and History's day group both count the three tries.
+  await page.evaluate(() => { window.location.hash = '#/'; });
+  await expect(page.getByTestId('today-line')).toContainText('3 tries', { timeout: 10_000 });
+  await page.evaluate(() => { window.location.hash = '#/history'; });
+  await expect(page.getByTestId('screen-history')).toContainText(/3 tries/, { timeout: 10_000 });
+
+  // The diagnostics for the recent tries: one file, all three tries, no sound.
+  await page.evaluate(() => { window.location.hash = '#/settings/data'; });
+  const diagBtn = page.getByRole('button', { name: 'Export diagnostics', exact: true });
+  await expect(diagBtn).toBeVisible({ timeout: 10_000 });
+  const [diagDownload] = await Promise.all([page.waitForEvent('download'), diagBtn.click()]);
+  const diagFile = join(info.outputDir, 'diagnostics.json');
+  await diagDownload.saveAs(diagFile);
+  const diag = JSON.parse(readFileSync(diagFile, 'utf8')) as { format: string; tries: { audio?: unknown }[] };
+  expect(diag.format).toBe('sightread-diagnostics');
+  expect(diag.tries).toHaveLength(3);
+  expect(diag.tries.every((t) => t.audio === undefined)).toBe(true);
 
   // Reload: still past onboarding, history kept.
   await page.reload();

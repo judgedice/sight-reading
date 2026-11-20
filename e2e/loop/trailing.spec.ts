@@ -10,7 +10,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import { chooseMode, chooseOutput, LOOP_T0_SEC, pagePlan, watchErrors } from './flow.ts';
-import { installLiveWatch, liveMarks, writeTrailingWav } from './trail.ts';
+import { installLiveWatch, liveMarks, trailingVoice, writeTrailingWav, planWithoutPickup } from './trail.ts';
 
 test.skip(process.env['E2E_LOOP'] !== '1', 'run with -c e2e/loop/playwright.loop.config.ts');
 
@@ -54,9 +54,9 @@ test('trailing voice at difficulty 1: no purple mark during the try, no extra in
   await expect(scan.locator('[data-expected-idx]').first()).toBeVisible({ timeout: 30_000 });
   await expect.poll(() => page.evaluate(() => document.fonts.check('30pt Bravura')), { timeout: 15_000 }).toBe(true);
 
+  const plan = await planWithoutPickup(page, pagePlan);
   const served = await page.evaluate(() => (window as unknown as { __sr: { session: { prepared: { levelServed: number } | null } } }).__sr.session.prepared?.levelServed);
   expect(served).toBe(1);
-  const plan = await pagePlan(page);
   expect(plan.instrumentId).toBe('voice-baritone');
   writeTrailingWav(wav, plan, LOOP_T0_SEC);
   info.annotations.push({ type: 'take', description: `bpm ${plan.bpm}, ${plan.expected.length} notes, ends ${plan.endSec.toFixed(1)} s` });
@@ -79,11 +79,10 @@ test('trailing voice at difficulty 1: no purple mark during the try, no extra in
   const record = await page.evaluate(() => (window as unknown as { __sr: { session: { record: { extras: unknown[]; score: { score: number } | null; judgments: { status: string }[] } | null } } }).__sr.session.record);
   expect(record?.score).not.toBeNull();
   if (record!.extras.length > 0) {
-    const near = (t: number): string => plan.expected.filter((e) => Math.abs(e.onsetSec + LOOP_T0_SEC - t) < 1.5).map((e) => `#${e.idx} midi ${e.concertMidi} ${(e.onsetSec + LOOP_T0_SEC).toFixed(2)}+${e.durSec.toFixed(2)}`).join('; ');
-    const det = await page.evaluate(() => (window as unknown as { __sr: { session: { record: { detected: { id: number; onset: number; offset: number | null; midi: number; steadyMs: number; onsetCause: string; framesAgree: boolean }[] } | null } } }).__sr.session.record?.detected ?? []);
     const t = (record!.extras[0] as { onsetSec: number }).onsetSec;
-    process.stdout.write(`DET ${det.filter((d) => Math.abs(d.onset - t) < 2.5).map((d) => `${d.id}:${d.onset.toFixed(2)}-${d.offset?.toFixed(2)} m${d.midi.toFixed(1)} steady${d.steadyMs} ${d.onsetCause} ${d.framesAgree}`).join('\n    ')}\n`);
-    process.stdout.write(`EXTRAS ${JSON.stringify(record!.extras)}\nNEAR ${near((record!.extras[0] as { onsetSec: number }).onsetSec)}\nBPM ${plan.bpm}\n`);
+    const near = plan.expected.filter((e) => Math.abs(e.onsetSec - t) < 2).map((e) => `#${e.idx} m${e.concertMidi} ${e.onsetSec.toFixed(2)}+${e.durSec.toFixed(2)} ${e.onsetKind}`).join('\n    ');
+    const voiced = trailingVoice(plan, 0).filter((v) => Math.abs(v.start - t) < 2).map((v) => `m${v.midi.toFixed(1)} ${v.start.toFixed(2)}-${v.hold.toFixed(2)}-${v.end.toFixed(2)} scoop${v.scoop} tail${v.tail}`).join('\n    ');
+    process.stdout.write(`EXTRAS ${JSON.stringify(record!.extras)}\nNEAR\n    ${near}\nVOICED\n    ${voiced}\nBPM ${plan.bpm}\n`);
   }
   expect(record!.extras, 'extra notes in the record').toEqual([]);
   expect(await results.getByTestId('res-counts').innerText()).not.toMatch(/extra/i);

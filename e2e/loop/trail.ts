@@ -3,19 +3,21 @@
 // voice trails off. The owner's marks at the start of a try came partly from this: the app heard the tail as a new
 // note and drew an extra. Node side only; the specs write the result as the fake microphone's WAV.
 //
-// The model, per written note (times in score seconds, from `perform()`):
-// - Scoop. A short lead-in 1 semitone under the note, 70 ms, glided into the note. Left out when the note follows the
-//   previous one too closely to fit it.
-// - Tail. After the note ends the pitch falls 1.6 semitones over about 220 ms while the level drops: three joined
-//   steps (0.5, 1.1 and 1.6 semitones under), each a glide from the one before and quieter: 6, 12 and 20 dB under the note,
-//   the way a voice dies away at the end of a phrase (03-detection: ends that fall 40 to 200 cents while the level dies). Cut short to the gap
-//   before the next note; left out when that gap is under 100 ms (the tail then sits inside the next note's attack).
+// The voice is its own small additive synth, because the testkit's performance renderer has no pitch contour: the
+// harmonic balance is the testkit's sung "ah" (`TIMBRES.voice`), the pitch and the level follow a contour per note.
+//   - Scoop. The note starts 80 cents under its pitch and rises into it over 80 ms. Left out on a note that is slurred
+//     from the one before.
+//   - Steady part. Vibrato of 20 cents at 5.5 Hz after 200 ms.
+//   - Tail. After the written end the pitch falls 160 cents over 220 ms while the level falls 24 dB (03-detection:
+//     "ends that fall or wobble 40 to 200 cents while the level dies"). Cut short to the gap before the next note; with
+//     under 100 ms of gap the voice just stops.
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
-import type { Page } from '@playwright/test';
+import { expect, type Page } from '@playwright/test';
 import type { ExpectedNote } from '../../src/core/types.ts';
 import { perform } from '../../fixtures/follow/gen/perform.ts';
-import { renderPerformance, type SynthNoteSpec } from '../../src/testkit/synth/index.ts';
+import { createRng } from '../../src/core/rng.ts';
+import { harmonicAmps, midiToHz, renderPerformance, TIMBRES } from '../../src/testkit/synth/index.ts';
 import { encodeWav } from '../../src/testkit/wav.ts';
 
 /** Headless Chromium runs its AudioContext at 44.1 kHz; a file at that rate avoids a resampler in the fake device. */
@@ -29,62 +31,95 @@ export interface TrailPlan {
   expected: ExpectedNote[];
 }
 
-/** The shape of the trail: semitones under the note, and the time each part takes. */
+/** The shape of the trail. Cents, seconds and dB. */
 export const TRAIL = {
-  scoopSemis: 1,
-  scoopSec: 0.07,
-  /** The gap a scoop needs before the note, seconds. */
-  scoopGapSec: 0.12,
-  /** Cumulative semitones under the note after each step of the tail, and the level of each step. */
-  tailSemis: [0.5, 1.1, 1.6],
-  tailAmp: [0.5, 0.25, 0.1],
-  tailStepSec: 0.073,
-  /** The gap a tail needs after the note, seconds. */
-  tailGapSec: 0.1,
+  scoopCents: 80,
+  scoopSec: 0.08,
+  /** The voice starts this long before the written onset (0: the scoop starts at the onset, as a singer's does). */
+  leadSec: 0,
+  attackSec: 0.04,
+  vibratoHz: 5.5,
+  vibratoCents: 20,
+  vibratoAfterSec: 0.2,
+  tailCents: 160,
+  tailSec: 0.22,
+  tailDropDb: 24,
+  /** A tail needs this much room before the next voiced start, seconds. */
+  tailRoomSec: 0.1,
+  /** A note with no tail stops with this release, seconds. */
+  releaseSec: 0.04,
+  /** Level of the steady voice, dBFS, and the room's noise floor. */
+  levelDb: -28,
+  floorDb: -62,
 } as const;
 
-function note(midi: number, onsetSec: number, durSec: number, ref: number, extra: Partial<SynthNoteSpec> = {}): SynthNoteSpec {
-  const whole = Math.round(midi);
-  return { midi: whole, cents: Math.round((midi - whole) * 100 * 1000) / 1000, onsetSec, durSec: Math.max(0.02, durSec), ref, ...extra };
+interface Voiced {
+  /** Voiced start and end, seconds (the tail included). */
+  start: number;
+  /** Written end: where the steady part stops and the tail begins. */
+  hold: number;
+  end: number;
+  midi: number;
+  scoop: boolean;
+  tail: boolean;
 }
 
-/** Every note of the plan as written (no mistakes), with a scoop in front and a tail behind. */
-export function trailingNotes(plan: TrailPlan, offsetSec: number): SynthNoteSpec[] {
+/** The voiced stretches of the plan's notes, in order, with room checks against their neighbours. */
+export function trailingVoice(plan: TrailPlan, offsetSec: number): Voiced[] {
   const played = perform(plan.expected, plan.beatsPerBar, plan.bpm, { mods: {} });
-  const out: SynthNoteSpec[] = [];
-  const plain = process.env['TRAIL_PLAIN'] === '1';
+  const out: Voiced[] = [];
   played.forEach((p, k) => {
-    if (plain) { out.push(note(p.midi, offsetSec + p.onset, p.dur, k, { slur: p.legato })); return; }
     const onset = offsetSec + p.onset;
-    const prevEnd = k > 0 ? offsetSec + played[k - 1]!.onset + played[k - 1]!.dur : Number.NEGATIVE_INFINITY;
-    const nextOnset = k + 1 < played.length ? offsetSec + played[k + 1]!.onset : Number.POSITIVE_INFINITY;
-    const end = onset + p.dur;
-    if (onset - prevEnd >= TRAIL.scoopGapSec) {
-      out.push(note(p.midi - TRAIL.scoopSemis, onset - TRAIL.scoopSec, TRAIL.scoopSec, k));
-      out.push(note(p.midi, onset, p.dur, k, { slur: true }));
-    } else {
-      out.push(note(p.midi, onset, p.dur, k, { slur: p.legato }));
-    }
-    const room = nextOnset - end;
-    if (room >= TRAIL.tailGapSec) {
-      const step = Math.min(TRAIL.tailStepSec, (room - 0.03) / TRAIL.tailSemis.length);
-      TRAIL.tailSemis.forEach((semis, i) => out.push(note(p.midi - semis, end + i * step, step, k, { slur: true, amp: TRAIL.tailAmp[i]! })));
-    }
+    const hold = onset + p.dur;
+    const nextStart = k + 1 < played.length ? offsetSec + played[k + 1]!.onset - TRAIL.leadSec : Number.POSITIVE_INFINITY;
+    const room = nextStart - hold;
+    const tail = !played[k + 1]?.legato && room >= TRAIL.tailRoomSec;
+    const tailSec = tail ? Math.min(TRAIL.tailSec, room - 0.02) : TRAIL.releaseSec;
+    out.push({ start: onset - TRAIL.leadSec, hold, end: hold + tailSec, midi: p.midi, scoop: !p.legato, tail });
   });
   return out;
 }
 
 /** Writes the trailing take as a mono WAV: silence, then bar 1 beat 1 at `offsetSec`, then a second of silence. */
 export function writeTrailingWav(path: string, plan: TrailPlan, offsetSec: number): void {
-  const samples = renderPerformance({
-    timbre: 'voice',
-    notes: trailingNotes(plan, offsetSec),
-    sampleRate: TRAIL_WAV_RATE,
-    durationSec: offsetSec + plan.endSec + 1.5,
-    seed: 17,
-  }).samples;
+  const sr = TRAIL_WAV_RATE;
+  const n = Math.round((offsetSec + plan.endSec + 1.5) * sr);
+  const out = new Float64Array(n);
+  const rng = createRng(17);
+  const gain = 10 ** (TRAIL.levelDb / 20) / Math.SQRT2;
+  const voiced = trailingVoice(plan, offsetSec);
+  for (const v of voiced) {
+    const f0 = midiToHz(v.midi);
+    const amps = harmonicAmps(TIMBRES.voice, f0);
+    const from = Math.max(0, Math.floor(v.start * sr));
+    const to = Math.min(n, Math.ceil(v.end * sr));
+    const tailLen = v.end - v.hold;
+    const phase = rng.next() * 2 * Math.PI;
+    let acc = 0;
+    for (let i = from; i < to; i++) {
+      const t = i / sr;
+      const age = t - v.start;
+      let cents = 0;
+      let level = 1;
+      if (v.scoop && age < TRAIL.scoopSec) cents -= TRAIL.scoopCents * (1 - 0.5 * (1 - Math.cos((Math.PI * age) / TRAIL.scoopSec)));
+      if (age > TRAIL.vibratoAfterSec && t < v.hold) cents += TRAIL.vibratoCents * Math.sin(2 * Math.PI * TRAIL.vibratoHz * (age - TRAIL.vibratoAfterSec));
+      if (age < TRAIL.attackSec) level *= age / TRAIL.attackSec;
+      if (t >= v.hold) {
+        const u = Math.min(1, (t - v.hold) / tailLen);
+        if (v.tail) cents -= TRAIL.tailCents * (0.5 * (1 - Math.cos(Math.PI * u)));
+        level *= 10 ** ((-(v.tail ? TRAIL.tailDropDb : 40) * u) / 20);
+      }
+      acc += (2 * Math.PI * f0 * 2 ** (cents / 1200)) / sr;
+      let s = 0;
+      for (let h = 1; h <= amps.length; h++) s += (amps[h - 1] as number) * Math.sin(h * (acc + phase));
+      out[i] = (out[i] as number) + s * gain * level;
+    }
+  }
+  const floor = 10 ** (TRAIL.floorDb / 20);
+  const samples = new Float32Array(n);
+  for (let i = 0; i < n; i++) samples[i] = (out[i] as number) + floor * (rng.next() * 2 - 1);
   mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(path, encodeWav({ sampleRate: TRAIL_WAV_RATE, channels: [samples] }));
+  writeFileSync(path, encodeWav({ sampleRate: sr, channels: [samples] }));
 }
 
 /** One steady sung note from the start of the file (Match a note: the microphone opens after the target has sounded). */
@@ -149,4 +184,24 @@ export async function installLiveWatch(page: Page): Promise<void> {
 export async function liveMarks(page: Page, onlyInPlay = true): Promise<LiveMark[]> {
   const all = await page.evaluate(() => (window as unknown as { __liveMarks?: LiveMark[] }).__liveMarks ?? []);
   return onlyInPlay ? all.filter((m) => m.inPlay) : all;
+}
+
+/**
+ * The plan of the piece on the read-through, re-rolling the piece (back to Practice, Start, Show the music) while it
+ * begins on a pickup. A sung pickup lands on the last count-in click, where the own-playback rules of the follower
+ * (03-detection section 1) are in play; the trailing checks are about tails inside the music, so they use a piece that
+ * starts on beat 1. At difficulty 1 most pieces do.
+ */
+export async function planWithoutPickup<P extends TrailPlan>(page: Page, read: (page: Page) => Promise<P>, attempts = 8): Promise<P> {
+  for (let i = 0; i < attempts; i++) {
+    const plan = await read(page);
+    if (plan.expected.every((e) => e.onsetBeat >= 0)) return plan;
+    await page.evaluate(() => { window.location.hash = '#/'; });
+    await expect(page.getByTestId('screen-home')).toBeVisible({ timeout: 15_000 });
+    await page.getByRole('button', { name: 'Start', exact: true }).click();
+    await expect(page.getByTestId('scan-cover')).toBeVisible({ timeout: 30_000 });
+    await page.getByRole('button', { name: 'Show the music' }).click();
+    await expect(page.getByTestId('screen-practice.scan').locator('[data-expected-idx]').first()).toBeVisible({ timeout: 30_000 });
+  }
+  throw new Error(`no piece without a pickup in ${attempts} tries`);
 }

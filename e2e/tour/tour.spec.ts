@@ -4,12 +4,15 @@
 // in practice, the results, "One thing to try" when a take earns a tip, and Settings > Sound previews. One take is
 // played through Chromium's fake capture with one note 2 semitones sharp and one note late; the spec checks on screen
 // that the wrong and the late note turn red live with no ghost (difficulty 1, PLAN ruling 61), and that the results
-// score draws the ghosts.
+// score draws the ghosts. Round 2 steps: the calibration status, "Play my range" in the picker, Match a note, "Look
+// before you play", the results' "See all tries", the try detail with "Hear what we heard", the diagnostics dialog and
+// Settings > Data. Every screen is checked for the words round 2 replaced (e2e/a11y/copy-match.ts `oldWordsIn`).
 // Run with -c e2e/tour/playwright.tour.config.ts.
 import { mkdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { loadLoopHelpers } from '../loop/bundle.ts';
+import { oldWordsIn } from '../a11y/copy-match.ts';
 import { chooseMode, chooseOutput, LOOP_T0_SEC, pagePlan, watchErrors } from '../loop/flow.ts';
 
 test.skip(process.env['E2E_TOUR'] !== '1', 'run with -c e2e/tour/playwright.tour.config.ts');
@@ -43,6 +46,20 @@ async function rawKeys(page: Page): Promise<string[]> {
     .split('\n')
     .map((l) => l.trim())
     .filter((l) => RAW_KEY.test(l) && !/\s/.test(l) && !/^https?:|\.(?:json|com|org|net)$|^\d/.test(l));
+}
+
+/** Everything a player or a screen reader is given on the page: its text, labels and tooltips, line by line. */
+async function pageLines(page: Page): Promise<string[]> {
+  return page.evaluate(() => {
+    const lines = document.body.innerText.split('\n');
+    for (const el of Array.from(document.querySelectorAll('[aria-label], [title]'))) {
+      for (const a of ['aria-label', 'title']) {
+        const v = el.getAttribute(a);
+        if (v) lines.push(v);
+      }
+    }
+    return lines.map((l) => l.replace(/\s+/g, ' ').trim()).filter(Boolean);
+  });
 }
 
 /** Elements wider than the viewport (horizontal overflow) other than intentional scrollers. */
@@ -84,6 +101,7 @@ test('screen tour: onboarding, home, scan, take with a wrong and a late note, re
     await page.screenshot({ path: join(dir, `${String(n).padStart(2, '0')}-${name}.png`), fullPage, animations: 'disabled' });
     for (const k of await rawKeys(page)) issues.push(`${name}: raw copy key? ${k}`);
     for (const o of await overflow(page)) issues.push(`${name}: overflow ${o}`);
+    for (const line of await pageLines(page)) for (const what of oldWordsIn(line)) issues.push(`${name}: ${what} on screen: ${line}`);
   };
 
   // Onboarding.
@@ -114,12 +132,25 @@ test('screen tour: onboarding, home, scan, take with a wrong and a late note, re
   const home = page.getByTestId('screen-home');
   await expect(home).toBeVisible({ timeout: 15_000 });
   await shot('home');
+  // Round 2: the calibration status sits on Practice (no banner), and it opens a popover with the plain detail line.
+  const calStatus = home.getByTestId('cal-status');
+  await expect(calStatus).toContainText('Not calibrated');
+  await calStatus.click();
+  await expect(page.getByText(/^Tries count as practice until you calibrate\./).filter({ visible: true }).first()).toBeVisible();
+  await shot('home-calibration-status', false);
+  await page.keyboard.press('Escape');
   await chooseOutput(page, 'Wired headphones');
 
   // The picker lists Baritone among the launch voices.
   await (isPhone(page) ? home.locator('.home-summary-inst') : home.getByRole('button', { name: /Change instrument/ }).first()).click();
   await expect(page.locator('[role="radio"][data-instrument="voice-baritone"]')).toHaveCount(1);
   await shot('picker');
+  // Round 2: "Play my range" plays the instrument's own sound and names each note while it sounds.
+  const rangeBtn = page.getByRole('dialog').getByTestId('play-range');
+  await rangeBtn.click();
+  await expect(page.getByRole('dialog').getByText(/^Playing [A-G]/).first()).toBeVisible({ timeout: 5_000 });
+  await shot('picker-playing', false);
+  await rangeBtn.click();
   await page.getByRole('button', { name: 'Done', exact: true }).click();
   await expect(page.locator('[role="radio"][data-instrument="voice-baritone"]')).toHaveCount(0);
 
@@ -134,6 +165,13 @@ test('screen tour: onboarding, home, scan, take with a wrong and a late note, re
   await time.getByRole('radio').nth(1).click();
   await closeRow(page);
 
+  // Match a note: the warm-up opens from Practice and goes back to it. Nothing here is graded or saved.
+  await home.getByTestId('match-entry').click();
+  await expect(page.getByTestId('screen-match')).toBeVisible();
+  await shot('match-a-note');
+  await page.goBack();
+  await expect(home).toBeVisible();
+
   await chooseMode(page, 'practice');
   await page.getByRole('button', { name: 'Start', exact: true }).click();
   await expect(page.getByTestId('scan-cover')).toBeVisible({ timeout: 30_000 });
@@ -146,6 +184,10 @@ test('screen tour: onboarding, home, scan, take with a wrong and a late note, re
   await expect(scan.locator('[data-expected-idx]').first()).toBeVisible({ timeout: 30_000 });
   await expect.poll(() => page.evaluate(() => document.fonts.check('30pt Bravura')), { timeout: 15_000 }).toBe(true);
   await shot('scan');
+  // Round 2: "Look before you play" has no boxes, the status line is still "Not calibrated", and there is no coach mark.
+  await expect(page.getByText('Look before you play').filter({ visible: true }).first().or(page.getByRole('button', { name: /Look before you play/ }).first())).toBeVisible();
+  await expect(page.locator('[data-coach]')).toHaveCount(0);
+  await expect(page.getByTestId('cal-status').first()).toContainText('Not calibrated');
   // The starting pitch: its info, then the sound. Listen first makes this take practice (the take stays unranked).
   // Desktop: the info button beside the reference. Phones: the dock's "What do these do?" sheet, which carries the
   // same reference explanation (05 section 8, 14 item 2).
@@ -229,6 +271,15 @@ test('screen tour: onboarding, home, scan, take with a wrong and a late note, re
   await expect(page.locator(`[data-expected-idx="${wrongIdx}"]`).first()).toHaveClass(/n-error/);
   await expect(page.locator(`[data-expected-idx="${lateIdx}"]`).first()).toHaveClass(/n-error/);
 
+  // Round 2: results point to the try's history and the diagnostics button sits under "How sure we are".
+  await expect(page.getByTestId('res-tries').getByRole('button', { name: 'See all tries' })).toBeVisible();
+  await expect(page.getByTestId('res-sure')).toBeVisible();
+  await page.getByTestId('res-sure').getByRole('button', { name: /^(Save|Send) diagnostics$/ }).click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await shot('results-diagnostics-dialog', false);
+  await page.getByRole('dialog').getByRole('button', { name: 'Cancel' }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+
   // Tips. A wrong and a late note in different bars fire no pattern, and since PLAN ruling 51 red notes rule out the
   // clean-read tip. The tips interstitial is gone: `#/practice/tips` goes back to the open result (decision 13).
   const tipsShown = await page.evaluate(() => (window as unknown as { __sr: { session: { record: { score: { tipsShown: string[] } | null } | null } } }).__sr.session.record?.score?.tipsShown ?? []);
@@ -259,6 +310,13 @@ test('screen tour: onboarding, home, scan, take with a wrong and a late note, re
     await attemptLink.click();
     await page.waitForTimeout(800);
     await shot('history-attempt');
+    // Round 2: the try detail plays back what the app heard (the detected notes in the instrument's sound, not a recording).
+    const hear = page.getByRole('button', { name: 'Hear what we heard' });
+    await expect(hear).toBeVisible();
+    await hear.click();
+    await expect(page.getByText(/^What we heard, bar \d+ of \d+/).filter({ visible: true }).first()).toBeVisible({ timeout: 10_000 });
+    await shot('history-attempt-heard', false);
+    await page.getByRole('button', { name: /^Stop/ }).first().click({ timeout: 2_000 }).catch(() => undefined);
   } else {
     issues.push('history: no attempt link after a graded take');
   }
@@ -270,6 +328,13 @@ test('screen tour: onboarding, home, scan, take with a wrong and a late note, re
   await shot('settings-sound-previews', false);
   // The bar may have finished (its Stop button gone) by the time the screenshot is taken: bound the wait.
   await page.getByRole('button', { name: /^Stop/ }).first().click({ timeout: 2_000 }).catch(() => undefined);
+  // Round 2: Settings > Data carries the diagnostics for recent tries, and the sound opt-in is off.
+  await visit('#/settings/data', 'settings-data-diagnostics');
+  await expect(page.getByText('Export diagnostics for recent tries', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Export diagnostics', exact: true })).toBeVisible();
+  // PLAN ruling 64: the sound opt-in is in the normal build, off until the player turns it on.
+  await expect(page.getByRole('switch', { name: 'Keep the sound of my next tries for diagnostics' })).not.toBeChecked();
+  await visit('#/match', 'match-a-note-page');
   await visit('#/calibrate', 'calibrate');
   await visit('#/credits', 'credits');
   await visit('#/no-such-page', 'not-found');

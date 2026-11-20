@@ -153,3 +153,27 @@ export function loadInstrumentData(): string[] {
   const prog = JSON.parse(readFileSync(join(process.cwd(), 'config/progression.json'), 'utf8')) as { ranks: { table: { name: string }[] } };
   return [...new Set([...cfg.instruments.flatMap((i) => [i.label, i.family]), ...prog.ranks.table.map((r) => r.name)])];
 }
+
+// ---- words the player must not read (round 2, 01-ux section 5.1 and 5.2) ----------------------------------------------
+
+/** A noun "take": after a determiner, a number or an adjective, or alone ("My take", "0 takes", "Take 2"). The verb stays. */
+const TAKE_NOUN = /\b(?:a|an|the|my|your|this|that|each|every|one|two|three|no|any|all|new|last|first|next|previous|another|ranked|practice|best|recent|same|these|those|\d+)\s+takes?\b|^takes?$|\btakes?\s+\d|\b\d+\s+takes?\b/i;
+
+/** Words round 2 replaced, each with the regular expression for one line of rendered text or one assistive name. */
+export const OLD_WORDS: readonly (readonly [what: string, re: RegExp])[] = [
+  ['the noun "take"', TAKE_NOUN],
+  ['"excerpt"', /\bexcerpts?\b/i],
+  ['"slip"', /\bslips?\b/i],
+  ['"scan"', /\bscan\b/i],
+  ['"Time" as a setup label', /^Time(?!\s+signature)\b/],
+  ['"level"', /\blevels?\b/i],
+  ['"STARS"', /\bSTARS\b/],
+  ['"Recalibrate"', /\brecalibrat/i],
+  ['"re-judged"', /\bre-?judged\b/i],
+];
+
+/** What is wrong with one line of text: the names from `OLD_WORDS` that it matches. */
+export function oldWordsIn(line: string): string[] {
+  const text = line.replace(/\s+/g, ' ').trim();
+  return OLD_WORDS.filter(([, re]) => re.test(text)).map(([what]) => what);
+}
