@@ -21,7 +21,7 @@ export function defaultAppSettings(): AppSettings {
       autoReference: true,
     },
     audio: { inputDeviceId: null, metronomeVolume: 70 },
-    display: { theme: 'system', liveFeedback: 'full', showCentsMs: true, ghostsLive: 'from4', showHeard: false, beatLine: true },
+    display: { theme: 'system', liveFeedback: 'full', showCentsMs: true, ghostsLive: 'from4', showHeard: false, beatLine: true, noteColours: false },
     practicePrefs: { showStars: true, showTips: true, showBeta: false },
     accessibility: { reduceMotion: 'system', highContrast: false, keyboardShortcuts: true, announceResults: true },
     onboardingDone: false,

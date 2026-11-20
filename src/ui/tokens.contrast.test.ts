@@ -166,3 +166,46 @@ describe('contrast pairs under high contrast (take and results)', () => {
     }
   }
 });
+
+/**
+ * Note colours and grey marks (PLAN R69). Each letter's notehead colour and the greyed head of a wrong note are at
+ * least 3:1 on the paper in light and dark and 4.5:1 under high contrast (the pairs above), and the heard-note marks
+ * are a neutral grey in every theme: no hue a letter could be mistaken for, and nothing violet left.
+ */
+describe('note colours and grey marks (PLAN R69)', () => {
+  const HEADS = ['head-c', 'head-d', 'head-e', 'head-f', 'head-g', 'head-a', 'head-b', 'head-greyed'];
+
+  it('has a paper pair for every notehead colour, in normal and high contrast', () => {
+    for (const h of HEADS) {
+      expect(source.contrast.pairs.some((p) => p.fg === h && p.bg === 'paper' && p.min >= 3 && p.high !== true), h).toBe(true);
+      expect(source.contrast.pairs.some((p) => p.fg === h && p.bg === 'paper' && p.min >= 4.5 && p.high === true), `${h} high contrast`).toBe(true);
+    }
+  });
+
+  it('gives the seven letters seven different colours in each theme', () => {
+    for (const theme of themes) {
+      for (const high of [false, true]) {
+        const values = HEADS.slice(0, 7).map((h) => token(h, theme, high).toUpperCase());
+        expect(new Set(values).size, `${theme}${high ? ' high contrast' : ''}`).toBe(7);
+      }
+    }
+  });
+
+  it('draws the heard note, its replay and a greyed head in neutral greys, distinct from ink', () => {
+    for (const theme of themes) {
+      for (const high of [false, true]) {
+        const ink = token('ink', theme, high).toUpperCase();
+        for (const name of ['ghost', 'ghost-replay', 'head-greyed']) {
+          const { rgb } = parseColour(token(name, theme, high));
+          const chroma = Math.max(...rgb) - Math.min(...rgb);
+          expect(chroma, `${name} ${theme}${high ? ' high contrast' : ''} is not a neutral grey`).toBeLessThanOrEqual(16);
+          expect(token(name, theme, high).toUpperCase()).not.toBe(ink);
+          const r = contrastRatio(rgb, parseColour(token('paper', theme, high)).rgb);
+          expect(r, `${name} ${theme}`).toBeGreaterThanOrEqual(3);
+        }
+        // The greyed written head and the heard ghost are told apart by value as well as by shape and place.
+        expect(token('head-greyed', theme, high)).not.toBe(token('ghost', theme, high));
+      }
+    }
+  });
+});

@@ -23,9 +23,10 @@ import {
 } from './font/vexflow-bravura.ts';
 import type { Articulation as ArticName, Clef, Dynamic, PreparedEvent, PreparedExcerpt, PreparedMeasure, RenderOptions } from '../core/types.ts';
 import { splitDuration, vexDuration, writtenTicks, isBeamable, type DurationPiece } from './durations.ts';
-import { distributeWidths, type MeasureAnchors } from './layout.ts';
+import { distributeWidths, squeezeWidths, type MeasureAnchors } from './layout.ts';
 import { BarAccidentals, vexAccidental, vexClef, vexKey, vexKeySignature } from './pitch-geometry.ts';
 import { installTableMetrics } from './text-metrics.ts';
+import { noteLetter } from './note-colours.ts';
 
 export const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -206,7 +207,9 @@ export function renderExcerpt(p: PreparedExcerpt, o: RenderOptions): RenderedExc
     const avail = widthVF - PAD_LEFT_VF - PAD_RIGHT_VF - extra;
     const dist = distributeWidths(avail, weights, MIN_BAR_WIDTH_SP * VF_SP);
     fits &&= dist.fits;
-    const widths = dist.widths.map((w, i) => (i === 0 ? w + extra : w));
+    // Squeezed: share by what each bar holds rather than evenly, so a lone whole note gives room to busier bars.
+    const shared = dist.fits ? dist.widths : squeezeWidths(avail, weights, MIN_BAR_WIDTH_SP * VF_SP);
+    const widths = shared.map((w, i) => (i === 0 ? w + extra : w));
 
     // SVG scaffold: underlay (bar tint), static VexFlow ink, overlay (marks); P15 owns the first and last.
     const host = document.createElement('div');
@@ -466,5 +469,7 @@ function tagGroup(g: SVGElement, pc: Piece, p: PreparedExcerpt, mi: number, s: n
   g.setAttribute('data-event-id', pc.event.id);
   g.setAttribute('data-bar', String(p.measures[mi]!.displayBar));
   g.setAttribute('data-system', String(s));
+  // The written letter, for note colours (PLAN R69; note-colours.ts). Read only by CSS while the setting is on.
+  if (pc.event.kind === 'note') g.setAttribute('data-letter', noteLetter(pc.event.writtenPitch));
   if (pc.pieceCount > 1) g.setAttribute('data-piece', String(pc.pieceIdx));
 }

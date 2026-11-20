@@ -5,7 +5,7 @@
 
 import type { ScoreView } from '../../core/api.ts';
 import type { Beats, GhostNote, NoteVisualState, OverlayMode, PreparedExcerpt, ScoreLayout } from '../../core/types.ts';
-import { CROSSFADE_MS, LANE_PX, MAX_SLOTS, planLayout, planSwaps, systemHeightPx, type Insets, type LayoutPlan, type PagePlan } from '../layout-table.ts';
+import { balanceSystems, CROSSFADE_MS, LANE_PX, MAX_SLOTS, MIN_BAR_WIDTH_SP, ONE_SYSTEM_NOTE_SP, planLayout, planSwaps, systemHeightPx, type Insets, type LayoutPlan, type PagePlan } from '../layout-table.ts';
 import { breakpoints, score, tokens } from '../tokens.ts';
 import { documentAppearance, type FrameNotation, type FrameScoreView, type FrameViewOptions } from './notation-binding.ts';
 import {
@@ -107,12 +107,50 @@ export function purposeSystemHeightPx(purpose: FramePurpose, spPx: number): numb
   return systemHeightPx(spPx) - (purpose === 'read' ? LANE_PX : 0);
 }
 
+/** A short piece may draw this much smaller than its purpose's staff space to stay on one system (PLAN R69). */
+export const ONE_SYSTEM_MIN_SCALE = 0.8;
+
+/** The staff space a purpose draws at with `maxBars` on its widest system: the token value, or less to fit the width. */
+function purposeSp(purposeSpPx: number, spMinPx: number, maxBars: number, widthPx: number): number {
+  const fit = widthPx / (maxBars * PURPOSE_MIN_BAR_SP + SYSTEM_EXTRA_SP);
+  return Math.max(spMinPx, Math.floor(Math.min(purposeSpPx, fit) * 100) / 100);
+}
+
+/**
+ * Short pieces on one system and no orphaned last bar (PLAN R69): `balanceSystems` with the staff space the plan would
+ * draw at. With a purpose, a piece of up to four bars may step down to 80% of the purpose's staff space (never below
+ * the row's minimum); without one (the 04 layout table) the bars must fit at the row's staff space with 14 sp each.
+ */
+export function balancedPlan(
+  table: LayoutPlan,
+  purpose: FramePurpose | undefined,
+  viewportWidth: number,
+  widthPx: number,
+  tickablesPerBar?: readonly number[],
+): LayoutPlan {
+  // Every drawn note or rest of the joined bars needs ONE_SYSTEM_NOTE_SP, plus the clef, key and time.
+  const roomy = (sp: number, first: number, last: number): boolean => {
+    const notes = (tickablesPerBar ?? []).slice(first, last + 1).reduce((a, t) => a + Math.max(1, t), 0);
+    return sp > 0 && notes * ONE_SYSTEM_NOTE_SP + SYSTEM_EXTRA_SP <= widthPx / sp;
+  };
+  let bps: number[];
+  if (purpose) {
+    const g = purposeGeometry(purpose, viewportWidth);
+    const spAt = (bars: number): number => purposeSp(g.spPx, table.row.spMinPx, bars, widthPx);
+    bps = balanceSystems(table.barsPerSystem, spAt, Math.max(table.row.spMinPx, g.spPx * ONE_SYSTEM_MIN_SCALE), roomy);
+  } else {
+    const spAt = (bars: number): number => (widthPx >= table.spPx * (bars * MIN_BAR_WIDTH_SP + SYSTEM_EXTRA_SP) ? table.spPx : 0);
+    bps = balanceSystems(table.barsPerSystem, spAt, table.spPx, roomy);
+  }
+  if (bps.length === table.barsPerSystem.length) return table;
+  return { ...table, barsPerSystem: bps, renderOptions: { ...table.renderOptions, barsPerSystem: bps } };
+}
+
 /** The layout table's plan with the purpose's staff space, stepped down only as far as the bars need to fit the width. */
 export function purposePlan(base: LayoutPlan, purpose: FramePurpose, viewportWidth: number, widthPx: number, heightPx: number): LayoutPlan {
   const g = purposeGeometry(purpose, viewportWidth);
   const maxBars = Math.max(1, ...base.barsPerSystem);
-  const fit = widthPx / (maxBars * PURPOSE_MIN_BAR_SP + SYSTEM_EXTRA_SP);
-  const spPx = Math.max(base.row.spMinPx, Math.floor(Math.min(g.spPx, fit) * 100) / 100);
+  const spPx = purposeSp(g.spPx, base.row.spMinPx, maxBars, widthPx);
   const sysH = purposeSystemHeightPx(purpose, spPx);
   const slots = heightPx > 0 ? Math.min(MAX_SLOTS, Math.max(1, Math.floor(heightPx / sysH))) : base.slots;
   return { ...base, spPx, systemHeightPx: sysH, slots, renderOptions: { ...base.renderOptions, spPx } };
@@ -255,7 +293,7 @@ export class ScoreFrameController implements Omit<ScoreView<HTMLElement>, 'rende
    */
   layout(p: PreparedExcerpt, args: FrameLayoutArgs, tickablesPerBar?: readonly number[]): FrameLayoutInfo {
     if (this.frozenBox) throw new Error('ScoreFrame: layout() during a take (the layout is frozen)');
-    const table = planLayout(args.viewport, args.insets, p.measures.length, tickablesPerBar, args.widthPx);
+    const table = balancedPlan(planLayout(args.viewport, args.insets, p.measures.length, tickablesPerBar, args.widthPx), args.purpose, args.viewport.width, args.widthPx, tickablesPerBar);
     const base = args.purpose ? purposePlan(table, args.purpose, args.viewport.width, args.widthPx, args.heightPx ?? 0) : table;
     const systemCount = base.barsPerSystem.length;
     const turns = systemCount > base.slots;
@@ -653,7 +691,10 @@ export class ScoreFrameController implements Omit<ScoreView<HTMLElement>, 'rende
   /** Remove and redraw every highlight (they live in the systems' underlays, so they move and scale with them). */
   private redrawDecor(): void {
     for (const e of Array.from(this.score.querySelectorAll('.sf-hl'))) e.remove();
-    for (const g of this.recoloured) g.style.removeProperty('color');
+    for (const g of this.recoloured) {
+      g.style.removeProperty('color');
+      g.removeAttribute('data-brass');
+    }
     this.recoloured = [];
     const l = this.laid;
     if (!l) return;
@@ -743,6 +784,8 @@ export class ScoreFrameController implements Omit<ScoreView<HTMLElement>, 'rende
         }
         for (const g of Array.from(this.score.querySelectorAll<SVGElement>(`[data-event-id="${first.id}"]`))) {
           g.style.color = 'var(--brass-ink)';
+          // Brass wins over a note colour (PLAN R69): note-colours.css skips a head marked so.
+          g.setAttribute('data-brass', 'true');
           this.recoloured.push(g);
         }
       }

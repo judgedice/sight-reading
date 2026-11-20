@@ -6,6 +6,26 @@ import { patchSection, normalizeDisplayName, NAME_MAX } from './model.ts';
 import { Group, Row, Section } from './Section.tsx';
 import { text } from './text.ts';
 import { useReadable, useSettingsServices } from './context.ts';
+import { NOTE_LETTERS } from '../../../notation/note-colours.ts';
+
+/**
+ * The note colour key (PLAN R69): seven swatches, each a small notehead in its letter's colour with the letter beside
+ * it. One image to screen readers, named in words, so the colour is never the only cue.
+ */
+function NoteColourKey() {
+  return (
+    <span className="set-note-key" role="img" aria-label={copy('settings.display.noteColours.key')} data-testid="note-colour-key">
+      {NOTE_LETTERS.map((l) => (
+        <span key={l} className="set-note-key-item" aria-hidden="true">
+          <svg className="set-note-key-head" viewBox="0 0 14 10" focusable="false" data-letter={l}>
+            <ellipse cx="7" cy="5" rx="6.2" ry="4" transform="rotate(-20 7 5)" />
+          </svg>
+          {l.toUpperCase()}
+        </span>
+      ))}
+    </span>
+  );
+}
 
 export function ProfileSection() {
   const s = useSettingsServices();
@@ -94,6 +114,13 @@ export function DisplaySection() {
           ]}
           value={ghosts}
           onChange={(v) => s.settings.set(patchSection(settings, 'display', { ghostsLive: v }))}
+        />
+      </Row>
+      <Row label={copy('settings.display.noteColours')} hint={copy('settings.display.noteColours.hint')} below={<NoteColourKey />} inline>
+        <Toggle
+          label={copy('settings.display.noteColours')}
+          checked={settings.display.noteColours === true}
+          onChange={(v) => s.settings.set(patchSection(settings, 'display', { noteColours: v }))}
         />
       </Row>
       <Row label={copy('settings.display.showHeard')} hint={copy('settings.display.showHeard.hint')} inline>

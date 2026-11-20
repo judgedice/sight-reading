@@ -29,6 +29,26 @@ describe('settings read (round 2 defaults)', () => {
     s.display.beatLine = false;
     expect(normaliseSettings(s)).toBe(s);
   });
+  it('reads note colours as off when a stored record predates them, and keeps them on once set (PLAN R69)', () => {
+    expect(defaultAppSettings().display.noteColours).toBe(false);
+    const old = defaultAppSettings();
+    delete old.display.noteColours;
+    expect(normaliseSettings(old).display.noteColours).toBe(false);
+    const on = defaultAppSettings();
+    on.display.noteColours = true;
+    expect(normaliseSettings(on)).toBe(on);
+    (on.display as { noteColours?: unknown }).noteColours = 'yes';
+    expect(normaliseSettings(on).display.noteColours).toBe(false);
+  });
+  it('round-trips note colours through an export file', async () => {
+    const kv = new MemoryKv();
+    const repos = memoryRepos(kv);
+    const s = defaultAppSettings();
+    s.display.noteColours = true;
+    await repos.settings.put(s);
+    const file = parseExportFile(JSON.parse(JSON.stringify(await exportAll(repos, kv))));
+    expect(file.settings.display.noteColours).toBe(true);
+  });
   it('rejects an unknown ghostsLive value', () => {
     const s = defaultAppSettings();
     (s.display as { ghostsLive?: string }).ghostsLive = 'sometimes';

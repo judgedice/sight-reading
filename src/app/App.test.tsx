@@ -210,6 +210,19 @@ describe('appearance', () => {
     expect(el.hasAttribute('data-motion')).toBe(false);
   });
 
+  it('sets data-note-colours only while note colours are on (PLAN R69)', () => {
+    const el = root();
+    applyAppearance(el, DEFAULT_APPEARANCE, false);
+    expect(el.hasAttribute('data-note-colours')).toBe(false);
+    applyAppearance(el, { ...DEFAULT_APPEARANCE, noteColours: true }, false);
+    expect(el.getAttribute('data-note-colours')).toBe('on');
+    applyAppearance(el, { ...DEFAULT_APPEARANCE, noteColours: false }, false);
+    expect(el.hasAttribute('data-note-colours')).toBe(false);
+    const base = { display: { theme: 'light' as const, liveFeedback: 'full' as const, showCentsMs: true }, accessibility: { reduceMotion: 'system' as const, highContrast: false, keyboardShortcuts: true, announceResults: false } };
+    expect(appearanceFromSettings(base).noteColours).toBe(false);
+    expect(appearanceFromSettings({ ...base, display: { ...base.display, noteColours: true } }).noteColours).toBe(true);
+  });
+
   it('applies settings to <html> through the provider and updates on change', () => {
     const settings = {
       display: { theme: 'dark' as const, liveFeedback: 'full' as const, showCentsMs: false },

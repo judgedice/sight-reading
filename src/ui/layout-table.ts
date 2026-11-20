@@ -133,6 +133,40 @@ export function barsPerSystem(row: LayoutRow, barCount: number, tickablesPerBar?
   return evenSplit(barCount, Math.ceil(barCount / size));
 }
 
+/** A piece this short goes on one system when the width allows (PLAN R69, scales). */
+export const ONE_SYSTEM_MAX_BARS = 4;
+/** Room a drawn note or rest needs on a one-system short piece, staff spaces (a quarter-note scale at 2.2 sp each). */
+export const ONE_SYSTEM_NOTE_SP = 2.2;
+
+/**
+ * Systems for short pieces and orphans (PLAN R69). `spAt(maxBars)` is the staff space the frame would draw at with
+ * that many bars on its widest system; `floorSp` the smallest staff space a short piece may take to fit on one line.
+ * - At most ONE_SYSTEM_MAX_BARS bars: one system, when its staff space stays at or above `floorSp` and `roomy` says
+ *   the notes of those bars (0-based, inclusive) have room at that staff space (a busy short piece keeps its systems).
+ * - Otherwise a last system holding a single bar joins the one before it, when that costs no staff space at all (and
+ *   the staff space is still at or above `floorSp`).
+ * Anything else keeps `bps` as it is.
+ */
+export function balanceSystems(
+  bps: readonly number[],
+  spAt: (maxBars: number) => number,
+  floorSp: number,
+  roomy: (spPx: number, firstBar: number, lastBar: number) => boolean = () => true,
+): number[] {
+  const n = bps.reduce((a, b) => a + b, 0);
+  if (bps.length < 2) return [...bps];
+  const one = spAt(n);
+  if (n <= ONE_SYSTEM_MAX_BARS && one >= floorSp && roomy(one, 0, n - 1)) return [n];
+  const last = bps[bps.length - 1]!;
+  if (last === 1) {
+    const before = bps[bps.length - 2]!;
+    const merged = [...bps.slice(0, -2), before + 1];
+    const sp = spAt(Math.max(...merged));
+    if (sp >= floorSp && sp >= spAt(Math.max(...bps)) && roomy(sp, n - 1 - before, n - 1)) return merged;
+  }
+  return [...bps];
+}
+
 /** Available height for systems: viewport minus toolbar, status line and the safe-area insets. */
 export function availableHeightPx(viewportH: number, insets: Insets, row: LayoutRow): number {
   return viewportH - row.toolbarPx - row.statusLinePx - insets.top - insets.bottom;

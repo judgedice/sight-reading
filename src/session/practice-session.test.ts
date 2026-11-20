@@ -1011,7 +1011,7 @@ describe('view store reducer', () => {
 });
 
 describe('own playback in the capture (round 2 detection: reference tone and clicks through the speakers)', () => {
-  // The owner (voice, built-in speakers and mic) saw purple marks at the start of the staff as the take began: the
+  // The owner (voice, built-in speakers and mic) saw played-note marks (purple before R69, grey now) at the start of the staff as the take began: the
   // starting-pitch reference played through the speakers, the mic heard it, and the session analysed it as sung notes
   // drawn as extra ghosts before bar 1. Nothing heard before the first written note's window may be judged or drawn.
   const cal = (): Calibration => ({ ...makeCalibration(ROUTE), roundTripMs: 50, spreadMs: 1, clicksDetected: 10, templates: {} });

@@ -72,7 +72,7 @@ describe('note colours and lane glyphs', () => {
       expect(marks ? glyphIds(marks) : [], JSON.stringify(s)).toEqual(v.laneGlyphs);
       expect(!!marks?.querySelector('.sr-ring-active')).toBe(v.ring === 'active');
     });
-    expect(groups(el, 3)[0]!.style.color).toBe('var(--error)');
+    expect(groups(el, 3)[0]!.style.color).toBe('var(--note-slip, var(--error))');
     expect(groups(el, 2)[0]!.style.color).toBe('');
     expect(groups(el, 6)[0]!.classList.contains('n-error-hollow')).toBe(true);
   });
@@ -292,7 +292,7 @@ describe('modes', () => {
     expect(ghostsIn(el)).toHaveLength(2);
   });
 
-  it('review: correct notes stay ink with no mark; rejudged notes get a dashed ring and a 200 ms crossfade', () => {
+  it('review: correct notes stay ink with the green dot (PLAN R69); rejudged notes get a dashed ring and a 200 ms crossfade', () => {
     const { el, view, layout } = setup();
     view.setNoteState(0, { phase: 'judged', timing: 'on-time', pitch: 'in-tune' });
     view.setNoteState(1, { phase: 'judged', timing: 'on-time', marginal: true });
@@ -300,8 +300,8 @@ describe('modes', () => {
     view.setMode('review');
     expect(groups(el, 0)[0]!.classList.contains('n-ink')).toBe(true);
     expect(groups(el, 0)[0]!.style.color).toBe('');
-    expect(el.querySelector('.sr-note-marks[data-marks-for="0"]')).toBeNull();
-    expect(el.querySelector('.sr-note-marks[data-marks-for="1"]')).toBeNull();
+    expect(glyphIds(el.querySelector('.sr-note-marks[data-marks-for="0"]')!)).toEqual(['dot']);
+    expect(glyphIds(el.querySelector('.sr-note-marks[data-marks-for="1"]')!)).toEqual(['dot']);
     expect(el.querySelector('.sr-note-marks[data-marks-for="2"] .sr-ring-rejudged')!.getAttribute('stroke-dasharray')).toBe('4 3');
     expect(groups(el, 2)[0]!.style.transition).toContain('200ms');
     // Review lane glyphs are 1.25 staff spaces.

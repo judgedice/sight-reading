@@ -112,7 +112,8 @@ describe('transcribed values (06 section 5)', () => {
     expect(source.color.ui.danger).toEqual({ light: '#B8360F', dark: '#FF7A52' });
     expect(source.color.ui.scrim).toEqual({ light: 'rgba(28,24,18,0.38)', dark: 'rgba(0,0,0,0.60)' });
     expect(source.color.paper.paper).toEqual({ light: '#FFFDF8', dark: '#24221F' });
-    expect(source.color.paper.ghost).toEqual({ light: '#6C3FC4', dark: '#BBA4FF' });
+    // PLAN R69: the heard note (ghost) is a neutral grey, no longer violet.
+    expect(source.color.paper.ghost).toEqual({ light: '#5F5B55', dark: '#B5B0A7' });
     expect(source.color.paper['playhead-bar']).toEqual({ light: 'rgba(176,124,30,0.13)', dark: 'rgba(216,165,72,0.15)' });
     expect(source.color.paper['metro-active']).toEqual(source.color.ui.brass);
     expect(source.color.opacity.disabled).toBe(0.4);
@@ -120,7 +121,7 @@ describe('transcribed values (06 section 5)', () => {
 
   it('high contrast overrides match 06 section 3.2', () => {
     expect(source.color.highContrast.paper.error).toEqual({ light: '#A32100', dark: '#FF9A78' });
-    expect(source.color.highContrast.paper.ghost).toEqual({ light: '#5523B0', dark: '#CDBBFF' });
+    expect(source.color.highContrast.paper.ghost).toEqual({ light: '#4A4743', dark: '#CFCAC1' });
     expect(source.color.highContrast.paper['staff-line']).toEqual({ light: '#4F4C46', dark: '#B3AEA6' });
     expect(source.color.highContrast.ui.brass).toEqual({ light: '#7D5512', dark: '#E9C27A' });
     expect(source.color.highContrast.ui['border-strong']).toEqual({ light: '#5F5A51', dark: '#A9A398' });

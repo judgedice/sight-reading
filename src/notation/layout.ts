@@ -39,6 +39,18 @@ export function distributeWidths(total: number, weights: readonly number[], min:
   return { widths: out, fits: true };
 }
 
+/**
+ * Widths for a system whose bars cannot all have the minimum (`distributeWidths` said it does not fit): shared in
+ * proportion to what each bar needs, where a bar of `t` drawn notes and rests needs `min * clamp((1.6 + t) / 5.6, 0.5, 1)`.
+ * A bar of four or more keeps the full share, so a system of busy bars is squeezed evenly as before; a bar holding one
+ * whole note needs half, which lets a short piece's last bar sit beside the others (PLAN R69, scales).
+ */
+export function squeezeWidths(total: number, weights: readonly number[], min: number): number[] {
+  const need = weights.map((t) => min * Math.min(1, Math.max(0.5, (1.6 + Math.max(0, t)) / 5.6)));
+  const sum = need.reduce((a, b) => a + b, 0);
+  return sum > 0 ? need.map((n) => (total * n) / sum) : weights.map(() => total / Math.max(1, weights.length));
+}
+
 /** One measure's horizontal anchors, in px within its system SVG. */
 export interface MeasureAnchors {
   system: number;

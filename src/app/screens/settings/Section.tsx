@@ -31,12 +31,15 @@ export function Row({
   children,
   hint,
   inline = false,
+  below,
 }: {
   label: string;
   htmlFor?: string | undefined;
   children: ReactNode;
   hint?: string | undefined;
   inline?: boolean | undefined;
+  /** Shown under the hint, in the label column (the note colour key). */
+  below?: ReactNode;
 }) {
   return (
     <div className="set-row" data-inline={inline ? 'true' : undefined}>
@@ -49,6 +52,7 @@ export function Row({
           <span className="set-label">{label}</span>
         )}
         {hint ? <span className="set-hint">{hint}</span> : null}
+        {below}
       </div>
       <div className="set-row-control">{children}</div>
     </div>

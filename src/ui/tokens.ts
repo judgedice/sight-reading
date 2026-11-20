@@ -184,8 +184,8 @@ export const tokens = {
         "dark": "#FF7A52"
       },
       "ghost": {
-        "light": "#6C3FC4",
-        "dark": "#BBA4FF"
+        "light": "#5F5B55",
+        "dark": "#B5B0A7"
       },
       "ghost-replay": {
         "light": "#6B6863",
@@ -206,6 +206,38 @@ export const tokens = {
       "metro-active": {
         "light": "#94661A",
         "dark": "#D8A548"
+      },
+      "head-c": {
+        "light": "#C5193D",
+        "dark": "#D96272"
+      },
+      "head-d": {
+        "light": "#C96805",
+        "dark": "#FABC86"
+      },
+      "head-e": {
+        "light": "#A08600",
+        "dark": "#FBEB75"
+      },
+      "head-f": {
+        "light": "#528918",
+        "dark": "#96D35F"
+      },
+      "head-g": {
+        "light": "#0470A5",
+        "dark": "#71BAE9"
+      },
+      "head-a": {
+        "light": "#9A389F",
+        "dark": "#B46CB2"
+      },
+      "head-b": {
+        "light": "#C8507C",
+        "dark": "#FBC2D6"
+      },
+      "head-greyed": {
+        "light": "#8C877D",
+        "dark": "#8E8981"
       }
     },
     "highContrast": {
@@ -229,12 +261,44 @@ export const tokens = {
           "dark": "#6FE0D0"
         },
         "ghost": {
-          "light": "#5523B0",
-          "dark": "#CDBBFF"
+          "light": "#4A4743",
+          "dark": "#CFCAC1"
         },
         "staff-line": {
           "light": "#4F4C46",
           "dark": "#B3AEA6"
+        },
+        "head-c": {
+          "light": "#A8102F",
+          "dark": "#E8808E"
+        },
+        "head-d": {
+          "light": "#A35300",
+          "dark": "#FABC86"
+        },
+        "head-e": {
+          "light": "#766A00",
+          "dark": "#FBEB75"
+        },
+        "head-f": {
+          "light": "#3F6E0F",
+          "dark": "#96D35F"
+        },
+        "head-g": {
+          "light": "#04608F",
+          "dark": "#71BAE9"
+        },
+        "head-a": {
+          "light": "#86308B",
+          "dark": "#C78AC5"
+        },
+        "head-b": {
+          "light": "#A83F66",
+          "dark": "#FBC2D6"
+        },
+        "head-greyed": {
+          "light": "#6B6863",
+          "dark": "#A09B93"
         }
       }
     },
@@ -589,8 +653,8 @@ export const tokens = {
         "bg": "paper",
         "min": 3,
         "claimed": {
-          "light": 6.57,
-          "dark": 7.45
+          "light": 6.63,
+          "dark": 7.35
         }
       },
       {
@@ -599,8 +663,8 @@ export const tokens = {
         "bg": "paper",
         "min": 3,
         "claimed": {
-          "light": 3.46,
-          "dark": 4.38
+          "light": 3.3,
+          "dark": 4.33
         },
         "fgOpacity": 0.7
       },
@@ -743,6 +807,110 @@ export const tokens = {
         "id": "border-strong-on-bg-high-contrast",
         "fg": "border-strong",
         "bg": "bg",
+        "min": 4.5,
+        "high": true
+      },
+      {
+        "id": "head-c-on-paper",
+        "fg": "head-c",
+        "bg": "paper",
+        "min": 3
+      },
+      {
+        "id": "head-d-on-paper",
+        "fg": "head-d",
+        "bg": "paper",
+        "min": 3
+      },
+      {
+        "id": "head-e-on-paper",
+        "fg": "head-e",
+        "bg": "paper",
+        "min": 3
+      },
+      {
+        "id": "head-f-on-paper",
+        "fg": "head-f",
+        "bg": "paper",
+        "min": 3
+      },
+      {
+        "id": "head-g-on-paper",
+        "fg": "head-g",
+        "bg": "paper",
+        "min": 3
+      },
+      {
+        "id": "head-a-on-paper",
+        "fg": "head-a",
+        "bg": "paper",
+        "min": 3
+      },
+      {
+        "id": "head-b-on-paper",
+        "fg": "head-b",
+        "bg": "paper",
+        "min": 3
+      },
+      {
+        "id": "head-greyed-on-paper",
+        "fg": "head-greyed",
+        "bg": "paper",
+        "min": 3
+      },
+      {
+        "id": "head-c-on-paper-high-contrast",
+        "fg": "head-c",
+        "bg": "paper",
+        "min": 4.5,
+        "high": true
+      },
+      {
+        "id": "head-d-on-paper-high-contrast",
+        "fg": "head-d",
+        "bg": "paper",
+        "min": 4.5,
+        "high": true
+      },
+      {
+        "id": "head-e-on-paper-high-contrast",
+        "fg": "head-e",
+        "bg": "paper",
+        "min": 4.5,
+        "high": true
+      },
+      {
+        "id": "head-f-on-paper-high-contrast",
+        "fg": "head-f",
+        "bg": "paper",
+        "min": 4.5,
+        "high": true
+      },
+      {
+        "id": "head-g-on-paper-high-contrast",
+        "fg": "head-g",
+        "bg": "paper",
+        "min": 4.5,
+        "high": true
+      },
+      {
+        "id": "head-a-on-paper-high-contrast",
+        "fg": "head-a",
+        "bg": "paper",
+        "min": 4.5,
+        "high": true
+      },
+      {
+        "id": "head-b-on-paper-high-contrast",
+        "fg": "head-b",
+        "bg": "paper",
+        "min": 4.5,
+        "high": true
+      },
+      {
+        "id": "head-greyed-on-paper-high-contrast",
+        "fg": "head-greyed",
+        "bg": "paper",
         "min": 4.5,
         "high": true
       },

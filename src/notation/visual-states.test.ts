@@ -71,8 +71,8 @@ describe('noteVisual: exhaustive invariants', () => {
           if (red && braked && mode === 'live') expect(v.laneGlyphs).toHaveLength(1);
           // Only slips are coloured: no mode uses the teal class (06 section 0, D7).
           expect(v.noteClass).not.toBe('n-correct');
-          // Correct notes carry no lane mark in review.
-          if (mode === 'review' && !red) expect(v.laneGlyphs).toEqual([]);
+          // Correct (judged, not red) notes carry the green dot in review too (PLAN R69 amends D7); pending notes nothing.
+          if (mode === 'review' && !red) expect(v.laneGlyphs).toEqual(s.phase === 'judged' ? ['dot'] : []);
         }
     expect(n).toBe(4 * 4 * 7 * 8 * 3 * 2);
   });
@@ -87,17 +87,18 @@ describe('noteVisual: table rows (6.1)', () => {
     expect(noteVisual(st({ phase: 'active' }), 'live', false)).toMatchObject({ noteClass: 'n-ink', ring: 'active', laneGlyphs: [] });
     expect(noteVisual(st({ phase: 'active', timing: 'on-time' }), 'live', false).noteClass).toBe('n-ink');
   });
-  it('correct: dot live, plain ink with no lane mark in review (06 section 0, D7)', () => {
+  it('correct: plain ink head with the green dot, live and in review (PLAN R69 amends 06 D7)', () => {
     const s = st({ phase: 'judged', timing: 'on-time', pitch: 'in-tune' });
     expect(noteVisual(s, 'live', false)).toMatchObject({ noteClass: 'n-ink', laneGlyphs: ['dot'] });
-    expect(noteVisual(s, 'review', false)).toMatchObject({ noteClass: 'n-ink', laneGlyphs: [] });
+    expect(noteVisual(s, 'review', false)).toMatchObject({ noteClass: 'n-ink', laneGlyphs: ['dot'] });
     const ng = st({ phase: 'judged', timing: 'on-time', pitch: 'not-graded' });
-    expect(noteVisual(ng, 'review', false).laneGlyphs).toEqual([]);
+    expect(noteVisual(ng, 'review', false).laneGlyphs).toEqual(['dot']);
+    expect(noteVisual(s, 'blind', false).laneGlyphs).toEqual([]);
   });
   it('correct-marginal is never red', () => {
     const s = st({ phase: 'judged', timing: 'on-time', pitch: 'in-tune', marginal: true });
     expect(noteVisual(s, 'live', false)).toMatchObject({ noteClass: 'n-ink', laneGlyphs: ['dot'] });
-    expect(noteVisual(s, 'review', false)).toMatchObject({ noteClass: 'n-ink', laneGlyphs: [] });
+    expect(noteVisual(s, 'review', false)).toMatchObject({ noteClass: 'n-ink', laneGlyphs: ['dot'] });
   });
   it('timing and pitch glyphs', () => {
     const g = (timing?: TimingVerdict, pitch?: PitchVerdict) => {

@@ -82,6 +82,10 @@
             "beatLine": {
               "type": "boolean",
               "description": "The try's beat line: a thin line that moves through the staff with the beat (default true)."
+            },
+            "noteColours": {
+              "type": "boolean",
+              "description": "Note colours: each notehead filled in its letter name's colour on every score (default false, PLAN R69)."
             }
           },
           "required": [

@@ -123,9 +123,9 @@ export function noteVisual(s: NoteVisualState, mode: OverlayMode, braked: boolea
     return { noteClass: 'n-ink', ring: review ? ring : 'active', laneGlyphs: [], fadeMs: 0 };
   }
 
-  // Judged and correct (on time, in tune or not graded). Marginal is never red.
-  // Review keeps correct notes in plain ink with no lane mark: only slips are coloured (06 section 0, D7).
-  if (review) return { noteClass: 'n-ink', ring, laneGlyphs: [], fadeMs };
+  // Judged and correct (on time, in tune or not graded). Marginal is never red. The head stays plain ink (only slips
+  // colour a head, 06 section 0, D7), and the green dot sits under it in the lane, live and in review alike: PLAN R69
+  // amends D7, so a perfect try's marked score shows a dot under every note instead of looking like the clean score.
   return { noteClass: 'n-ink', ring, laneGlyphs: ['dot'], fadeMs };
 }
 

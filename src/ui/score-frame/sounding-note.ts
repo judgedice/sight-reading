@@ -1,6 +1,6 @@
 // The sounding note (round 2, Listen playback review): while Listen, Listen first, Hear bars or Hear what we heard
 // plays, the written note that is sounding glows: a soft brass disc behind its notehead and the head in brass ink (the
-// design tokens' brass, never the green, red or purple of the marks). It moves note by note with what is heard, read
+// design tokens' brass, never the green, red or grey of the marks). It moves note by note with what is heard, read
 // from the audio clock as heard (`clock`, the backend's `audibleNow`, so the output latency is taken off, as the
 // calibration marks are); a rest shows nothing. In the scrolling arrangement (phones) the line that sounds is scrolled
 // into view at a system change. Under reduced motion it steps without animation.

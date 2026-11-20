@@ -136,7 +136,7 @@ export function writeToneWav(path: string, midi: number, durSec = 20): void {
   writeFileSync(path, encodeWav({ sampleRate: TRAIL_WAV_RATE, channels: [samples] }));
 }
 
-/** A purple mark seen on a screen while a try was running (see `installLiveWatch`). */
+/** A played-note mark (ghost or extra, grey since R69) seen on a screen while a try was running (see `installLiveWatch`). */
 export interface LiveMark {
   /** The element's classes. */
   cls: string;

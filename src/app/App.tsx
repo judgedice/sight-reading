@@ -1,5 +1,6 @@
 import './app.css';
 import '../ui/tokens.css';
+import '../ui/note-colours.css';
 import '../ui/primitives/primitives.css';
 import { AppearanceProvider, type AppearanceSettings } from './appearance.tsx';
 import { RouterProvider, useRoute, type LocationSource } from './router.tsx';

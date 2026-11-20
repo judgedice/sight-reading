@@ -1,0 +1,27 @@
+/* Note colours (PLAN R69; src/notation/note-colours.ts). Off by default. With Settings > Display > Note colours on,
+   appearance.tsx sets data-note-colours="on" on <html> and every written notehead is filled in its letter's colour
+   (--head-c to --head-b, tokens.css). Only the head: stems, beams, flags, accidentals and ledger lines stay ink. A hollow
+   head (half, whole) is an outline glyph, so its outline takes the colour. VexFlow draws a note's modifiers (dots,
+   articulations) inside its notehead group after the head glyph, so only the group's first text is the head.
+   A head that means something else keeps that meaning: a slip (n-error, n-error-hollow) is greyed out through
+   --note-slip, the sounding note and the starting pitch's first note stay brass. */
+[data-letter="c"] { --head: var(--head-c); }
+[data-letter="d"] { --head: var(--head-d); }
+[data-letter="e"] { --head: var(--head-e); }
+[data-letter="f"] { --head: var(--head-f); }
+[data-letter="g"] { --head: var(--head-g); }
+[data-letter="a"] { --head: var(--head-a); }
+[data-letter="b"] { --head: var(--head-b); }
+
+:root[data-note-colours="on"] {
+  --note-slip: var(--head-greyed);
+}
+
+:root[data-note-colours="on"] .sr-note:not(.n-error, .n-error-hollow, .n-correct, [data-sounding], [data-brass]) .vf-notehead > text:first-child {
+  fill: var(--head, currentColor);
+}
+
+/* Match a note: its whole note on the small staff (green once hit). */
+:root[data-note-colours="on"] .mt-head:not(.mt-head-hit) {
+  fill: var(--head, var(--ink));
+}

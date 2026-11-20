@@ -54,11 +54,17 @@ const SVG_NS = 'http://www.w3.org/2000/svg';
 /** Free area of the `plus-n` glyph (24-unit viewBox) where the overflow count goes (ui/glyph-ids.ts PLUS_N_SLOT). */
 const PLUS_N_SLOT = { x: 14.5, y: 6, w: 9, h: 12 } as const;
 const NOTE_CLASSES = ['n-ink', 'n-correct', 'n-error', 'n-error-hollow'] as const;
+/**
+ * A slip note's colour. `--note-slip` is unset (so `--error`) unless note colours are on: then note-colours.css sets it
+ * to `--head-greyed`, and a written note marked wrong loses its letter colour and reads greyed out (PLAN R69). Its
+ * lane glyph stays in `--error`, so the slip is still marked by shape and colour.
+ */
+export const SLIP_NOTE_COLOUR = 'var(--note-slip, var(--error))';
 const NOTE_COLOUR: Record<NoteVisual['noteClass'], string> = {
   'n-ink': '',
   'n-correct': 'var(--correct)',
-  'n-error': 'var(--error)',
-  'n-error-hollow': 'var(--error)',
+  'n-error': SLIP_NOTE_COLOUR,
+  'n-error-hollow': SLIP_NOTE_COLOUR,
 };
 /** Stroke of the drawn lane marks (06 section 7: the ✕ is 1.75 px). */
 const LANE_STROKE_PX = 1.75;

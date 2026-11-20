@@ -262,12 +262,13 @@ describe('createReviewRenderer', () => {
 });
 
 describe('<Review> redesign (06 sections 6.15, 7)', () => {
-  it('correct notes stay plain ink with no lane mark; only slips are coloured', async () => {
+  it('correct notes keep a plain ink head with the green dot under it; only slips colour a head (PLAN R69)', async () => {
     const { root, model } = await render();
     const correct = model.notes.filter((n) => n.state.phase === 'judged' && !n.state.timing?.match(/early|late/) && !n.state.pitch?.match(/sharp|flat|wrong|octave/));
     expect(correct.length).toBeGreaterThan(0);
     for (const n of correct) {
-      expect(root.querySelector(`.sr-note-marks[data-marks-for="${n.idx}"] .sr-glyph`)).toBeNull();
+      const glyphs = [...root.querySelectorAll(`.sr-note-marks[data-marks-for="${n.idx}"] .sr-glyph`)].map((g) => g.getAttribute('data-glyph'));
+      expect(glyphs, `note ${n.idx}`).toEqual(['dot']);
       expect(noteEl(root, n.idx).classList.contains('n-correct')).toBe(false);
     }
     expect(root.querySelector('[data-glyph="check"]')).toBeNull();

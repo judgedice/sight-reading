@@ -11,7 +11,7 @@
 //    7  the key note                            the difficulty 1 sentence; no "More keys from"
 //    8  time signature                          the row and chip say "Time signature"
 //    9  clock-rate error                        a forced clock-rate error still reaches the count-in; no "wrong speed"
-//   10  tone and purple marks                   the starting-pitch card and "Marks start at bar 1"; no ghost before bar 1
+//   10  tone and played-note marks                   the starting-pitch card and "Marks start at bar 1"; no ghost before bar 1
 //   11  when the count-in ends                  the two count-in bars read differently; the last says "Come in after N"
 //                                               (or after 3, 2 or 1 when the piece starts on a pickup)
 //   12  "Reading time's up"                     40 s on the read-through in Practice: no such text
@@ -374,7 +374,7 @@ test('owner review: baritone at difficulty 1, the fifteen points, then a graded 
   const seen = await seenTexts(page);
   notes.push(`count-in seen: ${JSON.stringify(seen)}`);
 
-  await point(10, 'the starting pitch is its own card, marks start at bar 1, nothing purple before the music', async () => {
+  await point(10, 'the starting pitch is its own card, marks start at bar 1, no played-note mark before the music', async () => {
     expect(seen['pitch'], 'starting-pitch card title').toContain('Your starting pitch');
     expect(seen['marks'], 'status strip during the starting pitch').toContain('Marks start at bar 1');
     expect(await liveMarks(page, false), 'ghost or unsure marks on the page before bar 1').toEqual([]);

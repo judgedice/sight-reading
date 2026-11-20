@@ -230,6 +230,28 @@
   line-height: var(--type-small-line);
 }
 
+.set-note-key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
+  margin-block-start: var(--space-1);
+  font-size: var(--type-small-size);
+  line-height: var(--type-small-line);
+  font-weight: 600;
+}
+
+.set-note-key-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.set-note-key-head {
+  inline-size: 0.875rem;
+  block-size: 0.625rem;
+  fill: var(--head);
+}
+
 .set-row-control {
   display: flex;
   align-items: center;

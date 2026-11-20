@@ -1,7 +1,7 @@
 // The trailing voice (round 2, owner point 15; 01-ux sections 15 and 17): a baritone who scoops into every note and lets
 // the pitch fall away at the end of it, at difficulty 1. The owner's marks came partly from that: the app heard a tail as
-// a new note and drew a purple ghost and a "+" in the rest. The checks:
-//   - during the try, nothing purple is drawn at all (PLAN ruling 61), and nothing says "unsure";
+// a new note and drew a ghost (then purple, grey since R69) and a "+" in the rest. The checks:
+//   - during the try, no ghost or extra is drawn at all (PLAN ruling 61), and nothing says "unsure";
 //   - the results score has no extra: no "extra" count, no ghost of kind extra, no extra in the record;
 //   - "Save diagnostics" downloads a file that parses and holds the notes, the follower events and the frame track.
 // The WAV is written after the read-through shows the excerpt (see playwright.loop.config.ts); the generator is
@@ -32,7 +32,7 @@ async function onboardBaritone(page: Page): Promise<void> {
   await expect(page.getByTestId('screen-home')).toBeVisible({ timeout: 15_000 });
 }
 
-test('trailing voice at difficulty 1: no purple mark during the try, no extra in the results, diagnostics saved', async ({ page }, info) => {
+test('trailing voice at difficulty 1: no ghost or extra mark during the try, no extra in the results, diagnostics saved', async ({ page }, info) => {
   test.setTimeout(240_000);
   const wav = process.env['E2E_LOOP_WAV']!;
   const errors = watchErrors(page);
@@ -71,9 +71,9 @@ test('trailing voice at difficulty 1: no purple mark during the try, no extra in
   await expect(results).toBeVisible({ timeout: (plan.endSec + 30) * 1000 });
   await expect(results).toHaveAttribute('data-state', 'graded');
 
-  // 1. Nothing purple during the try, and none before bar 1: not a ghost, not a "+", not an unsure ring.
+  // 1. No ghost or extra during the try, and none before bar 1: not a ghost, not a "+", not an unsure ring.
   const live = await liveMarks(page);
-  expect(live, 'purple or unsure marks drawn on the play screen').toEqual([]);
+  expect(live, 'ghost, extra or unsure marks drawn on the play screen').toEqual([]);
 
   // 2. No extra in the results: the record, the counts line and the drawn score.
   const record = await page.evaluate(() => (window as unknown as { __sr: { session: { record: { extras: unknown[]; score: { score: number } | null; judgments: { status: string }[] } | null } } }).__sr.session.record);

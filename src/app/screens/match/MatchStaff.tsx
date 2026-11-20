@@ -1,5 +1,6 @@
 import type { Clef } from '../../../core/types.ts';
 import type { StaffNote } from '../../../instruments/range.ts';
+import { noteLetter } from '../../../notation/note-colours.ts';
 
 /** Staff space in viewBox units. */
 const S = 10;
@@ -53,7 +54,7 @@ export function MatchStaff({ note, ring }: { note: StaffNote; ring: StaffRing })
       {ledgers.map((p) => (
         <line key={p} className="mt-ledger" x1={NOTE_X - 1.3 * S} x2={NOTE_X + 1.3 * S} y1={yOf(p)} y2={yOf(p)} />
       ))}
-      <text className={`mt-glyph mt-head${ring === 'hit' ? ' mt-head-hit' : ''}`} x={NOTE_X - HEAD_HALF} y={y} fontSize={FONT}>
+      <text className={`mt-glyph mt-head${ring === 'hit' ? ' mt-head-hit' : ''}`} data-letter={noteLetter(note.pitch)} x={NOTE_X - HEAD_HALF} y={y} fontSize={FONT}>
         {GLYPH.wholeNote}
       </text>
       {note.octaveMark ? (

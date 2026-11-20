@@ -550,6 +550,24 @@ describe('Settings round 2 additions', () => {
     expect(h.settings.value().display.beatLine).toBe(true);
   });
 
+  it('Display has the note colours switch, off by default, with a colour key, and stores it (PLAN R69)', async () => {
+    const h = harness();
+    await render(h);
+    const sw = switchFor(copy('settings.display.noteColours'));
+    expect(sw?.checked).toBe(false);
+    expect(sw!.closest('section')?.getAttribute('data-section')).toBe('display');
+    const key = q<HTMLElement>('[data-testid="note-colour-key"]');
+    expect(key.getAttribute('role')).toBe('img');
+    expect(key.getAttribute('aria-label')).toBe(copy('settings.display.noteColours.key'));
+    expect(key.textContent).toBe('CDEFGAB');
+    expect([...key.querySelectorAll('svg')].map((e) => e.getAttribute('data-letter'))).toEqual(['c', 'd', 'e', 'f', 'g', 'a', 'b']);
+    click(sw!);
+    expect(h.settings.value().display.noteColours).toBe(true);
+    expect(switchFor(copy('settings.display.noteColours'))?.checked).toBe(true);
+    click(switchFor(copy('settings.display.noteColours'))!);
+    expect(h.settings.value().display.noteColours).toBe(false);
+  });
+
   it('chooses how played notes show live and stores it', async () => {
     const h = harness();
     await render(h);

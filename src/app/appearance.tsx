@@ -6,12 +6,14 @@ export interface AppearanceSettings {
   theme: AppSettings['display']['theme'];
   highContrast: boolean;
   reduceMotion: AppSettings['accessibility']['reduceMotion'];
+  /** Note colours (PLAN R69): every notehead in its letter's colour. Optional, default off. */
+  noteColours?: boolean;
 }
 
 export const DEFAULT_APPEARANCE: AppearanceSettings = { theme: 'system', highContrast: false, reduceMotion: 'system' };
 
 export function appearanceFromSettings(s: Pick<AppSettings, 'display' | 'accessibility'>): AppearanceSettings {
-  return { theme: s.display.theme, highContrast: s.accessibility.highContrast, reduceMotion: s.accessibility.reduceMotion };
+  return { theme: s.display.theme, highContrast: s.accessibility.highContrast, reduceMotion: s.accessibility.reduceMotion, noteColours: s.display.noteColours === true };
 }
 
 export type ResolvedTheme = 'light' | 'dark';
@@ -23,6 +25,7 @@ export type ResolvedTheme = 'light' | 'dark';
  * - data-contrast="high" when high contrast is on.
  * - data-motion="reduced" for Reduce motion On (zeroes every --dur-* token); "full" for Off, which
  *   tokens.css uses to restore the durations under a system reduced-motion preference; absent for System.
+ * - data-note-colours="on" when note colours are on (note-colours.css); absent when off, so nothing changes.
  */
 export function applyAppearance(root: HTMLElement, settings: AppearanceSettings, systemDark: boolean): ResolvedTheme {
   const resolved: ResolvedTheme = settings.theme === 'system' ? (systemDark ? 'dark' : 'light') : settings.theme;
@@ -34,6 +37,8 @@ export function applyAppearance(root: HTMLElement, settings: AppearanceSettings,
   if (settings.reduceMotion === 'on') root.setAttribute('data-motion', 'reduced');
   else if (settings.reduceMotion === 'off') root.setAttribute('data-motion', 'full');
   else root.removeAttribute('data-motion');
+  if (settings.noteColours === true) root.setAttribute('data-note-colours', 'on');
+  else root.removeAttribute('data-note-colours');
   return resolved;
 }
 
@@ -69,10 +74,11 @@ export function AppearanceProvider({ settings = DEFAULT_APPEARANCE, root, childr
   }, []);
 
   const { theme, highContrast, reduceMotion } = settings;
+  const noteColours = settings.noteColours === true;
   const resolved: ResolvedTheme = theme === 'system' ? (systemDark ? 'dark' : 'light') : theme;
   useEffect(() => {
-    applyAppearance(root ?? document.documentElement, { theme, highContrast, reduceMotion }, systemDark);
-  }, [root, theme, highContrast, reduceMotion, systemDark]);
+    applyAppearance(root ?? document.documentElement, { theme, highContrast, reduceMotion, noteColours }, systemDark);
+  }, [root, theme, highContrast, reduceMotion, noteColours, systemDark]);
 
   return <ResolvedThemeContext.Provider value={resolved}>{children}</ResolvedThemeContext.Provider>;
 }

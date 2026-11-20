@@ -2456,6 +2456,8 @@ export interface AppSettings {
     showHeard?: boolean;
     /** The try's beat line: a thin line that moves through the staff with the beat (default true). */
     beatLine?: boolean;
+    /** Note colours: each notehead filled in its letter name's colour on every score (default false, PLAN R69). */
+    noteColours?: boolean;
   };
   practicePrefs: { showStars: boolean; showTips: boolean; showBeta: boolean };
   /** Optional name shown on the home screen; absent until the player sets one. */
