@@ -43,6 +43,8 @@ export interface GateResult {
   rankedReasons: RankedReason[];
   /** No gate failure. Other ranked rules (mode, tempo, familiarity) are the grader's. */
   gatePassed: boolean;
+  /** The `sample-rate` failure comes only from the clock-rate check (the track rate matched): reason `clock-rate`. */
+  clockRateOff: boolean;
 }
 
 /** True when the stored calibration is a measured, non-stale one for this route (W6). */
@@ -65,12 +67,13 @@ export function evaluateTakeGate(f: GateFacts, cfg: Configs): GateResult {
     },
     cfg,
   );
+  const clockRateOff = trackOk && !clockOk;
   const rankedReasons: RankedReason[] = [];
   for (const g of gateFailures) {
-    const r = reasonForGate(g);
+    const r = g === 'sample-rate' && clockRateOff ? 'clock-rate' : reasonForGate(g);
     if (!rankedReasons.includes(r)) rankedReasons.push(r);
   }
-  return { gateFailures, rankedReasons, gatePassed: gateFailures.length === 0 };
+  return { gateFailures, rankedReasons, gatePassed: gateFailures.length === 0, clockRateOff };
 }
 
 /** 05 W8 label pattern. */

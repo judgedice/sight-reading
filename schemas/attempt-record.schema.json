@@ -1507,7 +1507,8 @@
         "measurement",
         "familiar",
         "skip-limit",
-        "listened-first"
+        "listened-first",
+        "clock-rate"
       ],
       "description": "Why an attempt is unranked: 02's enum (R30). Per-check detail is in `AudioEnv.gateFailures`."
     },

@@ -1874,7 +1874,9 @@ export type RankedReason =
   | 'familiar'
   | 'skip-limit'
   /** The player listened to the reference before playing (decision 7). */
-  | 'listened-first';
+  | 'listened-first'
+  /** The audio clock ran outside the config limit (round 2: a clock-rate result never blocks a try, it makes it practice). */
+  | 'clock-rate';
 
 /**
  * Why a take was voided (01 §7.9, 05 W4, 02 §5.3). Clipping is a results banner, not a void (01 §7.9).
@@ -2210,6 +2212,8 @@ export interface RankingInput {
   metronome: MetronomeMode;
   /** From the measurement gate (05 §4): calibration-unmeasured → `calibration`, others → `measurement`. */
   gateFailures: GateId[];
+  /** The `sample-rate` failure comes only from the clock-rate check: it maps to `clock-rate` instead of `measurement`. */
+  clockRateOff?: boolean;
 }
 
 /** XP inputs (02 §5.4). */

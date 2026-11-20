@@ -141,12 +141,17 @@ describe('ranked reasons (02 §5.2)', () => {
     ['calibration', withRanking({}, { calibrationMeasured: false })],
     ['calibration', withRanking({ gateFailures: ['calibration-unmeasured'] })],
     ['measurement', withRanking({ gateFailures: ['rtl-high'] })],
+    ['measurement', withRanking({ gateFailures: ['sample-rate'] })],
+    ['clock-rate', withRanking({ gateFailures: ['sample-rate'], clockRateOff: true })],
     ['familiar', withRanking({ familiarity: 2 })],
     ['skip-limit', withRanking({ skipLimitHit: true })],
   ] as const)('%s', (reason, input) => {
     const s = grade(input);
     expect(s.ranked).toBe(false);
     expect(s.rankedReasons).toContain(reason);
+  });
+  it('a clock-rate-only sample-rate failure is not also measurement', () => {
+    expect(grade(withRanking({ gateFailures: ['sample-rate'], clockRateOff: true })).rankedReasons).not.toContain('measurement');
   });
   it('lists every failing condition', () => {
     const s = grade(withRanking({ mode: 'practice', seenBefore: true, skipLimitHit: true }));

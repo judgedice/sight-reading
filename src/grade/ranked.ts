@@ -12,7 +12,9 @@ export function rankedReasons(input: GradeInput): RankedReason[] {
   if (bpm < r.minTempoFracOfLevelMin * levelMinBpm(cfg, level, meter)) out.push('tempo-below-90pct');
   const calibrationFailed = !calibrationMeasured || ranking.gateFailures.includes('calibration-unmeasured');
   if (calibrationFailed) out.push('calibration');
-  if (ranking.gateFailures.some((g) => g !== 'calibration-unmeasured')) out.push('measurement');
+  const clockOnly = (g: string): boolean => g === 'sample-rate' && ranking.clockRateOff === true;
+  if (ranking.gateFailures.some((g) => g !== 'calibration-unmeasured' && !clockOnly(g))) out.push('measurement');
+  if (ranking.gateFailures.some(clockOnly)) out.push('clock-rate');
   if (ranking.familiarity >= r.familiarityBelow) out.push('familiar');
   if (ranking.skipLimitHit) out.push('skip-limit');
   return out;

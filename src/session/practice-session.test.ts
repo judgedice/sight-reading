@@ -1186,8 +1186,8 @@ describe('round 2: sampled sounds, the starting pitch, what we heard, start erro
     expect(rec.audioEnv.clockRateError).toBe(0.088);
     expect(rec.audioEnv.gateFailures).toContain('sample-rate');
     expect(rec.score!.ranked).toBe(false);
-    // RankedReason has no 'clock-rate' value yet (core/types.ts): the gate maps it to 'measurement' until it does.
-    expect(rec.score!.rankedReasons).toContain('measurement');
+    expect(rec.score!.rankedReasons).toContain('clock-rate');
+    expect(rec.score!.rankedReasons).not.toContain('measurement');
   }, 60_000);
 
   it('start errors carry their kind: the sound (audio-start) or the microphone (mic-start)', async () => {

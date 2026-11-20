@@ -158,6 +158,8 @@ describe('model over fixtures/grade', () => {
     expect(b.map((x) => x.kind)).toEqual(['practice', 'beta']);
     expect(b[0]!.detail).toBe(copy('ranked.reason.calibration'));
     expect(b[0]!.tooltip).toBe(copy('ranked.reason.familiar'));
+    const clock = { ...ranked, score: { ...ranked.score!, ranked: false, rankedReasons: ['clock-rate'] as const } } as unknown as AttemptRecord;
+    expect(badgesFor(clock, cfg)[0]!.detail).toBe(copy('ranked.reason.clockRate'));
     const incomplete = attemptFrom('case10-incomplete');
     expect(incomplete.score!.status).toBe('incomplete');
     expect(badgesFor(incomplete, cfg).some((x) => x.kind === 'incomplete' && x.detail === copy('badge.incomplete.tooltip', { cap: 50 }))).toBe(true);

@@ -47,7 +47,7 @@ export interface Badge {
   tooltip?: string;
 }
 
-const reasonText = (r: RankedReason): string => text(`ranked.reason.${r}`);
+const reasonText = (r: RankedReason): string => text(r === 'clock-rate' ? 'ranked.reason.clockRate' : `ranked.reason.${r}`);
 
 export function badgesFor(record: AttemptRecord, cfg: Configs): Badge[] {
   const s = record.score;

@@ -104,6 +104,13 @@ describe('ranked reason mapping', () => {
     expect(evaluateTakeGate(facts({ calibration: null, dsp: { droppedBlocks: 2, missingBlocks: 0 } }), cfg).rankedReasons).toEqual(['calibration', 'measurement']);
   });
 
+  it('a clock-rate error alone gives clock-rate; a track-rate mismatch gives measurement', () => {
+    const clock = evaluateTakeGate(facts({ clockRateError: 0.088 }), cfg);
+    expect(clock).toMatchObject({ gateFailures: ['sample-rate'], rankedReasons: ['clock-rate'], clockRateOff: true });
+    const track = evaluateTakeGate(facts({ clockRateError: 0.088, trackSampleRate: 44100, contextSampleRate: 48000 }), cfg);
+    expect(track).toMatchObject({ gateFailures: ['sample-rate'], rankedReasons: ['measurement'], clockRateOff: false });
+  });
+
   it('no measured calibration (outputLatencyReported false) is graded as practice: ranked false, reason calibration', () => {
     const reported = cal({ method: 'reported' });
     const gate = evaluateTakeGate(facts({ calibration: reported }), cfg);

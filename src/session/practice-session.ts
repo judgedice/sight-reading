@@ -1635,8 +1635,9 @@ export class PracticeSession implements PracticeSessionInstance {
     const stats = typeof audio.captureStats === 'function' ? audio.captureStats() : { droppedBlocks: 0, maxQueueMs: 0 };
     const dspStats = done?.stats ?? { droppedBlocks: 0, maxQueueMs: 0, hopP95Ms: null, missingBlocks: 0 };
     let gateFailures: GateId[] = [];
+    let clockRateOff = false;
     if (t.listening) {
-      gateFailures = evaluateTakeGate(
+      const gate = evaluateTakeGate(
         {
           route: t.route,
           calibration: t.stored,
@@ -1648,7 +1649,9 @@ export class PracticeSession implements PracticeSessionInstance {
           latencyCompensationMs: latencyMs,
         },
         cfg,
-      ).gateFailures;
+      );
+      gateFailures = gate.gateFailures;
+      clockRateOff = gate.clockRateOff;
     }
     const audioEnv = buildAudioEnv({
       capabilities: audio.capabilities,
@@ -1696,6 +1699,7 @@ export class PracticeSession implements PracticeSessionInstance {
           skipLimitHit: c.skipLimitHit,
           metronome: s.metronome,
           gateFailures,
+          clockRateOff,
         },
         xp: xpInputFor(profile, { instrumentId: plan.inst.id, excerptId: c.prepared.excerptId, randomized: { key: randomized.includes('key'), meter: randomized.includes('meter'), tempo: randomized.includes('tempo') }, placement: c.placement }, today),
       };

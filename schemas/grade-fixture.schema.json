@@ -840,6 +840,10 @@
             "$ref": "#/definitions/GateId"
           },
           "description": "From the measurement gate (05 §4): calibration-unmeasured → `calibration`, others → `measurement`."
+        },
+        "clockRateOff": {
+          "type": "boolean",
+          "description": "The `sample-rate` failure comes only from the clock-rate check: it maps to `clock-rate` instead of `measurement`."
         }
       },
       "required": [
