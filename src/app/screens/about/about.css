@@ -80,3 +80,8 @@
   align-items: center;
   min-block-size: var(--target-min);
 }
+
+/* Body paragraphs in a card that stacks them with the card gap (the sounds credit). */
+.cred-text {
+  margin: 0;
+}

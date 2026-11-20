@@ -88,10 +88,10 @@ export function CreditsScreen({ services }: { services: CreditsServices } & Scre
 
       <Card className="cred-card">
         <h2 className="cred-heading">{copy('credits.sounds.title')}</h2>
-        <p>{copy('credits.sounds.winds')}</p>
-        <p>{copy('credits.sounds.strings')}</p>
-        <p>{copy('credits.sounds.piano')}</p>
-        <p>{copy('credits.sounds.voices')}</p>
+        <p className="cred-text">{copy('credits.sounds.winds')}</p>
+        <p className="cred-text">{copy('credits.sounds.strings')}</p>
+        <p className="cred-text">{copy('credits.sounds.piano')}</p>
+        <p className="cred-text">{copy('credits.sounds.voices')}</p>
         <p className="cred-muted">
           {licenceFileParts(copy('credits.sounds.licences')).map((part, i) =>
             part.href ? (
