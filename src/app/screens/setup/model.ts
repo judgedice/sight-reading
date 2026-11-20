@@ -90,6 +90,11 @@ export const KEY_CHIPS_MAX = 8;
 export const METER_SEGMENTS_MAX = 7;
 /** How many meters stay in the row beside Any when the rest go behind "More". */
 export const METER_SEGMENTS_TOP = 5;
+/**
+ * The "No 2/4 at difficulty 1 yet." line names the meters without pieces only while it stays one short line
+ * (01-ux section 6.4). With more than this many it is left out: a list of 19 meters is noise, not an explanation.
+ */
+export const METER_HIDDEN_NAMED_MAX = 3;
 
 export interface MeterChoice {
   meter: string;
@@ -499,7 +504,7 @@ function timeRow(p: PracticeSettings, ctx: SetupContext, inst: Instrument, level
     any: { selected: p.meter === 'random', label: text('setup.time.any'), xpTag: text('setup.xpTag', { percent: anyXpPercent(ctx.cfg) }) },
     options,
     hidden,
-    hiddenNote: hidden.length > 0 ? text('setup.time.noneShort', { meter: formatMeterList(hidden), level }) : null,
+    hiddenNote: hidden.length > 0 && hidden.length <= METER_HIDDEN_NAMED_MAX ? text('setup.time.noneShort', { meter: formatMeterList(hidden), level }) : null,
     fewNote: sel?.few ? text('home.levelFewMusic') : null,
     fewTip: text('setup.time.fewTip'),
     top,

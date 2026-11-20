@@ -293,6 +293,22 @@ describe('Match a note', () => {
     expect(engine.listening).toBe(true);
   });
 
+  it('opening with the microphone allowed runs the unlock once, before the first note plays', async () => {
+    // Another screen may have let the microphone go; playing before the unlock fails in the browser.
+    let unlock!: (r: { ok: true }) => void;
+    const { svc, engine, requestMic } = services();
+    requestMic.mockImplementation(() => new Promise((res) => (unlock = res)));
+    await render(svc);
+    expect(requestMic).toHaveBeenCalledOnce();
+    expect(engine.played).toEqual([]);
+    unlock({ ok: true });
+    await flush();
+    await flush();
+    expect(engine.played).toEqual([G3]);
+    expect(engine.listening).toBe(true);
+    expect(requestMic).toHaveBeenCalledOnce();
+  });
+
   it('leaving the screen stops the engine', async () => {
     const { svc, engine } = services();
     await render(svc);

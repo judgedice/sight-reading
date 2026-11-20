@@ -313,8 +313,9 @@ export function PerformScreen(_props: ScreenProps) {
       entryAfter={entryAfter}
     />
   );
-  // The strip says "Marks start at bar 1" until the music starts, in place of the mic meter (05 D7).
-  const beforeMusic = counting;
+  // The strip says "Marks start at bar 1" during the starting pitch, in place of the mic meter (05 D7; 04-design §5 R0).
+  // From the first click it says "Count-in" with the mic meter, and the track is the only beat display.
+  const marksStart = pitchPhase;
 
   return (
     <section className="perform" data-testid="screen-practice.play" data-route-id="practice.play" data-state={state} data-mode={mode}>
@@ -323,14 +324,14 @@ export function PerformScreen(_props: ScreenProps) {
           <Button label={copy('play.stop')} variant="secondary" size="compact" icon="stop" onClick={() => setConfirm(true)} disabled={finishing} aria-describedby={finishing ? 'perform-centre-text' : undefined} />
         </div>
         <div className="perform-centre">
-          {beforeMusic ? null : <BeatIndicator svc={svc} beatsPerBar={bpb} grouping={beatGrouping(prepared.meter.beats, prepared.meter.beatType, bpb)} bpm={bpm} />}
+          {counting ? null : <BeatIndicator svc={svc} beatsPerBar={bpb} grouping={beatGrouping(prepared.meter.beats, prepared.meter.beatType, bpb)} bpm={bpm} />}
           <span id="perform-centre-text" className="perform-centre-text">{centreText}</span>
           <span className="perform-tempo"><BeatUnitText text={copy('tempo.marking', { unit: tempo.unit, bpm })} /></span>
           {finishing ? <span className="perform-indeterminate" aria-hidden="true" /> : null}
         </div>
         <div className="perform-right">
           {bars ? <span className="perform-lines">{copy('score.bars', { from: bars.first, to: bars.last, total: bars.total })}</span> : null}
-          {beforeMusic ? <span className="perform-marks-start">{copy('countIn.marksStart')}</span> : listening ? <MicMeter svc={svc} /> : null}
+          {marksStart ? <span className="perform-marks-start">{copy('countIn.marksStart')}</span> : listening ? <MicMeter svc={svc} /> : null}
         </div>
       </header>
       {listening ? null : <PractiseWithoutListeningNotice />}

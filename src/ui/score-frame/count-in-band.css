@@ -76,9 +76,10 @@
   line-height: 1;
 }
 
+/* Counted cells stay filled grey. --track, not --surface-2: in dark --surface-2 is the paper's own tone. */
 .sf-count-cell[data-state='past'] {
   border-color: transparent;
-  background: var(--surface-2);
+  background: var(--track);
 }
 
 .sf-count-cell[data-state='current'] {

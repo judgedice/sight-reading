@@ -82,9 +82,10 @@ describe('Performance screen', () => {
     expect($('.perform').getAttribute('data-mode')).toBe('ranked');
     expect($('.perform-centre-text').textContent).toBe(copy('play.status.countIn'));
     expect($('.perform-tempo').textContent).toContain('♩ = 100');
-    // Until bar 1 the strip says when marks start, in place of the mic meter (round 2, 05 D7).
-    expect($('.perform-marks-start').textContent).toBe(copy('countIn.marksStart'));
-    expect(document.querySelector('.perform-mic')).toBeNull();
+    // No starting pitch for an instrument: the count-in strip has the mic meter (04-design §5); "Marks start at bar 1"
+    // is for the starting pitch only (05 D7).
+    expect(document.querySelector('.perform-marks-start')).toBeNull();
+    expect(document.querySelector('.perform-mic')).toBeTruthy();
     expect($('.sf-host').getAttribute('data-purpose')).toBe('take');
     expect($('[role="status"].ui-visually-hidden').textContent).toBe(copy('a11y.countIn.announce.bars', { total: 2, beats: 4 }));
   });
@@ -211,6 +212,8 @@ describe('Performance screen', () => {
     expect(document.querySelector('.perform-pitch')).toBeNull();
     expect($('.sf-count-word').textContent).toBe(copy('countIn.entry.voice'));
     expect($('.perform-centre-text').textContent).toBe(copy('play.status.countIn'));
+    expect(document.querySelector('.perform-marks-start')).toBeNull();
+    expect(document.querySelector('.perform-mic')).toBeTruthy();
   });
 
   it('the card step changes within 50 ms of each reference segment time', async () => {

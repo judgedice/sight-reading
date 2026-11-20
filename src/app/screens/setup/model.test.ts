@@ -12,6 +12,7 @@ import {
   formatLevelList,
   formatMeterList,
   meterChoices,
+  METER_HIDDEN_NAMED_MAX,
   normalize,
   setupModel,
   setupText,
@@ -103,8 +104,11 @@ describe('setup model at difficulty 1, 2, 5 and 9', () => {
         expect(m.time.options.map((o) => o.meter)).toEqual(def.meters.filter((x) => shown.has(x)));
         expect(m.time.hidden).toEqual(def.meters.filter((x) => !shown.has(x)));
         for (const o of m.time.options) expect(o.few).toBe(o.count < tokens.ui.levelThinThreshold);
-        if (m.time.hidden.length > 0) {
+        if (m.time.hidden.length > 0 && m.time.hidden.length <= METER_HIDDEN_NAMED_MAX) {
           expect(t(m.time.hiddenNote)).toBe(`No ${formatMeterList(m.time.hidden)} at difficulty ${level} yet.`);
+        } else {
+          // None hidden, or too many to name in one short line.
+          expect(m.time.hiddenNote).toBeNull();
         }
 
         // Length: one value is a line of text, more is a segmented control with Any first.

@@ -120,6 +120,8 @@ test('before the music: the starting-pitch card, then a count-in track that says
   // The count-in: the last bar, then its last beat.
   await expect(page.locator('.sf-count[data-last]')).toBeVisible({ timeout: 30_000 });
   await expect(page.locator('.sf-host')).not.toHaveAttribute('data-dim', '');
+  // From the first click the strip says "Count-in" with the mic meter; "Marks start at bar 1" was the card's.
+  await expect(page.locator('.perform-marks-start')).toHaveCount(0);
   await page.screenshot({ path: `test-results/design-e2e/perform-countin-last-${info.project.name}.png` });
   await expect(page.locator('.sf-count-entry[data-on]')).toBeVisible({ timeout: 30_000 });
   await page.screenshot({ path: `test-results/design-e2e/perform-countin-entry-${info.project.name}.png` });

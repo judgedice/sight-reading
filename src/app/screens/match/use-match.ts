@@ -46,8 +46,10 @@ export function useMatch(
   /**
    * `stop()` lets go of the microphone and the audio graph, so the engine cannot play again until the audio is unlocked.
    * After a stop the next click runs the unlock (`requestMic`, inside the gesture) and the next play waits for it.
+   * The screen starts released: another screen (onboarding, a try) may have let the microphone go, so the first play
+   * runs the unlock too, still inside the click that opened the screen.
    */
-  const released = useRef(false);
+  const released = useRef(true);
   const ready = useRef<Promise<{ ok: boolean }> | null>(null);
   const wake = useCallback((): void => {
     if (!released.current) return;
@@ -74,10 +76,11 @@ export function useMatch(
     const send = (e: MatchEvent): void => {
       if (live) dispatch(e);
     };
+    wake();
     void (async () => {
       try {
+        // Kept, not cleared: React's development remount runs this effect twice, and both runs wait for the same unlock.
         const unlocking = ready.current;
-        ready.current = null;
         if (unlocking && !(await unlocking).ok) {
           if (live) setMic('none');
           return;
@@ -95,7 +98,7 @@ export function useMatch(
     return () => {
       live = false;
     };
-  }, [mic, playKey, service, instrument.id]);
+  }, [mic, playKey, service, instrument.id, wake]);
 
   // The reducer's clock: hit hold, not heard, too far, and the next note in a round.
   const ticking = state.phase !== 'idle' && state.phase !== 'summary';

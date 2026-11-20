@@ -9,7 +9,7 @@ import { copy } from '../../../ui/copy/copy.ts';
 import { Button, Select, Toggle } from '../../../ui/components/form/index.ts';
 import { EmptyState } from '../../../ui/components/domain/index.ts';
 import { Glyph } from '../../../ui/primitives/index.ts';
-import { countTries, type TryFacts } from '../../compose/tries.ts';
+import { countTries, reachedBarOne, type TryFacts } from '../../compose/tries.ts';
 import { Link, useNavigate } from '../../router.tsx';
 import type { ScreenProps } from '../../route-types.ts';
 import { instrumentName } from '../../../ui/copy/instrument-names.ts';
@@ -123,8 +123,9 @@ export function HistoryScreen(_props: ScreenProps) {
       offset: pages * PAGE_SIZE,
     })
       .then(async (page) => {
-        const rows = page.filter((r) => matchesFilter(r, filter));
         const records = await Promise.all(page.map((r) => services.repos.attempts.byId(r.id)));
+        // Only tries are listed: one stopped before bar 1 is not a try, and the day heading would not count it.
+        const rows = page.filter((r, i) => matchesFilter(r, filter) && reachedBarOne(records[i] ?? r));
         // A take asked for a random meter keeps that request; the meter served comes from its excerpt.
         const served = await Promise.all(
           records.map((rec) =>

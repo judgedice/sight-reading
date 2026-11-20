@@ -370,6 +370,9 @@ describe('round 2: rows, This piece and the day count', () => {
     const headings = [...document.querySelectorAll('[data-testid="history-day-heading"]')].map((h) => h.textContent);
     expect(headings[0]).toBe(copy('history.day', { day: copy('history.day.today'), n }));
     expect(headings[1]).toBe(copy('history.day', { day: copy('history.day.yesterday'), n: 1 }));
+    // The day group lists exactly the tries its heading counts.
+    const todayRows = document.querySelectorAll('.hist-day')[0]!.querySelectorAll('[data-testid="history-row"]');
+    expect(todayRows).toHaveLength(n);
   });
 
   it('"This piece" from results: the chip, the line, the rows at the piece and "3 tries, 2 at this piece"', async () => {
@@ -384,7 +387,8 @@ describe('round 2: rows, This piece and the day count', () => {
     click(q('[data-testid="history-piece-chip"]'));
     await flush();
     expect(src.navigated).toContain('/history');
-    expect(document.querySelectorAll('[data-testid="history-row"]')).toHaveLength(5);
+    // Every try, and no row for the one stopped before bar 1 (it is not a try).
+    expect(document.querySelectorAll('[data-testid="history-row"]')).toHaveLength(4);
   });
 });
 
