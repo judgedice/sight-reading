@@ -6,19 +6,20 @@ import { fileURLToPath } from 'node:url';
 
 // Twelve pitch classes. `fill` is the chip fill (ink letter on it). `edge` is the chip edge and any colour drawn
 // straight on paper (swatches, and the noteheads of option A). In dark, the fill is light enough to stand on dark
-// paper by itself, so edge = fill. The five in-between colours are the OKLab midpoint of their neighbours.
+// paper by itself, so edge = fill. The five in-between colours sit at the hue between their neighbours, but pale and
+// low in chroma: a full-strength blend lands on the feedback hues (C♯ on error, D♯ on brass, F♯ on correct, G♯ on ghost).
 export const PALETTE = [
   { pc: 'c', letter: 'C', name: 'red', light: { fill: '#E05864', edge: '#C5193D' }, dark: { fill: '#D96272' } },
-  { pc: 'cs', letter: 'C♯/D♭', name: 'coral', chromatic: true, light: { fill: '#E26E51', edge: '#C8492D' }, dark: { fill: '#EB907D' } },
+  { pc: 'cs', letter: 'C♯/D♭', name: 'pale coral', chromatic: true, light: { fill: '#FEC0AF', edge: '#A57163' }, dark: { fill: '#FBC2B2' } },
   { pc: 'd', letter: 'D', name: 'orange', light: { fill: '#E48233', edge: '#C96805' }, dark: { fill: '#FABC86' } },
-  { pc: 'ds', letter: 'D♯/E♭', name: 'amber', chromatic: true, light: { fill: '#F4B953', edge: '#B47D0B' }, dark: { fill: '#FBD47F' } },
+  { pc: 'ds', letter: 'D♯/E♭', name: 'pale amber', chromatic: true, light: { fill: '#EECB95', edge: '#977B4F' }, dark: { fill: '#EBCC9D' } },
   { pc: 'e', letter: 'E', name: 'yellow', light: { fill: '#FFEF72', edge: '#9C8E11' }, dark: { fill: '#FBEB75' } },
   { pc: 'f', letter: 'F', name: 'green', light: { fill: '#97DB60', edge: '#528918' }, dark: { fill: '#96D35F' } },
-  { pc: 'fs', letter: 'F♯/G♭', name: 'sea green', chromatic: true, light: { fill: '#88D1B4', edge: '#317F6F' }, dark: { fill: '#82C9AD' } },
+  { pc: 'fs', letter: 'F♯/G♭', name: 'pale aqua', chromatic: true, light: { fill: '#A0E5ED', edge: '#488C94' }, dark: { fill: '#ACE7EE' } },
   { pc: 'g', letter: 'G', name: 'blue', light: { fill: '#7DC3F4', edge: '#0470A5' }, dark: { fill: '#71BAE9' } },
-  { pc: 'gs', letter: 'G♯/A♭', name: 'lavender', chromatic: true, light: { fill: '#A496D6', edge: '#6D5BA2' }, dark: { fill: '#9D95CD' } },
+  { pc: 'gs', letter: 'G♯/A♭', name: 'pale periwinkle', chromatic: true, light: { fill: '#C3D8FF', edge: '#6981AB' }, dark: { fill: '#D7E5FF' } },
   { pc: 'a', letter: 'A', name: 'purple', light: { fill: '#B665B9', edge: '#9A389F' }, dark: { fill: '#B46CB2' } },
-  { pc: 'as', letter: 'A♯/B♭', name: 'orchid', chromatic: true, light: { fill: '#D991C5', edge: '#B24B92' }, dark: { fill: '#D797C5' } },
+  { pc: 'as', letter: 'A♯/B♭', name: 'pale orchid', chromatic: true, light: { fill: '#F7BDDF', edge: '#9E708B' }, dark: { fill: '#F3BFDD' } },
   { pc: 'b', letter: 'B', name: 'pink', light: { fill: '#FEBCCF', edge: '#CC5A82' }, dark: { fill: '#FBC2D6' } },
 ];
 for (const p of PALETTE) p.dark.edge = p.dark.edge || p.dark.fill;

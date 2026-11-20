@@ -53,7 +53,20 @@ export function replayAudio(t: TryTrace, follow: FollowConfig): ReplayResult {
   const cfg: DspConfig = { ...d, clickTemplate: d.clickTemplate ? Float32Array.from(d.clickTemplate) : null, traceAudio: false };
   const low = decodePcm16(a.data, a.samples);
   let done: Extract<WorkerReply, { type: 'done' }> | null = null;
-  const core = new DspWorkerCore({ post: (r) => void (r.type === 'done' && (done = r)), nowMs: () => 0, setTimer: () => () => {} });
+  // The worker ends a take when its last block reaches the end time, or when its end timer fires. The block times
+  // here are summed in floating point and can stop a hair short of the end, so the timer is fired once 'end' is in.
+  const timers: (() => void)[] = [];
+  const core = new DspWorkerCore({
+    post: (r) => void (r.type === 'done' && (done = r)),
+    nowMs: () => 0,
+    setTimer: (_ms, fn) => {
+      timers.push(fn);
+      return () => {
+        const i = timers.indexOf(fn);
+        if (i >= 0) timers.splice(i, 1);
+      };
+    },
+  });
   const send = (m: WorkerMessage): void => core.onMessage(m);
   send({ v: 1, type: 'config', cfg, follow });
   let seq = 0;
@@ -62,6 +75,7 @@ export function replayAudio(t: TryTrace, follow: FollowConfig): ReplayResult {
     send({ v: 1, type: 'block', block });
   }
   send({ v: 1, type: 'end', t: (a.startT + low.length / a.rate) as ClockSeconds, reason: { reason: 'complete' } });
+  for (const fn of timers.splice(0)) fn();
   const r = done as Extract<WorkerReply, { type: 'done' }> | null;
   if (!r || !core.alignment) throw new Error('the DSP worker did not finish');
   return { source: 'audio', follow, detected: r.trace?.detected ?? r.detected, alignment: core.alignment };
@@ -125,6 +139,8 @@ export function table(t: TryTrace, r: ReplayResult): string {
   lines.push('');
   lines.push(`extras: stored ${t.verdicts.extras.length}, replayed ${r.alignment.extras.length}`);
   for (const x of r.alignment.extras) lines.push(`  extra at score ${x.onsetSec.toFixed(2)} s, ${noteName(x.concertMidi)}, ${(x.durSec * 1000).toFixed(0)} ms`);
+  lines.push(`displaced: stored ${t.verdicts.displaced?.length ?? 0}, replayed ${r.alignment.displaced.length}`);
+  for (const x of r.alignment.displaced) lines.push(`  notes ${x.fromIdx} to ${x.toIdx} replayed ${x.offsetBeats} beats off (detected ${x.detectedIds.join(', ')})`);
   return lines.join('\n');
 }
 
