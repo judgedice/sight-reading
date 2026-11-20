@@ -4,10 +4,9 @@ import { copy } from '../../../ui/copy/copy.ts';
 import { act, click, key, mount, type Mounted } from '../../../ui/primitives/test-render.ts';
 import { defaultAppSettings } from '../../../store/defaults.ts';
 import { keyName } from '../setup/key-names.ts';
-import { markSoundsCoachSeen, resetSoundsCoach } from './coach.ts';
 import { creditLine } from './model.ts';
 import { firstNoteLabel, firstNoteOf } from './read-model.ts';
-import { PracticeApp, harness, testExcerpt, type Harness } from './test-support.tsx';
+import { PracticeApp, harness, readable, testExcerpt, type Harness } from './test-support.tsx';
 import { SESSION_ERROR_TEXT } from './ScanScreen.tsx';
 import { PracticeFlowServicesProvider } from './services.ts';
 
@@ -16,7 +15,6 @@ afterEach(() => {
   m?.unmount();
   m = null;
   document.body.innerHTML = '';
-  resetSoundsCoach();
 });
 
 const flush = async (): Promise<void> => {
@@ -25,8 +23,7 @@ const flush = async (): Promise<void> => {
   });
 };
 
-function render(h: Harness, opts: { coach?: boolean } = {}): void {
-  if (!opts.coach) markSoundsCoachSeen();
+function render(h: Harness): void {
   m = mount(
     <PracticeFlowServicesProvider value={h.services}>
       <PracticeApp h={h} />
@@ -220,7 +217,7 @@ describe('Read-through', () => {
     expect(h.session.startTake).toHaveBeenCalledTimes(1);
   });
 
-  it('practice never auto-starts, never announces the countdown and says so at 0', async () => {
+  it('practice has no reading timer: no time-up text after 40 s, no checked box, no coach mark', async () => {
     const h = harness({ mode: 'practice' });
     render(h);
     await reveal(h);
@@ -228,27 +225,57 @@ describe('Read-through', () => {
     expect($('[data-testid="scan-read-hint"]').textContent).toBe(copy('scan.practice.readHint'));
     tick(h, 10);
     expect(announced()).toBe('');
+    tick(h, 30);
     act(() => h.view.setState({ scan: { remainingSec: 0, expired: true } }));
-    expect($('[data-testid="scan-read-hint"]').textContent).toBe(copy('scan.practice.timeUp'));
+    expect($('[data-testid="scan-read-hint"]').textContent).toBe(copy('scan.practice.readHint'));
+    expect(document.body.textContent).not.toContain("time's up");
+    expect(document.querySelector('[role="checkbox"], [aria-checked="true"], .dom-check-mark')).toBeNull();
+    expect(document.querySelector('[data-coach]')).toBeNull();
     expect(h.session.startTake).not.toHaveBeenCalled();
   });
 
-  it('Look before you play: five rows, the clock ticks them, a player tick sticks, and the signatures detail is generated', async () => {
+  it('ranked says when the count-in is near, in the last 5 seconds only', async () => {
+    const h = harness({ mode: 'ranked' });
+    render(h);
+    await reveal(h);
+    tick(h, 10);
+    expect(document.querySelector('[data-testid="scan-read-hint"]')).toBeNull();
+    tick(h, 3);
+    expect($('[data-testid="scan-read-hint"]').textContent).toBe(copy('scan.ranked.soon', { seconds: 3 }));
+  });
+
+  it('Look before you play: five rows with no boxes, and the signatures detail is generated', async () => {
     const h = harness();
     render(h);
     await reveal(h);
     expect($('.scan-stars').textContent).toContain(copy('stars.heading'));
-    expect($('.scan-stars').textContent).toContain(copy('stars.optional'));
+    expect($('.scan-stars').textContent).toContain(copy('look.lead'));
+    expect($('.scan-stars').textContent).not.toContain('Tick');
     const rows = [...document.querySelectorAll('.scan-stars-list li')];
     expect(rows).toHaveLength(5);
-    expect(rows.map((r) => r.getAttribute('data-checked'))).toEqual(['false', 'false', 'false', 'false', 'false']);
+    expect(document.querySelector('.scan-stars [role="checkbox"], .scan-stars button, .scan-stars input')).toBeNull();
     expect(rows[0]!.textContent).toContain('4/4, felt in 4');
     tick(h, 18);
-    expect([...document.querySelectorAll('.scan-stars-list li')].filter((r) => r.getAttribute('data-checked') === 'true')).toHaveLength(2);
-    click(document.querySelectorAll<HTMLElement>('.scan-stars-list li button')[4]!);
-    tick(h, 12);
-    const checked = [...document.querySelectorAll('.scan-stars-list li')].map((r) => r.getAttribute('data-checked'));
-    expect(checked).toEqual(['true', 'true', 'true', 'false', 'true']);
+    expect(document.querySelector('[data-checked="true"]')).toBeNull();
+  });
+
+  it('the calibration line sits under Start playing and goes to Calibrate', async () => {
+    const h = harness();
+    h.services.calibrationStatus = readable({ state: 'none', output: null, oldOutput: null, when: null, ms: null, reason: null } as never);
+    render(h);
+    await reveal(h);
+    const line = $('[data-testid="cal-status"]');
+    expect(line.textContent).toContain(copy('calStatus.none'));
+    expect(line.previousElementSibling?.getAttribute('data-start-playing')).not.toBeNull();
+    expect(line.querySelector('button')?.textContent).toBe(copy('calStatus.action.calibrate'));
+  });
+
+  it('the Sounds line says what plays on Start', async () => {
+    const h = harness();
+    render(h);
+    await reveal(h);
+    expect($('.sd-group-lead').textContent).toMatch(/^When you start: .*clicks\.$/);
+    expect(document.body.textContent).not.toContain(copy('scan.sounds.silentTake'));
   });
 
   it('hides the checklist when the setting is off but keeps the sounds', async () => {
@@ -555,22 +582,5 @@ describe('Sounds and the reference (05 sections 8.8, 10; section 16 items 9, 10 
     m?.unmount();
     m = null;
     expect(h.stopSounds).toHaveBeenCalled();
-  });
-
-  it('the coach mark shows on the first read-through only and never returns', async () => {
-    resetSoundsCoach();
-    const h = harness();
-    render(h, { coach: true });
-    expect(document.querySelector('[data-testid="coach-mark"]')).toBeNull();
-    await reveal(h);
-    expect($('[data-testid="coach-mark"]').textContent).toContain(copy('scan.coach'));
-    click(button(copy('action.gotIt')));
-    expect(document.querySelector('[data-testid="coach-mark"]')).toBeNull();
-    m?.unmount();
-    document.body.innerHTML = '';
-    const h2 = harness();
-    render(h2, { coach: true });
-    await reveal(h2);
-    expect(document.querySelector('[data-testid="coach-mark"]')).toBeNull();
   });
 });

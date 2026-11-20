@@ -5,6 +5,7 @@ import { Banner, Card } from '../../../ui/components/containers/index.ts';
 import { EmptyState } from '../../../ui/components/domain/index.ts';
 import { Button } from '../../../ui/components/form/index.ts';
 import type { GlyphId } from '../../../ui/glyph-ids.ts';
+import { DiagnosticsButton, type DiagnosticsButtonServices } from '../../../ui/components/diagnostics/index.ts';
 import { Glyph } from '../../../ui/primitives/index.ts';
 import { deniedStepsKey, micProblemKey, type MicBrowser, type MicProblem } from './mic.ts';
 import { text, type TextKey } from './text.ts';
@@ -141,15 +142,19 @@ export interface ErrorScreenProps {
   body: string;
   /** Browser-specific steps under the cause (the denied screen). */
   steps?: string;
+  /** A reassurance line under the cause ("Your piece is kept..."). */
+  note?: string;
   actions: readonly StateAction[];
+  /** Rendered under the actions (the diagnostics prompt and button). */
+  footer?: ReactNode;
   testId: string;
 }
 
 /**
- * A screen that stops the loop: icon tile, heading, the cause and its actions (error-clock, not-found mockups). The
+ * A screen that stops the loop: icon tile, heading, the cause and its actions (error-sound, error-mic mockups). The
  * heading takes focus on mount so a screen reader hears the problem first.
  */
-export function ErrorScreen({ icon = 'caution', heading, body, steps, actions, testId }: ErrorScreenProps) {
+export function ErrorScreen({ icon = 'caution', heading, body, steps, note, actions, footer, testId }: ErrorScreenProps) {
   const headingRef = useRef<HTMLHeadingElement>(null);
   useEffect(() => headingRef.current?.focus({ preventScroll: true }), []);
   return (
@@ -162,43 +167,66 @@ export function ErrorScreen({ icon = 'caution', heading, body, steps, actions, t
       </h1>
       <p className="err-screen-body">{body}</p>
       {steps ? <p className="err-screen-steps">{steps}</p> : null}
+      {note ? (
+        <p className="err-screen-note" data-testid="error-kept">
+          <Glyph id="info" size={16} />
+          <span>{note}</span>
+        </p>
+      ) : null}
       <div className="err-screen-actions">
         {actions.map((a) => (
           <Button key={a.label} label={a.label} size="hero" variant={a.primary ? 'primary' : 'secondary'} onClick={a.onClick} />
         ))}
       </div>
+      {footer ? <div className="err-screen-footer">{footer}</div> : null}
     </section>
   );
 }
 
-export type ErrorScreenKind = 'clock-rate' | 'corpus' | 'no-worklet';
+/** `audio-start` and `mic-start` are the two failures that stop a try (01-ux section 9); a clock-rate result never does. */
+export type ErrorScreenKind = 'audio-start' | 'mic-start' | 'corpus' | 'no-worklet';
 
-const SCREEN_ERRORS: Record<ErrorScreenKind, { heading: TextKey; body: TextKey }> = {
-  'clock-rate': { heading: 'error.clockRate.title', body: 'error.clockRate' },
-  corpus: { heading: 'error.corpus.title', body: 'error.corpus' },
-  'no-worklet': { heading: 'error.noAudioWorklet.title', body: 'error.noAudioWorklet' },
+const SCREEN_ERRORS: Record<ErrorScreenKind, { icon: GlyphId; heading: TextKey; body: TextKey; kept?: boolean; diagnostics?: boolean }> = {
+  'audio-start': { icon: 'volume-2', heading: 'error.audioStart.title', body: 'error.audioStart.body', kept: true, diagnostics: true },
+  'mic-start': { icon: 'mic', heading: 'error.micStart.title', body: 'error.micStart.body', kept: true, diagnostics: true },
+  corpus: { icon: 'caution', heading: 'error.corpus.title', body: 'error.corpus' },
+  'no-worklet': { icon: 'caution', heading: 'error.noAudioWorklet.title', body: 'error.noAudioWorklet' },
 };
 
 export interface ErrorKindScreenProps {
   kind: ErrorScreenKind;
-  /** Re-runs the check or load that failed; on success the host returns the player to where they were. */
+  /** Retries the start that failed; on success the host returns the player to the piece's beginning. */
   onTryAgain: () => void;
   /** Leaves for `#/`. */
   onBackToPractice: () => void;
+  /** With it, the sound and microphone screens offer "Save diagnostics" under "Keeps happening?". */
+  diagnostics?: DiagnosticsButtonServices;
 }
 
-/** The clock-rate, corpus and no-worklet errors: heading, cause, "Try again" and "Back to Practice". */
-export function ErrorKindScreen({ kind, onTryAgain, onBackToPractice }: ErrorKindScreenProps) {
+/** The sound-didn't-start, microphone-didn't-open, corpus and no-worklet errors: cause, "Try again", "Back to Practice". */
+export function ErrorKindScreen({ kind, onTryAgain, onBackToPractice, diagnostics }: ErrorKindScreenProps) {
   const t = SCREEN_ERRORS[kind];
   return (
     <ErrorScreen
       testId={`error-screen-${kind}`}
+      icon={t.icon}
       heading={text(t.heading)}
       body={text(t.body)}
+      {...(t.kept ? { note: text('error.kept') } : {})}
       actions={[
         { label: text('action.tryAgain'), onClick: onTryAgain, primary: true },
         { label: text('action.backToPractice'), onClick: onBackToPractice },
       ]}
+      {...(t.diagnostics && diagnostics
+        ? {
+            footer: (
+              <>
+                <p className="err-screen-prompt">{text('error.diagnostics.prompt')}</p>
+                <DiagnosticsButton services={diagnostics} />
+              </>
+            ),
+          }
+        : {})}
     />
   );
 }

@@ -165,47 +165,89 @@
   font-weight: 600;
 }
 
-/* ---- Key grid (06 section 6.3) --------------------------------------------------------- */
-
-.su-key-grid {
-  --su-cols: var(--su-key-cols, 3);
-  display: grid;
-  gap: var(--key-grid-gap);
+/* Description with the "Few pieces" tag; the switch with "Simpler? Match a note first" across from it. */
+.su-diff-desc {
+  margin-top: var(--space-1);
 }
 
-.su-key-group {
-  display: grid;
-  grid-template-columns: repeat(var(--su-cols), minmax(0, 1fr));
-  gap: var(--key-grid-gap);
+.su-diff-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0 var(--space-4);
 }
 
-/* Below 1024 px the controls live in the phone sheet: 3 columns at every difficulty, no chip under 96 px (note 18). */
-@media (max-width: 63.99rem) {
-  .su-key-grid {
-    --su-cols: 3;
-  }
+.su-diff-match {
+  margin: 0;
+  font-size: var(--type-small-size);
+  line-height: var(--type-small-line);
 }
 
-.su-key-group-label {
-  grid-column: 1 / -1;
-  margin: var(--space-2) 0 0;
-  color: var(--text-muted);
+/* A caution tag: short word drawn, the full sentence read and shown as the tooltip. */
+.su-few {
+  display: inline-flex;
+  align-items: center;
+  height: 1.375rem;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-s);
+  background: var(--brass-wash);
+  color: var(--brass-ink);
   font-size: var(--type-caption-size);
-  line-height: var(--type-caption-line);
+  line-height: 1;
   font-weight: 600;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+/* An inline text link (Calibrate, Match a note first). Underlined, full target height through padding. */
+.su-link {
+  display: inline;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-thickness: 0.0625rem;
+  text-underline-offset: 0.1875rem;
+  cursor: pointer;
+}
+
+.su-link:hover {
+  text-decoration-thickness: 0.125rem;
+}
+
+.su-link:focus-visible,
+.su-icon-btn:focus-visible,
+.su-key-button:focus-visible,
+.su-more:focus-visible {
+  outline: 0.125rem solid var(--focus-ring);
+  outline-offset: 0.125rem;
+  border-radius: var(--radius-xs);
+}
+
+/* ---- Key (round 2, 04-design section 1) ----------------------------------------------- */
+
+/* Up to eight keys: one row of chips that wraps at most once. */
+.su-key-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
 }
 
 .su-chip {
   position: relative;
   box-sizing: border-box;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--space-1);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
   min-width: 0;
-  min-height: var(--key-chip-min-height);
+  min-height: 2.625rem;
   margin: 0;
-  padding: var(--space-2) 0.625rem 0.625rem;
+  padding: 0 var(--space-3);
   border: 0.0625rem solid var(--border);
   border-radius: var(--radius-m);
   background: var(--surface);
@@ -231,7 +273,7 @@
   outline-offset: 0.125rem;
 }
 
-/* Selected: wash, 2 px text edge (1 px border plus 1 px inset), check disc (06 section 6.3). */
+/* Selected: wash, 2 px text edge (1 px border plus 1 px inset), check disc after the name. */
 .su-chip-on {
   border-color: var(--text);
   background: var(--selected);
@@ -242,6 +284,7 @@
   font-size: var(--type-label-size);
   line-height: 1.2;
   font-weight: 600;
+  white-space: nowrap;
 }
 
 .su-chip-concert {
@@ -252,13 +295,11 @@
 }
 
 .su-check {
-  position: absolute;
-  top: var(--space-2);
-  right: var(--space-2);
   display: grid;
+  flex: none;
   place-items: center;
-  width: 1.25rem;
-  height: 1.25rem;
+  width: 1.125rem;
+  height: 1.125rem;
   border-radius: 50%;
   background: var(--accent);
   color: var(--on-accent);
@@ -268,50 +309,16 @@
   stroke-width: 2.6;
 }
 
-.su-chip-any {
-  grid-column: 1 / -1;
-  flex-direction: row;
-  align-items: center;
-  gap: var(--space-3);
-  min-height: 3.25rem;
-  padding: 0 3rem 0 0.875rem;
-}
-
-.su-chip-any .su-chip-name {
+/* The drawn signature: clipped to its width, never scaled. */
+.su-key-sig {
+  display: block;
   flex: none;
-  font-size: var(--type-body-size);
-  white-space: nowrap;
+  overflow: hidden;
 }
 
-.su-chip-hint {
-  color: var(--text-muted);
-  font-size: var(--type-caption-size);
-  line-height: var(--type-caption-line);
-  font-weight: 400;
-}
-
-.su-chip-any .su-tag {
-  margin-inline-start: auto;
-}
-
-.su-chip-on .su-tag,
-.su-seg-on .su-tag {
-  background: var(--surface-2-pressed);
-  color: var(--text);
-}
-
-.su-chip-any .su-check {
-  top: 50%;
-  right: 0.875rem;
-  transform: translateY(-50%);
-}
-
-/* The staff is drawn wider than any chip and clipped, so it spans the chip and is never scaled (critique C3). */
 .su-mini-key {
   display: block;
-  align-self: stretch;
   overflow: hidden;
-  margin: 0.125rem 0 0;
 }
 
 .su-mini-key svg {
@@ -321,6 +328,128 @@
 
 .su-mini-key-lines {
   opacity: 0.55;
+}
+
+/* Sheet and popover: grouped, Major then Minor. */
+.su-key-grid {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.su-key-group {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(6.5rem, 1fr));
+  gap: var(--space-2);
+}
+
+.su-key-grid .su-chip {
+  padding-inline: var(--space-2);
+}
+
+/* In the sheet each chip stacks: signature, name, concert key; the check sits in the corner. */
+.su-key-grid:not(.su-key-grid-pop) .su-key-group .su-chip {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-2) var(--space-2) 0.625rem;
+}
+
+.su-key-grid:not(.su-key-grid-pop) .su-key-group .su-check {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+}
+
+.su-key-grid-pop .su-chip {
+  padding-inline: var(--space-2);
+  overflow: hidden;
+}
+
+.su-key-grid > .su-chip-any {
+  justify-self: start;
+}
+
+.su-key-group-label {
+  grid-column: 1 / -1;
+  margin: var(--space-2) 0 0;
+  color: var(--text-muted);
+  font-size: var(--type-caption-size);
+  line-height: var(--type-caption-line);
+  font-weight: 600;
+}
+
+.su-key-grid-pop .su-key-group {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.su-key-grid-pop .su-key-group-label {
+  margin-top: 0;
+  color: var(--text);
+  font-size: var(--type-small-size);
+}
+
+.su-key-pop-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+  margin-top: var(--space-2);
+  padding-top: var(--space-3);
+  border-top: 0.0625rem solid var(--border);
+}
+
+.su-key-pop-hint {
+  margin: 0;
+}
+
+/* The key popover is wider than the default 340 px popover. */
+.ui-popover:has(.su-key-pop) {
+  max-width: min(46rem, calc(100vw - 2rem));
+}
+
+/* More than eight keys: one button with the value, the count beside it. */
+.su-key-many {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+}
+
+.su-key-button,
+.su-more {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 2.625rem;
+  margin: 0;
+  padding: 0 var(--space-3) 0 var(--space-4);
+  border: 0.0625rem solid var(--border-strong);
+  border-radius: var(--radius-m);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--type-label-size);
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.su-key-button:hover,
+.su-more:hover {
+  background: var(--surface-2-hover);
+}
+
+.su-key-button-open {
+  border-color: var(--text);
+  box-shadow: inset 0 0 0 0.0625rem var(--text);
+}
+
+.su-key-button-chevron {
+  color: var(--text-muted);
+}
+
+.su-key-many-text {
+  margin: 0;
 }
 
 /* ---- Segments (06 section 6.2) --------------------------------------------------------- */
@@ -404,36 +533,69 @@
   font-weight: 500;
 }
 
-.su-seg-time .su-seg-btn {
-  min-height: var(--time-segment-height);
-  min-width: var(--time-segment-min-width);
+/* ---- Time signature (round 2, 04-design section 1) ----------------------------------- */
+
+.su-time-line,
+.su-tempo-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
 }
 
-.su-seg-time .su-seg-caption .su-tag {
-  margin-top: var(--space-1);
+.su-seg-wrap {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: 100%;
+}
+
+.su-seg-time .su-seg-btn {
+  padding: 0 var(--space-3);
+  min-width: 2.75rem;
+}
+
+.su-meter {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
 }
 
 .su-time-mark {
   display: block;
 }
 
-/* ---- Tempo (06 section 6.6) ------------------------------------------------------------ */
-
-.su-tempo-set {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
+/* "Few pieces": a small caution dot after the numerals; the tooltip and the spoken name say it. */
+.su-few-dot {
+  position: absolute;
+  top: 50%;
+  right: calc(-1 * var(--space-2));
+  width: 0.375rem;
+  height: 0.375rem;
+  margin-top: -0.1875rem;
+  border-radius: 50%;
+  background: var(--brass);
 }
 
-.su-tempo-value {
-  flex: none;
-  min-width: 4.5rem;
-  font-family: var(--type-h3-family);
-  font-size: var(--type-h3-size);
-  line-height: var(--type-h3-line);
-  font-weight: var(--type-h3-weight);
+.su-more-count {
+  color: var(--text-muted);
   font-variant-numeric: tabular-nums;
+}
+
+.su-time-hidden {
+  margin: 0;
+}
+
+.su-time-pop {
+  max-width: 18rem;
+}
+
+/* ---- Tempo and Length (round 2, 04-design section 1) -------------------------------- */
+
+.su-tempo-mark {
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 /* The quarter note from the music-text face, a little larger than the digits, set tight to "=" (critique C9). */
@@ -445,20 +607,54 @@
   margin-inline-end: -0.05em;
 }
 
+.su-tempo-range-text {
+  margin: 0;
+}
+
+.su-tempo-set {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
 .su-tempo-range {
-  flex: 1 1 auto;
+  width: 8rem;
 }
 
-.su-tempo-field {
-  width: 3.75rem;
-  text-align: center;
+.su-icon-btn {
+  display: inline-grid;
+  place-items: center;
+  width: var(--target-min);
+  height: var(--target-min);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-m);
+  background: var(--surface-2);
+  color: var(--text);
+  cursor: pointer;
 }
 
-.su-hear-tempo {
-  margin-top: var(--space-3);
+.su-icon-btn:hover {
+  background: var(--surface-2-hover);
 }
 
-/* ---- Length ---------------------------------------------------------------------------- */
+.su-row-end {
+  margin-inline-start: auto;
+}
+
+.su-length-inline {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  white-space: nowrap;
+}
+
+.su-length-inline-label {
+  font-family: var(--type-label-family);
+  font-size: var(--type-label-size);
+  font-weight: var(--type-label-weight);
+}
 
 .su-length-only {
   margin: 0;
@@ -466,11 +662,7 @@
   line-height: var(--type-small-line);
 }
 
-/* ---- Mode (05 section 5.8) ------------------------------------------------------------- */
-
-.su-mode .su-label {
-  margin-bottom: var(--space-2);
-}
+/* ---- Mode ----------------------------------------------------------------------------- */
 
 .su-mode-blocked-label {
   display: inline-flex;
@@ -478,28 +670,8 @@
   gap: var(--space-2);
 }
 
-.su-mode-hints .su-hint {
+.su-mode-hint {
   margin-top: var(--space-2);
-}
-
-.su-mode-fix {
-  margin-top: var(--space-3);
-}
-
-/* Desktop foot: "Mode" left of the segments, hints under the segments. */
-.su-mode-inline {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: center;
-  column-gap: var(--space-4);
-}
-
-.su-mode-inline .su-label {
-  margin-bottom: 0;
-}
-
-.su-mode-inline .su-mode-hints {
-  grid-column: 2;
 }
 
 /* ---- XP line (05 section 5.10) --------------------------------------------------------- */
@@ -519,5 +691,32 @@
 @media (prefers-reduced-motion: reduce) {
   .su-chip {
     transition: none;
+  }
+}
+
+/* ---- The form: a label column once the setup is wide enough (04-design section 1) ----- */
+
+@container setup (min-width: 30rem) {
+  .su-row {
+    display: grid;
+    grid-template-columns: 7rem minmax(0, 1fr);
+    column-gap: var(--space-4);
+    align-items: start;
+  }
+
+  .su-row > * {
+    grid-column: 2;
+  }
+
+  .su-row > .su-row-head {
+    grid-column: 1;
+    grid-row: 1 / span 6;
+    min-height: 2.625rem;
+    margin: 0;
+  }
+
+  /* Desktop form controls are 40 px tall (segments, chips, stepper buttons keep their 44 px hit width). */
+  .su-row .su-seg-btn {
+    min-height: 2.25rem;
   }
 }

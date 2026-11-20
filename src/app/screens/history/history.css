@@ -32,62 +32,82 @@
 
 .hist-day-heading {
   margin: 0;
-  font-size: var(--type-h3-size);
-  line-height: var(--type-h3-line);
-  font-weight: var(--type-h3-weight);
+  padding-inline: var(--space-1);
+  font-size: var(--type-small-size);
+  line-height: var(--type-small-line);
+  font-weight: var(--type-label-weight);
   color: var(--text-muted);
 }
 
+/* One card per day: rows separated by a hairline (04-design §9). */
 .hist-list {
   display: flex;
   flex-direction: column;
   margin: 0;
   padding: 0;
   list-style: none;
-  border-block-start: 0.0625rem solid var(--border);
+  border: 0.0625rem solid var(--border);
+  border-radius: var(--radius-l);
+  background: var(--surface);
+  box-shadow: var(--e1);
+  overflow: hidden;
 }
 
-.hist-item {
-  border-block-end: 0.0625rem solid var(--border);
+.hist-item + .hist-item {
+  border-block-start: 0.0625rem solid var(--border);
 }
 
 .hist-row {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
-  min-block-size: 3.5rem;
-  padding-block: var(--space-2);
+  gap: var(--space-4);
+  min-block-size: 4.5rem;
+  padding: var(--space-3) var(--space-4);
   color: inherit;
   text-decoration: none;
 }
 
-@media (max-width: 40rem) {
-  .hist-row {
-    min-block-size: 4.5rem;
-  }
+.hist-row:hover {
+  background: var(--surface-2);
 }
 
 .hist-row:focus-visible {
   outline: var(--focus-ring) solid 0.125rem;
-  outline-offset: 0.125rem;
+  outline-offset: -0.125rem;
 }
 
+/* The grade letter (serif) and score, or "Not graded" in words. */
 .hist-grade {
   flex: none;
-  inline-size: 2rem;
-  block-size: 2rem;
+  inline-size: 6rem;
   display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.hist-grade-letter-sm {
+  font-family: var(--type-h1-family);
+  font-size: var(--type-h1-size);
+  line-height: 1;
+  font-weight: var(--type-h1-weight);
+}
+
+.hist-grade-score-sm {
+  color: var(--text-muted);
+  font-weight: var(--type-label-weight);
+  font-variant-numeric: tabular-nums;
 }
 
 .hist-grade-none {
   color: var(--text-muted);
+  font-size: var(--type-small-size);
+  font-weight: var(--type-label-weight);
 }
 
 .hist-main {
   display: flex;
   flex-direction: column;
+  gap: var(--space-1);
   min-inline-size: 0;
   flex: 1 1 auto;
 }
@@ -101,18 +121,11 @@
   text-overflow: ellipsis;
 }
 
-.hist-score {
-  font-variant-numeric: tabular-nums;
-  font-weight: var(--type-h3-weight);
-}
-
 .hist-title {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: block;
+  font-weight: var(--type-label-weight);
 }
 
-.hist-composer,
 .hist-meta {
   color: var(--text-muted);
   font-size: var(--type-small-size);
@@ -129,15 +142,88 @@
 .hist-side {
   flex: none;
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
+  align-items: center;
   gap: var(--space-1);
+  color: var(--text-muted);
+  font-size: var(--type-small-size);
 }
 
 .hist-time {
-  color: var(--text-muted);
-  font-size: var(--type-small-size);
   font-variant-numeric: tabular-nums;
+}
+
+.hist-chevron {
+  flex: none;
+  color: var(--text-muted);
+}
+
+/* Phone: time and mode under the summary. */
+@media (max-width: 40rem) {
+  .hist-row {
+    flex-wrap: wrap;
+    gap: var(--space-1) var(--space-3);
+    padding: var(--space-3);
+  }
+
+  .hist-grade {
+    inline-size: 4.5rem;
+  }
+
+  .hist-main {
+    flex-basis: calc(100% - 4.5rem - 2 * var(--space-3) - 1rem);
+  }
+
+  .hist-side {
+    order: 3;
+    flex-basis: 100%;
+    padding-inline-start: calc(4.5rem + var(--space-3));
+  }
+
+  .hist-chevron {
+    order: 2;
+  }
+}
+
+/* "This piece ×": a dark chip that clears the piece filter. */
+.hist-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-block-size: var(--select-height);
+  padding-inline: var(--space-4);
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--ink);
+  color: var(--bg);
+  font: inherit;
+  font-weight: var(--type-label-weight);
+  cursor: pointer;
+}
+
+.hist-chip:focus-visible {
+  outline: var(--focus-ring) solid 0.125rem;
+  outline-offset: 0.125rem;
+}
+
+.hist-piece-line {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.hist-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-weight: var(--type-label-weight);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.hist-link:focus-visible {
+  outline: var(--focus-ring) solid 0.125rem;
+  outline-offset: 0.125rem;
 }
 
 .hist-more {
@@ -331,4 +417,106 @@
 /* A part of the summary line never breaks inside; the line wraps between parts. */
 .hist-meta-part {
   white-space: nowrap;
+}
+
+/* ---- Try detail (round 2, 04-design §9) ------------------------------------------------------------------------ */
+.hist-back {
+  gap: var(--space-1);
+  text-decoration: none;
+}
+
+.hist-attempt-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-5);
+}
+
+.hist-try-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.hist-try-of {
+  font-weight: var(--type-label-weight);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.hist-try-step[aria-disabled='true'] {
+  opacity: var(--opacity-disabled);
+  cursor: default;
+}
+
+.hist-timing-note {
+  color: var(--text-muted);
+}
+
+/* A button as wide as its longer label: both faces share one grid cell, the hidden one keeps the width. */
+.hist-steady {
+  display: inline-grid;
+}
+
+.hist-steady-face {
+  grid-area: 1 / 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+}
+
+.hist-steady-ghost {
+  visibility: hidden;
+}
+
+.hist-steady-alt::before {
+  content: attr(data-alt);
+}
+
+/* Playing: "Stop" with a brass outline. */
+.hist-steady[data-playing='true'] {
+  border-color: var(--brass);
+  box-shadow: inset 0 0 0 0.0625rem var(--brass);
+}
+
+.hist-caption,
+.hist-caption-line {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+  min-block-size: var(--type-small-line);
+}
+
+.hist-caption .sd-live-cap {
+  margin: 0;
+}
+
+.hist-heard-note {
+  color: var(--text-muted);
+  font-size: var(--type-small-size);
+  line-height: var(--type-small-line);
+}
+
+.hist-sure {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.hist-diag {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-3);
+}
+
+.hist-diag-prompt {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--type-small-size);
+  line-height: var(--type-small-line);
 }

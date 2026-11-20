@@ -1,7 +1,7 @@
 /**
  * Dev-only story page for the sounds components: `/src/ui/components/sounds/story/index.html` on the Vite dev server.
  * It lays them out as the `scan-*` mockups do. Query: kind=voice|instrument, ranked=0|1, playing=listen|tempo|
- * reference|tuning, caption=chord|first|tempo|bar|failed, coach=1, popover=1, confirm=1, explain=1, theme=dark.
+ * reference|tuning, caption=chord|first|tempo|bar|failed, popover=1, confirm=1, explain=1, theme=dark.
  * Its literals are dev labels, not product copy.
  */
 import { StrictMode, useState } from 'react';
@@ -10,7 +10,6 @@ import '../../../tokens.css';
 import { GlyphSprite } from '../../../primitives/Glyph.tsx';
 import { copy } from '../../../copy/copy.ts';
 import { Button } from '../../form/Button.tsx';
-import { CoachMark } from '../CoachMark.tsx';
 import { ListenConfirm } from '../ListenConfirm.tsx';
 import { PlayingTempo } from '../rows.tsx';
 import { SoundsDock } from '../SoundsDock.tsx';
@@ -19,7 +18,7 @@ import { SoundsGroup } from '../SoundsGroup.tsx';
 import type { ReferenceKind, SoundId, SoundsModel } from '../types.ts';
 import './story.css';
 
-const DEV = { paper: 'Score area', quiet: 'Nothing plays during the take', time: 'Your reading time keeps running: 0:18 left.' };
+const DEV = { paper: 'Score area', time: 'Your reading time keeps running: 0:18 left.' };
 
 const params = new URLSearchParams(location.search);
 if (params.get('theme')) document.documentElement.dataset.theme = params.get('theme') ?? 'light';
@@ -38,7 +37,6 @@ function captionFor(playing: SoundId | null, which: string | null, tempo: Sounds
 function Story() {
   const [playing, setPlaying] = useState<SoundId | null>(initialPlaying);
   const [ranked, setRanked] = useState(params.get('ranked') !== '0');
-  const [coach, setCoach] = useState(params.get('coach') === '1');
   const [confirm, setConfirm] = useState(params.get('confirm') === '1');
   const [explain, setExplain] = useState(params.get('explain') === '1');
   const tempo = { unit: '♩', bpm: 72 };
@@ -60,13 +58,13 @@ function Story() {
         </section>
         <aside className="story-aside">
           <Button className="story-start" variant="primary" size="hero" label={copy('action.startPlaying')} kbd={copy('shortcuts.spaceKey')} />
-          <SoundsGroup coach={coach ? <CoachMark onDismiss={() => setCoach(false)} /> : undefined} model={model} onPress={press} caption={caption} captionFailed={params.get('caption') === 'failed'} headerNote={DEV.quiet} />
+          <SoundsGroup model={model} onPress={press} caption={caption} captionFailed={params.get('caption') === 'failed'} lead={copy(kind === 'voice' ? 'scan.sounds.whenStart.voice' : 'scan.sounds.whenStart.instrument')} />
         </aside>
       </main>
       <main className="story-phone" data-story="phone">
         <p className="story-note">{DEV.paper}</p>
         <div className="story-dock">
-          <SoundsDock coach={coach ? <CoachMark onDismiss={() => setCoach(false)} /> : undefined} model={model} onPress={press} caption={caption} captionFailed={params.get('caption') === 'failed'} />
+          <SoundsDock model={model} onPress={press} caption={caption} captionFailed={params.get('caption') === 'failed'} />
           <Button className="story-start story-dock-start" variant="primary" size="hero" label={copy('action.startPlaying')} />
         </div>
       </main>

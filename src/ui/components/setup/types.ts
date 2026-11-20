@@ -21,9 +21,15 @@ export interface DifficultyRowView {
   skipped: readonly number[];
   segments: readonly DifficultySegmentView[];
   skippedNote: TextLine | null;
+  /** The full few-pieces sentence: the tag's tooltip and accessible name. */
   fewNote: TextLine | null;
+  /** "Few pieces": the caution tag at the end of the description. */
+  fewTag?: TextLine | null;
+  /** "Simpler? Match a note first." (difficulty 1). Shown only with `onMatch`. */
+  matchHint?: TextLine | null;
   description: string;
-  servedLine: TextLine;
+  /** "At difficulty 2: C3 to C4". Not shown by the control: the range card shows it (round 2, 01-ux section 6). */
+  servedLine?: TextLine;
   followValue: TextLine | null;
   followHint: TextLine | null;
 }
@@ -32,6 +38,8 @@ export interface KeyOptionView {
   key: KeySig;
   value: string;
   name: string;
+  /** "G", "B♭": the popover groups by mode, so its chips show the tonic only. */
+  tonic?: string;
   accidentals: number;
   side: 'none' | 'sharp' | 'flat';
   /** Transposing instruments: "concert F major". `vars.key` is the concert key's name. */
@@ -48,7 +56,12 @@ export interface KeyGroupView {
 export interface KeyRowView {
   any: { selected: boolean; label: TextLine; hint: TextLine; xpTag: TextLine };
   groups: readonly KeyGroupView[];
-  moreNote: TextLine | null;
+  /** "Difficulty 1 uses major keys with up to 1 sharp or flat." */
+  uses: TextLine;
+  /** "Minor keys start at difficulty 2.", or null. */
+  next: TextLine | null;
+  /** More than eight keys: "18 keys: major and minor, up to 4 sharps or flats."; the chips open from one button. */
+  many: TextLine | null;
 }
 
 export interface TimeOptionView {
@@ -63,8 +76,15 @@ export interface TimeOptionView {
 export interface TimeRowView {
   any: { selected: boolean; label: TextLine; xpTag: TextLine };
   options: readonly TimeOptionView[];
+  /** "No 2/4 at difficulty 1 yet." */
   hiddenNote: TextLine | null;
   fewNote: TextLine | null;
+  /** Tooltip of the few-pieces dot ("Few pieces"). */
+  fewTip: TextLine;
+  /** The meters in the row; with more than seven, the five most used. */
+  top: readonly TimeOptionView[];
+  /** The meters behind "More" (empty up to seven meters). */
+  more: readonly TimeOptionView[];
 }
 
 export interface TempoRowView {

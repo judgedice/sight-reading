@@ -27,6 +27,8 @@ export interface RangePictureProps {
   showServed?: boolean;
   /** Bar only: fixed width in px. */
   barWidth?: number | undefined;
+  /** Picture only: the note slot (0 to 3, low to high) that sounds now. Its chip, notehead and key are brass. */
+  soundingSlot?: number | null;
   className?: string | undefined;
 }
 
@@ -63,6 +65,7 @@ export function RangePicture({
   notes = true,
   showServed = true,
   barWidth,
+  soundingSlot = null,
   className,
 }: RangePictureProps) {
   const { model, staff } = data;
@@ -85,16 +88,17 @@ export function RangePicture({
   return (
     <figure className={classes} data-testid="range-picture">
       <div className="rp-stage">
-        <RangeStaff staff={staff} showServed={showServed} />
+        <RangeStaff staff={staff} showServed={showServed} lit={soundingSlot} />
         <div className="rp-notes">
           {staff.notes.map((n, slot) => {
             const served = slot === 1 || slot === 2;
             if (served && !showServed) return null;
             const left = `${Math.round((slotCentre(slot) / (WIDTH_SPACES * S)) * 10000) / 100}%`;
-            const cls = served ? 'rp-note-pill rp-note-pill-served' : 'rp-note-pill rp-note-pill-full';
+            const lit = soundingSlot === slot;
+            const cls = [served ? 'rp-note-pill rp-note-pill-served' : 'rp-note-pill rp-note-pill-full', lit ? 'rp-note-pill-lit' : null].filter(Boolean).join(' ');
             const content = (
               <>
-                <Glyph id="play" size={12} className="rp-note-pill-icon" />
+                <Glyph id={lit ? 'speaker' : 'play'} size={12} className="rp-note-pill-icon" />
                 {n.label}
               </>
             );
@@ -107,18 +111,24 @@ export function RangePicture({
                 aria-label={copy('range.hearNote', { note: n.label })}
                 onClick={() => onHearNote(n.midi - chromatic)}
                 data-testid={`hear-note-${slot}`}
+                data-sounding={lit ? 'true' : undefined}
               >
                 {content}
               </button>
             ) : (
-              <span key={slot} className={`${cls} rp-note-pill-static`} style={{ left }} aria-hidden="true">
+              <span key={slot} className={`${cls} rp-note-pill-static`} style={{ left }} aria-hidden="true" data-sounding={lit ? 'true' : undefined}>
                 {n.label}
               </span>
             );
           })}
         </div>
       </div>
-      {keyboard ? <KeyboardStrip keyboard={data.keyboard} showServed={showServed} compact={compact} /> : null}
+      {keyboard ? <KeyboardStrip
+          keyboard={data.keyboard}
+          showServed={showServed}
+          compact={compact}
+          litMidi={soundingSlot !== null && staff.notes[soundingSlot] ? staff.notes[soundingSlot].midi - chromatic : null}
+        /> : null}
       <figcaption className="rp-legend">
         <span className="rp-visually-hidden" data-testid="range-a11y">
           {a11y}

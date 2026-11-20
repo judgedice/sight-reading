@@ -1,12 +1,14 @@
-/** Pure helpers for the scan screen (04 section 5.3): summary text, STARS rows and ticks, accidentals, credits. */
-import type { ExcerptSource, KeySig, PreparedExcerpt } from '../../../core/types.ts';
-import { copy } from '../../../ui/copy/copy.ts';
+/** Pure helpers for the scan screen (04 section 5.3): summary text, "Look before you play" rows, accidentals, credits. */
+import type { Configs, ExcerptSource, KeySig, PreparedExcerpt } from '../../../core/types.ts';
+import { countInBarsFor } from '../../../session/index.ts';
+import { copy, formatMessage } from '../../../ui/copy/copy.ts';
 import { beatUnit } from '../setup/model.ts';
 import { keyName } from '../setup/key-names.ts';
+import { LOOK_TEXT } from './look-text.ts';
 
 export type StarsId = 'signatures' | 'tempo' | 'accidentals' | 'rhythms' | 'signs';
 
-/** The five STARS rows in order (02 section 7). */
+/** The five "Look before you play" rows in order (02 section 7). */
 export const STARS_ORDER: readonly StarsId[] = ['signatures', 'tempo', 'accidentals', 'rhythms', 'signs'];
 
 /** Rows that draw a highlight in the overlay while hovered, focused or active (04 section 5.3). */
@@ -95,26 +97,6 @@ export function writtenAccidentalIds(p: PreparedExcerpt): string[] {
 /** The "Signs" highlight: the highest and lowest notes (03 `extremes`). */
 export const extremeIds = (p: PreparedExcerpt): string[] => (p.extremes.highId === p.extremes.lowId ? [p.extremes.highId] : [p.extremes.highId, p.extremes.lowId]);
 
-/** Rows ticked by the clock: row i ticks after (i + 1) / 5 of the scan time (30 s: every 6 s). */
-export function autoTickedCount(remainingSec: number, totalSec: number): number {
-  if (!(totalSec > 0)) return 0;
-  const elapsed = Math.max(0, totalSec - remainingSec);
-  const step = totalSec / STARS_ORDER.length;
-  return Math.min(STARS_ORDER.length, Math.floor(elapsed / step + 1e-9));
-}
-
-/** A row is ticked by the player (a manual choice stands) or, failing that, by the clock. */
-export function isTicked(index: number, auto: number, manual: ReadonlyMap<StarsId, boolean>): boolean {
-  const id = STARS_ORDER[index] as StarsId;
-  return manual.has(id) ? (manual.get(id) as boolean) : index < auto;
-}
-
-/** The row being worked on: the first one not ticked, or null. */
-export function activeRow(auto: number, manual: ReadonlyMap<StarsId, boolean>): StarsId | null {
-  for (let i = 0; i < STARS_ORDER.length; i++) if (!isTicked(i, auto, manual)) return STARS_ORDER[i] as StarsId;
-  return null;
-}
-
 /** Seconds left shown as "Starting in N": only in the last 5 s of a ranked scan. */
 export function startingInSeconds(mode: 'ranked' | 'practice', remainingSec: number): number | null {
   if (mode !== 'ranked') return null;
@@ -143,3 +125,66 @@ export function sourceLine(s: ExcerptSource): string | null {
 
 /** Accessible name of the toolbar overflow button. */
 export const OVERFLOW_LABEL = copy('action.moreOptions');
+
+export interface LookRow {
+  id: StarsId;
+  label: string;
+  fact: string;
+  /** One short line of advice; null when there is nothing to do (no accidentals). */
+  advice: string | null;
+}
+
+const ADVICE_KEY = { signatures: 'adviceSignatures', tempo: 'adviceTempo', accidentals: 'adviceAccidentals', rhythms: 'adviceRhythm', signs: 'adviceSigns' } as const;
+
+const SIGN: Record<number, string> = { [-2]: '𝄫', [-1]: '♭', 0: '', 1: '♯', 2: '𝄪' };
+const noteName = (w: { step: string; alter: number; octave: number }): string => `${w.step}${SIGN[w.alter] ?? ''}${w.octave}`;
+
+/** The bar with the most notes (the first one on a tie), for the Rhythm row. */
+export function busiestBar(p: PreparedExcerpt): { bar: number; notes: number } {
+  let best = { bar: 1, notes: -1 };
+  for (const m of p.measures) {
+    const notes = m.events.filter((e) => e.kind === 'note').length;
+    if (notes > best.notes) best = { bar: m.displayBar, notes };
+  }
+  return { bar: best.bar, notes: Math.max(0, best.notes) };
+}
+
+/**
+ * The five rows of "Look before you play" for this piece (04 section 6): label, this piece's fact, one line of advice.
+ * Accidentals with none in the music have no advice line.
+ */
+export function lookRows(p: PreparedExcerpt): LookRow[] {
+  const notes = p.measures.flatMap((m) => m.events).filter((e): e is Extract<typeof e, { kind: 'note' }> => e.kind === 'note');
+  const byId = new Map(notes.map((n) => [n.id, n] as const));
+  const high = byId.get(p.extremes.highId);
+  const low = byId.get(p.extremes.lowId);
+  const last = notes[notes.length - 1];
+  const accidentals = writtenAccidentalIds(p).length;
+  const rhythm = busiestBar(p);
+  const tempo = copy('tempo.marking', { unit: beatUnit(meterString(p)), bpm: p.selection.settings.bpm });
+  const row = (id: StarsId, fact: string, advice: boolean = true): LookRow => ({
+    id,
+    label: copy(`look.label.${id === 'rhythms' ? 'rhythm' : id}` as 'look.label.tempo'),
+    fact,
+    advice: advice ? LOOK_TEXT[ADVICE_KEY[id]] : null,
+  });
+  return [
+    row('signatures', signatureDetail(p)),
+    row('tempo', formatMessage(LOOK_TEXT.tempo, { tempo })),
+    row('accidentals', accidentals === 0 ? LOOK_TEXT.accidentalsNone : formatMessage(LOOK_TEXT.accidentalsSome, { n: accidentals }), accidentals > 0),
+    row('rhythms', formatMessage(LOOK_TEXT.rhythm, { bar: rhythm.bar, n: rhythm.notes })),
+    row('signs', high && low && last ? formatMessage(LOOK_TEXT.shape, { low: noteName(low.writtenPitch), high: noteName(high.writtenPitch), last: noteName(last.writtenPitch) }) : '', Boolean(high && low && last)),
+  ];
+}
+
+/**
+ * What plays on Start, for the Sounds line (04 section 12): a voice hears its starting pitch (when the setting is on),
+ * then the count-in clicks; an instrument hears the clicks.
+ */
+export function onStartLine(p: PreparedExcerpt, cfg: Configs, voice: boolean, startingPitch: boolean): string {
+  const bars = countInBarsFor(cfg, p.levelServed, p.selection.settings.bpm);
+  const withPitch = voice && startingPitch;
+  // Two bars is what difficulties 1 to 3 count in; its sentence is written out ("two bars of clicks").
+  if (bars === 2) return copy(withPitch ? 'scan.sounds.whenStart.voice' : 'scan.sounds.whenStart.instrument');
+  return copy(withPitch ? 'scan.sounds.onStart.voice' : 'scan.sounds.onStart.instrument', { bars });
+}

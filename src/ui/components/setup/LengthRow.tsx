@@ -29,6 +29,16 @@ function OnlyLength({ note }: { note: TextLine }) {
   );
 }
 
+/** "Length 8 bars" at the right of the Tempo row when only one length exists (04-design section 1). */
+export function LengthInline({ bars, label = copy('row.length') }: { bars: number; label?: string }) {
+  return (
+    <span className="su-length-inline" data-setup-row="length">
+      <span className="su-length-inline-label">{label}</span>
+      <span className="su-length-inline-value">{copy('setup.length.chip', { bars })}</span>
+    </span>
+  );
+}
+
 /** Length (05 section 5.7): plain text when one length is allowed, else Any and the allowed bar counts. No XP tag. */
 export function LengthRow({ row, onChange, label = copy('row.length'), fallback }: LengthRowProps) {
   const id = useId();

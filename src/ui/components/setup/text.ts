@@ -8,7 +8,7 @@ import { copy, isCopyKey, type CopyKey, type CopyVars } from '../../copy/copy.ts
 export interface TextLine {
   key: string;
   vars: Readonly<Record<string, string | number>>;
-  keyVars?: Readonly<Record<string, string>>;
+  keyVars?: Readonly<Record<string, string>> | undefined;
 }
 
 /** Formats a `TextLine` with the copy catalogue. Throws on an unknown key, like `copy`. */

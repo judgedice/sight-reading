@@ -130,28 +130,25 @@ describe('ScanTimer', () => {
 });
 
 describe('ChecklistItem', () => {
-  it('marks active and checked states', () => {
+  it('has no box and nothing to tick', () => {
     const c = m(
       <ul>
-        <ChecklistItem checked title="Signatures" detail="D major" active />
+        <ChecklistItem title="Key and time" detail="D major" advice="Say the key." />
       </ul>,
     );
-    const li = c.querySelector('li');
-    expect(li?.getAttribute('data-active')).toBe('true');
-    expect(li?.getAttribute('aria-current')).toBe('step');
-    expect(c.querySelector('.dom-check-mark svg')).not.toBeNull();
+    expect(c.querySelector('[role=checkbox]')).toBeNull();
+    expect(c.querySelector('button')).toBeNull();
+    expect(c.querySelector('.dom-check-mark')).toBeNull();
+    expect(c.querySelector('.dom-check-advice')?.textContent).toBe('Say the key.');
   });
-  it('toggles through a checkbox button when onToggle is given', () => {
-    const onToggle = vi.fn();
+  it('draws no advice line when there is none', () => {
     const c = m(
       <ul>
-        <ChecklistItem checked={false} title="Tempo" onToggle={onToggle} />
+        <ChecklistItem title="Accidentals" detail="None in the music." />
       </ul>,
     );
-    const box = c.querySelector('[role=checkbox]') as HTMLElement;
-    expect(box.getAttribute('aria-checked')).toBe('false');
-    click(box);
-    expect(onToggle).toHaveBeenCalledWith(true);
+    expect(c.querySelector('.dom-check-advice')).toBeNull();
+    expect(c.querySelector('li')?.getAttribute('data-advice')).toBe('false');
   });
 });
 

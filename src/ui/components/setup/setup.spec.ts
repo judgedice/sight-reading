@@ -35,7 +35,7 @@ test('the quarter note sits within 0.35 em of "=" (designer check, critique C9)'
   expect(m.gap).toBeLessThanOrEqual(0.35 * m.fontSize);
 });
 
-test('key chip staves keep the 6.5 px staff space at every width', async ({ page }) => {
+test('key chip staves are drawn at their staff space, never scaled, at every width', async ({ page }) => {
   for (const width of [1440, 390]) {
     await page.setViewportSize({ width, height: 900 });
     await open(page);
@@ -46,18 +46,26 @@ test('key chip staves keep the 6.5 px staff space at every width', async ({ page
     for (const s of sizes) expect(Math.abs(s.drawn - s.asked)).toBeLessThan(0.5);
     const chipWidths = await page.$$eval('[data-story="key-clarinet"] .su-chip:not(.su-chip-any)', (els) => els.map((e) => e.getBoundingClientRect().width));
     expect(Math.min(...chipWidths)).toBeGreaterThanOrEqual(96);
+    // The drawn signature is about 28 px tall on a 42 px chip (round 2, 04-design section 1).
+    const heights = await page.$$eval('[data-story="home"] .su-key-sig svg', (svgs) => svgs.map((s) => s.getBoundingClientRect().height));
+    for (const h of heights) expect(h).toBeLessThanOrEqual(30);
   }
 });
 
-test('desktop key grid: 3 columns to difficulty 4, 4 from 5; phones always 3', async ({ page }) => {
-  const columns = (story: string) =>
-    page.$eval(`[data-story="${story}"] .su-key-group`, (g) => getComputedStyle(g).gridTemplateColumns.split(' ').length);
+test('more than eight keys: one button, the keys in a popover, five a row, and choosing closes it', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await open(page);
-  expect(await columns('key-fallback')).toBe(3);
-  expect(await columns('key-clarinet')).toBe(4);
-  await page.setViewportSize({ width: 390, height: 844 });
-  expect(await columns('key-clarinet')).toBe(3);
+  const card = page.locator('[data-story="key-many"]');
+  const button = card.locator('[data-key-button]');
+  await expect(button).toContainText('A major');
+  await button.click();
+  const pop = page.locator('[data-key-popover]');
+  await expect(pop).toBeVisible();
+  const cols = await pop.locator('.su-key-group').first().evaluate((g) => getComputedStyle(g).gridTemplateColumns.split(' ').length);
+  expect(cols).toBe(5);
+  await pop.getByRole('radio', { name: /^E♭ major/ }).click();
+  await expect(pop).toHaveCount(0);
+  await expect(button).toBeFocused();
 });
 
 test('mouse, arrow keys and touch choose keys and meters', async ({ browser }) => {
@@ -77,8 +85,8 @@ test('mouse, arrow keys and touch choose keys and meters', async ({ browser }) =
   await sheet.getByRole('radio', { name: /^Any key/ }).tap();
   await expect(sheet.getByRole('radio', { name: /^Any key/ })).toHaveAttribute('aria-checked', 'true');
 
-  await sheet.getByRole('radio', { name: '3 4 time' }).tap();
-  await expect(sheet.getByRole('radio', { name: '3 4 time' })).toHaveAttribute('aria-checked', 'true');
+  await sheet.getByRole('radio', { name: '3/4, few pieces' }).tap();
+  await expect(sheet.getByRole('radio', { name: '3/4, few pieces' })).toHaveAttribute('aria-checked', 'true');
   await page.keyboard.press('Home');
   await expect(sheet.getByRole('radio', { name: /^Any/ }).nth(1)).toBeFocused();
 
@@ -97,8 +105,9 @@ test('a blocked Ranked takes focus, keeps its reason in view and is not chosen',
   await expect(ranked).toBeFocused();
   await expect(ranked).toHaveAttribute('aria-disabled', 'true');
   await expect(card.getByRole('radio', { name: 'Practice' })).toHaveAttribute('aria-checked', 'true');
-  await expect(card.getByText('Ranked needs a calibrated setup on this device.')).toBeVisible();
-  await expect(card.getByRole('button', { name: 'Calibrate now' })).toBeVisible();
+  await expect(card.getByText('Ranked needs calibration on this device.')).toBeVisible();
+  await expect(card.getByRole('button', { name: 'Calibrate', exact: true })).toBeVisible();
+  await expect(card.getByRole('button', { name: 'Calibrate now' })).toHaveCount(0);
 });
 
 for (const [size, viewport] of [

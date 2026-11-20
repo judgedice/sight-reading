@@ -31,6 +31,8 @@ export interface InstrumentGridProps {
   layout: 'desktop' | 'phone';
   /** Marks the selected card (else the first) with `data-autofocus` for the dialog's initial focus. */
   autoFocus?: boolean;
+  /** Hover or focus of a card: start loading its sound. */
+  onPrepare?: ((id: string) => void) | undefined;
 }
 
 /** Span of a group in the 4-column desktop flow: its card count, at most 4 (Woodwinds 3 plus Brass 1). */
@@ -51,6 +53,7 @@ export function InstrumentGrid({
   showServed = true,
   layout,
   autoFocus = false,
+  onPrepare,
 }: InstrumentGridProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const uid = useId();
@@ -113,6 +116,7 @@ export function InstrumentGrid({
               onSelect={onChange}
               onKeyDown={onKeyDown(inst.id)}
               autoFocus={autoFocus && inst.id === tabStop}
+              onPrepare={onPrepare}
             />
           ))}
         </div>

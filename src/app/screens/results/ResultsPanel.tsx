@@ -4,12 +4,16 @@
  * the difficulty offer and (phones) the actions at the page end, with a bar pinned to the bottom once the header has
  * scrolled away.
  */
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import type { AttemptRecord, Configs, PlayerProfile, ProgressEvent, Tip } from '../../../core/types.ts';
 import { copy } from '../../../ui/copy/copy.ts';
 import { Button } from '../../../ui/components/form/index.ts';
 import { GradeBadge, StarRow } from '../../../ui/components/domain/index.ts';
+import { DiagnosticsButton, SureLine, diagnosticsPrompt, sureFacts, sureLevelOf } from '../../../ui/components/diagnostics/index.ts';
 import { Glyph } from '../../../ui/primitives/index.ts';
+import { recheckShiftApplies } from '../../compose/calibration-status.ts';
+import { reachedBarOne } from '../../compose/tries.ts';
+import type { DiagnosticsServices } from '../states/services.ts';
 import { ClippingBanner, RecheckShiftBanner, RejudgedBanner, voidCopy } from '../states/index.ts';
 import {
   clippingBanner,
@@ -73,6 +77,12 @@ export interface ResultsPanelProps extends ResultsHandlers {
   showNumbers?: boolean;
   /** Offer recalibration (a recheck marked the calibration stale, R31). */
   recalibrate?: boolean;
+  /** Tries stored for the piece (includes this one): "2 tries at this piece · See all tries". */
+  triesAtPiece?: ((excerptId: string) => Promise<number>) | undefined;
+  /** "See all tries": History filtered to this piece. */
+  onSeeTries?: () => void;
+  /** The sure line's diagnostics button; without it the button is left out. */
+  diagnostics?: DiagnosticsServices | undefined;
   /** The credit line (or its source-sheet button) at the page end. */
   credit?: ReactNode;
   /** Level cards already answered. */
@@ -145,8 +155,25 @@ function Counts({ record, h }: { record: AttemptRecord; h: ResultsHandlers }) {
   );
 }
 
+/** "How sure we are" and, under it, the diagnostics button (01-ux 15). */
+function Sure({ record, configs, diagnostics }: { record: AttemptRecord; configs: Configs; diagnostics: DiagnosticsServices | undefined }) {
+  const facts = sureFacts(record);
+  const level = sureLevelOf(facts, configs.grading.ui.sure);
+  return (
+    <div className="res-sure" data-testid="res-sure">
+      <SureLine level={level} n={facts.changed} steady={facts.steady} total={facts.total} />
+      {diagnostics ? (
+        <div className="res-diag">
+          <p className="res-diag-prompt">{diagnosticsPrompt(diagnostics)}</p>
+          <DiagnosticsButton services={diagnostics} tryId={record.id} className="res-diag-button" />
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 /** "How it went": Notes, In tune, Rhythm as bars with numbers; the weakest hatched and named; drift in words; counts. */
-function HowItWent({ record, configs, showNumbers, h }: { record: AttemptRecord; configs: Configs; showNumbers: boolean; h: ResultsHandlers }) {
+function HowItWent({ record, configs, showNumbers, h, diagnostics }: { record: AttemptRecord; configs: Configs; showNumbers: boolean; h: ResultsHandlers; diagnostics: DiagnosticsServices | undefined }) {
   const s = record.score;
   if (!s) return null;
   const rows = componentRows(record, configs.instrumentById[record.instrumentId]);
@@ -188,7 +215,42 @@ function HowItWent({ record, configs, showNumbers, h }: { record: AttemptRecord;
         </p>
       ) : null}
       <Counts record={record} h={h} />
+      <Sure record={record} configs={configs} diagnostics={diagnostics} />
     </section>
+  );
+}
+
+/** The line under the grade: "2 tries at this piece · See all tries" (the other tries), or "See all tries" alone. */
+function TriesLine({ record, triesAtPiece, onSee }: { record: AttemptRecord; triesAtPiece: ResultsPanelProps['triesAtPiece']; onSee: (() => void) | undefined }) {
+  const [total, setTotal] = useState<number | null>(null);
+  useEffect(() => {
+    let live = true;
+    setTotal(null);
+    triesAtPiece?.(record.excerptId).then(
+      (n) => live && setTotal(n),
+      () => undefined,
+    );
+    return () => {
+      live = false;
+    };
+  }, [triesAtPiece, record.excerptId, record.id]);
+  if (!onSee) return null;
+  const others = total === null ? 0 : Math.max(0, total - (reachedBarOne(record) ? 1 : 0));
+  return (
+    <p className="res-tries" data-testid="res-tries">
+      <Glyph id="history" size={16} />
+      {others > 0 ? (
+        <>
+          <button type="button" className="res-tries-link" onClick={onSee}>
+            {text('results.tries.atPiece', { n: others })}
+          </button>
+          <span aria-hidden="true">{'\u00b7'}</span>
+        </>
+      ) : null}
+      <button type="button" className="res-tries-link" onClick={onSee}>
+        {text('results.tries.all')}
+      </button>
+    </p>
   );
 }
 
@@ -201,7 +263,7 @@ function NextButton({ onClick, testId }: { onClick: () => void; testId?: string 
   );
 }
 
-function Actions({ state, record, h, where }: { state: HeaderState; record: AttemptRecord; h: ResultsHandlers; where: 'head' | 'end' }) {
+function Actions({ state, record, h, where, barHasNext = false }: { state: HeaderState; record: AttemptRecord; h: ResultsHandlers; where: 'head' | 'end'; barHasNext?: boolean }) {
   const cls = `res-actions res-actions-${where}`;
   if (state.kind === 'void' && record.voidReason) {
     const handlers = {
@@ -222,7 +284,7 @@ function Actions({ state, record, h, where }: { state: HeaderState; record: Atte
   if (!h.onNext && !h.onTryAgain && !h.onChangeSetup) return null;
   return (
     <div className={cls} data-testid={`res-actions-${where}`}>
-      {h.onNext ? <NextButton onClick={h.onNext} /> : null}
+      {h.onNext && !barHasNext ? <NextButton onClick={h.onNext} /> : null}
       {h.onTryAgain ? (
         <span title={text('results.practice.tooltip')} className="res-try-again">
           <Button label={text('action.tryAgainPractice')} onClick={h.onTryAgain} />
@@ -233,24 +295,6 @@ function Actions({ state, record, h, where }: { state: HeaderState; record: Atte
   );
 }
 
-/** True while the element is out of the viewport (IntersectionObserver); false where there is no observer. */
-function useOutOfView(ref: { current: Element | null }, enabled: boolean): boolean {
-  const [out, setOut] = useState(false);
-  useEffect(() => {
-    const el = ref.current;
-    if (!enabled || !el || typeof IntersectionObserver !== 'function') {
-      setOut(false);
-      return undefined;
-    }
-    const io = new IntersectionObserver((entries) => {
-      for (const e of entries) setOut(!e.isIntersecting);
-    });
-    io.observe(el);
-    return () => io.disconnect();
-  }, [ref, enabled]);
-  return out;
-}
-
 export function ResultsPanel(props: ResultsPanelProps) {
   const { record, configs, profile, progress = [], tips = [], wide = true, showTips = true, showNumbers = false, recalibrate = false } = props;
   const [localDismissed, setLocalDismissed] = useState<ReadonlySet<string>>(new Set());
@@ -259,11 +303,6 @@ export function ResultsPanel(props: ResultsPanelProps) {
     props.onDismissCard?.(c);
     setLocalDismissed((prev) => new Set(prev).add(cardId(c)));
   };
-  const headRef = useRef<HTMLElement | null>(null);
-  const endRef = useRef<HTMLDivElement | null>(null);
-  const headGone = useOutOfView(headRef, !wide);
-  const endGone = useOutOfView(endRef, !wide);
-  const pinned = !wide && headGone && endGone;
 
   const s = record.score;
   const state = headerState(record, configs);
@@ -275,7 +314,10 @@ export function ResultsPanel(props: ResultsPanelProps) {
   const best = graded ? personalBest(progress, record.instrumentId) : null;
   const cards = levelCards(progress, record.instrumentId, configs);
   const calibrateNow = props.onCalibrateNow ?? props.onRecalibrate;
-  const timingNote = record.calibration.method === 'reported' || state.kind === 'not-calibrated';
+  // Only a try with no measured calibration says so; a measured one says nothing (01-ux 5).
+  const measured = record.calibration.method === 'loopback' || record.calibration.method === 'play-along';
+  const timingNote = !measured || state.kind === 'not-calibrated';
+  const pinned = !wide && state.kind !== 'void' && Boolean(props.onNext || props.onTryAgain);
   const gradeName = s ? text('a11y.grade.heading', { grade: s.grade, score: s.score, stars: s.stars }) : '';
 
   const left = graded && s ? (
@@ -313,7 +355,7 @@ export function ResultsPanel(props: ResultsPanelProps) {
 
   return (
     <div className="res-page" data-testid="results-panel" data-state={dataState} data-header={state.kind} data-layout={wide ? 'wide' : 'narrow'}>
-      <header ref={headRef} className="res-head">
+      <header className="res-head">
         <div className="res-head-left">
           {left}
           {best ? (
@@ -352,7 +394,9 @@ export function ResultsPanel(props: ResultsPanelProps) {
 
       {clippingBanner(record, configs) ? <ClippingBanner /> : null}
       {manyRejudged(record) ? <RejudgedBanner /> : null}
-      {(recalibrate || record.calibration.recheck?.promptRecalibrate) && props.onRecalibrate ? <RecheckShiftBanner onRecalibrate={props.onRecalibrate} /> : null}
+      {(recheckShiftApplies(record.calibration) || (recalibrate && measured)) && props.onRecalibrate ? <RecheckShiftBanner onRecalibrate={props.onRecalibrate} /> : null}
+
+      <TriesLine record={record} triesAtPiece={props.triesAtPiece} onSee={props.onSeeTries} />
 
       {props.review || state.clean ? (
         <section className="res-card res-score" data-testid="res-score" data-clean={state.clean ? 'true' : undefined} aria-label={text('results.myTake')}>
@@ -364,24 +408,24 @@ export function ResultsPanel(props: ResultsPanelProps) {
       {graded ? (
         <div className="res-cols">
           {showTips ? <TipsSection configs={configs} tips={tips} onHear={props.onHearBars} onShowTipsChange={props.onShowTipsChange} /> : null}
-          <HowItWent record={record} configs={configs} showNumbers={showNumbers} h={props} />
+          <HowItWent record={record} configs={configs} showNumbers={showNumbers} h={props} diagnostics={props.diagnostics} />
         </div>
       ) : null}
 
       {wide ? null : (
-        <div ref={endRef} className="res-end">
+        <div className="res-end">
           {offers}
-          <Actions state={state} record={record} h={props} where="end" />
+          <Actions state={state} record={record} h={props} where="end" barHasNext={pinned} />
         </div>
       )}
 
       {props.credit ? <div className="res-credit-line">{props.credit}</div> : null}
       {props.children}
 
-      {pinned && state.kind !== 'void' && (props.onNext || props.onTryAgain) ? (
+      {pinned ? (
         <div className="res-pinned" data-testid="res-pinned">
           {props.onNext ? <NextButton onClick={props.onNext} /> : null}
-          {props.onTryAgain ? <Button label={text('action.tryAgainPractice')} onClick={props.onTryAgain} /> : null}
+          {props.onTryAgain ? <Button label={text('action.tryAgain')} onClick={props.onTryAgain} /> : null}
         </div>
       ) : null}
     </div>

@@ -649,7 +649,7 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: var(--space-2);
-  padding: 0.625rem 0.875rem calc(var(--space-5) + env(safe-area-inset-bottom, 0rem));
+  padding: 0.625rem 0.875rem calc(var(--space-3) + env(safe-area-inset-bottom, 0rem));
   border-block-start: 0.0625rem solid var(--border);
   background: var(--surface);
   box-shadow: var(--e2);
@@ -684,5 +684,64 @@
   .res-score .rv-toolbar-end {
     margin-inline-start: 0;
     justify-content: flex-start;
+  }
+}
+
+/* ---- round 2: tries line, sure line, diagnostics ------------------------------------------------------------- */
+.res-tries {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--type-small-size);
+  line-height: var(--type-small-line);
+}
+
+.res-tries-link {
+  min-block-size: 2.75rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+  cursor: pointer;
+}
+
+.res-sure {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-block-start: var(--space-4);
+}
+
+.res-diag {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+}
+
+.res-diag-prompt {
+  flex: 1 1 12rem;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--type-small-size);
+  line-height: var(--type-small-line);
+}
+
+@media (max-width: 43.6875rem) {
+  .res-tries {
+    justify-content: flex-start;
+  }
+
+  /* The bar is always there on a phone, so the page leaves room under its last line. */
+  .res-page[data-layout='narrow'] {
+    padding-block-end: 7.5rem;
   }
 }

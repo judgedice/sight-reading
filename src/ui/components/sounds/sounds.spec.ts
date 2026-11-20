@@ -1,5 +1,5 @@
 // Sounds components in a real browser: the popover's five routes, the confirm's focus and its three ways out, the
-// explain sheet's rows, still bars under reduced motion, an inline coach mark, and the screenshots compared with
+// explain sheet's rows, still bars under reduced motion, and the screenshots compared with
 // the scan-* mockups.
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
@@ -129,29 +129,17 @@ test('the live caption bars move, and stand still under reduced motion', async (
   await expect.poll(() => bar.evaluate((e) => getComputedStyle(e).animationName)).toBe('none');
 });
 
-test('the coach mark is inline: it pushes the sounds down and covers neither Start playing nor the card', async ({ page }) => {
-  await open(page, 'kind=voice&coach=1');
-  const coach = (await page.locator('[data-story="desktop"] [data-testid=coach-mark]').boundingBox())!;
-  const start = (await page.locator('[data-story="desktop"] .story-start').boundingBox())!;
-  const card = (await page.locator('[data-story="desktop"] .sd-group').boundingBox())!;
-  expect(coach.y).toBeGreaterThanOrEqual(start.y + start.height);
-  expect(card.y).toBeGreaterThanOrEqual(coach.y + coach.height);
-  expect(await page.locator('[data-story="desktop"] [data-testid=coach-mark]').evaluate((e) => getComputedStyle(e).position)).toBe('relative');
-});
-
 const SCREENS: readonly [string, string, typeof DESKTOP, string?][] = [
   ['scan-voice-ranked', 'kind=voice&playing=reference', DESKTOP, 'popover'],
   ['scan-instrument', 'kind=instrument&playing=reference', DESKTOP],
   ['scan-listen', 'kind=voice&ranked=0&playing=listen&caption=bar', DESKTOP],
   ['scan-confirm', 'kind=voice&confirm=1', DESKTOP],
-  ['scan-coach', 'kind=voice&coach=1', DESKTOP],
   ['scan-voice-ranked', 'kind=voice&playing=reference', PHONE],
   ['scan-instrument', 'kind=instrument&playing=reference', PHONE],
   ['scan-listen', 'kind=voice&ranked=0&playing=listen&caption=bar', PHONE],
   ['scan-confirm', 'kind=voice&confirm=1', PHONE],
   ['scan-explain', 'kind=voice&explain=1', PHONE],
   ['scan-explain-clarinet', 'kind=instrument&explain=1', PHONE],
-  ['scan-coach', 'kind=voice&coach=1', PHONE],
 ];
 
 test('screenshots, light and dark, desktop and phone', async ({ page }) => {

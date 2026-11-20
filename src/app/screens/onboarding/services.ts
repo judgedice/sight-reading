@@ -4,10 +4,11 @@
  */
 import { createContext, useContext } from 'react';
 import type { PlatformCapabilities } from '../../../core/platform.ts';
-import type { Instrument } from '../../../core/types.ts';
+import type { Configs, Instrument } from '../../../core/types.ts';
 import type { CalibrationServices } from '../calibration/services.ts';
 import type { MicBrowser, MicProblem } from '../states/mic.ts';
 import type { CalibrationResult } from '../calibration/CalibrationCard.tsx';
+import type { MatchNoteService } from '../../../session/index.ts';
 
 export type MicOutcome = { ok: true } | { ok: false; problem: MicProblem };
 
@@ -45,6 +46,18 @@ export interface OnboardingServices {
   finish(r: OnboardingResult): Promise<string>;
   /** A range-picture note button in the picker: that sounding MIDI note for 1 s. Call from the click. */
   playNote?(concertMidi: number): Promise<void>;
+  /**
+   * The engine for the step "Sing one note" or "Play one note" (01-ux §3.2). It runs on the instrument chosen in
+   * onboarding, so the stored instrument is not part of it. Omitted: the step is left out.
+   */
+  match?: {
+    service: MatchNoteService;
+    cfg: Configs;
+    /** True when the microphone is already allowed. */
+    micAllowed(): Promise<boolean>;
+    /** Runs the permission request. Call synchronously from the click. */
+    requestMic(): Promise<MicOutcome>;
+  };
   /** Opens "Match a note" inside onboarding. Omitted: the row is not shown. */
   openMatch?(): void;
   /** Stops any sound at once (leaving the step). */

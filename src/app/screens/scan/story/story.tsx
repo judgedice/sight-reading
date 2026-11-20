@@ -2,7 +2,7 @@
  * Dev-only story page for the cover and read-through: `/src/app/screens/scan/story/index.html` on the Vite dev server.
  * It mounts the real ScanScreen with the real notation over a fake session, so each `cover-*` and `scan-*` mockup
  * state can be shown and screenshotted. Query: kind=voice|instrument, mode=ranked|practice, state=cover|loading|scan,
- * remaining=24, playing=chord|first|key|tempo|listen, coach=1, theme=dark. Not shipped; literals are dev data.
+ * remaining=24, playing=chord|first|key|tempo|listen, theme=dark. Not shipped; literals are dev data.
  */
 import { StrictMode, useSyncExternalStore } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -17,12 +17,12 @@ import { GlyphSprite, ToastProvider } from '../../../../ui/primitives/index.ts';
 import { bindNotation } from '../../../../ui/score-frame/index.ts';
 import '../../../../ui/tokens.css';
 import '../../../app.css';
+import type { CalStatus } from '../../../compose/calibration-status.ts';
 import { appConfigs } from '../../../compose/configs.ts';
 import shardL03 from '../../../../../fixtures/corpus/shard-L03-01.a5c80d091c.json';
 import shardL04 from '../../../../../fixtures/corpus/shard-L04-01.c789282ba7.json';
 import { RouterProvider, useRoute, type LocationSource } from '../../../router.tsx';
 import { createRouteTable } from '../../../routes.tsx';
-import { resetSoundsCoach, markSoundsCoachSeen } from '../coach.ts';
 import { practiceFlowScreenOverrides } from '../index.ts';
 import { midiOf } from '../read-model.ts';
 import type { PracticeFlowServices, PracticeSessionPort } from '../services.ts';
@@ -34,9 +34,8 @@ const mode = q.get('mode') === 'practice' ? 'practice' : 'ranked';
 const start = q.get('state') ?? 'scan';
 const remaining = Number(q.get('remaining') ?? 24);
 const playing = q.get('playing');
-if (q.get('coach') === '1') resetSoundsCoach();
-else markSoundsCoachSeen();
 
+const CAL: CalStatus = { state: 'none', output: null, oldOutput: null, when: null, ms: null, reason: null };
 const cfg = appConfigs();
 const DOCS = {
   voice: { file: shardL03 as unknown as ExcerptChunk, id: 'jaell-lc6157272-voice-m20-27', instrumentId: 'voice-baritone', clef: 'bass' as const, key: { fifths: 1, mode: 'major' as const } },
@@ -115,6 +114,7 @@ async function main(): Promise<void> {
     },
     stopSounds: () => sounds.setState(idleSoundView()),
     sounds,
+    calibrationStatus: { get: () => CAL, subscribe: () => () => undefined },
   };
 
   events.emit({ type: 'prepared', excerpt: prepared });

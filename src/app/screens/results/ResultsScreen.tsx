@@ -10,14 +10,13 @@ import { Button } from '../../../ui/components/form/index.ts';
 import { openOverlayCount, useToast } from '../../../ui/primitives/index.ts';
 import { useNavigate } from '../../router.tsx';
 import type { ScreenProps } from '../../route-types.ts';
-import { scanSummary } from '../scan/model.ts';
 import { normalize, type SetupContext } from '../setup/model.ts';
 import { SetupSheet } from '../setup/SetupSheet.tsx';
 import { InstallCoach, installCoachDue } from '../sheets/InstallCoach.tsx';
 import { RankUpCard } from '../sheets/RankUpCard.tsx';
 import { SessionSummary } from '../sheets/SessionSummary.tsx';
 import { summarizeSession, summaryDue } from '../sheets/summary.ts';
-import { creditLine, rankUpEvent, type HearSpan } from './model.ts';
+import { creditLine, rankUpEvent, recordSummary, type HearSpan } from './model.ts';
 import { ResultsListen, isListening, useResultsSound } from './ResultsListen.tsx';
 import { ResultsPanel } from './ResultsPanel.tsx';
 import type { ResultsServices } from './services.ts';
@@ -344,13 +343,9 @@ export function ResultsScreen(_props: ScreenProps) {
     <section className="res-screen" data-testid="screen-practice.results" data-route-id="practice.results">
       <header className="res-toolbar">
         <Button label={text('nav.home')} variant="quiet" size="compact" icon="chevron-left" onClick={() => navigate('/')} className="res-home" />
-        {prepared ? (
-          <p className="res-summary">
-            <BeatUnitText text={scanSummary(prepared)} />
-          </p>
-        ) : (
-          <span className="res-summary" />
-        )}
+        <p className="res-summary" data-testid="res-summary">
+          <BeatUnitText text={recordSummary(record, prepared)} />
+        </p>
         <span className="res-toolbar-end" />
       </header>
       <ResultsPanel
@@ -365,6 +360,9 @@ export function ResultsScreen(_props: ScreenProps) {
         showNumbers={settings.display.showCentsMs}
         recalibrate={view.recalibrateRouteKey !== null}
         credit={creditNode}
+        diagnostics={services.diagnostics}
+        triesAtPiece={services.triesAtPiece}
+        onSeeTries={() => navigate(`/history?piece=${encodeURIComponent(record.excerptId)}`)}
         onNext={next}
         onTryAgain={tryAgain}
         {...(voided ? {} : { onChangeSetup: openSetup })}

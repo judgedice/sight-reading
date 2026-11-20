@@ -15,7 +15,8 @@ import { act, click, key, mount, type Mounted } from '../../../ui/primitives/tes
 import { RouterProvider, useRoute, type LocationSource } from '../../router.tsx';
 import { createRouteTable } from '../../routes.tsx';
 import { createHomeScreen, WIDE_QUERY } from './index.ts';
-import type { HomeBanner, HomeServices, Readable } from './services.ts';
+import type { CalStatus } from '../../compose/calibration-status.ts';
+import type { HomeBanner, HomeServices, LastTry, Readable } from './services.ts';
 import { keyName, concertKey } from '../setup/key-names.ts';
 import { allowedKeys, beatUnit, localSuggestions, normalize, randomBonusPercent, tempoRange, type SetupContext } from '../setup/model.ts';
 import { SetupSheet } from '../setup/SetupSheet.tsx';
@@ -67,7 +68,12 @@ interface Fixture {
   availability: ReturnType<typeof store<RankedAvailability>>;
   session: StoreApi<SessionView>;
   heard: { tempo: [number, number][]; notes: number[]; stops: number };
+  cal: ReturnType<typeof store<CalStatus>>;
+  last: ReturnType<typeof store<LastTry | null>>;
+  matched: number[];
 }
+
+const NOT_CALIBRATED: CalStatus = { state: 'none', output: null, oldOutput: null, when: null, ms: null, reason: null };
 
 function fixture(
   over: { eligible?: HomeServices['countEligible']; profile?: PlayerProfile | undefined; practice?: Partial<PracticeSettings>; turnOnMic?: HomeServices['turnOnMic'] } = {},
@@ -79,6 +85,9 @@ function fixture(
   const availability = store<RankedAvailability>({ available: true, block: null });
   const session = createStore<SessionView>(() => initialSessionView());
   const heard = { tempo: [] as [number, number][], notes: [] as number[], stops: 0 };
+  const cal = store<CalStatus>(NOT_CALIBRATED);
+  const last = store<LastTry | null>(null);
+  const matched: number[] = [];
   const listeners = new Set<() => void>();
   const location = {
     hash: '',
@@ -94,7 +103,7 @@ function fixture(
     countEligible: over.eligible ?? defaultEligible,
     settings: { get: settings.get, subscribe: settings.subscribe, set: settings.set },
     profile: store<PlayerProfile | undefined>('profile' in over ? over.profile : makeProfile({ rank: 2, xp: 420, streak: { days: 6, lastDay: '2026-05-04' } })),
-    today: store({ takes: 9, ranked: 2, xp: 214 }),
+    today: store({ takes: 9, ranked: 2, xp: 214, tries: 9 }),
     banners,
     dismissBanner: (k) => banners.set(banners.get().filter((b) => b.kind !== k)),
     moveUp: () => {},
@@ -116,9 +125,12 @@ function fixture(
       heard.stops++;
     },
     rankedAvailability: availability,
+    calibrationStatus: cal,
+    lastTry: last,
+    openMatch: () => matched.push(1),
     ...(over.turnOnMic ? { turnOnMic: over.turnOnMic } : {}),
   };
-  return { services, settings, location, started, banners, availability, session, heard };
+  return { services, settings, location, started, banners, availability, session, heard, cal, last, matched };
 }
 
 // ---- Layout: wide (no matchMedia, as in jsdom) or narrow (a phone) ------------------------------------------------
@@ -186,18 +198,25 @@ const practice = (f: Fixture): PracticeSettings => f.settings.get().practice;
 describe('Practice screen, wide (1024 px and up)', () => {
   it('shows the instrument card, the setup rows in order, and Mode and Start in the foot; no Credits link', () => {
     render(fixture());
-    expect($$('[data-setup-slot]').map((el) => el.dataset['setupSlot'])).toEqual(['difficulty', 'key', 'time', 'tempo', 'length']);
+    // Difficulty 1 has one length: it sits at the right of the Tempo row (round 2, 04-design section 1).
+    expect($$('[data-setup-slot]').map((el) => el.dataset['setupSlot'])).toEqual(['difficulty', 'key', 'time', 'tempo']);
+    expect($('[data-setup-row="length"]', slot('tempo')).textContent).toBe(`${copy('row.length')}${copy('setup.length.chip', { bars: 8 })}`);
     const foot = $('[data-testid="setup-foot"]');
     expect(foot.querySelector('[data-setup-row="mode"]')).toBeTruthy();
     expect(foot.querySelector('#start-practice')!.textContent).toContain(copy('action.start'));
-    expect($('[data-testid="setup-scroll"]').querySelector('[data-setup-row="mode"]')).toBeNull();
+    expect($('[data-testid="setup-form"]').querySelector('[data-setup-row="mode"]')).toBeNull();
+    // No scroll area inside the setup (round 2, 01-ux section 6).
+    expect(document.querySelector('[data-testid="setup-scroll"]')).toBeNull();
+    m!.unmount();
+    render(fixture({ practice: { level: 3 } }));
+    expect($$('[data-setup-slot]').map((el) => el.dataset['setupSlot'])).toEqual(['difficulty', 'key', 'time', 'tempo', 'length']);
     expect(button(copy('setup.changeInstrument'))).toBeTruthy();
     expect($('[data-testid="range-picture"]')).toBeTruthy();
     expect([...document.querySelectorAll('a')].some((a) => a.textContent === copy('common.credits'))).toBe(false);
     expect(document.querySelector('select')).toBeNull();
   });
 
-  it('the instrument card reads "Voice · bass clef" and heads the picture "Your range / Tap a note to hear it"', () => {
+  it('the instrument card reads "Voice · bass clef" and heads the picture "Your range / Tap a note to hear it" without a range sound', () => {
     render(fixture({ practice: { instrumentId: 'voice-baritone', level: 2 } }));
     const card = $('.home-inst');
     expect($('.home-inst-sub', card).textContent).toBe(copy('home.instrumentSub', { family: copy('onboarding.family.voice'), clef: copy('clef.bass') }));
@@ -250,6 +269,7 @@ describe('Practice screen, wide (1024 px and up)', () => {
     const profile = makeProfile({ rank: 2, xp: 420 });
     const needs = next.minLevel > Math.max(0, ...Object.values(profile.instruments).map((i) => i?.level ?? 0));
     expect(rank.textContent?.includes(gate)).toBe(needs);
+    expect(rank.closest('.home-head')).not.toBeNull();
     const now = Number($('[role="progressbar"]', rank).getAttribute('aria-valuenow'));
     expect(now).toBeGreaterThanOrEqual(0);
     expect(now).toBeLessThanOrEqual(100);
@@ -264,12 +284,13 @@ describe('Practice screen, wide (1024 px and up)', () => {
     expect(plus.getAttribute('aria-disabled')).toBe('true');
   });
 
-  it('leaves out a meter with too little music and names it; a thin meter says few pieces', () => {
+  it('leaves out a meter with too little music and names it; a thin meter carries a dot and says so in its name', () => {
     render(fixture({ practice: { level: 4 } }));
     const names = radiosIn('time').map((r) => r.getAttribute('aria-label') ?? r.textContent);
     expect(names.some((n) => n?.startsWith(copy('setup.time.a11y', { beats: 6, unit: 8 })))).toBe(false);
-    expect(slot('time').textContent).toContain('6/8');
-    expect(slot('time').textContent).toContain(copy('setup.time.few'));
+    expect(slot('time').textContent).toContain(copy('setup.time.noneShort', { meter: '6/8', level: 4 }));
+    expect(names).toContain(copy('setup.time.a11yFew', { beats: 2, unit: 4 }));
+    expect(radiosIn('time').find((r) => r.getAttribute('aria-label') === '2/4, few pieces')!.querySelector('.su-few-dot')).not.toBeNull();
   });
 
   it('a difficulty change re-filters key, meter and length, keeps what is still valid, and shows the fallback note', async () => {
@@ -297,7 +318,7 @@ describe('Practice screen, wide (1024 px and up)', () => {
     expect(slot('key').textContent).not.toContain(note);
   });
 
-  it('Follow my progress and Any tempo are switches: on sends random, off sends a value', () => {
+  it('Follow my progress is a switch; Tempo is Any or a set tempo: random, then a value, then random', () => {
     const f = fixture({ practice: { level: 3, bpm: 'random' } });
     render(f);
     const follow = $('[role="switch"]', slot('difficulty'));
@@ -306,36 +327,62 @@ describe('Practice screen, wide (1024 px and up)', () => {
     expect(slot('difficulty').querySelector('.ui-stepper')).toBeNull();
     click($('[role="switch"]', slot('difficulty')));
     expect(typeof practice(f).level).toBe('number');
-    const anyTempo = $<HTMLInputElement>('[role="switch"]', slot('tempo'));
-    expect(anyTempo.checked).toBe(true);
-    click(anyTempo);
+    const [anyTempo, setTempo] = radiosIn('tempo');
+    expect(anyTempo!.getAttribute('aria-checked')).toBe('true');
+    click(setTempo!);
     expect(typeof practice(f).bpm).toBe('number');
     expect(slot('tempo').querySelector('input[type="range"]')).toBeTruthy();
-    click($('[role="switch"]', slot('tempo')));
+    click(radiosIn('tempo')[0]!);
     expect(practice(f).bpm).toBe('random');
   });
 
-  it('shows the concert key under each key for a transposing instrument', () => {
-    render(fixture({ practice: { instrumentId: 'trumpet-bb', level: 5 } }));
-    const e = radiosIn('key').find((r) => r.dataset['key'] === '4:major')!;
-    expect(e.textContent).toContain(copy('setup.key.concert', { key: keyName(concertKey({ fifths: 4, mode: 'major' }, cfg.instrumentById['trumpet-bb']!)) }));
+  it('above eight keys the Key row is one button; its popover names the concert key for a transposing instrument', () => {
+    const f = fixture({ practice: { instrumentId: 'trumpet-bb', level: 5 } });
+    render(f);
+    expect(radiosIn('key')).toHaveLength(0);
+    const button = $('[data-key-button]', slot('key'));
+    expect(button.textContent).toContain(copy('setup.key.any'));
+    expect(slot('key').textContent).toContain(copy('setup.key.many', { n: 18, max: 4 }));
+    click(button);
+    const e = $$('[data-key-popover] [role="radio"]').find((r) => r.dataset['key'] === '4:major')!;
+    expect(e.getAttribute('aria-label')).toContain(keyName(concertKey({ fifths: 4, mode: 'major' }, cfg.instrumentById['trumpet-bb']!)));
+    click(e);
+    expect(practice(f).writtenKey).toEqual({ fifths: 4, mode: 'major' });
   });
 
-  it('the XP line counts Any key, time and tempo, and is hidden in practice', () => {
+  it('difficulty 1: the key note says what it uses and what comes next, "Few pieces" and the Match a note link', () => {
+    const f = fixture({ practice: { level: 1 }, eligible: (_i, _l, meter) => (meter === null ? 6 : 6) });
+    render(f);
+    expect(slot('key').textContent).toContain('Difficulty 1 uses major keys with up to 1 sharp or flat. Minor keys start at difficulty 2.');
+    expect(document.body.textContent).not.toContain('More keys from');
+    expect($('[data-setup-few]', slot('difficulty')).textContent).toContain(copy('home.levelFewMusic'));
+    click($('[data-setup-match] button'));
+    expect(f.matched).toEqual([1]);
+    m!.unmount();
+    render(fixture({ practice: { level: 2 } }));
+    expect(document.querySelector('[data-setup-match]')).toBeNull();
+  });
+
+  it('one XP line counts Any key, time and tempo, in either mode; none chosen asks for Any', () => {
     const f = fixture();
     render(f);
-    expect($('[data-setup-xp]').textContent).toBe(copy('xp.randomHint', { percent: 24 }));
+    expect($$('[data-setup-xp]')).toHaveLength(1);
+    expect($('[data-setup-xp]').textContent).toBe(copy('setup.xp.line', { percent: 24 }));
+    expect(document.body.textContent).not.toContain(copy('setup.xpTag', { percent: 8 }));
     click(radiosIn('key').find((r) => r.dataset['key'] === '1:major')!);
-    expect($('[data-setup-xp]').textContent).toBe(copy('xp.randomHint', { percent: 16 }));
+    expect($('[data-setup-xp]').textContent).toBe(copy('setup.xp.line', { percent: 16 }));
     click(button(copy('mode.practice')));
     expect(practice(f).mode).toBe('practice');
-    expect(document.querySelector('[data-setup-xp]')).toBeNull();
+    expect($('[data-setup-xp]').textContent).toBe(copy('setup.xp.line', { percent: 16 }));
+    click(radiosIn('time')[1]!);
+    click(radiosIn('tempo')[1]!);
+    expect($('[data-setup-xp]').textContent).toBe(copy('setup.xp.none'));
   });
 
   it('Hear the tempo plays one bar through the session; a range note plays its sounding pitch', () => {
     const f = fixture({ practice: { bpm: 70, meter: '3/4' } });
     render(f);
-    click(button(copy('action.hearTempo')));
+    click($('[data-hear-tempo]'));
     expect(f.heard.tempo).toEqual([[70, 3]]);
     const note = $$('button', $('[data-testid="range-picture"]')).find((b) => b.getAttribute('aria-label')?.startsWith('Hear'))!;
     click(note);
@@ -358,17 +405,78 @@ describe('Practice screen, wide (1024 px and up)', () => {
 });
 
 describe('Practice screen states', () => {
-  it('shows one notice at a time in priority order', () => {
+  it('shows one notice at a time in priority order, and never a calibration banner (round 2, 01-ux section 4)', () => {
     const f = fixture();
     f.banners.set([{ kind: 'calibrate', seconds: 8 }, { kind: 'storage-loss' }, { kind: 'bluetooth' }]);
     render(f);
     expect(document.body.textContent).toContain(copy('banner.storageLoss'));
-    expect(document.body.textContent).not.toContain(copy('banner.calibrateNeeded', { seconds: 8 }));
     act(() => f.banners.set([{ kind: 'calibrate', seconds: 8 }, { kind: 'bluetooth' }]));
-    expect(document.body.textContent).toContain(copy('banner.calibrateNeeded', { seconds: 8 }));
-    expect(document.body.textContent).not.toContain(copy('banner.bluetooth'));
-    click(button(copy('action.calibrate')));
+    expect(document.body.textContent).toContain(copy('banner.bluetooth'));
+    act(() => f.banners.set([{ kind: 'calibrate', seconds: 8 }]));
+    expect(document.body.textContent).not.toContain('Calibrate once');
+    expect(document.querySelector('.ui-banner, [role="alert"]')).toBeNull();
+  });
+
+  it('the header carries the calibration pill; it opens the detail with Calibrate', () => {
+    const f = fixture();
+    render(f);
+    const pill = $('.home-head [data-testid="cal-status"]');
+    expect(pill.textContent).toContain(copy('calStatus.none'));
+    click(pill);
+    click(button(copy('calStatus.action.calibrate')));
     expect(f.location.hash).toBe('#/calibrate');
+  });
+
+  it('the last-try line: grade, score and title, then All tries opens History; absent before the first try', () => {
+    const f = fixture();
+    render(f);
+    expect(document.querySelector('[data-testid="last-try"]')).toBeNull();
+    act(() => f.last.set({ id: 'a1', excerptId: 'e1', title: 'Melody in F major', grade: 'B', score: 84 }));
+    const line = $('[data-testid="last-try"]');
+    expect(line.textContent).toBe(`${copy('home.lastTry', { grade: 'B', score: 84, title: 'Melody in F major' })}·${copy('home.allTries')}`);
+    expect($('b', line).textContent).toBe('B');
+    act(() => f.last.set({ id: 'a2', excerptId: 'e1', title: 'Melody in F major', grade: null, score: null }));
+    expect($('[data-testid="last-try"]').textContent).toContain(copy('home.lastTry.notGraded', { title: 'Melody in F major' }));
+    click(button(copy('home.allTries')));
+    expect(f.location.hash).toBe('#/history');
+  });
+
+  it('Play my range plays the four range notes in the instrument sound; while it plays the button stops it and the note is lit', () => {
+    const f = fixture({ practice: { instrumentId: 'voice-baritone', level: 1 } });
+    const state = store<{ playing: string | null; index: number | null; failed: boolean }>({ playing: null, index: null, failed: false });
+    const played: [string, readonly number[]][] = [];
+    let stopped = 0;
+    f.services.pickerSound = {
+      play: (id, midis) => {
+        played.push([id, midis]);
+        return Promise.resolve();
+      },
+      stop: () => {
+        stopped++;
+      },
+      prepare: () => undefined,
+      state,
+    };
+    render(f);
+    expect(document.querySelector('.home-range-hint')).toBeNull();
+    click($('[data-testid="play-range"]'));
+    expect(played).toHaveLength(1);
+    expect(played[0]![0]).toBe('voice-baritone');
+    expect(played[0]![1]).toHaveLength(4);
+    act(() => state.set({ playing: 'voice-baritone', index: 1, failed: false }));
+    expect($('[data-testid="play-range"]').textContent).toBe(copy('picker.play.stop'));
+    expect($('[data-sounding="true"]')).toBeTruthy();
+    click($('[data-testid="play-range"]'));
+    expect(stopped).toBe(1);
+  });
+
+  it('the Match a note row on the instrument card opens Match a note', () => {
+    const f = fixture({ practice: { instrumentId: 'voice-baritone' } });
+    render(f);
+    const row = $('.home-inst [data-testid="match-entry"]');
+    expect(row.textContent).toBe(`${copy('match.entry')}${copy('home.matchEntry.body')}`);
+    click(row);
+    expect(f.matched).toEqual([1]);
   });
 
   it('Ranked unavailable: practice is shown, the reason and the fix are visible, Start sends practice', () => {
@@ -378,11 +486,16 @@ describe('Practice screen states', () => {
     const ranked = $$('[data-setup-row="mode"] [role="radio"]')[0]!;
     expect(ranked.getAttribute('aria-disabled')).toBe('true');
     const reason = document.getElementById(ranked.getAttribute('aria-describedby')!)!;
-    expect(reason.textContent).toBe(copy('setup.mode.blocked.calibration'));
+    expect(reason.textContent).toBe(copy('setup.mode.blocked.calibration.link', { link: '' }).trim());
     click($('#start-practice'));
     expect(f.started[0]!.mode).toBe('practice');
     expect(practice(f).mode).toBe('ranked');
-    click(button(copy('action.calibrateNow')));
+    // One Calibrate control: the link in the Mode line (the header pill reads "Not calibrated" and stays closed).
+    const calibrate = $$('button').filter((b) => b.textContent?.trim() === copy('calStatus.action.calibrate'));
+    expect(calibrate).toHaveLength(1);
+    expect(document.body.textContent).not.toContain('Calibrate once');
+    expect(document.body.textContent).not.toContain(copy('action.calibrateNow'));
+    click(calibrate[0]!);
     expect(f.location.hash).toBe('#/calibrate');
   });
 
@@ -445,7 +558,7 @@ describe('Practice screen, narrow (below 1024 px)', () => {
     narrow = true;
   });
 
-  it('shows Today, the summary chips in order with their values, the first-time hint, Mode, the rank card and the dock', () => {
+  it('shows Today, the summary chips (label above value), the calibration row, Mode, Start and the warm-up row', () => {
     const f = fixture({ practice: { instrumentId: 'voice-baritone', level: 2, writtenKey: { fifths: 1, mode: 'major' }, meter: '4/4' } });
     render(f);
     expect(document.querySelector('[data-setup-slot]')).toBeNull();
@@ -455,17 +568,35 @@ describe('Practice screen, narrow (below 1024 px)', () => {
       copy('setup.chip.a11y', { row: copy('row.level'), value: '2' }),
       copy('setup.chip.a11y', { row: copy('row.key'), value: 'G major' }),
       copy('setup.chip.a11y', { row: copy('row.time'), value: '4/4' }),
-      copy('setup.chip.a11y', { row: copy('row.tempo'), value: copy('setup.length.any') }),
+      copy('setup.chip.a11y', { row: copy('row.tempo'), value: copy('setup.time.any') }),
       copy('setup.chip.a11y', { row: copy('row.length'), value: copy('setup.length.chip', { bars: 8 }) }),
     ]);
-    expect(document.body.textContent).toContain(copy('setup.firstTimeHint'));
+    // The label has its own line; the chevron sits with the value (critique change 1).
+    for (const c of chips) {
+      expect(c.firstElementChild!.className).toBe('home-chip-label');
+      expect(c.querySelector('.home-chip-line .home-chip-chevron')).not.toBeNull();
+    }
+    expect($('[data-chip="time"] .home-chip-label').textContent).toBe('Time signature');
     expect($('.home-summary-inst').textContent).toContain(copy('instrument.name.voice-baritone'));
-    const dock = $('[data-testid="start-dock"]');
-    expect(dock.querySelector('#start-practice')).toBeTruthy();
+    // The calibration status is the card's last row.
+    expect($('.home-summary').lastElementChild!.getAttribute('data-testid')).toBe('cal-status');
+    expect(document.querySelector('[data-testid="start-dock"]')).toBeNull();
     // No keyboard on a phone: no keycap on Start (06 mockup, Practice phone).
-    expect(dock.querySelector('#start-practice kbd')).toBeNull();
-    expect(dock.querySelector('[data-setup-xp]')!.textContent).toBe(copy('xp.randomHint', { percent: 8 }));
+    expect(document.querySelector('#start-practice kbd')).toBeNull();
     expect($('.home-mode [data-setup-row="mode"]')).toBeTruthy();
+    expect($('[data-testid="match-entry"]').textContent).toBe(copy('match.entry.phone'));
+    expect(document.querySelector('.home-rank-card')).toBeNull();
+  });
+
+  it('Ranked blocked by calibration: the calibration row is the one Calibrate control; the short last-try line', () => {
+    const f = fixture();
+    f.availability.set({ available: false, block: 'calibration' });
+    f.last.set({ id: 'a1', excerptId: 'e1', title: 'Melody in F major', grade: 'B', score: 84 });
+    render(f);
+    expect($$('button').filter((b) => b.textContent?.includes(copy('calStatus.action.calibrate')))).toHaveLength(1);
+    expect($('.home-mode').textContent).toContain(copy('setup.mode.blocked.calibration.link', { link: '' }).trim());
+    expect($('[data-testid="last-try"]').textContent).toContain(copy('home.lastTry.short', { grade: 'B', score: 84 }));
+    expect($('[data-testid="last-try"]').textContent).not.toContain('Melody');
   });
 
   it('a chip opens the setup sheet at its row with focus on its control; Done returns focus to the chip', () => {
@@ -520,7 +651,14 @@ describe.each(['flute', 'voice-bass', 'voice-baritone', 'trumpet-bb'])('key and 
       if (!wide) click(button(copy('setup.done')));
     };
     open('key');
-    const keys = radiosIn('key').filter((r) => r.dataset['key']);
+    // Above eight keys the wide form folds them behind one button (04-design section 1).
+    const folded = wide ? document.querySelector<HTMLElement>('[data-setup-slot="key"] [data-key-button]') : null;
+    const keyRadios = (): HTMLElement[] => {
+      if (!folded) return radiosIn('key');
+      if (!document.querySelector('[data-key-popover]')) click(folded);
+      return $$('[data-key-popover] [role="radio"]');
+    };
+    const keys = keyRadios().filter((r) => r.dataset['key']);
     expect(keys.length).toBeGreaterThan(1);
     const chosenKey = keys[keys.length - 1]!.dataset['key']!;
     click(keys[keys.length - 1]!);
@@ -541,7 +679,7 @@ describe.each(['flute', 'voice-bass', 'voice-baritone', 'trumpet-bb'])('key and 
     expect(copy('setup.time.a11y', { beats: beats!, unit: unit! })).toBe(label.split(',')[0]);
 
     open('key');
-    click(radiosIn('key')[0]!);
+    click(keyRadios().find((r) => !r.dataset['key'])!);
     close();
     open('time');
     click(radiosIn('time')[0]!);

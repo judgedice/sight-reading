@@ -13,8 +13,6 @@ export interface SoundsDockProps {
   onPress: (id: SoundId) => void;
   caption?: ReactNode;
   captionFailed?: boolean | undefined;
-  /** The first-time coach mark, if it is showing: inline, above the dock row. */
-  coach?: ReactNode;
 }
 
 /**
@@ -23,13 +21,12 @@ export interface SoundsDockProps {
  * (06 section 6.8). "Listen first" in ranked adds "Makes this practice" inside the button. Check my tuning is not
  * here: it sits at the top of the "Before you play" sheet. The screen fixes the dock to the window bottom.
  */
-export function SoundsDock({ model, onPress, caption, captionFailed, coach }: SoundsDockProps) {
+export function SoundsDock({ model, onPress, caption, captionFailed }: SoundsDockProps) {
   const [explain, setExplain] = useState(false);
   const rows = soundRows(model).filter((row) => row.id !== 'tuning');
   return (
     <div className="sd-dock" data-testid="sounds-dock">
       <LiveCaption failed={captionFailed}>{caption}</LiveCaption>
-      {coach}
       <div className="sd-dock-row">
         {rows.map((row) => (
           <SoundButton

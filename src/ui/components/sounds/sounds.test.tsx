@@ -3,7 +3,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, click, key, mount, type Mounted } from '../../primitives/test-render.ts';
 import { INFO_HOVER_DELAY_MS } from '../../primitives/InfoButton.tsx';
 import { SHEET_SWIPE_DISTANCE } from '../../primitives/Sheet.tsx';
-import { CoachMark } from './CoachMark.tsx';
 import { LiveCaption } from './LiveCaption.tsx';
 import { ListenConfirm } from './ListenConfirm.tsx';
 import { ReferenceInfo, referenceText } from './ReferenceInfo.tsx';
@@ -160,7 +159,7 @@ describe('the popover opens by click, tap, Enter, Space and a 400 ms hover with 
 
 describe('SoundsGroup (desktop)', () => {
   it('lists Listen first, Hear the tempo and Hear starting pitch for a voice, with captions and no tuning', () => {
-    current = mount(<SoundsGroup model={model()} onPress={() => undefined} headerNote="note" />);
+    current = mount(<SoundsGroup model={model()} onPress={() => undefined} lead="note" />);
     const titles = qa('.sd-sound-label').map((el) => el.textContent);
     expect(titles).toEqual(['Listen first', 'Hear the tempo', 'Hear starting pitch']);
     const captions = qa('.sd-sound-caption').map((el) => el.textContent);
@@ -198,11 +197,12 @@ describe('SoundsGroup (desktop)', () => {
     expect(onPress).not.toHaveBeenCalled();
   });
 
-  it('renders the header note only when given', () => {
-    current = mount(<SoundsGroup model={model()} onPress={() => undefined} headerNote="Quiet during the take" />);
-    expect(q('.sd-group-note').textContent).toBe('Quiet during the take');
+  it('renders the line that says what plays on Start only when given', () => {
+    const line = 'When you start: your starting pitch, then two bars of clicks.';
+    current = mount(<SoundsGroup model={model()} onPress={() => undefined} lead={line} />);
+    expect(q('.sd-group-lead').textContent).toBe(line);
     current.render(<SoundsGroup model={model()} onPress={() => undefined} />);
-    expect(document.querySelector('.sd-group-note')).toBeNull();
+    expect(document.querySelector('.sd-group-lead')).toBeNull();
   });
 
   it('shows the live caption above the card with bars hidden from assistive tech', () => {
@@ -367,17 +367,5 @@ describe('ListenConfirm', () => {
     expect(formatClock(18)).toBe('0:18');
     expect(formatClock(65)).toBe('1:05');
     expect(formatClock(-3)).toBe('0:00');
-  });
-});
-
-describe('CoachMark', () => {
-  it('is an inline note with "Got it", in the flow and never positioned over anything', () => {
-    const onDismiss = vi.fn();
-    current = mount(<CoachMark onDismiss={onDismiss} />);
-    expect(q('[data-testid=coach-mark]').getAttribute('role')).toBe('note');
-    expect(q('[data-testid=coach-mark]').textContent).toBe('New: hear the tempo, the key and the music before you play.Got it');
-    expect(document.querySelector('[aria-modal]')).toBeNull();
-    click(q('.ui-button'));
-    expect(onDismiss).toHaveBeenCalledTimes(1);
   });
 });

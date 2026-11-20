@@ -1,21 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import type { ExcerptSource, KeySig } from '../../../core/types.ts';
 import { fixtureDoc } from '../../../notation/testing/corpus-node.ts';
-import { testExcerpt } from './test-support.tsx';
+import { cfg, testExcerpt } from './test-support.tsx';
 import {
   STARS_ORDER,
-  activeRow,
-  autoTickedCount,
   creditLine,
   extremeIds,
   formatClock,
-  isTicked,
+  lookRows,
+  onStartLine,
   signatureDetail,
   signatureNotes,
   sourceLine,
   startingInSeconds,
   writtenAccidentalIds,
-  type StarsId,
 } from './model.ts';
 
 const k = (fifths: number, mode: 'major' | 'minor' = 'major'): KeySig => ({ fifths, mode });
@@ -64,23 +62,35 @@ describe('scan model', () => {
     expect(extremeIds({ ...e, extremes: { highId: 'x', lowId: 'x' } })).toEqual(['x']);
   });
 
-  it('ticks a row every fifth of the scan time (30 s: every 6 s)', () => {
-    expect(autoTickedCount(30, 30)).toBe(0);
-    expect(autoTickedCount(24, 30)).toBe(1);
-    expect(autoTickedCount(23.9, 30)).toBe(1);
-    expect(autoTickedCount(12, 30)).toBe(3);
-    expect(autoTickedCount(0, 30)).toBe(5);
-    expect(autoTickedCount(5, 0)).toBe(0);
+  it('has five "Look before you play" rows; a row with nothing to spot has no advice line', () => {
+    const e = testExcerpt({ writtenKey: k(0) });
+    const rows = lookRows(e);
+    expect(STARS_ORDER).toHaveLength(5);
+    expect(rows.map((r) => r.id)).toEqual([...STARS_ORDER]);
+    expect(rows.map((r) => r.label)).toEqual(['Key and time', 'Tempo', 'Accidentals', 'Rhythm', 'Shape']);
+    expect(rows.every((r) => r.fact.length > 0)).toBe(true);
+    const noSigns = rows[2]!;
+    if (writtenAccidentalIds(e).length === 0) {
+      expect(noSigns.fact).toBe('None in the music.');
+      expect(noSigns.advice).toBeNull();
+    } else expect(noSigns.advice).not.toBeNull();
   });
 
-  it('a manual choice beats the clock, and the active row is the first unticked', () => {
-    const manual = new Map<StarsId, boolean>([['signatures', false], ['rhythms', true]]);
-    expect(isTicked(0, 3, manual)).toBe(false);
-    expect(isTicked(1, 3, manual)).toBe(true);
-    expect(isTicked(3, 0, manual)).toBe(true);
-    expect(activeRow(3, manual)).toBe('signatures');
-    expect(activeRow(5, new Map())).toBeNull();
-    expect(STARS_ORDER).toHaveLength(5);
+  it('a piece with a written sharp gets the Accidentals advice', () => {
+    const base = testExcerpt({ writtenKey: k(0) });
+    const n = { kind: 'note', id: 'a', tick: 0, dur: 12, writtenPitch: { step: 'F', alter: 1, octave: 4 }, concertPitch: { step: 'F', alter: 1, octave: 4 } } as never;
+    const p = { ...base, extremes: { highId: 'a', lowId: 'a' }, measures: [{ index: 0, isPickup: false, startTick: 0, displayBar: 1, events: [n] }] };
+    const row = lookRows(p)[2]!;
+    expect(row.fact).toBe('One note has a sharp, flat or natural.');
+    expect(row.advice).toBe('Find each one. It lasts to the bar line.');
+    expect(lookRows(p)[4]!.fact).toBe('Lowest F♯4, highest F♯4. Ends on F♯4.');
+  });
+
+  it('says what plays on Start: the starting pitch for a voice, then the clicks', () => {
+    const e = testExcerpt();
+    expect(onStartLine(e, cfg, true, false)).toBe('When you start: two bars of clicks.');
+    expect(onStartLine({ ...e, levelServed: 7 }, cfg, true, true)).toBe('When you start: your starting pitch, then one bar of clicks.');
+    expect(onStartLine(e, cfg, true, true)).toBe('When you start: your starting pitch, then two bars of clicks.');
   });
 
   it('says "Starting in N" only in the last 5 s of a ranked scan', () => {

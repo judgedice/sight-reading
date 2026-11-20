@@ -18,6 +18,7 @@ import type {
   SpelledPitch,
   Step,
 } from '../../../../core/types.ts';
+import type { PitchTrace } from '../../../../notation/overlay-seam.ts';
 import { heatLevel, type HeatLevel } from '../../../../ui/components/domain/HeatStrip.tsx';
 import { rtext, sentence, type ReviewTextKey } from './text.ts';
 
@@ -602,4 +603,67 @@ export function stepSlip(slips: readonly SlipTarget[], current: SlipTarget | nul
 export function inspectorFor(m: ReviewModel, t: SlipTarget): string[] {
   if (t.kind === 'note') return m.notes.find((n) => n.idx === t.idx)?.inspector ?? [];
   return m.extras.find((x) => x.detectedId === t.detectedId)?.inspector ?? [];
+}
+
+// ---- show what we heard -----------------------------------------------------------------------------
+
+/** What the pitch trace needs from a try's stored diagnostics trace (session `TryTrace`): its frames and t0. */
+export interface HeardTraceSource {
+  frames: { t: readonly number[]; midi: readonly (number | null)[] } | null;
+  playback: { t0: number };
+}
+
+/** Frames this many beats before the first written note or after the last one ends are not drawn. */
+const TRACE_MARGIN_BEATS = { before: 1, after: 2 } as const;
+
+/** True when a stored trace has frames to draw. */
+export function hasTrack(source: HeardTraceSource | null | undefined): source is HeardTraceSource & { frames: NonNullable<HeardTraceSource['frames']> } {
+  return !!source && !!source.frames && source.frames.t.length > 1 && source.frames.midi.some((m) => m !== null);
+}
+
+/**
+ * The try's pitch track on the score's beat scale (04-design §9, "Show what we heard"). The clock offset comes from the
+ * matched notes, the same one the ghosts use, so the line meets them; without one, the trace's t0 plus the latency
+ * compensation (as "Hear what we heard" plays it). Null without frames. y is drawn from the written spelling of each
+ * concert semitone, so a held note lies on its notehead.
+ */
+export function heardTrace(x: {
+  record: AttemptRecord;
+  prepared: PreparedExcerpt;
+  expected: readonly ExpectedNote[];
+  instrument: Instrument;
+  spell: GhostSpeller;
+  source: HeardTraceSource | null | undefined;
+}): PitchTrace | null {
+  const { record, expected, source } = x;
+  if (!hasTrack(source)) return null;
+  const zero = clockOffset(record, expected) ?? source.playback.t0 + record.calibration.latencyCompensationMs / 1000;
+  const first = expected.length ? Math.min(...expected.map((e) => e.onsetBeat)) : 0;
+  const last = expected.length ? Math.max(...expected.map((e) => e.onsetBeat + e.durBeats)) : 0;
+  const from = first - TRACE_MARGIN_BEATS.before;
+  const to = last + TRACE_MARGIN_BEATS.after;
+  const beats: number[] = [];
+  const midi: (number | null)[] = [];
+  const { t, midi: m } = source.frames;
+  for (let i = 0; i < t.length; i++) {
+    const beat = beatsOfSec(t[i]! - zero, record.bpm);
+    if (beat < from || beat > to) continue;
+    beats.push(beat);
+    midi.push(m[i] ?? null);
+  }
+  if (!midi.some((v) => v !== null)) return null;
+  const key = x.prepared.writtenKey;
+  const cache = new Map<number, SpelledPitch>();
+  return {
+    beats,
+    midi,
+    spell: (whole) => {
+      let p = cache.get(whole);
+      if (!p) {
+        p = x.spell(whole, null, key, x.instrument);
+        cache.set(whole, p);
+      }
+      return p;
+    },
+  };
 }

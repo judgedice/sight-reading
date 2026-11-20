@@ -6,32 +6,31 @@ import type { ScoreFrameController } from '../../../ui/score-frame/index.ts';
 import { ScoreFrame } from '../../../ui/score-frame/index.ts';
 import { copy, type CopyKey } from '../../../ui/copy/copy.ts';
 import type { SessionErrorCode } from '../../../core/types.ts';
+import { CalStatusPill, calTexts } from '../../../ui/components/calibration-status/index.ts';
 import { Button } from '../../../ui/components/form/index.ts';
 import { BeatUnitText, ChecklistItem, ScanTimer } from '../../../ui/components/domain/index.ts';
-import { CoachMark, DOCK_QUERY, ListenConfirm, SoundButton, SoundsDock, SoundsGroup, useMediaQuery, type SoundsModel } from '../../../ui/components/sounds/index.ts';
+import { DOCK_QUERY, ListenConfirm, SoundButton, SoundsDock, SoundsGroup, useMediaQuery, type SoundsModel } from '../../../ui/components/sounds/index.ts';
 import { Glyph, Modal, Popover, Sheet, openOverlayCount, useToast } from '../../../ui/primitives/index.ts';
 import { useNavigate } from '../../router.tsx';
 import type { ScreenProps } from '../../route-types.ts';
 import type { Readable } from '../home/services.ts';
-import { markSoundsCoachSeen, soundsCoachSeen } from './coach.ts';
+import type { CalStatus } from '../../compose/calibration-status.ts';
 import { CoverSignature } from './CoverSignature.tsx';
 import { clearHighlights, drawHighlights } from './highlights.ts';
 import { useReadable, useStoreSlice } from './hooks.ts';
 import {
   HIGHLIGHTED,
-  STARS_ORDER,
-  activeRow,
-  autoTickedCount,
   creditLine,
   extremeIds,
   OVERFLOW_LABEL,
   writtenAccidentalIds,
   formatClock,
-  isTicked,
+  lookRows,
+  onStartLine,
   scanSummary,
   servedBarsNote,
-  signatureDetail,
   sourceLine,
+  startingInSeconds,
   type StarsId,
 } from './model.ts';
 import { countdownCrossing } from './read-model.ts';
@@ -41,6 +40,7 @@ import { PractiseWithoutListeningNotice } from '../states/States.tsx';
 import './scan.css';
 
 const NEVER: Readable<boolean> = { get: () => false, subscribe: () => () => undefined };
+const NO_CAL: Readable<CalStatus | null> = { get: () => null, subscribe: () => () => undefined };
 
 /**
  * What each session error says on the read-through. Honest per cause: a clock-rate problem never stops a take (it is
@@ -61,59 +61,31 @@ const isInteractive = (t: EventTarget | null): boolean =>
 
 type Prepared = NonNullable<PracticeFlowServices['session']['prepared']>;
 
-// ---- STARS ("Before you play") ---------------------------------------------------------------------------------
+// ---- "Look before you play" ------------------------------------------------------------------------------------
 
-interface StarsProps {
+interface LookProps {
   prepared: Prepared;
-  remainingSec: number;
-  totalSec: number;
-  manual: ReadonlyMap<StarsId, boolean>;
-  onToggle: (id: StarsId, checked: boolean) => void;
+  /** The row under the pointer: the score shows what it names (accidentals, highest and lowest notes). */
   onRowFocus: (id: StarsId | null) => void;
   /** Card heading (desktop); the phone sheet has its own title. */
   heading: boolean;
 }
 
-function StarsList({ prepared, remainingSec, totalSec, manual, onToggle, onRowFocus, heading }: StarsProps) {
-  const auto = autoTickedCount(remainingSec, totalSec);
+function LookList({ prepared, onRowFocus, heading }: LookProps) {
+  const rows = lookRows(prepared);
   const rowAt = (el: EventTarget | null, ul: HTMLElement): StarsId | null => {
     const li = el instanceof Element ? el.closest('li') : null;
     const i = li ? Array.from(ul.children).indexOf(li) : -1;
-    return i >= 0 ? (STARS_ORDER[i] ?? null) : null;
+    return i >= 0 ? (rows[i]?.id ?? null) : null;
   };
   return (
     <div className="scan-stars">
-      <div className="scan-stars-head">
-        {heading ? <h2 className="scan-stars-title">{copy('stars.heading')}</h2> : null}
-        <span className="scan-stars-eyebrow">{copy('stars.title')}</span>
-      </div>
-      <p className="scan-stars-optional">{copy('stars.optional')}</p>
-      <ul
-        className="scan-stars-list"
-        onMouseOver={(e) => onRowFocus(rowAt(e.target, e.currentTarget))}
-        onMouseLeave={() => onRowFocus(null)}
-        onFocus={(e) => onRowFocus(rowAt(e.target, e.currentTarget))}
-        onBlur={() => onRowFocus(null)}
-      >
-        {STARS_ORDER.map((id, i) => {
-          const title = copy(`stars.${id}.title`);
-          return (
-            <ChecklistItem
-              key={id}
-              checked={isTicked(i, auto, manual)}
-              title={
-                <>
-                  <span className="scan-stars-letter" aria-hidden="true">
-                    {title.charAt(0)}
-                  </span>
-                  {title}
-                </>
-              }
-              detail={id === 'signatures' ? <span className="scan-stars-generated">{signatureDetail(prepared)}</span> : copy(`stars.${id}.prompt`)}
-              onToggle={(c) => onToggle(id, c)}
-            />
-          );
-        })}
+      {heading ? <h2 className="scan-stars-title">{copy('stars.heading')}</h2> : null}
+      <p className="scan-stars-lead">{copy('look.lead')}</p>
+      <ul className="scan-stars-list" onMouseOver={(e) => onRowFocus(rowAt(e.target, e.currentTarget))} onMouseLeave={() => onRowFocus(null)}>
+        {rows.map((r) => (
+          <ChecklistItem key={r.id} title={r.label} detail={r.fact} advice={r.advice} />
+        ))}
       </ul>
     </div>
   );
@@ -266,29 +238,20 @@ function Cover({ prepared, mode, totalSec, listening, onShow, onSkip, onPractice
 
 interface SideProps {
   sounds: ReadSounds;
-  coach: boolean;
-  onCoachDismiss: () => void;
   onStart: () => void;
 }
 
-function DesktopSide({ sounds, coach, onCoachDismiss, onStart, stars }: SideProps & { stars: ReactNode }) {
+function DesktopSide({ sounds, onStart, startLine, calibration }: SideProps & { startLine: string; calibration: ReactNode }) {
   return (
     <aside className="scan-side" aria-label={copy('scan.sounds.title')}>
       <Button data-start-playing className="scan-start" label={copy('action.startPlaying')} variant="primary" size="hero" kbd={copy('shortcuts.spaceKey')} onClick={onStart} />
-      <SoundsGroup
-        model={sounds.model}
-        onPress={sounds.press}
-        caption={sounds.caption}
-        captionFailed={sounds.captionFailed}
-        headerNote={copy('scan.sounds.silentTake')}
-        coach={coach ? <CoachMark onDismiss={onCoachDismiss} /> : undefined}
-      />
-      <section className="scan-stars-card">{stars}</section>
+      {calibration}
+      <SoundsGroup model={sounds.model} onPress={sounds.press} caption={sounds.caption} captionFailed={sounds.captionFailed} lead={startLine} />
     </aside>
   );
 }
 
-function PhoneDock({ sounds, coach, onCoachDismiss, onStart, peek, onPeek }: SideProps & { peek: string; onPeek: () => void }) {
+function PhoneDock({ sounds, onStart, peek, onPeek }: SideProps & { peek: string; onPeek: () => void }) {
   return (
     <div className="scan-dock" data-testid="scan-dock">
       <button type="button" className="scan-peek" aria-haspopup="dialog" onClick={onPeek}>
@@ -296,7 +259,7 @@ function PhoneDock({ sounds, coach, onCoachDismiss, onStart, peek, onPeek }: Sid
         <Glyph id="chevron-down" className="scan-peek-chevron" />
       </button>
       <div className="scan-dock-inner">
-        <SoundsDock model={sounds.model} onPress={sounds.press} caption={sounds.caption} captionFailed={sounds.captionFailed} coach={coach ? <CoachMark onDismiss={onCoachDismiss} /> : undefined} />
+        <SoundsDock model={sounds.model} onPress={sounds.press} caption={sounds.caption} captionFailed={sounds.captionFailed} />
         <Button data-start-playing className="scan-start" label={copy('action.startPlaying')} variant="primary" size="hero" onClick={onStart} />
       </div>
     </div>
@@ -340,14 +303,12 @@ export function ScanScreen(_props: ScreenProps) {
   const frameRef = useRef<ScoreFrameController | null>(null);
   const frameWrap = useRef<HTMLDivElement>(null);
   const [layoutVersion, setLayoutVersion] = useState(0);
-  const [manual, setManual] = useState<ReadonlyMap<StarsId, boolean>>(new Map());
   const [hovered, setHovered] = useState<StarsId | null>(null);
   const [overflowOpen, setOverflowOpen] = useState(false);
   const [overflowAnchor, setOverflowAnchor] = useState<HTMLElement | null>(null);
   const [dialog, setDialog] = useState<'skip' | 'about' | 'licence' | null>(null);
   const [leaveAfterSkip, setLeaveAfterSkip] = useState(false);
   const [starsOpen, setStarsOpen] = useState(false);
-  const [coach, setCoach] = useState(() => !soundsCoachSeen());
   const [said, setSaid] = useState<{ text: string; n: number }>({ text: '', n: 0 });
 
   const pending = svc.session.pending;
@@ -367,10 +328,9 @@ export function ScanScreen(_props: ScreenProps) {
     else if (state === 'idle') navigate('/', { replace: true });
   }, [state, navigate]);
 
-  // A new excerpt starts with clean STARS ticks.
+  // A new piece starts with no row highlighted.
   const excerptId = prepared?.excerptId;
   useEffect(() => {
-    setManual(new Map());
     setHovered(null);
   }, [excerptId]);
 
@@ -379,11 +339,6 @@ export function ScanScreen(_props: ScreenProps) {
   useEffect(() => {
     if (scanning) sideRef.current?.querySelector<HTMLButtonElement>('[data-start-playing]')?.focus();
   }, [scanning, docked]);
-
-  // The coach mark shows on the first read-through only: once shown it is spent, read or not.
-  useEffect(() => {
-    if (scanning && coach) markSoundsCoachSeen();
-  }, [scanning, coach]);
 
   // Leaving the screen stops any sound (05 section 9.3).
   const stopAll = sounds.stopAll;
@@ -461,9 +416,8 @@ export function ScanScreen(_props: ScreenProps) {
     return () => document.removeEventListener('keydown', onKey);
   }, [covered, scanning, prepared, startScan, startPlaying, press, shortcuts]);
 
-  // STARS highlights (04 section 5.3): the hovered or focused row, else the active one; gone when the scan ends.
-  const auto = autoTickedCount(remainingSec, totalSec);
-  const shown = hovered ?? activeRow(auto, manual);
+  // Highlights (04 section 5.3): the row under the pointer; gone when the read-through ends.
+  const shown = hovered;
   const showStars = settings.practicePrefs.showStars;
   const highlightIds = useMemo(() => {
     if (!prepared || !shown || !HIGHLIGHTED.has(shown)) return [] as string[];
@@ -486,11 +440,8 @@ export function ScanScreen(_props: ScreenProps) {
     };
   }, []);
 
-  const onToggle = useCallback((id: StarsId, checked: boolean) => setManual((m) => new Map(m).set(id, checked)), []);
-  const dismissCoach = useCallback(() => {
-    markSoundsCoachSeen();
-    setCoach(false);
-  }, []);
+  const calStatus = useReadable(svc.calibrationStatus ?? NO_CAL);
+  const calibrate = useCallback(() => navigate('/calibrate'), [navigate]);
 
   const routeAttrs = { 'data-testid': 'screen-practice.scan', 'data-route-id': 'practice.scan' } as const;
 
@@ -516,17 +467,17 @@ export function ScanScreen(_props: ScreenProps) {
   }
 
   const bpm = prepared?.selection.settings.bpm ?? 60;
-  const timeUp = scanning && mode === 'practice' && scan?.expired === true;
   const requestedBars = settings.practice.bars;
   const note = prepared ? servedBarsNote(prepared, requestedBars) : null;
   const sLine = prepared ? sourceLine(prepared.source) : null;
-  const doneCount = STARS_ORDER.filter((_, i) => isTicked(i, auto, manual)).length;
-  const readHint = timeUp ? copy('scan.practice.timeUp') : mode === 'practice' ? copy('scan.practice.readHint') : null;
-  const stars =
-    prepared && showStars ? (
-      <StarsList prepared={prepared} remainingSec={remainingSec} totalSec={totalSec} manual={manual} onToggle={onToggle} onRowFocus={setHovered} heading />
-    ) : null;
-  const showCoach = coach && scanning;
+  // Practice has no reading timer: the same line for the whole read-through. Ranked says when the count-in is near.
+  const soon = startingInSeconds(mode, remainingSec);
+  const readHint = mode === 'practice' ? copy('scan.practice.readHint') : soon !== null ? copy('scan.ranked.soon', { seconds: soon }) : null;
+  const look = prepared && showStars ? <LookList prepared={prepared} onRowFocus={setHovered} heading /> : null;
+  const startLine = prepared
+    ? onStartLine(prepared, svc.configs, svc.configs.instrumentById[prepared.instrumentId]?.family === 'voice', settings.practice.autoReference !== false)
+    : '';
+  const calibration = calStatus ? <CalStatusPill status={calStatus} variant="line" readThrough onCalibrate={calibrate} className="scan-cal" /> : null;
 
   return (
     <section className="scan" {...routeAttrs} data-state={state} data-mode={mode} data-layout={docked ? 'dock' : 'side'}>
@@ -546,6 +497,21 @@ export function ScanScreen(_props: ScreenProps) {
       </p>
       <Popover open={overflowOpen} anchor={overflowAnchor} label={OVERFLOW_LABEL} onClose={() => setOverflowOpen(false)}>
         <div className="scan-menu" role="menu">
+          {docked && calStatus ? (
+            <button
+              type="button"
+              role="menuitem"
+              className="scan-menu-item scan-menu-cal"
+              data-testid="scan-menu-cal"
+              onClick={() => {
+                setOverflowOpen(false);
+                calibrate();
+              }}
+            >
+              <span className="scan-menu-cal-lead">{calTexts(calStatus).lead}</span>
+              <span className="scan-menu-cal-note">{`${calTexts(calStatus).action}. ${copy('calStatus.readthrough.note')}`}</span>
+            </button>
+          ) : null}
           <button
             type="button"
             role="menuitem"
@@ -590,6 +556,7 @@ export function ScanScreen(_props: ScreenProps) {
                 <BeatUnitText text={scanSummary(prepared)} />
               </p>
             ) : null}
+            {docked && calibration ? <div className="scan-cal-phone">{calibration}</div> : null}
             {note || sLine ? (
               <div className="scan-notes">
                 {note ? <span className="scan-quiet-chip">{note}</span> : null}
@@ -630,18 +597,19 @@ export function ScanScreen(_props: ScreenProps) {
                 {readHint}
               </p>
             ) : null}
+            {!docked && look ? <section className="scan-stars-card">{look}</section> : null}
           </div>
           {docked ? (
-            <PhoneDock sounds={sounds} coach={showCoach} onCoachDismiss={dismissCoach} onStart={startPlaying} peek={copy('scan.peek', { n: doneCount, total: STARS_ORDER.length })} onPeek={() => setStarsOpen(true)} />
+            <PhoneDock sounds={sounds} onStart={startPlaying} peek={copy('scan.peek')} onPeek={() => setStarsOpen(true)} />
           ) : (
-            <DesktopSide sounds={sounds} coach={showCoach} onCoachDismiss={dismissCoach} onStart={startPlaying} stars={stars} />
+            <DesktopSide sounds={sounds} onStart={startPlaying} startLine={startLine} calibration={calibration} />
           )}
         </div>
       ) : null}
       {scanning && docked ? (
         <Sheet open={starsOpen} title={copy('stars.heading')} onClose={() => setStarsOpen(false)}>
           <TuningRow model={sounds.model} onPress={sounds.press} />
-          {prepared && showStars ? <StarsList prepared={prepared} remainingSec={remainingSec} totalSec={totalSec} manual={manual} onToggle={onToggle} onRowFocus={setHovered} heading={false} /> : null}
+          {prepared && showStars ? <LookList prepared={prepared} onRowFocus={setHovered} heading={false} /> : null}
         </Sheet>
       ) : null}
       <ListenConfirm open={sounds.confirmOpen && scanning && mode === 'ranked'} secondsLeft={Math.ceil(remainingSec - 1e-9)} onKeepRanked={sounds.keepRanked} onListen={sounds.listenMakePractice} />

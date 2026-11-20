@@ -4,6 +4,7 @@
   display: flex;
   flex-direction: column;
   min-width: 0;
+  container: setup / inline-size;
 }
 
 /* Rows share one left edge, each set off by a hairline (home and setup-sheet mockups). */
@@ -20,6 +21,15 @@
 
 .setup-slot:last-of-type {
   padding-bottom: var(--space-2);
+}
+
+/* The Practice form: tighter rows, one hairline between them (04-design section 1). */
+.setup-form .setup-slot {
+  padding: 0.625rem 0;
+}
+
+.setup-form .setup-slot:first-child {
+  padding-top: 0;
 }
 
 .setup-live {

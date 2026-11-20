@@ -28,6 +28,8 @@ export interface InstrumentCardProps {
   onKeyDown?: (event: KeyboardEvent<HTMLButtonElement>) => void;
   /** Focus lands here when the dialog opens. */
   autoFocus?: boolean;
+  /** Hover or focus: start loading this instrument's sound. Never plays. */
+  onPrepare?: ((id: string) => void) | undefined;
 }
 
 /** The card's accessible name: "Baritone voice, range G2 to G4" (05 section 6.3, `instrument.card.a11y`). */
@@ -41,7 +43,7 @@ export function cardName(instrument: Instrument, data: RangeData): string {
  * voices, written for transposing instruments), the ruler on the shared C1 to C8 axis, then the second line: tenor
  * "Written an octave higher", transposing "Sounds a major 2nd lower · bars show sounding pitch". A radio.
  */
-export function InstrumentCard({ instrument, data, checked, tabbable, showServed, onSelect, onKeyDown, autoFocus }: InstrumentCardProps) {
+export function InstrumentCard({ instrument, data, checked, tabbable, showServed, onSelect, onKeyDown, autoFocus, onPrepare }: InstrumentCardProps) {
   const { model } = data;
   const voice = instrument.family === 'voice';
   const [low, high] = model.names.full;
@@ -58,6 +60,8 @@ export function InstrumentCard({ instrument, data, checked, tabbable, showServed
       className={['pk-card', voice ? 'pk-card-voice' : 'pk-card-instrument', checked ? 'is-on' : null].filter(Boolean).join(' ')}
       onClick={() => onSelect(instrument.id)}
       onKeyDown={onKeyDown}
+      onPointerEnter={onPrepare ? () => onPrepare(instrument.id) : undefined}
+      onFocus={onPrepare ? () => onPrepare(instrument.id) : undefined}
       data-instrument={instrument.id}
       data-autofocus={autoFocus ? '' : undefined}
     >

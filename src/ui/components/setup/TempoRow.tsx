@@ -1,93 +1,92 @@
-import { useId, useState, type CSSProperties, type KeyboardEvent } from 'react';
+import { useId, type CSSProperties, type ReactNode } from 'react';
 import { copy } from '../../copy/copy.ts';
+import { Glyph } from '../../primitives/Glyph.tsx';
 import { BeatUnitText } from '../domain/BeatUnitText.tsx';
-import { Button } from '../form/Button.tsx';
-import { Toggle } from '../form/Toggle.tsx';
-import { Hint, SetupRowFrame, XpTag } from './parts.tsx';
+import { SetupRowFrame } from './parts.tsx';
+import { SegmentRadios } from './SegmentRadios.tsx';
 import { lineText, splitAt } from './text.ts';
 import type { TempoRowView } from './types.ts';
 import './setup.css';
 
 export interface TempoRowProps {
   row: TempoRowView;
-  /** The set tempo, or `'random'` while "Any tempo in range" is on. */
+  /** The set tempo, or `'random'` for Any. */
   value: number | 'random';
-  /** A tempo, or `'random'` when the switch is turned on. Turning it off sends the middle of the range. */
+  /** A tempo, or `'random'` for Any. Choosing the set segment from Any sends the middle of the range. */
   onChange: (bpm: number | 'random') => void;
   /** "Hear the tempo": one bar at this tempo with the chosen click (05 section 9.5). Hidden when absent. */
-  onHearTempo?: (bpm: number) => void;
+  onHearTempo?: ((bpm: number) => void) | undefined;
+  /** Something that shares the row at its right end (Length when only one length exists, 04-design section 1). */
+  end?: ReactNode;
   label?: string;
 }
 
 /** Beat units the music-text face draws; anything else (the half note) uses the drawn fallback. */
 const FONT_UNITS = new Set(['♩', '♩.', '♪']);
+const ANY = 'random';
+const SET = 'set';
 
 const clamp = (n: number, r: { min: number; max: number }): number => Math.min(r.max, Math.max(r.min, Math.round(n)));
 
+function Unit({ unit }: { unit: string }) {
+  return FONT_UNITS.has(unit) ? (
+    <span className="su-tempo-unit" data-tempo-unit="">
+      {unit}
+    </span>
+  ) : (
+    <BeatUnitText text={unit} />
+  );
+}
+
 /** "♩ = 72": the unit from the music-text face, set close to "=" (designer's check: within 0.35 em). */
-export function TempoMarking({ unit, bpm }: { unit: string; bpm: number }) {
+export function TempoMarking({ unit, bpm }: { unit: string; bpm: number | string }) {
   const [before, after] = splitAt('tempo.marking', { bpm }, 'unit');
   return (
     <span className="su-tempo-mark" data-tempo-mark="">
       {before}
-      {FONT_UNITS.has(unit) ? (
-        <span className="su-tempo-unit" data-tempo-unit="">
-          {unit}
-        </span>
-      ) : (
-        <BeatUnitText text={unit} />
-      )}
+      <Unit unit={unit} />
       <span className="su-tempo-rest">{after}</span>
     </span>
   );
 }
 
-/** Tempo (05 section 5.6, 06 section 6.6): "Any tempo in range" switch; off shows the marking, slider and field. */
-export function TempoRow({ row, value, onChange, onHearTempo, label = copy('row.tempo') }: TempoRowProps) {
+/**
+ * Tempo (round 2: 01-ux section 6, 04-design section 1): a segmented Any or the set tempo ("♩ = 72"). Any shows the
+ * range ("♩ = 60 to 76"); a set tempo shows a slider over the range and "Hear the tempo". `end` (Length) sits at the
+ * right of the same row.
+ */
+export function TempoRow({ row, value, onChange, onHearTempo, end, label = copy('row.tempo') }: TempoRowProps) {
   const id = useId();
   const labelId = `${id}-label`;
-  const [draft, setDraft] = useState<string | null>(null);
   const any = row.any || value === 'random';
   const bpm = value === 'random' ? clamp((row.range.min + row.range.max) / 2, row.range) : clamp(value, row.range);
   const span = row.range.max - row.range.min;
   const fill = { '--tempo-fill': `${span > 0 ? ((bpm - row.range.min) / span) * 100 : 0}%` } as CSSProperties;
-
-  const commit = (): void => {
-    if (draft === null) return;
-    const text = draft.trim();
-    setDraft(null);
-    const parsed = Number(text);
-    if (text === '' || !Number.isFinite(parsed)) return;
-    const next = clamp(parsed, row.range);
-    if (next !== bpm) onChange(next);
-  };
-  const onFieldKey = (event: KeyboardEvent<HTMLInputElement>): void => {
-    if (event.key === 'Enter') {
-      event.preventDefault();
-      commit();
-    } else if (event.key === 'Escape') setDraft(null);
-  };
+  const rangeText = copy('range.cardText', { low: row.range.min, high: row.range.max });
 
   return (
-    <SetupRowFrame
-      row="tempo"
-      labelId={labelId}
-      label={label}
-      aside={
-        <span className="su-switch">
-          <Toggle checked={any} label={lineText(row.anyLabel)} onChange={(on) => onChange(on ? 'random' : bpm)} />
-          <XpTag line={row.xpTag} />
-        </span>
-      }
-    >
-      {any ? (
-        <Hint>{lineText(row.anyValue)}</Hint>
-      ) : (
-        <>
-          <div className="su-tempo-set" role="group" aria-labelledby={labelId}>
-            <span className="su-tempo-value">
-              <TempoMarking unit={row.beatUnit} bpm={bpm} />
-            </span>
+    <SetupRowFrame row="tempo" labelId={labelId} label={label}>
+      <div className="su-tempo-line">
+        <SegmentRadios
+          className="su-seg-tempo"
+          labelledBy={labelId}
+          onSelect={(v) => onChange(v === ANY ? 'random' : bpm)}
+          options={[
+            { id: ANY, content: copy('setup.time.any'), ariaLabel: lineText(row.anyLabel), selected: any },
+            {
+              id: SET,
+              content: <TempoMarking unit={row.beatUnit} bpm={bpm} />,
+              ariaLabel: copy('tempo.spoken', { unit: row.beatUnit, bpm }),
+              selected: !any,
+            },
+          ]}
+        />
+        {any ? (
+          <p className="su-hint su-tempo-range-text" data-tempo-range="">
+            <TempoMarking unit={row.beatUnit} bpm={rangeText} />
+          </p>
+        ) : (
+          <span className="su-tempo-set" role="group" aria-labelledby={labelId}>
             <input
               type="range"
               className="ui-tempo-range su-tempo-range"
@@ -100,32 +99,16 @@ export function TempoRow({ row, value, onChange, onHearTempo, label = copy('row.
               style={fill}
               onChange={(event) => onChange(Number(event.target.value))}
             />
-            <input
-              type="number"
-              inputMode="numeric"
-              className="ui-tempo-field su-tempo-field"
-              min={row.range.min}
-              max={row.range.max}
-              step={1}
-              value={draft ?? bpm}
-              aria-label={label}
-              onChange={(event) => setDraft(event.target.value)}
-              onBlur={commit}
-              onKeyDown={onFieldKey}
-            />
-          </div>
-          {onHearTempo ? (
-            <Button
-              className="su-hear-tempo"
-              variant="tonal"
-              size="compact"
-              icon="metronome"
-              label={copy('action.hearTempo')}
-              onClick={() => onHearTempo(bpm)}
-            />
-          ) : null}
-        </>
-      )}
+            {onHearTempo ? (
+              <button type="button" className="su-icon-btn" data-hear-tempo="" title={copy('action.hearTempo')} onClick={() => onHearTempo(bpm)}>
+                <Glyph id="metronome" size={20} />
+                <span className="ui-visually-hidden">{copy('action.hearTempo')}</span>
+              </button>
+            ) : null}
+          </span>
+        )}
+        {end ? <span className="su-row-end">{end}</span> : null}
+      </div>
     </SetupRowFrame>
   );
 }

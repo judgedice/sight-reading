@@ -1,38 +1,66 @@
-// The count-in band's content (06 section 6.12): the beat number in the paper's top margin, the beat dots beside it
-// (the downbeat larger, the current one brass with a halo) and a caption such as "Bar 1 · ♩ = 72" (a copy() string
-// from the caller). ScoreFrame places it above the first system; this component only draws it. Visual only: the
-// screen's one live region announces the count-in.
+// The count-in track (round 2, 01-ux §11; 04-design §5): a line over one cell per count-in beat, then the entry word
+// ("Sing" or "Play"). Bar 1 of a 2-bar count-in is grey and says "listen"; the last bar is brass and says "come in".
+// The current cell fills and shows its number large; counted cells stay filled. ScoreFrame places it in the cue zone
+// above the first system, so nothing in the music moves. Visual only and never a control: the whole track is
+// aria-hidden, holds no button and nothing focusable; the screen's one live region says the count-in.
+import type { ReactNode } from 'react';
 import './count-in-band.css';
 
 export interface CountInBandProps {
-  /** Current beat, 1-based; 0 before the first click. */
-  beat: number;
-  /** Beats in the count-in bar. */
-  beats: number;
-  /** Line under the dots, from copy(). */
-  caption: string;
+  /** Count-in clicks heard so far (1-based); 0 before the first click. */
+  click: number;
+  /** Beats (clicks) in one count-in bar. */
+  beatsPerBar: number;
+  /** Count-in bars (2 at difficulties 1 to 3, else 1). */
+  bars: number;
+  /** The line's lead, from copy(): "Count-in: listen to the beat" or "Come in after 4". */
+  title: string;
+  /** The line's detail, from the caller: "Count-in bar 1 of 2 · ♩ = 60". */
+  detail: ReactNode;
+  /** The entry word at the end of the track, from copy(): "Sing" or "Play". */
+  entry: string;
+  /** The count of the last bar after which the player comes in (a pickup comes in earlier); default its last count. */
+  entryAfter?: number;
 }
 
-export function CountInBand({ beat, beats, caption }: CountInBandProps) {
-  const dots = Array.from({ length: Math.max(0, beats) }, (_, i) => i + 1);
+type CellState = 'pending' | 'current' | 'past';
+
+export function CountInBand({ click, beatsPerBar, bars, title, detail, entry, entryAfter }: CountInBandProps) {
+  const bpb = Math.max(1, beatsPerBar);
+  const n = Math.max(1, bars);
+  const total = n * bpb;
+  const k = Math.max(0, Math.min(click, total));
+  const bar = k === 0 ? 1 : Math.ceil(k / bpb);
+  const last = bar === n;
+  const entryClick = (n - 1) * bpb + Math.max(1, Math.min(bpb, entryAfter ?? bpb));
+  const groups = Array.from({ length: n }, (_, b) => b + 1);
+  const state = (i: number): CellState => (i < k ? 'past' : i === k ? 'current' : 'pending');
   return (
-    <div className="sf-count" aria-hidden="true" data-beat={beat}>
-      <span key={beat} className="sf-count-num" data-downbeat={beat === 1 ? 'true' : undefined}>
-        {beat > 0 ? beat : ''}
-      </span>
-      <span className="sf-count-side">
-        <span className="sf-count-dots">
-          {dots.map((d) => (
-            <span
-              key={d}
-              className="sf-count-dot"
-              data-downbeat={d === 1 ? 'true' : undefined}
-              data-state={d < beat ? 'past' : d === beat ? 'current' : 'pending'}
-            />
-          ))}
+    <div className="sf-count" aria-hidden="true" data-click={k} data-bar={bar} data-last={last ? 'true' : undefined}>
+      <p className="sf-count-line">
+        <span className="sf-count-title">{title}</span>
+        <span className="sf-count-detail">{detail}</span>
+      </p>
+      <div className="sf-count-track">
+        {groups.map((b) => (
+          <span key={b} className="sf-count-group" data-tone={b === n ? 'last' : 'listen'}>
+            {b > 1 ? <span className="sf-count-sep" /> : null}
+            {Array.from({ length: bpb }, (_, j) => {
+              const i = (b - 1) * bpb + j + 1;
+              const s = state(i);
+              return (
+                <span key={`${i}-${s}`} className="sf-count-cell" data-state={s}>
+                  {j + 1}
+                </span>
+              );
+            })}
+          </span>
+        ))}
+        <span className="sf-count-entry" data-on={k >= entryClick ? 'true' : undefined}>
+          <span className="sf-count-dash" />
+          <span className="sf-count-word">{entry}</span>
         </span>
-        <span className="sf-count-caption">{caption}</span>
-      </span>
+      </div>
     </div>
   );
 }

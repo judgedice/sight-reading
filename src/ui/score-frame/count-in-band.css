@@ -1,25 +1,139 @@
-/* Count-in band (06 section 6.12). Tokens only. */
+/* Count-in track (round 2, 04-design section 5; 01-ux section 11). Tokens only. Bar 1 grey, the last bar brass. */
 
 .sf-count {
   display: flex;
+  flex-direction: column;
   align-items: center;
   gap: var(--space-5);
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+  pointer-events: none;
+}
+
+.sf-count-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: center;
+  gap: var(--space-1) var(--space-4);
+  margin: 0;
+  text-align: center;
+}
+
+.sf-count-title {
+  color: var(--ink);
+  font-size: var(--type-h3-size);
+  font-weight: var(--type-h3-weight);
+  line-height: var(--type-h3-line);
+}
+
+.sf-count[data-last] .sf-count-title {
   color: var(--brass-ink);
 }
 
-.sf-count-num {
+.sf-count-detail {
+  color: var(--text-muted);
+  font-size: var(--type-label-size);
+  font-weight: var(--type-small-weight);
+  line-height: var(--type-label-line);
+  white-space: nowrap;
+}
+
+.sf-count-track {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.sf-count-group {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.sf-count-sep {
+  inline-size: var(--space-1);
+  block-size: var(--space-7);
+  margin-inline: var(--space-2);
+  border-radius: var(--radius-full);
+  background: var(--border-strong);
+}
+
+/* One cell per beat. Cells keep one size; only the current number grows, so the track never shifts. */
+.sf-count-cell {
+  box-sizing: border-box;
+  display: grid;
+  place-items: center;
+  inline-size: var(--space-8);
+  block-size: calc(var(--space-8) + var(--space-3));
+  border-radius: var(--radius-m);
+  border: var(--beat-dot-outline) dashed var(--border-strong);
+  color: var(--text-muted);
   font-family: var(--type-count-family);
-  font-size: var(--type-count-size);
-  font-weight: var(--type-count-weight);
-  line-height: var(--count-line-height);
+  font-size: var(--type-h3-size);
+  font-weight: var(--type-label-weight);
   font-variant-numeric: lining-nums tabular-nums;
-  min-inline-size: 0.6em;
-  text-align: center;
+  line-height: 1;
+}
+
+.sf-count-cell[data-state='past'] {
+  border-color: transparent;
+  background: var(--surface-2);
+}
+
+.sf-count-cell[data-state='current'] {
+  border-color: transparent;
+  background: var(--text-muted);
+  color: var(--paper);
+  font-size: var(--type-h1-size);
   animation: sf-count-in var(--dur-count) var(--ease-settle);
 }
 
-.sf-band[data-compact] .sf-count-num {
-  font-size: var(--sf-count-compact);
+/* The last bar: brass from its first click. */
+.sf-count-group[data-tone='last'] .sf-count-cell {
+  border-style: solid;
+  border-color: var(--brass);
+  color: var(--brass-ink);
+}
+
+.sf-count-group[data-tone='last'] .sf-count-cell[data-state='past'] {
+  border-color: transparent;
+  background: var(--brass-wash);
+}
+
+.sf-count-group[data-tone='last'] .sf-count-cell[data-state='current'] {
+  border-color: transparent;
+  background: var(--brass);
+  color: var(--paper);
+  box-shadow: 0 0 0 var(--space-1) var(--brass-wash);
+}
+
+/* The entry word: not a control (no glyph, no border, no fill). On the last beat it gets a brass underline. */
+.sf-count-entry {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-inline-start: var(--space-1);
+  color: var(--brass-ink);
+  font-size: var(--type-h3-size);
+  font-weight: var(--type-h3-weight);
+  line-height: var(--type-h3-line);
+}
+
+.sf-count-dash {
+  inline-size: var(--space-3);
+  block-size: calc(var(--space-1) / 2);
+  background: currentColor;
+}
+
+.sf-count-word {
+  text-decoration: underline transparent;
+  text-decoration-thickness: calc(var(--space-1) / 2 + var(--space-1) / 4);
+  text-underline-offset: var(--space-2);
+}
+
+.sf-count-entry[data-on] .sf-count-word {
+  text-decoration-color: var(--brass);
 }
 
 @keyframes sf-count-in {
@@ -28,57 +142,84 @@
   }
 }
 
-:root[data-motion='reduced'] .sf-count-num {
+:root[data-motion='reduced'] .sf-count-cell {
   animation: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .sf-count-num {
+  .sf-count-cell {
     animation: none;
   }
 }
 
-.sf-count-side {
-  display: flex;
-  flex-direction: column;
+/* A short room (the band does not fit above the first system): smaller cells. */
+.sf-band[data-compact] .sf-count {
   gap: var(--space-3);
 }
 
-.sf-count-dots {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
+.sf-band[data-compact] .sf-count-cell {
+  inline-size: var(--space-7);
+  block-size: calc(var(--space-7) + var(--space-2));
+  font-size: var(--type-label-size);
 }
 
-/* Band dots: 14 px, the downbeat 20 px (beat-dot-downbeat plus a third), outlined until played. */
-.sf-count-dot {
-  box-sizing: border-box;
-  inline-size: var(--beat-dot-downbeat);
-  block-size: var(--beat-dot-downbeat);
-  border-radius: var(--radius-full);
-  border: var(--beat-dot-outline) solid var(--text-muted);
+.sf-band[data-compact] .sf-count-cell[data-state='current'] {
+  font-size: var(--type-h2-size);
 }
 
-.sf-count-dot[data-downbeat] {
-  inline-size: calc(var(--beat-dot-downbeat) + var(--space-2) - var(--space-1) / 2);
-  block-size: calc(var(--beat-dot-downbeat) + var(--space-2) - var(--space-1) / 2);
+/* Phones: eight cells, the separator and the word fit 390 px; the line's detail drops under its lead. */
+@media (max-width: 43.75rem) {
+  .sf-count {
+    gap: var(--space-4);
+  }
+
+  .sf-count-line {
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+  }
+
+  .sf-count-track,
+  .sf-count-group {
+    gap: var(--space-1);
+  }
+
+  .sf-count-sep {
+    block-size: var(--space-6);
+    margin-inline: var(--space-1);
+  }
+
+  .sf-count-cell,
+  .sf-band[data-compact] .sf-count-cell {
+    inline-size: calc(var(--space-5) + var(--space-1));
+    block-size: calc(var(--space-7) - var(--space-2));
+    border-radius: var(--radius-s);
+    font-size: var(--type-label-size);
+  }
+
+  .sf-count-cell[data-state='current'],
+  .sf-band[data-compact] .sf-count-cell[data-state='current'] {
+    font-size: var(--type-h2-size);
+  }
 }
 
-.sf-count-dot[data-state='past'] {
-  background: var(--text-muted);
-}
+/* The narrowest phones (320 px): narrower cells and no dash, so the word stays on the paper. */
+@media (max-width: 22.5rem) {
+  .sf-count-cell,
+  .sf-band[data-compact] .sf-count-cell {
+    inline-size: 1.375rem;
+  }
 
-.sf-count-dot[data-state='current'] {
-  background: var(--brass);
-  border-color: var(--brass);
-  box-shadow: 0 0 0 calc(var(--space-1) + var(--space-1) / 2) var(--brass-wash);
-}
+  .sf-count-cell[data-state='current'],
+  .sf-band[data-compact] .sf-count-cell[data-state='current'] {
+    font-size: var(--type-h3-size);
+  }
 
-.sf-count-caption {
-  color: var(--text);
-  font-family: var(--font-ui);
-  font-size: var(--type-h3-size);
-  font-weight: var(--type-label-weight);
-  line-height: var(--type-h3-line);
-  white-space: nowrap;
+  .sf-count-dash {
+    display: none;
+  }
+
+  .sf-count-entry {
+    font-size: var(--type-label-size);
+  }
 }

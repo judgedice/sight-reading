@@ -11,8 +11,8 @@ import { act, click, key, mount, type Mounted } from '../../primitives/test-rend
 import { tokens } from '../../tokens.ts';
 import { DifficultyControl } from './DifficultyControl.tsx';
 import { FallbackNote, FALLBACK_NOTE_DURATION_MS } from './FallbackNote.tsx';
-import { KeyGrid, keyGridColumns } from './KeyGrid.tsx';
-import { LengthRow } from './LengthRow.tsx';
+import { KeyGrid } from './KeyGrid.tsx';
+import { LengthInline, LengthRow } from './LengthRow.tsx';
 import { ModeControl } from './ModeControl.tsx';
 import { MiniKeyStaff, TimeSignatureMark } from './MusicMarks.tsx';
 import { TempoRow } from './TempoRow.tsx';
@@ -104,7 +104,7 @@ describe('fed by the setup model', () => {
       const keys: (KeySig | 'random')[] = [];
       const clef = m.instrument.clefs[0]!.clef;
       current?.unmount();
-      current = mount(<KeyGrid row={m.key} clef={clef} difficulty={m.level} onChange={(k) => keys.push(k)} />);
+      current = mount(<KeyGrid expanded row={m.key} clef={clef} difficulty={m.level} onChange={(k) => keys.push(k)} />);
       const options = m.key.groups.flatMap((g) => g.keys);
       expect(radios()).toHaveLength(options.length + 1);
       radios().slice(1).forEach((r) => click(r));
@@ -115,7 +115,7 @@ describe('fed by the setup model', () => {
       }
 
       const meters: string[] = [];
-      current.render(<TimeSegments row={m.time} onChange={(v) => meters.push(v)} />);
+      current.render(<TimeSegments expanded row={m.time} onChange={(v) => meters.push(v)} />);
       radios().slice(1).forEach((r) => click(r));
       click(radios()[0]!);
       expect(meters).toEqual([...m.time.options.map((o) => o.meter), 'random']);
@@ -149,19 +149,45 @@ describe('KeyGrid', () => {
     expect(sent).toEqual([{ fifths: -1, mode: 'major' }, { fifths: 0, mode: 'major' }, 'random', { fifths: -1, mode: 'minor' }, 'random']);
   });
 
-  it('names each chip in full, groups Major then Minor, and reads the later-keys line with the group', () => {
-    current = mount(<KeyGrid row={keyRow(3, '3:major', 6, -2)} clef="treble" difficulty={5} onChange={() => undefined} />);
+  it('up to eight keys: one row, then the key note read with the group (round 2, 01-ux section 7)', () => {
+    current = mount(<KeyGrid row={keyRow(1, null, 3)} clef="bass" difficulty={2} onChange={() => undefined} />);
+    expect($$('[data-key-button]')).toHaveLength(0);
+    expect($('.su-key-row').getAttribute('role')).toBe('radiogroup');
+    const note = byId($('[role="radiogroup"]').getAttribute('aria-describedby')!);
+    expect(note.textContent).toBe('Difficulty 2 uses major and minor keys with up to 1 sharp or flat. Keys with 2 sharps or flats start at difficulty 3.');
+    expect(document.body.textContent).not.toContain('More keys from');
+    // Each chip draws a small signature and names the key.
+    expect(byName('G major').querySelector('.su-key-sig svg')).not.toBeNull();
+    expect(byName('G major').textContent).toBe('G major');
+  });
+
+  it('expanded (the phone sheet): names each chip in full, groups Major then Minor, concert keys shown', () => {
+    current = mount(<KeyGrid expanded row={keyRow(3, '3:major', 6, -2)} clef="treble" difficulty={5} onChange={() => undefined} />);
     expect(byName('A major').getAttribute('aria-label')).toBe('A major, 3 sharps, sounds G major');
     expect(byName('C major').getAttribute('aria-label')).toBe('C major, no sharps or flats, sounds B♭ major');
     expect($$('.su-key-group-label').map((p) => p.textContent)).toEqual(['Major', 'Minor']);
-    const more = byId($('[role="radiogroup"]').getAttribute('aria-describedby')!);
-    expect(more.textContent).toBe('More keys from difficulty 6.');
-    expect(byName('Any key').textContent).toContain('+8% XP');
-    expect($('[role="radiogroup"]').getAttribute('style')).toContain('--su-key-cols: 4');
+    expect($$('.su-chip-concert').length).toBe(14);
   });
 
-  it('uses 3 desktop columns to difficulty 4 and 4 from difficulty 5', () => {
-    expect([1, 2, 3, 4, 5, 9].map(keyGridColumns)).toEqual([3, 3, 3, 3, 4, 4]);
+  it('above eight keys: one button with the value and the count; the keys open in a popover and choosing closes it', () => {
+    const sent: (KeySig | 'random')[] = [];
+    current = mount(<KeyGrid row={keyRow(3, '3:major', 6)} clef="treble" difficulty={5} onChange={(k) => sent.push(k)} />);
+    const button = $('[data-key-button]');
+    expect(radios()).toHaveLength(0);
+    expect(button.textContent).toContain('A major');
+    expect(button.getAttribute('aria-expanded')).toBe('false');
+    expect(byId(button.getAttribute('aria-describedby')!).textContent).toBe('14 keys: major and minor, up to 3 sharps or flats.');
+    click(button);
+    expect(button.getAttribute('aria-expanded')).toBe('true');
+    const pop = $('[data-key-popover]');
+    expect($$('.su-key-group-label').map((p) => p.textContent)).toEqual(['Major', 'Minor']);
+    // Popover chips show the tonic; the spoken name is the full key. Any key sits at the foot.
+    expect(byName('E♭ major').textContent).toBe('E♭');
+    expect(pop.querySelector('.su-key-pop-foot [role="radio"]')!.textContent).toContain('Any key');
+    expect(pop.textContent).toContain('Pick one key, or Any for more XP.');
+    click(byName('E♭ major'));
+    expect(sent).toEqual([{ fifths: -3, mode: 'major' }]);
+    expect($$('[data-key-popover]')).toHaveLength(0);
   });
 });
 
@@ -186,38 +212,84 @@ describe('MiniKeyStaff and TimeSignatureMark', () => {
 // ---- Time --------------------------------------------------------------------------------------------------------
 
 describe('TimeSegments', () => {
-  it('Any first with its XP tag, spoken names, few pieces described, the unavailable line read with the group', () => {
+  it('Any first, spoken names that always name the meter, a few-pieces dot, the unavailable line read with the group', () => {
     const sent: string[] = [];
     current = mount(<TimeSegments row={timeRow('3/4')} onChange={(v) => sent.push(v)} />);
-    expect(radios().map((r) => r.getAttribute('aria-label') ?? r.textContent)).toEqual(['Any+8% XP', '4 4 time', '3 4 time']);
-    const three = byName('3 4 time');
-    expect(byId(three.getAttribute('aria-describedby')!).textContent).toBe('few pieces');
-    expect(document.body.textContent).toContain('Few pieces here: some may repeat.');
+    expect(radios().map((r) => r.getAttribute('aria-label') ?? r.textContent)).toEqual(['Any', '4 4 time', '3/4, few pieces']);
+    const three = byName('3/4');
+    expect(three.querySelector('.su-few-dot')).not.toBeNull();
+    expect(three.querySelector('[title]')!.getAttribute('title')).toBe('Few pieces');
     const group = $('[role="radiogroup"]');
-    expect(byId(group.getAttribute('aria-describedby')!).textContent).toBe('No 2/4 music for Baritone voice at difficulty 2 yet.');
+    expect(byId(group.getAttribute('aria-describedby')!).textContent).toBe('No 2/4 at difficulty 2 yet.');
     click(byName('4 4 time'));
     tap(radios()[0]!);
     key(three, 'ArrowRight');
     expect(sent).toEqual(['4/4', 'random', 'random']);
+  });
+
+  it('above seven meters: Any, the most used and More; a meter chosen there joins the row', () => {
+    const base = timeRow('random');
+    const opt = (meter: string, selected = false) => {
+      const [beats, unit] = meter.split('/').map(Number) as [number, number];
+      return { meter, beats, unit, few: false, selected, a11y: { key: 'setup.time.a11y', vars: { beats, unit } } };
+    };
+    const all = ['4/4', '3/4', '2/4', '6/8', '2/2', '3/8', '3/2', '9/8'];
+    const row = (chosen: string | null) => {
+      const options = all.map((m) => opt(m, m === chosen));
+      return { ...base, any: { ...base.any, selected: chosen === null }, options, top: options.slice(0, 5), more: options.slice(5), hiddenNote: null };
+    };
+    const sent: string[] = [];
+    current = mount(<TimeSegments row={row(null)} onChange={(v) => sent.push(v)} />);
+    expect(radios()).toHaveLength(6);
+    const more = $('[data-time-more]');
+    expect(more.textContent).toBe('More3');
+    click(more);
+    const pop = $('[data-time-popover]');
+    expect([...pop.querySelectorAll('[role="radio"]')].map((r) => r.getAttribute('aria-label'))).toEqual(['3 8 time', '3 2 time', '9 8 time']);
+    click(pop.querySelector<HTMLElement>('[aria-label="9 8 time"]')!);
+    expect(sent).toEqual(['9/8']);
+    expect($$('[data-time-popover]')).toHaveLength(0);
+    current.render(<TimeSegments row={row('9/8')} onChange={() => undefined} />);
+    expect(radios().map((r) => r.getAttribute('aria-label') ?? r.textContent).at(-1)).toBe('9 8 time');
+    expect($('[data-time-more]').textContent).toBe('More2');
+    current.render(<TimeSegments expanded row={row(null)} onChange={() => undefined} />);
+    expect(radios()).toHaveLength(9);
+    expect($$('[data-time-more]')).toHaveLength(0);
   });
 });
 
 // ---- Difficulty --------------------------------------------------------------------------------------------------
 
 describe('DifficultyControl', () => {
-  it('steps, skips nothing it should not, shows every line, and the switch sends random', () => {
+  it('steps, skips nothing it should not, shows the description with the Few pieces tag, and the switch sends random', () => {
     const sent: (number | 'random')[] = [];
     current = mount(<DifficultyControl row={difficultyRow(false)} onChange={(v) => sent.push(v)} />);
     expect($('.ui-stepper-value').textContent).toBe('2of 10');
     expect($$('.dom-diff-seg[data-state="no-music"]')).toHaveLength(2);
     expect(document.body.textContent).toContain('Adds eighths, minor keys and one-beat pickups.');
-    expect(document.body.textContent).toContain('At difficulty 2: C3 to C4');
+    // The served range is on the range card now, not here (round 2, 01-ux section 6).
+    expect(document.body.textContent).not.toContain('At difficulty 2: C3 to C4');
+    const tag = $('[data-setup-few]');
+    expect(tag.getAttribute('title')).toBe('Few pieces here: some may repeat.');
+    expect(tag.querySelector('[aria-hidden="true"]')!.textContent).toBe('Few pieces');
+    expect(tag.querySelector('.ui-visually-hidden')!.textContent).toBe('Few pieces here: some may repeat.');
     const group = $('.su-diff-line');
     expect(byId(group.getAttribute('aria-describedby')!).textContent).toBe('No music yet for Baritone voice at difficulty 7 to 8.');
     click($('[aria-label="Increase Difficulty"]'));
     click($('[aria-label="Decrease Difficulty"]'));
     click($('input[role="switch"]'));
     expect(sent).toEqual([3, 1, 'random']);
+  });
+
+  it('at difficulty 1 with onMatch: "Simpler? Match a note first", the link opens Match a note', () => {
+    const opened: number[] = [];
+    const row = { ...difficultyRow(false), matchHint: { key: 'setup.difficulty.matchHint', vars: {} } };
+    current = mount(<DifficultyControl row={row} onChange={() => undefined} onMatch={() => opened.push(1)} />);
+    expect($('[data-setup-match]').textContent).toBe('Simpler? Match a note first');
+    click($('[data-setup-match] button'));
+    expect(opened).toEqual([1]);
+    current.render(<DifficultyControl row={row} onChange={() => undefined} />);
+    expect($$('[data-setup-match]')).toHaveLength(0);
   });
 
   it('follow on hides the stepper and reads the following line; the onboarding prop hides the switch', () => {
@@ -237,23 +309,26 @@ describe('DifficultyControl', () => {
 // ---- Tempo -------------------------------------------------------------------------------------------------------
 
 describe('TempoRow', () => {
-  it('switch on reads the range; off shows the marking, slider, field and Hear the tempo', () => {
+  it('Any shows the range; the set segment reads the marking and shows the slider and Hear the tempo', () => {
     const sent: (number | 'random')[] = [];
     const heard: number[] = [];
     current = mount(<TempoRow row={tempoRow(true)} value="random" onChange={(v) => sent.push(v)} onHearTempo={(b) => heard.push(b)} />);
-    expect(document.body.textContent).toContain('Any tempo from 60 to 84');
-    expect(document.body.textContent).toContain('+8% XP');
+    expect($('[data-tempo-range]').textContent).toBe('♩ = 60 to 84');
     expect($$('input[type="range"]')).toHaveLength(0);
-    click($('input[role="switch"]'));
+    expect(radios().map((r) => r.getAttribute('aria-label'))).toEqual(['Any tempo in range', '♩ equals 72']);
+    click(radios()[1]!);
     expect(sent).toEqual([72]);
 
-    current.render(<TempoRow row={tempoRow(false)} value={72} onChange={(v) => sent.push(v)} onHearTempo={(b) => heard.push(b)} />);
+    current.render(
+      <TempoRow row={tempoRow(false)} value={72} onChange={(v) => sent.push(v)} onHearTempo={(b) => heard.push(b)} end={<LengthInline bars={8} />} />,
+    );
     expect($('[data-tempo-mark]').textContent).toBe('♩ = 72');
     expect($('[data-tempo-unit]').textContent).toBe('♩');
     expect($<HTMLInputElement>('input[type="range"]').getAttribute('aria-valuetext')).toBe('♩ equals 72');
-    click($('.su-hear-tempo'));
+    click($('[data-hear-tempo]'));
     expect(heard).toEqual([72]);
-    click($('input[role="switch"]'));
+    expect($('[data-setup-row="length"]').textContent).toBe('Length8 bars');
+    click(radios()[0]!);
     expect(sent).toEqual([72, 'random']);
   });
 });
@@ -281,9 +356,9 @@ describe('ModeControl', () => {
   });
 
   it.each([
-    ['calibration', 'Ranked needs a calibrated setup on this device.', 'Calibrate now'],
+    ['calibration', 'Ranked needs calibration on this device.', 'Calibrate'],
     ['mic', 'Ranked needs the microphone.', 'Turn on microphone'],
-  ] as const)('blocked by %s: Ranked stays focusable, is never chosen, and names its visible reason and fix', (block, reason, fix) => {
+  ] as const)('blocked by %s: Ranked stays focusable, is never chosen, and the hint line names the reason with its fix as a link', (block, reason, fix) => {
     const sent: string[] = [];
     const fixed: string[] = [];
     current = mount(<ModeControl value="practice" rankedBlock={block} onChange={(v) => sent.push(v)} onFix={(b) => fixed.push(b)} />);
@@ -296,20 +371,29 @@ describe('ModeControl', () => {
     key(byName('Practice'), 'ArrowLeft');
     expect(document.activeElement).toBe(ranked);
     expect(sent).toEqual([]);
-    const button = $$('button').find((b) => b.textContent === fix)!;
-    click(button);
+    // One fix control, inside the hint line; no second button.
+    const fixes = $$('button').filter((b) => b.textContent === fix);
+    expect(fixes).toHaveLength(1);
+    expect(fixes[0]!.closest('.su-mode-hint')).not.toBeNull();
+    expect(document.body.textContent).not.toContain('Calibrate now');
+    click(fixes[0]!);
     expect(fixed).toEqual([block]);
-    expect(document.body.textContent).toContain('Less XP. No time limit. Listen first if you like.');
+    expect($('.su-mode-hint').textContent).toBe(`Less XP. No time limit. Listen first if you like. ${reason} ${fix}`);
+    current.render(<ModeControl value="practice" rankedBlock={block} onChange={() => undefined} />);
+    expect($$('button').filter((b) => b.textContent === fix)).toHaveLength(0);
+    expect(byId(byName('Ranked').getAttribute('aria-describedby')!).textContent).toBe(reason);
   });
 });
 
 describe('XpLine', () => {
-  it('bolds the percent and renders nothing at 0', () => {
-    current = mount(<XpLine line={{ key: 'xp.randomHint', vars: { percent: 24 } }} />);
+  it('bolds the percent; at 0 it renders the none line or nothing', () => {
+    current = mount(<XpLine line={{ key: 'setup.xp.line', vars: { percent: 24 } }} />);
     expect($('[data-setup-xp]').textContent).toBe('Choosing Any: +24% XP');
     expect($('[data-setup-xp] b').textContent).toBe('+24% XP');
     current.render(<XpLine line={null} />);
     expect($$('[data-setup-xp]')).toHaveLength(0);
+    current.render(<XpLine line={null} none={{ key: 'setup.xp.none', vars: {} }} />);
+    expect($('[data-setup-xp]').textContent).toBe('Choose Any for more XP.');
   });
 });
 

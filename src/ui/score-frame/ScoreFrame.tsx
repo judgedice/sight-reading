@@ -49,8 +49,10 @@ export interface ScoreFrameProps {
   onError?: (e: unknown) => void;
   /** Staff space and page margins from the score tokens (06 section 7). Omitted: the 04 layout table. */
   purpose?: FramePurpose;
-  /** Content of the count-in band (e.g. <CountInBand>), shown in the top margin above the first system; later systems drop to 50%. */
+  /** Content of the cue zone (the starting-pitch card or <CountInBand>), in the top margin above the first system. */
   band?: ReactNode;
+  /** The starting pitch is speaking: the first system at 55%, later systems at 30%. Never during the count-in. */
+  dim?: boolean;
   /** Bar wash by 0-based measure index (Listen, a tapped bar); null or omitted for none. */
   highlightBar?: number | null;
   /** Wash behind the key signature (the key chord is sounding). */
@@ -90,7 +92,7 @@ const sameArgs = (a: FrameLayoutArgs, b: FrameLayoutArgs): boolean =>
 
 export function ScoreFrame(props: ScoreFrameProps) {
   const { loadNotation, excerpt, bpm, arrangement = 'slots', frozen = false, viewport, insets, label, className, ref, purpose } = props;
-  const { band, highlightBar = null, highlightKey = false, firstNoteName = null, clean = false } = props;
+  const { band, dim = false, highlightBar = null, highlightKey = false, firstNoteName = null, clean = false } = props;
   const [bandSlot, setBandSlot] = useState<HTMLElement | null>(null);
   const [laidOut, setLaidOut] = useState(0);
   const hostRef = useRef<HTMLDivElement | null>(null);
@@ -242,6 +244,9 @@ export function ScoreFrame(props: ScoreFrameProps) {
   useEffect(() => {
     frame?.setClean(clean);
   }, [frame, clean]);
+  useEffect(() => {
+    frame?.dim(dim);
+  }, [frame, dim]);
   useEffect(() => {
     frame?.highlightBar(highlightBar);
   }, [frame, highlightBar, laidOut]);

@@ -13,30 +13,67 @@ export const PAGE_SIZE = 100;
 export interface HistoryFilter {
   instrumentId: string | null;
   rankedOnly: boolean;
+  /** "This piece" (opened from results): only the tries at this excerpt. */
+  excerptId?: string | null;
 }
 
-export const NO_FILTER: HistoryFilter = { instrumentId: null, rankedOnly: false };
+export const NO_FILTER: HistoryFilter = { instrumentId: null, rankedOnly: false, excerptId: null };
 
-/** Reads `instrument` and `ranked=1` from a hash or a query string. Unknown parameters are ignored. */
+/** Reads `instrument`, `ranked=1` and `piece` from a hash or a query string. Unknown parameters are ignored. */
 export function parseFilter(source: string): HistoryFilter {
   const q = source.includes('?') ? source.slice(source.indexOf('?') + 1) : source;
   const p = new URLSearchParams(q);
   const instrument = p.get('instrument');
-  return { instrumentId: instrument ? instrument : null, rankedOnly: p.get('ranked') === '1' };
+  const piece = p.get('piece');
+  return { instrumentId: instrument ? instrument : null, rankedOnly: p.get('ranked') === '1', excerptId: piece ? piece : null };
 }
 
-/** The query string for a filter: "" when nothing is set, else "?instrument=flute&ranked=1". */
+/** The query string for a filter: "" when nothing is set, else "?instrument=flute&ranked=1&piece=ex-1". */
 export function filterQuery(f: HistoryFilter): string {
   const p = new URLSearchParams();
   if (f.instrumentId) p.set('instrument', f.instrumentId);
   if (f.rankedOnly) p.set('ranked', '1');
+  if (f.excerptId) p.set('piece', f.excerptId);
   const s = p.toString();
   return s ? `?${s}` : '';
 }
 
-export function matchesFilter(row: Pick<AttemptSummary, 'instrumentId' | 'ranked'>, f: HistoryFilter): boolean {
+export function matchesFilter(row: Pick<AttemptSummary, 'instrumentId' | 'ranked'> & Partial<Pick<AttemptSummary, 'excerptId'>>, f: HistoryFilter): boolean {
   if (f.instrumentId !== null && row.instrumentId !== f.instrumentId) return false;
+  if (f.excerptId && row.excerptId !== undefined && row.excerptId !== f.excerptId) return false;
   return !f.rankedOnly || row.ranked;
+}
+
+/** The ISO 8601 UTC bounds of a local calendar day (inclusive), for `AttemptQuery.from` and `to`. */
+export function dayBounds(day: string): { from: string; to: string } {
+  const [y, m, d] = day.split('-').map(Number) as [number, number, number];
+  const start = new Date(y, m - 1, d);
+  const end = new Date(y, m - 1, d + 1);
+  return { from: start.toISOString(), to: new Date(end.getTime() - 1).toISOString() };
+}
+
+/** "Today · 3 tries", or filtered to a piece "Today · 3 tries, 2 at this piece" (04-design §9). */
+export function dayHeading(label: string, tries: number, atPiece: number | null): string {
+  return atPiece === null ? copy('history.day', { day: label, n: tries }) : copy('history.day.piece', { day: label, n: tries, m: atPiece });
+}
+
+/** Where a try sits among the tries at its piece, oldest first: "Try 2 of 3", with its neighbours' ids. */
+export interface TryPosition {
+  n: number;
+  total: number;
+  previousId: string | null;
+  nextId: string | null;
+}
+
+/**
+ * The position of `id` among the tries at a piece (rows in any order). Tries are those that reached bar 1
+ * (`isTry`); the try on screen always counts, so it has a place even when it stopped before the first note.
+ */
+export function tryPosition(rows: readonly Pick<AttemptSummary, 'id' | 'createdAt'>[], id: string, isTry: (id: string) => boolean): TryPosition | null {
+  const ordered = rows.filter((r) => r.id === id || isTry(r.id)).sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
+  const at = ordered.findIndex((r) => r.id === id);
+  if (at < 0) return null;
+  return { n: at + 1, total: ordered.length, previousId: ordered[at - 1]?.id ?? null, nextId: ordered[at + 1]?.id ?? null };
 }
 
 const pad = (n: number): string => String(n).padStart(2, '0');

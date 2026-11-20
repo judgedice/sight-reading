@@ -160,3 +160,47 @@
 .rv-inspector-head {
   font-weight: var(--type-h3-weight);
 }
+
+/* "Show what we heard" (04-design section 9): the switch, its key line and the reserved caption line. */
+.rv-show-heard {
+  display: inline-flex;
+}
+
+.rv-caption-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  min-block-size: var(--type-small-line);
+  color: var(--text-muted);
+  font-size: var(--type-small-size);
+  line-height: var(--type-small-line);
+}
+
+.rv-heard-key {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.rv-heard-key-glyph {
+  inline-size: 1.5rem;
+  block-size: 0.5rem;
+  flex: none;
+  fill: none;
+  stroke: var(--text-muted);
+  stroke-width: 1.25;
+  stroke-linecap: round;
+}
+
+/* The trace sits behind the ink and never takes a click. */
+.rv-score .sr-trace {
+  pointer-events: none;
+}
+
+/* 01-ux 15.1: an Unsure try at the calm difficulties draws its extras and ghosts at 50%. */
+.rv-review[data-calm='true'] .sr-ghost,
+.rv-review[data-calm='true'] .sr-overflow,
+.rv-review[data-calm='true'] .rv-tail {
+  opacity: 0.5;
+}

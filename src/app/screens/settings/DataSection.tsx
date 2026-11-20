@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { copy } from '../../../ui/copy/copy.ts';
 import { Banner, Card } from '../../../ui/components/containers/index.ts';
-import { Button } from '../../../ui/components/form/index.ts';
+import { Button, Toggle } from '../../../ui/components/form/index.ts';
 import { Modal, useToast } from '../../../ui/primitives/index.ts';
 import { deleteAllData, downloadText, exportBackupText, importBackupText, importErrorText, backupFileName } from './data-io.ts';
 import { DELETE_WORD, sizeParts } from './model.ts';
@@ -21,6 +21,9 @@ export function DataSection() {
   const [error, setError] = useState<string | null>(null);
   const [bytes, setBytes] = useState<number | null | undefined>(undefined);
   const [offlineBusy, setOfflineBusy] = useState(false);
+  // The device-local opt-in to keep microphone audio in diagnostics (PLAN R64). null until read.
+  const [keepSound, setKeepSound] = useState<boolean | null>(null);
+  const diag = s.diagnostics;
 
   useEffect(() => {
     let live = true;
@@ -32,6 +35,43 @@ export function DataSection() {
       live = false;
     };
   }, [s]);
+
+  useEffect(() => {
+    if (!diag) return;
+    let live = true;
+    diag.settings().then(
+      (v) => live && setKeepSound(v.includeAudio),
+      () => live && setKeepSound(false),
+    );
+    return () => {
+      live = false;
+    };
+  }, [diag]);
+
+  const exportRecent = async (): Promise<void> => {
+    if (!diag) return;
+    setError(null);
+    try {
+      const file = await diag.exportRecent();
+      // No stored try yet: there is no file to save.
+      if (!file) return;
+      (diag.download ?? downloadText)(file.fileName, file.text);
+      toast.show({ text: copy('diagnostics.saved', { file: file.fileName }) });
+    } catch {
+      setError(text('settings.data.exportFailed'));
+    }
+  };
+
+  const setKeep = async (on: boolean): Promise<void> => {
+    if (!diag) return;
+    setKeepSound(on);
+    try {
+      await diag.setSettings({ includeAudio: on });
+    } catch {
+      setKeepSound(!on);
+      setError(text('settings.data.exportFailed'));
+    }
+  };
 
   const closePending = (): void => {
     setPending(null);
@@ -100,6 +140,21 @@ export function DataSection() {
   return (
     <Section id="data" title={copy('settings.section.data')}>
       {error ? <Banner tone="danger" text={error} /> : null}
+      {diag ? (
+        <>
+          <p className="set-hint set-lead">{copy('settings.data.diagnostics.lead')}</p>
+          <Group>
+            <Row label={copy('settings.data.exportDiagnostics')} inline>
+              <Button label={copy('action.exportDiagnostics')} variant="secondary" icon="download" onClick={() => void exportRecent()} />
+            </Row>
+            {diag.soundOptInShown && keepSound !== null ? (
+              <Row label={copy('diagnostics.keepSound')} hint={copy('diagnostics.keepSound.hint')} inline>
+                <Toggle label={copy('diagnostics.keepSound')} checked={keepSound} onChange={(v) => void setKeep(v)} />
+              </Row>
+            ) : null}
+          </Group>
+        </>
+      ) : null}
       <Group>
       <Row label={copy('settings.data.export')} inline>
         <Button label={copy('settings.data.export')} variant="secondary" icon="download" onClick={() => void exportData()} />

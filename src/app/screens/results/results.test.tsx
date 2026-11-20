@@ -259,7 +259,9 @@ describe('ResultsPanel', () => {
   });
 
   it('shows three component bars with numbers; the weakest is hatched and named in a sentence', () => {
-    const rec = attemptFrom('case07-voice-30c-flat');
+    const base = attemptFrom('case07-voice-30c-flat');
+    // The sentence needs a component below 90 (round 2), so one is lowered here.
+    const rec = { ...base, score: { ...base.score!, components: { ...base.score!.components, I: 70 } } };
     render({ record: rec });
     const rows = [...document.querySelectorAll('.res-comp')];
     expect(rows).toHaveLength(3);
@@ -272,6 +274,62 @@ describe('ResultsPanel', () => {
     const label = weakest[0]!.querySelector('.res-comp-label')!.textContent!;
     expect($('.res-how-focus').textContent).toBe(copy('component.focus', { component: label }));
     for (const r of rows) expect(r.querySelector('[role="meter"]')!.getAttribute('aria-valuenow')).toBe(r.querySelector('.res-comp-value')!.textContent);
+  });
+
+  it('names no component to work on when every one is 90 or more', () => {
+    const base = attemptFrom('case01-perfect-flute-l4');
+    const rec = { ...base, score: { ...base.score!, components: { P: 95, I: 92, R: 99 } } };
+    render({ record: rec });
+    expect(q('.res-how-focus')).toBeNull();
+    expect(q('.res-comp[data-weakest="true"]')).toBeNull();
+  });
+
+  it('the drift line shows from 20 ms and not below', () => {
+    const base = attemptFrom('case04-drift-0.15');
+    const withDrift = (ms: number): AttemptRecord => ({ ...base, score: { ...base.score!, diagnostics: { ...base.score!.diagnostics, driftMsAtEnd: ms } } });
+    expect(diagnosticLines(withDrift(19).score!).some((l) => /slightly by the end/.test(l))).toBe(false);
+    expect(diagnosticLines(withDrift(20).score!).some((l) => /slowed down slightly by the end/.test(l))).toBe(true);
+    expect(diagnosticLines(withDrift(-25).score!).some((l) => /sped up slightly by the end/.test(l))).toBe(true);
+  });
+
+  it('the calibration line shows only for an uncalibrated try, the recheck-shift line only for a calibrated one', () => {
+    const recheck = { status: 'measured' as const, measuredMs: 90, clicks: 6, madMs: 2, usedFresh: true, promptRecalibrate: true };
+    const base = attemptFrom('case01-perfect-flute-l4');
+    const cal = (method: 'loopback' | 'none' | 'reported'): AttemptRecord => ({ ...base, calibration: { ...base.calibration, method, recheck } });
+    render({ record: cal('loopback'), onRecalibrate: vi.fn(), review: <p>score</p> });
+    expect(q('.res-timing-note')).toBeNull();
+    expect(document.body.textContent).toContain(copy('results.banner.recheckShift'));
+    m?.unmount();
+    render({ record: cal('none'), onRecalibrate: vi.fn(), recalibrate: true, review: <p>score</p> });
+    expect(document.body.textContent).not.toContain(copy('results.banner.recheckShift'));
+    expect($('.res-timing-note').textContent).toBe(copy('badge.timingOffset'));
+  });
+
+  it('the tries line: "See all tries" on a first try, "2 tries at this piece" on a third, both open History', async () => {
+    const onSeeTries = vi.fn();
+    const base = attemptFrom('case01-perfect-flute-l4');
+    render({ record: base, onSeeTries, triesAtPiece: () => Promise.resolve(1) });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect($('[data-testid="res-tries"]').textContent).toBe(copy('results.tries.all'));
+    click(button(copy('results.tries.all')));
+    expect(onSeeTries).toHaveBeenCalledTimes(1);
+    m?.unmount();
+    render({ record: base, onSeeTries, triesAtPiece: () => Promise.resolve(3) });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect($('[data-testid="res-tries"]').textContent).toContain(copy('results.tries.atPiece', { n: 2 }));
+    click(button(copy('results.tries.atPiece', { n: 2 })));
+    expect(onSeeTries).toHaveBeenCalledTimes(2);
+  });
+
+  it('the sure line and the diagnostics button sit under the counts', () => {
+    const diagnostics = { supportAddress: null, soundOptInShown: true, exportTry: vi.fn(), exportLast: vi.fn(), exportRecent: vi.fn(), settings: () => Promise.resolve({ includeAudio: false }), setSettings: vi.fn() };
+    render({ record: attemptFrom('case01-perfect-flute-l4'), diagnostics: diagnostics as never });
+    expect($('[data-testid="sure-line"]')).toBeTruthy();
+    expect(button('Save diagnostics')).toBeTruthy();
   });
 
   it('renders diagnostics as plain text, not bars', () => {
@@ -411,40 +469,15 @@ describe('ResultsPanel', () => {
     expect(document.querySelector(`[title="${copy('results.practice.tooltip')}"]`)).toBeTruthy();
   });
 
-  it('phones: the actions sit at the page end, after the components, and the bar pins once the header has scrolled away', () => {
-    const observers: { cb: IntersectionObserverCallback; el: Element | null }[] = [];
-    class FakeIO {
-      cb: IntersectionObserverCallback;
-      constructor(cb: IntersectionObserverCallback) {
-        this.cb = cb;
-        observers.push({ cb, el: null });
-      }
-      observe(el: Element): void {
-        observers.find((o) => o.cb === this.cb)!.el = el;
-      }
-      disconnect(): void {}
-    }
-    vi.stubGlobal('IntersectionObserver', FakeIO);
-    try {
-      render({ record: attemptFrom('case01-perfect-flute-l4'), wide: false, onNext: vi.fn(), onTryAgain: vi.fn(), onChangeSetup: vi.fn() });
-      expect(q('.res-head [data-testid="res-actions-head"]')).toBeNull();
-      const end = $('[data-testid="res-actions-end"]');
-      expect(end.compareDocumentPosition($('[data-testid="res-components"]')) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();
-      expect(q('[data-testid="res-pinned"]')).toBeNull();
-      const fire = (el: Element, visible: boolean): void => {
-        const o = observers.find((x) => x.el === el)!;
-        act(() => o.cb([{ isIntersecting: visible, target: el } as unknown as IntersectionObserverEntry], {} as IntersectionObserver));
-      };
-      fire($('.res-head'), false);
-      fire($('.res-end'), false);
-      const pinned = $('[data-testid="res-pinned"]');
-      expect([...pinned.querySelectorAll('button')].map((b) => b.textContent)).toEqual([copy('action.nextExcerpt'), copy('action.tryAgainPractice')]);
-      // At the page end the end actions are in view, so the bar steps aside.
-      fire($('.res-end'), true);
-      expect(q('[data-testid="res-pinned"]')).toBeNull();
-    } finally {
-      vi.unstubAllGlobals();
-    }
+  it('phones: the bar with Next piece and Try again is always there; the page end keeps the quieter actions', () => {
+    render({ record: attemptFrom('case01-perfect-flute-l4'), wide: false, onNext: vi.fn(), onTryAgain: vi.fn(), onChangeSetup: vi.fn() });
+    expect(q('.res-head [data-testid="res-actions-head"]')).toBeNull();
+    const end = $('[data-testid="res-actions-end"]');
+    expect(end.compareDocumentPosition($('[data-testid="res-components"]')) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();
+    const pinned = $('[data-testid="res-pinned"]');
+    expect([...pinned.querySelectorAll('button')].map((b) => b.textContent)).toEqual([copy('action.nextExcerpt'), copy('action.tryAgain')]);
+    // One Next piece button on the page: the bar's.
+    expect([...end.querySelectorAll('button')].map((b) => b.textContent)).toEqual([copy('action.tryAgainPractice'), copy('action.changeSetup')]);
   });
 
   it('not graded (void): the heading, the void reason, the clean score with its line, and its own actions', () => {

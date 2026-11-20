@@ -14,6 +14,7 @@ export type RouteId =
   | 'history.attempt'
   | 'settings'
   | 'calibrate'
+  | 'match'
   | 'credits'
   | 'dev.components'
   | 'dev.replay'

@@ -4,7 +4,7 @@
  * `results-states-*` and `tips-*` mockup state can be shown and screenshotted. Not shipped; literals are dev data.
  *
  * Query: state=ranked|practice|listened|uncal|void|incomplete|notlistening, playing=<bar>, tapped=<bar>, tips=open,
- * toast=1, setup=1, dark, hc.
+ * toast=1, setup=1, tries=<n tries stored at the piece>, support, dark, hc.
  */
 import { StrictMode, useSyncExternalStore } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -226,6 +226,16 @@ function main(): void {
     }) as ResultsServices['renderReview'] & object,
     listen: (o) => play({ playing: 'listen', caption: { kind: 'bar', bar: o.fromBar ?? 1, of: 8 }, bar: o.fromBar ?? 1 }),
     hearBar: (from) => play({ playing: 'bar', caption: { kind: 'bar', bar: from, of: 8 }, bar: from }),
+    triesAtPiece: () => Promise.resolve(Number(q.get('tries') ?? '1')),
+    diagnostics: {
+      supportAddress: q.has('support') ? 'help@example.org' : null,
+      soundOptInShown: true,
+      exportTry: () => Promise.resolve(null),
+      exportLast: () => Promise.resolve(null),
+      exportRecent: () => Promise.resolve(null),
+      settings: () => Promise.resolve({ includeAudio: false }),
+      setSettings: () => Promise.resolve(),
+    },
     stopSounds: () => sounds.setState(idleSoundView()),
     sounds,
     countEligible: () => 40,

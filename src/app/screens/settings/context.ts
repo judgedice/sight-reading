@@ -1,9 +1,11 @@
 /** Services for the settings screen and its sections, plus the store hooks they share. */
-import { createContext, useContext, useSyncExternalStore } from 'react';
+import { createContext, useCallback, useContext, useSyncExternalStore } from 'react';
 import type { KeyValue, StoreRepos } from '../../../core/platform.ts';
 import type { AppSettings, Configs, PlayerProfile } from '../../../core/types.ts';
-import type { Writable } from '../home/services.ts';
-import type { SettingsSoundServices } from './services.ts';
+import type { Readable, Writable } from '../home/services.ts';
+import type { SettingsDiagnosticsServices, SettingsSoundServices } from './services.ts';
+
+export type { Readable };
 
 export interface InputDevice {
   id: string;
@@ -19,7 +21,7 @@ export interface AboutInfo {
   iosBeta: boolean;
 }
 
-export interface SettingsServices extends SettingsSoundServices {
+export interface SettingsServices extends SettingsSoundServices, SettingsDiagnosticsServices {
   configs: Configs;
   repos: StoreRepos;
   kv: KeyValue;
@@ -57,4 +59,11 @@ export function useSettingsServices(): SettingsServices {
 /** A store value that re-renders on change. `get` must return a stable value between changes. */
 export function useReadable<T>(r: { get(): T; subscribe(l: () => void): () => void }): T {
   return useSyncExternalStore(r.subscribe, r.get, r.get);
+}
+
+/** As `useReadable`, for an optional store: undefined while the root does not provide it. */
+export function useOptionalReadable<T>(r: Readable<T> | undefined): T | undefined {
+  const subscribe = useCallback((l: () => void) => (r ? r.subscribe(l) : () => undefined), [r]);
+  const get = useCallback(() => r?.get(), [r]);
+  return useSyncExternalStore(subscribe, get, get);
 }

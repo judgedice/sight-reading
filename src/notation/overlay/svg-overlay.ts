@@ -2,8 +2,8 @@
 // the bar tint and the playhead as plain SVG on the groups P7 hands over. No React, no VexFlow: every call is a
 // handful of attribute writes, idempotent, and skipped when nothing changed.
 
-import { TPQ, type Beats, type GhostNote, type NoteBox, type NoteVisualState, type OverlayMode, type PreparedNoteEvt } from '../../core/types.ts';
-import type { NotationOverlay, OverlayHost, OverlaySystem } from '../overlay-seam.ts';
+import { TPQ, type Beats, type Clef, type GhostNote, type NoteBox, type NoteVisualState, type OverlayMode, type PreparedNoteEvt, type ScoreLayout } from '../../core/types.ts';
+import type { NotationOverlay, OverlayHost, OverlaySystem, PitchTrace } from '../overlay-seam.ts';
 import {
   capUnmatchedGhosts,
   ghostVisual,
@@ -929,6 +929,17 @@ export class SvgOverlay implements NotationOverlay {
     else b.g.setAttribute('opacity', String(o));
   }
 
+  // ---- pitch trace ("Show what we heard") ------------------------------------------------------------------
+
+  /** Draw the try's pitch track behind the ink, or remove it with null. Survives `clear()` only when redrawn. */
+  showTrace(trace: PitchTrace | null): void {
+    const host = this.host;
+    if (!host) return;
+    const svgs = new Map<number, SVGSVGElement>();
+    for (const s of host.systems) svgs.set(s.index, s.svg);
+    drawPitchTrace(svgs, host.layout, host.excerpt.clef, trace);
+  }
+
   // ---- mode -----------------------------------------------------------------------------------------------
 
   setMode(m: OverlayMode): void {
@@ -949,5 +960,118 @@ export class SvgOverlay implements NotationOverlay {
       for (const b of this.barGroups.values()) this.setBarOpacity(b, 1);
       this.syncAllNoteOpacity();
     }
+  }
+}
+
+// ---- pitch trace ----------------------------------------------------------------------------------------------
+
+/** Stroke of the pitch trace, px: thinner than a staff line's neighbours so it never reads as ink. */
+export const TRACE_STROKE_PX = 1.25;
+/** A pause longer than this between frames, in beats, breaks the line. */
+export const TRACE_GAP_BEATS = 0.25;
+/** A jump larger than this between frames, in semitones, breaks the line (a new note, not a slide). */
+export const TRACE_JUMP_SEMITONES = 1;
+/** The line is clamped this many staff spaces past the outer staff lines (ghosts clamp at four ledger lines). */
+const TRACE_CLAMP_SP = 4;
+
+/** One unbroken run of the trace on one system, px within that system's SVG. */
+export interface TraceSegment {
+  system: number;
+  points: { x: number; y: number }[];
+}
+
+/**
+ * The trace as polylines per system. y follows the written staff position: a whole MIDI number sits where its notehead
+ * would, and a fraction is interpolated to the next one, so an in-tune held note lies on its notehead and a scoop or a
+ * fall slopes. The line breaks at unvoiced frames, pauses, jumps and system ends.
+ */
+export function pitchTraceSegments(layout: ScoreLayout, clef: Clef, trace: PitchTrace): TraceSegment[] {
+  const out: TraceSegment[] = [];
+  const yCache = new Map<string, number>();
+  const yOfWhole = (system: number, m: number): number => {
+    const k = `${system}|${m}`;
+    let y = yCache.get(k);
+    if (y === undefined) {
+      y = layout.staffY(system, trace.spell(m), clef);
+      yCache.set(k, y);
+    }
+    return y;
+  };
+  let cur: TraceSegment | null = null;
+  let lastBeat = -Infinity;
+  let lastMidi: number | null = null;
+  const n = Math.min(trace.beats.length, trace.midi.length);
+  for (let i = 0; i < n; i++) {
+    const beat = trace.beats[i]!;
+    const m = trace.midi[i] ?? null;
+    if (m === null || !Number.isFinite(m) || !Number.isFinite(beat)) {
+      cur = null;
+      lastMidi = null;
+      continue;
+    }
+    const pt = layout.beatToPoint(beat);
+    const sys = layout.systems.find((s) => s.index === pt.system);
+    if (!sys) {
+      cur = null;
+      continue;
+    }
+    const broken = cur === null || cur.system !== pt.system || beat - lastBeat > TRACE_GAP_BEATS || lastMidi === null || Math.abs(m - lastMidi) > TRACE_JUMP_SEMITONES;
+    if (broken) {
+      cur = { system: pt.system, points: [] };
+      out.push(cur);
+    }
+    const lo = Math.floor(m);
+    const f = m - lo;
+    const y0 = yOfWhole(pt.system, lo);
+    const y = f < 1e-6 ? y0 : y0 + (yOfWhole(pt.system, lo + 1) - y0) * f;
+    const sp = sys.lineSpacing;
+    const top = sys.staffTopY - TRACE_CLAMP_SP * sp;
+    const bottom = sys.staffTopY + (4 + TRACE_CLAMP_SP) * sp;
+    cur!.points.push({ x: pt.x, y: Math.min(bottom, Math.max(top, y)) });
+    lastBeat = beat;
+    lastMidi = m;
+  }
+  // A single frame is not a line.
+  return out.filter((s) => s.points.length >= 2);
+}
+
+/** SVG path data of one segment. */
+export function tracePath(seg: TraceSegment): string {
+  return seg.points.map((p, i) => `${i === 0 ? 'M' : 'L'}${num(p.x)} ${num(p.y)}`).join('');
+}
+
+/**
+ * Draw the trace into each system's underlay (behind the ink), replacing any earlier one; null removes it. `svgs` are
+ * the system SVGs by system index (each has the `g.sr-underlay` the static render creates).
+ */
+export function drawPitchTrace(svgs: ReadonlyMap<number, SVGSVGElement>, layout: ScoreLayout, clef: Clef, trace: PitchTrace | null): void {
+  for (const svg of svgs.values()) svg.querySelectorAll('g.sr-trace').forEach((g) => g.remove());
+  if (!trace) return;
+  const bySystem = new Map<number, TraceSegment[]>();
+  for (const seg of pitchTraceSegments(layout, clef, trace)) {
+    const l = bySystem.get(seg.system);
+    if (l) l.push(seg);
+    else bySystem.set(seg.system, [seg]);
+  }
+  for (const [system, segs] of bySystem) {
+    const svg = svgs.get(system);
+    if (!svg) continue;
+    const doc = svg.ownerDocument;
+    const parent = svg.querySelector<SVGGElement>(':scope > g.sr-underlay') ?? svg;
+    const g = el(doc, 'g', { class: 'sr-trace', 'data-system': system, 'aria-hidden': 'true', 'pointer-events': 'none' });
+    for (const seg of segs) {
+      g.appendChild(
+        el(doc, 'path', {
+          class: 'sr-trace-line',
+          d: tracePath(seg),
+          fill: 'none',
+          stroke: 'var(--text-muted)',
+          'stroke-width': TRACE_STROKE_PX,
+          'stroke-linecap': 'round',
+          'stroke-linejoin': 'round',
+        }),
+      );
+    }
+    parent.appendChild(g);
   }
 }

@@ -5,7 +5,21 @@
 // (01 §5.8: setNoteState is written as data-* on the note <g>, which P7 does itself so it holds with or without
 // an overlay). Nothing here ever re-renders VexFlow.
 
-import type { Beats, GhostNote, NoteVisualState, OverlayMode, PreparedExcerpt, ScoreLayout } from '../core/types.ts';
+import type { Beats, GhostNote, NoteVisualState, OverlayMode, PreparedExcerpt, ScoreLayout, SpelledPitch } from '../core/types.ts';
+
+/**
+ * "Show what we heard" (round 2, 04-design §9): the try's pitch track, frame by frame, drawn as a thin grey line. The
+ * caller maps its clock to score beats; the overlay only places the points. `midi` is fractional and on the scale
+ * `spell` reads (the app passes concert MIDI and a speller to the written pitch), or null for an unvoiced frame.
+ */
+export interface PitchTrace {
+  /** Score beat of each frame (bar 1 beat 1 = 0), ascending. */
+  beats: readonly number[];
+  /** Fractional MIDI of each frame, or null where nothing was heard. Same length as `beats`. */
+  midi: readonly (number | null)[];
+  /** The written pitch of a whole MIDI number on the same scale (its notehead's staff position). */
+  spell(midi: number): SpelledPitch;
+}
 
 /** One rendered system as the overlay sees it. Coordinates inside every group are px within the system SVG. */
 export interface OverlaySystem {
@@ -40,6 +54,8 @@ export interface NotationOverlay {
   removeGhost(detectedId: number): void;
   setPlayhead(scoreBeat: Beats | null): void;
   setMode(m: OverlayMode): void;
+  /** Draw the pitch track behind the ink, or remove it with null (optional: views without it draw no trace). */
+  showTrace?(trace: PitchTrace | null): void;
   clear(): void;
   detach(): void;
 }

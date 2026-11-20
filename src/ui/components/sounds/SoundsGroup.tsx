@@ -15,29 +15,26 @@ export interface SoundsGroupProps {
   caption?: ReactNode;
   /** The caption is a failure ("That sound didn't play…"): plain text, no bars. */
   captionFailed?: boolean | undefined;
-  /** Small right-aligned note in the card header ("Nothing plays during the take"). Supplied by the screen's copy. */
-  headerNote?: string | undefined;
-  /** The first-time coach mark, if it is showing. It sits inline between the caption line and the card. */
-  coach?: ReactNode;
+  /** The line under the title that says what plays on Start ("When you start: ..."). Supplied by the screen's copy. */
+  lead?: string | undefined;
 }
 
 /**
  * Desktop: the Sounds card under "Start playing" (06 section 6.8). The live caption sits above it. Order: Listen
  * first, Hear the tempo, Hear starting pitch or Hear the key (with its info button), then Check my tuning.
  */
-export function SoundsGroup({ model, onPress, caption, captionFailed, headerNote, coach }: SoundsGroupProps) {
+export function SoundsGroup({ model, onPress, caption, captionFailed, lead }: SoundsGroupProps) {
   const rows = soundRows(model);
   return (
     <div className="sd-group-wrap">
       <LiveCaption failed={captionFailed}>{caption}</LiveCaption>
-      {coach}
       <section className="sd-group" aria-labelledby="sd-group-title" data-testid="sounds-group">
         <div className="sd-group-head">
           <h3 id="sd-group-title" className="sd-group-title">
             {copy('scan.sounds.title')}
           </h3>
-          {headerNote ? <span className="sd-group-note">{headerNote}</span> : null}
         </div>
+        {lead ? <p className="sd-group-lead">{lead}</p> : null}
         <div className="sd-group-rows">
           {rows.map((row) => (
             <SoundButton

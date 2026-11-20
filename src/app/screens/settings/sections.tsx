@@ -50,6 +50,7 @@ export function ProfileSection() {
 export function DisplaySection() {
   const s = useSettingsServices();
   const settings = useReadable(s.settings);
+  const ghosts = settings.display.ghostsLive ?? 'from4';
   return (
     <Section id="display" title={copy('settings.section.display')}>
       <Group>
@@ -83,6 +84,25 @@ export function DisplaySection() {
           onChange={(v) => s.settings.set(patchSection(settings, 'display', { showCentsMs: v }))}
         />
       </Row>
+      <Row label={copy('settings.display.ghostsLive')} hint={copy('settings.display.ghostsLive.hint')}>
+        <SegmentedControl<'from4' | 'always' | 'never'>
+          ariaLabel={copy('settings.display.ghostsLive')}
+          options={[
+            { value: 'from4', label: copy('settings.display.ghostsLive.from4') },
+            { value: 'always', label: copy('settings.display.ghostsLive.always') },
+            { value: 'never', label: copy('settings.display.ghostsLive.never') },
+          ]}
+          value={ghosts}
+          onChange={(v) => s.settings.set(patchSection(settings, 'display', { ghostsLive: v }))}
+        />
+      </Row>
+      <Row label={copy('settings.display.showHeard')} hint={copy('settings.display.showHeard.hint')} inline>
+        <Toggle
+          label={copy('settings.display.showHeard')}
+          checked={settings.display.showHeard === true}
+          onChange={(v) => s.settings.set(patchSection(settings, 'display', { showHeard: v }))}
+        />
+      </Row>
       </Group>
     </Section>
   );
@@ -92,9 +112,20 @@ export function PracticeSection() {
   const s = useSettingsServices();
   const settings = useReadable(s.settings);
   const prefs = settings.practicePrefs;
+  // The starting-pitch switch only means something for a voice (PLAN R7; 01-ux §10): other instruments show nothing.
+  const isVoice = s.configs.instrumentById[settings.practice.instrumentId]?.family === 'voice';
   return (
     <Section id="practice" title={copy('settings.section.practice')}>
       <Group>
+      {isVoice ? (
+        <Row label={copy('settings.practice.autoReference')} hint={copy('settings.practice.autoReference.hint')} inline>
+          <Toggle
+            label={copy('settings.practice.autoReference')}
+            checked={settings.practice.autoReference !== false}
+            onChange={(v) => s.settings.set(patchSection(settings, 'practice', { autoReference: v }))}
+          />
+        </Row>
+      ) : null}
       <Row label={copy('settings.practice.stars')} inline>
         <Toggle
           label={copy('settings.practice.stars')}

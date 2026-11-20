@@ -4,6 +4,8 @@ export { SessionReview, createReviewRenderer, type ReviewDeps, type ReviewExtras
 export { createReviewBus, filterOfCount, reviewPanelHandlers, type ReviewBus } from './bus.ts';
 export {
   buildReview,
+  hasTrack,
+  heardTrace,
   inspectorFor,
   pitchText,
   slipsFor,
@@ -13,6 +15,7 @@ export {
   writtenValue,
   type GhostSpeller,
   type GhostTail,
+  type HeardTraceSource,
   type HeatCell,
   type ReplayBracket,
   type ReviewExtra,

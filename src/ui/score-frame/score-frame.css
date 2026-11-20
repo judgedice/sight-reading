@@ -145,10 +145,20 @@
   padding-inline: var(--sf-margin-inline);
 }
 
-/* The take and the count-in centre the music on the paper, so the band has room above it and nothing moves. */
+/* The take keeps a cue zone at the top of the paper (04-design section 5: 232 px desktop, 196 px phone) for the
+   starting-pitch card and the count-in track. It stays, empty, during the try, so the music never moves. A short
+   window gives it less room (the card and the track have compact sizes) so the music keeps its systems. */
 .sf-frame[data-purpose='take'] {
   display: grid;
-  align-content: center;
+  align-content: start;
+  /* 37.25rem: the strip, the paper's margins and two take systems at 1280 x 720, so a laptop keeps two systems. */
+  padding-block-start: max(var(--sf-margin-block), min(14.5rem, max(7rem, 100dvh - 37.25rem)));
+}
+
+@media (max-width: 43.75rem) {
+  .sf-frame[data-purpose='take'] {
+    padding-block-start: max(var(--sf-margin-block), min(12.25rem, 23dvh));
+  }
 }
 
 /* ---- Count-in band (06 section 6.12): in the top margin above the first system, never over its ink ---- */
@@ -166,9 +176,44 @@
   display: flex;
 }
 
-/* The first system keeps full ink; later systems step back to half. */
-.sf-frame[data-band] .sr-slot:not([data-system='0']) {
-  opacity: 0.5;
+/* The starting pitch only (01-ux section 10): the first system at 55%, later systems at 30%. From the first click of
+   the count-in every system is at full ink, so the player can read ahead. */
+.sf-frame[data-dim] .sr-slot {
+  opacity: 0.3;
+  transition: opacity var(--dur-base) var(--ease-out);
+}
+
+.sf-frame[data-dim] .sr-slot[data-system='0'] {
+  opacity: 0.55;
+}
+
+/* ---- The downbeat: the first note's ring pulses once (--dur-slow) and fades (04-design section 5, M1) ---- */
+.sf-hl-pulse {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: sf-ring-pulse var(--dur-slow) var(--ease-out) forwards;
+}
+
+@keyframes sf-ring-pulse {
+  40% {
+    transform: scale(1.25);
+    opacity: 1;
+  }
+
+  to {
+    transform: scale(1.35);
+    opacity: 0;
+  }
+}
+
+:root[data-motion='reduced'] .sf-hl-pulse {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sf-hl-pulse {
+    animation: none;
+  }
 }
 
 /* ---- Highlights: the first note's name above its disc (05 section 8.8) ---- */

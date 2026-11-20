@@ -278,7 +278,8 @@ describe('<Review> redesign (06 sections 6.15, 7)', () => {
     const { root } = await render({ toolbarEnd: <button type="button">Listen</button> });
     expect(root.querySelector('.sf-host')!.getAttribute('data-purpose')).toBe('review');
     const end = root.querySelector('.rv-toolbar-end')!;
-    expect(end.textContent).toBe('Listen');
+    // "Show what we heard" (round 2), then the screen's own end.
+    expect(end.textContent).toBe('Show what we heardListen');
     expect(root.querySelector('[data-testid="prev-slip"]')!.textContent).toBe('Previous mistake');
     expect(root.querySelector('[data-testid="next-slip"]')!.textContent).toBe('Next mistake');
   });

@@ -11,8 +11,6 @@ export { LiveCaption } from './LiveCaption.tsx';
 export type { LiveCaptionProps } from './LiveCaption.tsx';
 export { ListenConfirm, formatClock } from './ListenConfirm.tsx';
 export type { ListenConfirmProps } from './ListenConfirm.tsx';
-export { CoachMark } from './CoachMark.tsx';
-export type { CoachMarkProps } from './CoachMark.tsx';
 export { soundRows, TempoCaption, PlayingTempo } from './rows.tsx';
 export type { SoundRow } from './rows.tsx';
 export { DOCK_QUERY, PHONE_QUERY, useMediaQuery } from './media.ts';

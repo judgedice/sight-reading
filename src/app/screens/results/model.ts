@@ -12,6 +12,10 @@ import type {
   Tip,
   VerdictCounts,
 } from '../../../core/types.ts';
+import { copy } from '../../../ui/copy/copy.ts';
+import { beatUnit } from '../setup/model.ts';
+import { keyName } from '../setup/key-names.ts';
+import { servedMeter } from '../history/model.ts';
 import { text, type TextKey } from './text.ts';
 
 // ---- header credit line (5.5.1) -------------------------------------------------------------
@@ -86,6 +90,15 @@ export interface ComponentRow {
 
 /** The component that lost the most points: w × (100 − value) with the attempt's own weights (never the lowest). */
 export function focusComponent(s: AttemptScore): ComponentId | null {
+  const id = weakestComponent(s);
+  // "Notes is the one to work on" only when that component is below 90: nothing to work on in a clean one.
+  return id !== null && (s.components[id] ?? 100) < FOCUS_BELOW ? id : null;
+}
+
+/** A component scoring this or more is not named as the one to work on. */
+export const FOCUS_BELOW = 90;
+
+function weakestComponent(s: AttemptScore): ComponentId | null {
   let best: ComponentId | null = null;
   let bestLost = 0;
   for (const id of ['P', 'I', 'R'] as const) {
@@ -153,13 +166,16 @@ export function componentRows(record: AttemptRecord, instrument: Instrument | un
 
 // ---- diagnostics and counts (5.5.3) ---------------------------------------------------------
 
+/** The drift line shows only from this size, ms (round 2, 01-ux: a few milliseconds is not worth a sentence). */
+export const DRIFT_MIN_MS = 20;
+
 /**
  * Drift in words (05 section 8.11): "You slowed down slightly by the end", with "(24 ms)" only when the player shows
  * cents and milliseconds in review. Null when there is no drift to name.
  */
 export function driftLine(s: AttemptScore, showMs = false): string | null {
   const drift = s.diagnostics.driftMsAtEnd;
-  if (drift === null || Math.abs(drift) < 1) return null;
+  if (drift === null || Math.abs(drift) < DRIFT_MIN_MS) return null;
   const words = text(drift > 0 ? 'results.drift.behind' : 'results.drift.ahead');
   return showMs ? `${words} ${text('results.drift.ms', { ms: Math.round(Math.abs(drift)) })}` : words;
 }
@@ -462,4 +478,25 @@ export function hearSpans(bars: readonly number[], max = 3): HearSpan[] {
     i = j + 1;
   }
   return out;
+}
+
+// ---- the header summary, from the stored record (01-ux 16.3) ----------------------------------------------
+
+/**
+ * "Difficulty 1 · F major · 4/4 · ♩ = 60 · 8 bars" from the stored try, so it reads the same after a reload. The meter
+ * and the bar count come from what was asked when that was a number, else from the prepared excerpt when it is the
+ * same piece; a part that cannot be told is left out, never "random".
+ */
+export function recordSummary(record: AttemptRecord, prepared?: { meter: { beats: number; beatType: number }; measures: readonly { isPickup?: boolean }[] } | null): string {
+  const meter = servedMeter(record, prepared);
+  const asked = record.settingsResolved.bars;
+  const bars = typeof asked === 'number' ? asked : prepared ? prepared.measures.filter((m) => !m.isPickup).length : null;
+  const parts = [
+    copy('progress.instrumentLevel', { level: record.levelServed }),
+    keyName(record.writtenKey),
+    ...(meter ? [meter] : []),
+    copy('tempo.marking', { unit: beatUnit(meter ?? '4/4'), bpm: record.bpm }),
+    ...(bars !== null ? [copy('setup.length.chip', { bars })] : []),
+  ];
+  return parts.join(' \u00b7 ');
 }

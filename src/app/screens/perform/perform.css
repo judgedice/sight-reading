@@ -168,25 +168,54 @@
   block-size: 100%;
 }
 
-/* ---- Voice band: "Your starting pitch" over the two steps (06 section 6.12) ---- */
+/* ---- Voice: the starting-pitch card in the cue zone (01-ux section 10; 04-design section 5, R0 to R3) ---- */
 .perform-pitch {
   box-sizing: border-box;
-  inline-size: 100%;
-  /* Fills the top margin down to the band's bottom edge, so the title sits at the top of the paper as in the mockup. */
-  min-block-size: calc(var(--sf-band-bottom, 0rem) - var(--space-1));
-  padding-block-start: var(--sf-margin-block, 0);
-  padding-inline: var(--sf-margin-inline, 0);
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-5);
+  inline-size: min(100% - 2 * var(--space-4), 37rem);
+  padding: var(--space-5) var(--space-6);
+  border: 0.0625rem solid var(--border);
+  border-radius: var(--radius-l);
+  background: var(--surface);
+  box-shadow: var(--e2);
   text-align: start;
 }
 
+.perform-pitch-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  inline-size: var(--sound-icon-tile);
+  block-size: var(--sound-icon-tile);
+  border-radius: var(--radius-m);
+  background: var(--brass-wash);
+  color: var(--brass-ink);
+}
+
+.perform-pitch-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-inline-size: 0;
+}
+
 .perform-pitch-title {
-  margin: 0 0 var(--space-3);
+  margin: 0;
   color: var(--ink);
-  font-family: var(--type-display-family);
-  font-size: var(--type-display-size);
-  font-weight: var(--type-display-weight);
-  letter-spacing: var(--type-display-tracking);
-  line-height: var(--type-display-line);
+  font-family: var(--type-h1-family);
+  font-size: var(--type-h1-size);
+  font-weight: var(--type-h1-weight);
+  letter-spacing: var(--type-h1-tracking);
+  line-height: var(--type-h1-line);
+}
+
+.perform-pitch-why {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
 }
 
 .perform-pitch-steps {
@@ -194,9 +223,10 @@
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-1) var(--space-5);
-  margin: 0;
-  font-size: var(--type-label-size);
+  margin: var(--space-2) 0 0;
+  font-size: var(--type-body-size);
   font-weight: var(--type-label-weight);
+  line-height: var(--type-body-line);
 }
 
 .perform-pitch-step {
@@ -208,7 +238,26 @@
 
 .perform-pitch-step[data-step='live'] {
   color: var(--brass-ink);
-  font-size: var(--type-h3-size);
+}
+
+.perform-pitch-pending {
+  box-sizing: border-box;
+  inline-size: var(--space-4);
+  block-size: var(--space-4);
+  border: var(--beat-dot-outline) solid var(--text-muted);
+  border-radius: var(--radius-full);
+}
+
+.perform-pitch-next {
+  color: var(--ink);
+}
+
+/* "Marks start at bar 1" in the strip's right slot until the music starts (05 D7). */
+.perform-marks-start {
+  color: var(--text-muted);
+  font-size: var(--type-label-size);
+  font-weight: var(--type-label-weight);
+  white-space: nowrap;
 }
 
 .perform-eq {
@@ -264,12 +313,21 @@
     margin-block-end: var(--space-3);
     border-radius: var(--radius-l);
   }
-  .perform-pitch-title {
-    font-size: var(--type-h1-size);
-    line-height: var(--type-h1-line);
+  .perform-pitch {
+    gap: var(--space-3);
+    padding: var(--space-4);
   }
-  .perform-pitch-step[data-step='live'] {
+  .perform-pitch-title {
+    font-size: var(--type-h2-size);
+    line-height: var(--type-h2-line);
+  }
+  .perform-pitch-why,
+  .perform-pitch-steps {
     font-size: var(--type-label-size);
+    line-height: var(--type-label-line);
+  }
+  .perform-marks-start {
+    font-size: var(--type-caption-size);
   }
 }
 
@@ -281,16 +339,14 @@
   }
 }
 
-/* A window with less room above the first system than the band needs (the frame sets data-compact): the title steps
-   down and the paper's own margin goes, so the band never reaches the first system. */
+/* A window with less room above the first system than the card needs (the frame sets data-compact): the reason
+   line goes, so the card never reaches the first system. */
 .sf-band[data-compact] .perform-pitch {
-  padding-block-start: 0;
+  padding-block: var(--space-3);
 }
 
-.sf-band[data-compact] .perform-pitch-title {
-  margin-block-end: var(--space-1);
-  font-size: var(--type-h2-size);
-  line-height: var(--type-h2-line);
+.sf-band[data-compact] .perform-pitch-why {
+  display: none;
 }
 
 @media (prefers-reduced-motion: no-preference) {

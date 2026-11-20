@@ -17,6 +17,7 @@ function keyOption(k: KeySig, chosen: string | null, concertShift: number | null
     key: k,
     value,
     name: keyName(k),
+    tonic: keyName(k).split(' ')[0]!,
     accidentals: Math.abs(k.fifths),
     side: k.fifths === 0 ? 'none' : k.fifths > 0 ? 'sharp' : 'flat',
     concert: concertShift === null ? null : { key: 'setup.key.concert', vars: { key: keyName({ fifths: k.fifths + concertShift, mode: k.mode }) } },
@@ -30,7 +31,8 @@ function order(max: number): number[] {
   return out;
 }
 
-export function keyRow(max: number, chosen: string | null, more: number | null, concertShift: number | null = null): KeyRowView {
+/** `next`: the difficulty whose keys add more sharps and flats, or null. More than eight keys fold behind a button. */
+export function keyRow(max: number, chosen: string | null, next: number | null, concertShift: number | null = null): KeyRowView {
   const group = (mode: 'major' | 'minor') => ({
     mode,
     label: { key: mode === 'major' ? 'setup.key.major' : 'setup.key.minor', vars: {} },
@@ -44,7 +46,9 @@ export function keyRow(max: number, chosen: string | null, more: number | null, 
       xpTag: { key: 'setup.xpTag', vars: { percent: 8 } },
     },
     groups: [group('major'), group('minor')],
-    moreNote: more === null ? null : { key: 'home.keyFootnote', vars: { n: more } },
+    uses: { key: 'setup.key.uses', vars: { level: next === null ? 10 : next - 1, modes: 'major and minor', n: max } },
+    next: next === null ? null : { key: 'setup.key.next.more', vars: { n: max + 1, next } },
+    many: (2 * max + 1) * 2 > 8 ? { key: 'setup.key.many', vars: { n: (2 * max + 1) * 2, max } } : null,
   };
 }
 
@@ -57,7 +61,9 @@ export function difficultyRow(follow = false): DifficultyRowView {
     skipped,
     segments: Array.from({ length: 10 }, (_, i) => ({ level: i + 1, filled: i < 2, hasMusic: !skipped.includes(i + 1) })),
     skippedNote: { key: 'home.levelNoMusic', vars: { instrument: NAME, levels: '7 to 8' } },
-    fewNote: null,
+    fewNote: { key: 'home.levelFewMusic', vars: {} },
+    fewTag: { key: 'setup.difficulty.fewTag', vars: {} },
+    matchHint: null,
     description: 'Adds eighths, minor keys and one-beat pickups.',
     servedLine: { key: 'range.atDifficulty', vars: { level: 2, low: 'C3', high: 'C4' } },
     followValue: follow ? { key: 'setup.difficulty.followValue', vars: { level: 2, max: 10 } } : null,
@@ -72,13 +78,17 @@ export function timeRow(selected: 'random' | '4/4' | '3/4'): TimeRowView {
     unit: 4,
     few,
     selected: selected === `${beats}/4`,
-    a11y: { key: 'setup.time.a11y', vars: { beats, unit: 4 } },
+    a11y: few ? { key: 'setup.time.a11yFew', vars: { beats, unit: 4 } } : { key: 'setup.time.a11y', vars: { beats, unit: 4 } },
   });
+  const options = [opt(4, false), opt(3, true)];
   return {
     any: { selected: selected === 'random', label: { key: 'setup.time.any', vars: {} }, xpTag: { key: 'setup.xpTag', vars: { percent: 8 } } },
-    options: [opt(4, false), opt(3, true)],
-    hiddenNote: { key: 'setup.time.unavailable', vars: { meters: '2/4', instrument: NAME, level: 2 } },
+    options,
+    hiddenNote: { key: 'setup.time.noneShort', vars: { meter: '2/4', level: 2 } },
     fewNote: selected === '3/4' ? { key: 'home.levelFewMusic', vars: {} } : null,
+    fewTip: { key: 'setup.time.fewTip', vars: {} },
+    top: options,
+    more: [],
   };
 }
 

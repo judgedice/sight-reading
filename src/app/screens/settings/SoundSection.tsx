@@ -5,9 +5,10 @@
  */
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { createStore } from 'zustand/vanilla';
-import type { Calibration, ClickTimbre, MetronomeSound, OutputMode } from '../../../core/types.ts';
+import type { ClickTimbre, MetronomeSound, OutputMode } from '../../../core/types.ts';
 import { idleSoundView } from '../../../session/index.ts';
 import { copy } from '../../../ui/copy/copy.ts';
+import { CalStatusPill } from '../../../ui/components/calibration-status/index.ts';
 import { Button, SegmentedControl, Select, Stepper, Toggle, radioGroupHomeEnd } from '../../../ui/components/form/index.ts';
 import { LiveCaption } from '../../../ui/components/sounds/index.ts';
 import { Glyph } from '../../../ui/primitives/Glyph.tsx';
@@ -15,7 +16,7 @@ import { useNavigate } from '../../router.tsx';
 import { patchSection } from './model.ts';
 import { Group, Row, Section } from './Section.tsx';
 import { text } from './text.ts';
-import { useReadable, useSettingsServices, type InputDevice } from './context.ts';
+import { useOptionalReadable, useReadable, useSettingsServices, type InputDevice } from './context.ts';
 import { SoundWave } from './SoundWave.tsx';
 
 const SOUNDS: readonly { id: MetronomeSound; label: string; hint: string }[] = [
@@ -39,51 +40,20 @@ export function soundOf(stored: ClickTimbre): MetronomeSound {
 
 const idleStore = createStore(idleSoundView);
 
-/** Latest calibration on this device, for the calibration row. */
-function latestCalibration(all: readonly Calibration[]): Calibration | null {
-  return [...all].sort((a, b) => (a.measuredAt < b.measuredAt ? 1 : a.measuredAt > b.measuredAt ? -1 : 0))[0] ?? null;
-}
-
-function sameDay(a: Date, b: Date): boolean {
-  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
-}
-
-function calibrationLine(c: Calibration | null | undefined, now: Date): string | null {
-  if (c === undefined) return null;
-  if (c === null) return text('settings.audio.notCalibrated');
-  const at = new Date(c.measuredAt);
-  const when = sameDay(at, now)
-    ? text('settings.audio.calibratedToday')
-    : at.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-  const output = OUTPUTS.find((o) => o.value === c.outputMode)?.label ?? '';
-  return text('settings.audio.calibratedOn', { when, output, ms: Math.round(c.roundTripMs) });
-}
-
 export function SoundSection() {
   const s = useSettingsServices();
   const navigate = useNavigate();
   const settings = useReadable(s.settings);
   const view = useSyncExternalStore((l) => (s.sounds ?? idleStore).subscribe(l), () => (s.sounds ?? idleStore).getState());
+  const calStatus = useOptionalReadable(s.calibrationStatus);
   const [local, setLocal] = useState<MetronomeSound | null>(null);
   const [devices, setDevices] = useState<InputDevice[]>([]);
-  const [calibration, setCalibration] = useState<Calibration | null | undefined>(undefined);
 
   useEffect(() => {
     let live = true;
     s.listInputDevices?.().then(
       (d) => live && setDevices(d),
       () => undefined,
-    );
-    return () => {
-      live = false;
-    };
-  }, [s]);
-
-  useEffect(() => {
-    let live = true;
-    s.repos.calibrations.all().then(
-      (all) => live && setCalibration(latestCalibration(all)),
-      () => live && setCalibration(null),
     );
     return () => {
       live = false;
@@ -114,7 +84,6 @@ export function SoundSection() {
   };
 
   const inputOptions = [{ value: '', label: text('settings.audio.defaultDevice') }, ...devices.map((d) => ({ value: d.id, label: d.label }))];
-  const line = calibrationLine(calibration, new Date());
 
   return (
     <Section id="audio" title={copy('settings.section.audio')}>
@@ -213,14 +182,16 @@ export function SoundSection() {
         </Row>
       </Group>
       <Group>
-        <Row label={text('settings.audio.calibration')} hint={line ?? undefined} inline>
-          <Button
-            label={calibration ? copy('action.recalibrate') : copy('action.calibrate')}
-            variant="secondary"
-            size="compact"
-            onClick={() => navigate('/calibrate')}
-          />
-        </Row>
+        {calStatus ? (
+          <Row label={text('settings.audio.calibration')} inline>
+            <div className="set-cal">
+              <CalStatusPill status={calStatus} variant="line" onCalibrate={() => navigate('/calibrate')} />
+              {calStatus.state === 'ok' ? (
+                <Button label={copy('action.recalibrate')} variant="secondary" size="compact" onClick={() => navigate('/calibrate')} />
+              ) : null}
+            </div>
+          </Row>
+        ) : null}
         <Row label={copy('settings.audio.input')}>
           <Select
             ariaLabel={copy('settings.audio.input')}

@@ -1,11 +1,13 @@
 // Performance (04 section 5.4; D7): toolbar with Stop, beat dots, input meter and chip; the frozen score frame; the
 // status line. The overlay is driven straight from `session.events` into the frame controller, so a take never
 // re-renders React per follower event; only leaf components (beat dots, meter) update, and only when what they draw changes.
-import { useCallback, useEffect, useRef, useState } from 'react';
+// Round 2 (01-ux §10, §11, §15.1; 04-design §5, §7): the starting-pitch card and the count-in track share the cue zone
+// above the first system; only brass marks before bar 1; live marks are filtered by `display.ghostsLive` and difficulty.
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { FollowerEvent, SessionEvent } from '../../../core/types.ts';
 import { visualStateFromJudgment } from '../../../notation/visual-states.ts';
 import { copy } from '../../../ui/copy/copy.ts';
-import { idleSoundView, type SoundView } from '../../../session/index.ts';
+import { countInBarsFor, idleSoundView, type SoundCaption, type SoundView } from '../../../session/index.ts';
 import { createStore } from 'zustand/vanilla';
 import { BeatDots, BeatUnitText, meterZone } from '../../../ui/components/domain/index.ts';
 import { Button } from '../../../ui/components/form/index.ts';
@@ -18,7 +20,23 @@ import { useReadable, useStoreSlice } from '../scan/hooks.ts';
 import { usePracticeFlowServices, type PracticeFlowServices } from '../scan/services.ts';
 import { firstNoteLabel, firstNoteOf, highlightFor, tempoOf } from '../scan/read-model.ts';
 import { keyName } from '../setup/key-names.ts';
-import { MIC_BARS, barTempoText, beatGrouping, beatInBar, countInBeat, meterBars, pitchSteps, statusMessage, stopVariant, type PitchStep } from './model.ts';
+import {
+  MIC_BARS,
+  beatGrouping,
+  beatInBar,
+  countInBarText,
+  countInPosition,
+  countInTitle,
+  entryCount,
+  ghostsLiveAt,
+  liveEventAllowed,
+  meterBars,
+  referenceSteps,
+  statusMessage,
+  stopVariant,
+  type LiveFilter,
+  type PitchStep,
+} from './model.ts';
 import { PractiseWithoutListeningNotice } from '../states/States.tsx';
 import './perform.css';
 
@@ -36,7 +54,7 @@ function useSessionEvents(svc: PracticeFlowServices, on: (e: SessionEvent) => vo
   useEffect(() => svc.session.events.on((e) => latest.current(e)), [svc.session]);
 }
 
-/** The strip's beat dots: re-render once per beat. Dots in the count-in and in the take (06 section 6.13). */
+/** The strip's beat dots during the try: re-render once per beat. The count-in has its track instead (04-design §5). */
 function BeatIndicator({ svc, beatsPerBar, grouping, bpm }: { svc: PracticeFlowServices; beatsPerBar: number; grouping: number[] | undefined; bpm: number }) {
   const [beat, setBeat] = useState<number | null>(null);
   const last = useRef<number | null>(null);
@@ -47,9 +65,7 @@ function BeatIndicator({ svc, beatsPerBar, grouping, bpm }: { svc: PracticeFlowS
       last.current = next;
       setBeat(next);
     };
-    if (e.type === 'count-in') set(countInBeat(e.beat, beatsPerBar));
-    else if (e.type === 'count-in-restart') set(null);
-    else if (e.type === 'follower' && e.event.type === 'clock') {
+    if (e.type === 'follower' && e.event.type === 'clock') {
       if (e.event.scoreBeat >= 0) set(beatInBar(e.event.scoreBeat, beatsPerBar));
     }
   });
@@ -90,18 +106,6 @@ function MicMeter({ svc }: { svc: PracticeFlowServices }) {
 
 const NO_SOUNDS = createStore<SoundView>()(() => idleSoundView());
 
-/** The count-in band's number, dots and "Bar 1 · ♩ = 72": re-renders once per click. */
-function CountBand({ svc, beats, caption, frameRef }: { svc: PracticeFlowServices; beats: number; caption: string; frameRef: { current: ScoreFrameController | null } }) {
-  const [beat, setBeat] = useState(0);
-  // The first digit gives the band its height; the frame re-measures it, so a short window shrinks the number to fit.
-  useEffect(() => frameRef.current?.refreshBand(), [beat, frameRef]);
-  useSessionEvents(svc, (e) => {
-    if (e.type === 'count-in') setBeat(countInBeat(e.beat, beats));
-    else if (e.type === 'count-in-restart') setBeat(0);
-  });
-  return <CountInBand beat={beat} beats={beats} caption={caption} />;
-}
-
 function StepMark({ step }: { step: PitchStep }) {
   if (step === 'done') return <Glyph id="check-ui" size={16} />;
   if (step === 'live')
@@ -112,27 +116,36 @@ function StepMark({ step }: { step: PitchStep }) {
         <i />
       </span>
     );
-  return null;
+  return <span className="perform-pitch-pending" aria-hidden="true" />;
 }
 
-/** Voice, before the count-in (06 section 6.12): "Your starting pitch" over the key chord (done) and the live first note. */
-function StartingPitchBand({ chord, note, steps }: { chord: string; note: string; steps: { chord: PitchStep; note: PitchStep } }) {
+/** Voice, before the count-in (01-ux §10; 04-design §5 R0 to R3): the starting-pitch card in the cue zone. */
+function StartingPitchCard({ chord, note, steps }: { chord: string; note: string; steps: { chord: PitchStep; note: PitchStep; next: boolean } }) {
   return (
-    <div className="perform-pitch">
-      <p className="perform-pitch-title">{copy('countIn.reference')}</p>
-      <p className="perform-pitch-steps">
-        <span className="perform-pitch-step" data-step={steps.chord}>
-          <StepMark step={steps.chord} />
-          {chord}
-        </span>
-        <span className="perform-pitch-step" data-step={steps.note}>
-          <StepMark step={steps.note} />
-          {note}
-        </span>
-      </p>
+    <div className="perform-pitch" data-testid="perform-pitch">
+      <span className="perform-pitch-icon" aria-hidden="true">
+        <Glyph id="pitch" size={24} />
+      </span>
+      <div className="perform-pitch-body">
+        <p className="perform-pitch-title">{copy('countIn.reference')}</p>
+        <p className="perform-pitch-why">{copy('countIn.reference.why')}</p>
+        <p className="perform-pitch-steps">
+          <span className="perform-pitch-step" data-step={steps.chord}>
+            <StepMark step={steps.chord} />
+            {chord}
+          </span>
+          <span className="perform-pitch-step" data-step={steps.note}>
+            <StepMark step={steps.note} />
+            {note}
+          </span>
+          {steps.next ? <span className="perform-pitch-next">{copy('countIn.reference.next')}</span> : null}
+        </p>
+      </div>
     </div>
   );
 }
+
+const REFERENCE_CAPTIONS = new Set<SoundCaption['kind']>(['key-chord', 'first-note', 'count-in-next']);
 
 export function PerformScreen(_props: ScreenProps) {
   const svc = usePracticeFlowServices();
@@ -146,6 +159,7 @@ export function PerformScreen(_props: ScreenProps) {
   const sounds = svc.sounds ?? NO_SOUNDS;
   const referencing = useStoreSlice(sounds, (v) => v.playing === 'reference');
   const caption = useStoreSlice(sounds, (v) => v.caption);
+  const countIn = useStoreSlice(svc.view, (v) => v.countIn);
 
   const frameRef = useRef<ScoreFrameController | null>(null);
   const queue = useRef<FollowerEvent[]>([]);
@@ -153,10 +167,28 @@ export function PerformScreen(_props: ScreenProps) {
   const [frozen, setFrozen] = useState(false);
   const [confirm, setConfirm] = useState(false);
   const [bars, setBars] = useState<{ first: number; last: number; total: number } | null>(null);
+  // The starting pitch played (its caption was seen) and the count-in started (a click was heard): the card never
+  // comes back after the first click, even when the count-in restarts.
+  const [heardReference, setHeardReference] = useState(false);
+  const [clicked, setClicked] = useState(false);
+  if (referencing && !heardReference) setHeardReference(true);
+  if ((countIn?.beat ?? 0) > 0 && !clicked) setClicked(true);
 
   const liveMode = settings.display.liveFeedback === 'full' ? 'live' : 'blind';
   const mode = svc.session.pending?.mode ?? 'ranked';
   const listening = settings.practice.listening;
+
+  // What may reach the overlay live (PLAN R61; 01-ux §15.1): ghosts and extras only when `display.ghostsLive` allows
+  // them at this difficulty; at the calm difficulties a note is marked only once the follower is sure.
+  const level = prepared?.levelServed ?? 1;
+  const calmUpTo = svc.configs.grading.ui.calmLiveUpTo;
+  const marks = useMemo(
+    () => ({ ghosts: ghostsLiveAt(settings.display.ghostsLive, level, calmUpTo), calm: level <= calmUpTo }),
+    [settings.display.ghostsLive, level, calmUpTo],
+  );
+  const marksRef = useRef(marks);
+  marksRef.current = marks;
+  const filterNow = (): LiveFilter => ({ ...marksRef.current, beforeMusic: svc.session.state === 'count-in' });
 
   // The take is the session's: follow its state.
   useEffect(() => {
@@ -170,14 +202,22 @@ export function PerformScreen(_props: ScreenProps) {
     stopRef.current?.querySelector<HTMLButtonElement>('button')?.focus();
   }, []);
 
-  // Straight to the overlay; events that arrive before the frame is laid out wait in a queue.
+  // Straight to the overlay; events that arrive before the frame is laid out wait in a queue. Only brass marks before
+  // bar 1 (01-ux §10): no ghost of any kind while the count-in (or the starting pitch) runs.
   useSessionEvents(svc, (e) => {
+    // A restarted count-in starts the music again: no wash on a bar until the clock is back in the music.
+    if (e.type === 'count-in-restart') frameRef.current?.setPlayhead(null);
+    if (e.type !== 'follower' || !liveEventAllowed(e.event, filterNow())) return;
     const f = frameRef.current;
-    if (e.type === 'follower') {
-      if (f) applyToFrame(f, e.event);
-      else if (e.event.type !== 'clock' && e.event.type !== 'level') queue.current.push(e.event);
-    } else if (e.type === 'count-in' && f && e.beat === e.of) f.setNoteState(0, { phase: 'active' });
+    if (f) applyToFrame(f, e.event);
+    else if (e.event.type !== 'clock' && e.event.type !== 'level') queue.current.push(e.event);
   });
+
+  // The downbeat (04-design §5, M1): the track goes and the first note's ring pulses once.
+  const performing = state === 'performing';
+  useEffect(() => {
+    if (performing && frozen) frameRef.current?.pulseFirstNote();
+  }, [performing, frozen]);
 
   useEffect(() => {
     frameRef.current?.setMode(liveMode);
@@ -230,22 +270,51 @@ export function PerformScreen(_props: ScreenProps) {
   const counting = state === 'count-in';
   const message = statusMessage({ state, status, bar, totalBars });
   const source = sourceLine(prepared.source);
-  // Voice: the starting pitch plays first, in every mode (R7); its band and the strip say so until the clicks begin.
-  const pitchLive = counting && referencing && (caption?.kind === 'key-chord' || caption?.kind === 'first-note') && status === null;
-  const centreText = finishing ? copy('results.scoring') : pitchLive ? copy('action.hearReference.short') : message;
-  const announce = counting ? copy('a11y.countIn.announce') : finishing ? copy('a11y.take.finished') : '';
-  const first = firstNoteOf(prepared);
-  const highlight = highlightFor(prepared, pitchLive ? caption : null, null);
+  const inst = svc.configs.instrumentById[prepared.instrumentId];
+  const voice = inst?.family === 'voice';
+  const bpb = prepared.meter.countsPerBar;
   const tempo = tempoOf(prepared);
-  const band = !counting ? null : pitchLive ? (
-    <StartingPitchBand
+  const tempoText = tempo.unit === '♩' ? copy('countIn.tempo', { bpm }) : copy('tempo.marking', { unit: tempo.unit, bpm });
+
+  // Voice: the starting pitch plays first, in every mode (R7), unless the player turned it off. Its card holds the cue
+  // zone from Start until the first click; the score is dimmed only then (01-ux §10).
+  const referenceFirst = voice && settings.practice.autoReference !== false;
+  const pitchPhase = counting && referenceFirst && !clicked && status?.kind !== 'restarting-count-in';
+  const refCaption = referencing && caption && REFERENCE_CAPTIONS.has(caption.kind) ? caption : null;
+  const steps = referenceSteps(refCaption ? (refCaption.kind as 'key-chord' | 'first-note' | 'count-in-next') : null, heardReference);
+
+  // The count-in track (01-ux §11): bars from the session's clicks once they start, from the level before.
+  const ciBars = countIn && countIn.of > 0 ? Math.max(1, Math.round(countIn.of / bpb)) : countInBarsFor(svc.configs, prepared.levelServed, bpm);
+  const pos = countInPosition(countIn?.beat ?? 0, bpb, ciBars);
+  const entry = copy(voice ? 'countIn.entry.voice' : 'countIn.entry.instrument');
+  const entryAfter = entryCount(prepared);
+
+  const centreText = finishing ? copy('results.scoring') : pitchPhase ? copy('action.hearReference.short') : message;
+  const announce = counting ? copy('a11y.countIn.announce.bars', { total: ciBars, beats: bpb }) : finishing ? copy('a11y.take.finished') : '';
+  const first = firstNoteOf(prepared);
+  // Brass marks only before bar 1: the key-signature band during the chord, the ring and the note's name during the
+  // first note, the ring alone in the beat after, then the ring with the entry word from the last bar's first click.
+  const refHighlight = highlightFor(prepared, pitchPhase ? refCaption : null, null);
+  const firstNoteName = pitchPhase ? (refHighlight.firstNote ?? (steps.next ? '' : null)) : counting && clicked && pos.last && (countIn?.beat ?? 0) > 0 ? entry : null;
+  const band = !counting ? null : pitchPhase ? (
+    <StartingPitchCard
       chord={copy('reference.playing.chord', { key: keyName(prepared.writtenKey) })}
       note={copy('reference.playing.first', { note: first ? firstNoteLabel(first.written, first.concertMidi) : '' })}
-      steps={pitchSteps(caption?.kind === 'first-note' ? 'first-note' : 'key-chord')}
+      steps={steps}
     />
   ) : (
-    <CountBand svc={svc} beats={prepared.meter.countsPerBar} caption={barTempoText(1, meter, bpm)} frameRef={frameRef} />
+    <CountInBand
+      click={countIn?.beat ?? 0}
+      beatsPerBar={bpb}
+      bars={ciBars}
+      title={countInTitle(pos, entryAfter)}
+      detail={<BeatUnitText text={`${countInBarText(pos)} · ${tempoText}`} />}
+      entry={entry}
+      entryAfter={entryAfter}
+    />
   );
+  // The strip says "Marks start at bar 1" until the music starts, in place of the mic meter (05 D7).
+  const beforeMusic = counting;
 
   return (
     <section className="perform" data-testid="screen-practice.play" data-route-id="practice.play" data-state={state} data-mode={mode}>
@@ -254,14 +323,14 @@ export function PerformScreen(_props: ScreenProps) {
           <Button label={copy('play.stop')} variant="secondary" size="compact" icon="stop" onClick={() => setConfirm(true)} disabled={finishing} aria-describedby={finishing ? 'perform-centre-text' : undefined} />
         </div>
         <div className="perform-centre">
-          <BeatIndicator svc={svc} beatsPerBar={prepared.meter.countsPerBar} grouping={beatGrouping(prepared.meter.beats, prepared.meter.beatType, prepared.meter.countsPerBar)} bpm={bpm} />
+          {beforeMusic ? null : <BeatIndicator svc={svc} beatsPerBar={bpb} grouping={beatGrouping(prepared.meter.beats, prepared.meter.beatType, bpb)} bpm={bpm} />}
           <span id="perform-centre-text" className="perform-centre-text">{centreText}</span>
           <span className="perform-tempo"><BeatUnitText text={copy('tempo.marking', { unit: tempo.unit, bpm })} /></span>
           {finishing ? <span className="perform-indeterminate" aria-hidden="true" /> : null}
         </div>
         <div className="perform-right">
           {bars ? <span className="perform-lines">{copy('score.bars', { from: bars.first, to: bars.last, total: bars.total })}</span> : null}
-          {listening ? <MicMeter svc={svc} /> : null}
+          {beforeMusic ? <span className="perform-marks-start">{copy('countIn.marksStart')}</span> : listening ? <MicMeter svc={svc} /> : null}
         </div>
       </header>
       {listening ? null : <PractiseWithoutListeningNotice />}
@@ -274,8 +343,9 @@ export function PerformScreen(_props: ScreenProps) {
           frozen={frozen}
           purpose="take"
           band={band}
-          highlightKey={highlight.key}
-          firstNoteName={highlight.firstNote}
+          dim={pitchPhase}
+          highlightKey={refHighlight.key}
+          firstNoteName={firstNoteName}
           {...(svc.reducedMotion ? { reducedMotion: svc.reducedMotion } : {})}
           {...(svc.highContrast ? { highContrast: svc.highContrast } : {})}
           label={copy('score.summaryLabel', { bars: totalBars, key: '', meter, clef: prepared.clef, tempo: copy('tempo.marking', { unit: '♩', bpm }) })}

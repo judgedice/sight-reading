@@ -60,9 +60,6 @@ body {
   box-shadow: var(--e2);
 }
 
-.story-dock .sd-coach {
-  margin-top: 0;
-}
 
 .story-dock-start {
   margin-top: var(--space-3);

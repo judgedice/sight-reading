@@ -1,6 +1,23 @@
 import { describe, expect, it } from 'vitest';
 import { copy } from '../../../ui/copy/copy.ts';
-import { barTempoText, beatGrouping, beatInBar, countInBeat, meterBars, pitchSteps, statusMessage, stopVariant } from './model.ts';
+import type { FollowerEvent, GhostNote, LiveJudgment } from '../../../core/types.ts';
+import {
+  barTempoText,
+  beatGrouping,
+  beatInBar,
+  countInBarText,
+  countInBeat,
+  countInPosition,
+  countInTitle,
+  entryCount,
+  ghostsLiveAt,
+  liveEventAllowed,
+  meterBars,
+  pitchSteps,
+  referenceSteps,
+  statusMessage,
+  stopVariant,
+} from './model.ts';
 
 describe('performance model', () => {
   it('maps score beats and count-in clicks to a beat of the bar', () => {
@@ -58,5 +75,62 @@ describe('performance model', () => {
     expect(pitchSteps(null)).toEqual({ chord: 'pending', note: 'pending' });
     expect(pitchSteps('key-chord')).toEqual({ chord: 'live', note: 'pending' });
     expect(pitchSteps('first-note')).toEqual({ chord: 'done', note: 'live' });
+  });
+
+  it('count-in position and lines: bar 1 listens, the last bar says when to come in (01-ux section 11)', () => {
+    const before = countInPosition(0, 4, 2);
+    expect(before).toEqual({ bar: 1, bars: 2, beat: 0, last: false });
+    const b1 = countInPosition(3, 4, 2);
+    const b2 = countInPosition(5, 4, 2);
+    expect(b1).toEqual({ bar: 1, bars: 2, beat: 3, last: false });
+    expect(b2).toEqual({ bar: 2, bars: 2, beat: 1, last: true });
+    expect(countInTitle(b1, 4)).toBe(copy('countIn.listen'));
+    expect(countInTitle(b2, 4)).toBe('Come in after 4');
+    expect(countInTitle(b1, 4)).not.toBe(countInTitle(b2, 4));
+    expect(countInBarText(b1)).toBe('Count-in bar 1 of 2');
+    expect(countInBarText(b2)).toBe('Count-in bar 2 of 2');
+    expect(countInPosition(1, 3, 1)).toEqual({ bar: 1, bars: 1, beat: 1, last: true });
+    expect(countInTitle(countInPosition(1, 3, 1), 3)).toBe('Come in after 3');
+  });
+
+  it('starting-pitch steps, and "Count-in next" for the beat after the first note', () => {
+    expect(referenceSteps(null, false)).toEqual({ chord: 'pending', note: 'pending', next: false });
+    expect(referenceSteps('key-chord', true)).toEqual({ chord: 'live', note: 'pending', next: false });
+    expect(referenceSteps('first-note', true)).toEqual({ chord: 'done', note: 'live', next: false });
+    expect(referenceSteps('count-in-next', true)).toEqual({ chord: 'done', note: 'done', next: true });
+    expect(referenceSteps(null, true)).toEqual({ chord: 'done', note: 'done', next: true });
+  });
+
+  it('ghosts live: from difficulty 4 by default, or always, or never (PLAN R61)', () => {
+    for (const d of [1, 2, 3]) expect(ghostsLiveAt('from4', d, 3)).toBe(false);
+    for (const d of [4, 7, 10]) expect(ghostsLiveAt('from4', d, 3)).toBe(true);
+    expect(ghostsLiveAt(undefined, 2, 3)).toBe(false);
+    expect(ghostsLiveAt('always', 1, 3)).toBe(true);
+    expect(ghostsLiveAt('never', 10, 3)).toBe(false);
+  });
+
+  it('live filter: no ghost before bar 1 or when ghosts are off; calm difficulties wait for a sure judgment', () => {
+    const ghost: FollowerEvent = { type: 'ghost', ghost: { kind: 'extra' } as GhostNote };
+    const sure: FollowerEvent = { type: 'judgment', judgment: { provisional: false } as LiveJudgment };
+    const unsure: FollowerEvent = { type: 'judgment', judgment: { provisional: true } as LiveJudgment };
+    const clock: FollowerEvent = { type: 'clock', scoreBeat: -2 };
+    expect(liveEventAllowed(ghost, { ghosts: true, calm: false, beforeMusic: false })).toBe(true);
+    expect(liveEventAllowed(ghost, { ghosts: true, calm: false, beforeMusic: true })).toBe(false);
+    expect(liveEventAllowed(ghost, { ghosts: false, calm: true, beforeMusic: false })).toBe(false);
+    expect(liveEventAllowed(sure, { ghosts: false, calm: true, beforeMusic: false })).toBe(true);
+    expect(liveEventAllowed(unsure, { ghosts: false, calm: true, beforeMusic: false })).toBe(false);
+    expect(liveEventAllowed(unsure, { ghosts: true, calm: false, beforeMusic: false })).toBe(true);
+    expect(liveEventAllowed(clock, { ghosts: false, calm: true, beforeMusic: true })).toBe(true);
+    expect(liveEventAllowed({ type: 'missed', expectedIdx: 0 }, { ghosts: false, calm: true, beforeMusic: false })).toBe(true);
+  });
+
+  it('comes in after the last count, or earlier when the first note is in a pickup', () => {
+    const meter = { countsPerBar: 4, countUnitTicks: 480 } as never;
+    const note = (tick: number) => ({ kind: 'note', tick }) as never;
+    expect(entryCount({ meter, pickupTicks: 0, measures: [{ events: [note(0)] }] } as never)).toBe(4);
+    expect(entryCount({ meter, pickupTicks: 480, measures: [{ events: [note(0)] }] } as never)).toBe(3);
+    expect(entryCount({ meter, pickupTicks: 720, measures: [{ events: [note(0)] }] } as never)).toBe(2);
+    expect(entryCount({ meter, pickupTicks: 480, measures: [{ events: [{ kind: 'rest', tick: 0 }, note(480)] }] } as never)).toBe(4);
+    expect(countInTitle(countInPosition(5, 4, 2), 3)).toBe('Come in after 3');
   });
 });

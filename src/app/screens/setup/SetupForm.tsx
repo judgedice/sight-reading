@@ -5,6 +5,7 @@ import {
   DifficultyControl,
   FallbackNote,
   KeyGrid,
+  LengthInline,
   LengthRow,
   TempoRow,
   TimeSegments,
@@ -63,6 +64,13 @@ export interface SetupFormProps {
   onNoteExpire?: ((row: FallbackRow, stamp: number) => void) | undefined;
   /** "Hear the tempo": one bar at `bpm` with `beatsPerBar` beats (05 section 9.5). Hidden when absent. */
   onHearTempo?: ((bpm: number, beatsPerBar: number) => void) | undefined;
+  /**
+   * `form` (Practice, desktop): a label column, keys and meters folded behind a button above eight and seven, Length
+   * beside Tempo when only one length exists. `sheet` (the phone sheet): every option in place, each row its own.
+   */
+  layout?: 'form' | 'sheet';
+  /** Opens "Match a note": difficulty 1 shows "Simpler? Match a note first." (round 2, 01-ux section 3.3). */
+  onMatch?: (() => void) | undefined;
   className?: string | undefined;
 }
 
@@ -88,7 +96,7 @@ function RowSlot({ id, children }: { id: SetupRowId; children: ReactNode }) {
  * re-filters the other rows and the rows that fell back to Any say so for six seconds, announced politely once.
  * Used by the Practice screen's setup card and by `SetupSheet`.
  */
-export function SetupForm({ value, onChange, ctx, notes, onNoteExpire, onHearTempo, className }: SetupFormProps) {
+export function SetupForm({ value, onChange, ctx, notes, onNoteExpire, onHearTempo, layout = 'sheet', onMatch, className }: SetupFormProps) {
   const own = useFallbackNotes();
   const shown = notes ?? own.notes;
   const expire = notes ? onNoteExpire : own.expire;
@@ -134,34 +142,44 @@ export function SetupForm({ value, onChange, ctx, notes, onNoteExpire, onHearTem
     );
   };
 
+  const expanded = layout === 'sheet';
+  // On the form, a single length is plain text at the right of the Tempo row (04-design section 1).
+  const lengthInline = !expanded && model.length.kind === 'only' ? model.length.bars : null;
+
   return (
-    <div className={['setup', className].filter(Boolean).join(' ')} data-testid="setup-form">
+    <div className={['setup', `setup-${layout}`, className].filter(Boolean).join(' ')} data-testid="setup-form">
       <RowSlot id="difficulty">
-        <DifficultyControl row={model.difficulty} fallback={fallback('difficulty')} onChange={(level) => apply({ level })} />
+        <DifficultyControl row={model.difficulty} fallback={fallback('difficulty')} onChange={(level) => apply({ level })} onMatch={onMatch} />
       </RowSlot>
       <RowSlot id="key">
         <KeyGrid
           row={model.key}
           clef={clef}
           difficulty={model.level}
+          expanded={expanded}
           fallback={fallback('key')}
           onChange={(writtenKey) => apply({ writtenKey })}
         />
       </RowSlot>
       <RowSlot id="time">
-        <TimeSegments row={model.time} fallback={fallback('time')} onChange={(meter) => apply({ meter })} />
+        <TimeSegments row={model.time} expanded={expanded} fallback={fallback('time')} onChange={(meter) => apply({ meter })} />
       </RowSlot>
       <RowSlot id="tempo">
         <TempoRow
           row={model.tempo}
           value={value.bpm}
           onChange={(bpm) => apply({ bpm })}
+          end={lengthInline === null ? undefined : <LengthInline bars={lengthInline} />}
           {...(onHearTempo ? { onHearTempo: (bpm: number) => onHearTempo(bpm, beatsPerBar(value.meter)) } : {})}
         />
       </RowSlot>
-      <RowSlot id="length">
-        <LengthRow row={model.length} fallback={fallback('length')} onChange={(bars) => apply({ bars })} />
-      </RowSlot>
+      {lengthInline === null ? (
+        <RowSlot id="length">
+          <LengthRow row={model.length} fallback={fallback('length')} onChange={(bars) => apply({ bars })} />
+        </RowSlot>
+      ) : (
+        fallback('length')
+      )}
       <p id={liveId} className="setup-live" role="status" aria-live="polite">
         {announced}
       </p>
@@ -176,15 +194,15 @@ export function rowValueText(row: SetupRowId, value: PracticeSettings, ctx: Setu
     case 'difficulty':
       return String(model.level);
     case 'key': {
-      if (value.writtenKey === 'random') return copy('setup.key.any');
+      if (value.writtenKey === 'random') return copy('setup.time.any');
       const k = value.writtenKey;
       const opt = model.key.groups.flatMap((g) => g.keys).find((o) => o.key.fifths === k.fifths && o.key.mode === k.mode);
-      return opt?.name ?? copy('setup.key.any');
+      return opt?.name ?? copy('setup.time.any');
     }
     case 'time':
       return value.meter === 'random' ? copy('setup.time.any') : value.meter;
     case 'tempo':
-      return value.bpm === 'random' ? copy('setup.length.any') : copy('tempo.marking', { unit: model.tempo.beatUnit, bpm: value.bpm });
+      return value.bpm === 'random' ? copy('setup.time.any') : copy('tempo.marking', { unit: model.tempo.beatUnit, bpm: value.bpm });
     case 'length':
       return model.length.kind === 'only'
         ? copy('setup.length.chip', { bars: model.length.bars })

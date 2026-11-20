@@ -15,7 +15,8 @@ import { loadConfigs } from '../../../rules/load-configs.ts';
 import { click, key, mount, type Mounted } from '../../primitives/test-render.ts';
 import type { RangeData } from '../range/types.ts';
 import { InstrumentGrid } from './InstrumentGrid.tsx';
-import { InstrumentPicker, type InstrumentPickerProps } from './InstrumentPicker.tsx';
+import { soundSetFor } from '../../../instruments/sound-sets.ts';
+import { InstrumentPicker, type InstrumentPickerProps, type PickerSoundView } from './InstrumentPicker.tsx';
 import { pickerGroups, readingOrder } from './groups.ts';
 
 const cfg = loadConfigs({ grading, levels, instruments: instrumentsJson, progression, tips, budget, trumpetValves } as unknown as RawConfigs);
@@ -310,5 +311,140 @@ describe('InstrumentPicker sheet (phones, designer note 6)', () => {
     mountPicker({ layout: 'sheet' });
     expect(all('.pk-grid-phone .pk-cards-list').length).toBeGreaterThan(0);
     expect(all('.pk-grid-phone .pk-cards-voices [role="radio"]')).toHaveLength(6);
+  });
+});
+
+/** A fake sound path that records every call and plays nothing: the picker's side of "Play my range". */
+function fakeSound() {
+  const state = { playing: null as string | null, index: null as number | null, failed: false };
+  const calls = { play: [] as Array<{ id: string; midis: readonly number[] }>, stop: 0, prepare: [] as string[] };
+  let rejectNext = false;
+  const view = (): PickerSoundView => ({
+    play: (id, midis) => {
+      calls.play.push({ id, midis });
+      if (rejectNext) return Promise.reject(new Error('blocked'));
+      state.playing = id;
+      state.index = 0;
+      return Promise.resolve();
+    },
+    stop: () => {
+      calls.stop++;
+      state.playing = null;
+      state.index = null;
+    },
+    prepare: (id) => void calls.prepare.push(id),
+    ...state,
+  });
+  return { state, calls, view, failNext: () => (rejectNext = true) };
+}
+
+function mountWithSound(fake: ReturnType<typeof fakeSound>, extra: Partial<InstrumentPickerProps> = {}) {
+  const props = {
+    instruments,
+    value: 'voice-baritone',
+    rangeFor,
+    showLessTested: false,
+    onDone: vi.fn(),
+    onCancel: vi.fn(),
+    layout: 'dialog' as const,
+    standInFor: (id: string) => soundSetFor(id).standIn,
+    ...extra,
+  };
+  const draw = (): void => current?.render(<InstrumentPicker open {...props} sound={fake.view()} />);
+  current = mount(<InstrumentPicker open {...props} sound={fake.view()} />);
+  return { draw };
+}
+
+describe('Play my range (round 2, 01-ux section 2)', () => {
+  it('choosing a card plays nothing and only prepares sound on hover or focus', () => {
+    const fake = fakeSound();
+    mountWithSound(fake);
+    click(card('voice-bass'));
+    click(card('trumpet-bb'));
+    expect(fake.calls.play).toEqual([]);
+    expect(fake.calls.stop).toBe(0);
+    expect(fake.calls.prepare).toContain('trumpet-bb');
+  });
+
+  it('Play my range plays the four chips low to high with the instrument id', async () => {
+    const fake = fakeSound();
+    mountWithSound(fake);
+    expect(one('[data-testid="play-range"]').textContent).toBe('Play my range');
+    expect(one('.pk-play-caption').textContent).toBe('Lowest, your notes at difficulty 2, highest.');
+    await act(async () => click(one('[data-testid="play-range"]')));
+    expect(fake.calls.play).toHaveLength(1);
+    const { id, midis } = fake.calls.play[0]!;
+    expect(id).toBe('voice-baritone');
+    expect(midis).toHaveLength(4);
+    expect([...midis]).toEqual([...midis].sort((a, b) => a - b));
+    expect(soundSetFor(id).set).toBe('voice-baritone');
+  });
+
+  it('shows Stop, "Playing C3", step dots, and brass chip, notehead and key for the sounding note', () => {
+    const fake = fakeSound();
+    fake.state.playing = 'voice-baritone';
+    fake.state.index = 1;
+    mountWithSound(fake);
+    expect(one('[data-testid="play-range"]').textContent).toBe('Stop');
+    expect(one('[data-testid="play-now"]').textContent).toMatch(/^Playing [A-G]/);
+    expect(all('[data-testid="play-steps"] i')).toHaveLength(4);
+    expect(all('[data-testid="play-steps"] i.is-now')).toHaveLength(1);
+    expect(all('.pk-column [data-sounding="true"]')).toHaveLength(1);
+    expect(all('.pk-column .rp-note-lit')).toHaveLength(1);
+    expect(all('.pk-column .rp-kb-lit')).toHaveLength(1);
+  });
+
+  it('Stop ends the sound', () => {
+    const fake = fakeSound();
+    fake.state.playing = 'voice-baritone';
+    fake.state.index = 0;
+    mountWithSound(fake);
+    click(one('[data-testid="play-range"]'));
+    expect(fake.calls.stop).toBe(1);
+  });
+
+  it('switching to Bass while Baritone plays stops the sound; so do Done and Cancel', async () => {
+    const fake = fakeSound();
+    mountWithSound(fake);
+    await act(async () => click(one('[data-testid="play-range"]')));
+    click(card('voice-bass'));
+    expect(fake.calls.stop).toBe(1);
+    expect(fake.state.playing).toBeNull();
+    await act(async () => click(one('[data-testid="play-range"]')));
+    expect(fake.calls.play[1]!.id).toBe('voice-bass');
+    click(buttonByText('Cancel'));
+    current?.unmount();
+    expect(fake.calls.stop).toBe(2);
+  });
+
+  it('a voice says how it will sound; a euphonium says the trombone stands in', () => {
+    const fake = fakeSound();
+    mountWithSound(fake);
+    expect(one('[data-testid="sound-line"]').textContent).toContain('This is how it will sound.');
+    expect(one('[data-testid="sound-line"]').textContent).toContain('in baritone range');
+    click(card('voice-bass'));
+    click(card('trumpet-bb'));
+    expect(one('[data-testid="sound-line"]').textContent).toContain('trumpet sound');
+    expect(all('[data-testid="stand-in-line"]')).toHaveLength(0);
+  });
+
+  it('euphonium shows the trombone stand-in line', () => {
+    const fake = fakeSound();
+    mountWithSound(fake, { value: 'euphonium-bc', showLessTested: true });
+    expect(one('[data-testid="stand-in-line"]').textContent).toBe("There's no euphonium sound yet. You'll hear a trombone.");
+    expect(soundSetFor('euphonium-bc')).toEqual({ set: 'trombone', standIn: 'trombone' });
+  });
+
+  it('a sound that fails to start shows the failed line', async () => {
+    const fake = fakeSound();
+    fake.failNext();
+    mountWithSound(fake);
+    await act(async () => click(one('[data-testid="play-range"]')));
+    expect(one('[data-testid="play-failed"]').textContent).toBe("That sound didn't play. Check your volume and try again.");
+  });
+
+  it('without a sound path the picker has no Play button', () => {
+    mountPicker();
+    expect(all('[data-testid="play-range"]')).toHaveLength(0);
   });
 });

@@ -189,6 +189,38 @@ button.rp-note-pill::before {
   padding: 0 0.5625rem;
 }
 
+/* While it sounds: the chip, the notehead and the key are brass (round 2, 04 section 3). */
+.rp-note-pill.rp-note-pill-lit,
+button.rp-note-pill.rp-note-pill-lit:hover {
+  border-color: var(--brass);
+  background: var(--brass);
+  color: var(--on-accent);
+  box-shadow: 0 0 0 0.25rem var(--brass-wash);
+}
+
+.rp-note-pill-lit .rp-note-pill-icon {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.75;
+}
+
+.rp-note-lit .rp-glyph {
+  fill: var(--brass);
+}
+
+.rp-note-lit .rp-ledger {
+  stroke: var(--brass);
+}
+
+.rp-halo {
+  fill: var(--brass-wash);
+}
+
+.rp-kb-white.rp-kb-lit,
+.rp-kb-black.rp-kb-lit {
+  background: var(--brass);
+}
+
 button.rp-note-pill-full:hover {
   background: var(--surface-2-hover);
   color: var(--text);

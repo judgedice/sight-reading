@@ -15,7 +15,8 @@ import { calibrationIsMandatoryPath } from '../calibration/flow.ts';
 import { CalibrationCard } from '../calibration/CalibrationCard.tsx';
 import { deniedStepsKey, micProblemKey, type MicProblem } from '../states/mic.ts';
 import { text } from '../states/text.ts';
-import { initialOnboarding, onboardingReducer, STEP_COUNT, type OnboardingStep } from './flow.ts';
+import { initialOnboarding, LEVEL_STEP, MATCH_STEP, onboardingReducer, STEP_COUNT, type OnboardingStep } from './flow.ts';
+import { MatchStep } from './MatchStep.tsx';
 import { assumeServed, difficultyRowFor, rangeData, START_DIFFICULTY } from './ranges.ts';
 import { useOnboardingServices, type LevelChoice, type OnboardingServices } from './services.ts';
 import { useMedia } from './use-media.ts';
@@ -70,7 +71,7 @@ function MicProblemBlock({
 function Onboarding({ services }: { services: OnboardingServices }) {
   const navigate = useNavigate();
   const cfg: Configs = useMemo(() => appConfigs(), []);
-  const [state, dispatch] = useReducer(onboardingReducer, undefined, initialOnboarding);
+  const [state, dispatch] = useReducer(onboardingReducer, { match: services.match !== undefined }, initialOnboarding);
   const [instrumentId, setInstrumentId] = useState(services.initial.instrumentId);
   const [showBeta, setShowBeta] = useState(services.initial.showBeta);
   const [level, setLevel] = useState(START_DIFFICULTY);
@@ -95,7 +96,7 @@ function Onboarding({ services }: { services: OnboardingServices }) {
 
   // Leaving the picker page stops any range note still sounding.
   useEffect(() => {
-    if (step !== 2 && step !== 5) services.stopSounds?.();
+    if (step !== 2 && step !== LEVEL_STEP) services.stopSounds?.();
   }, [step, services]);
   useEffect(
     () => () => {
@@ -154,11 +155,25 @@ function Onboarding({ services }: { services: OnboardingServices }) {
     dispatch({ type: 'back' });
   };
 
+  const matching = step === MATCH_STEP && services.match !== undefined && selected !== undefined;
+  // The microphone step just ran: the note step knows it is on and does not ask the browser again.
+  const matchServices = useMemo(
+    () => (services.match && micAllowed ? { ...services.match, micAllowed: () => Promise.resolve(true) } : services.match),
+    [services.match, micAllowed],
+  );
   const header =
     step > 1 ? (
-      <header className="ob-head">
+      <header className="ob-head" data-match={matching ? 'true' : undefined}>
         <Button label={copy('common.back')} variant="quiet" size="compact" icon="chevron-left" onClick={goBack} />
-        <p className="ob-step">{copy('onboarding.step', { n: step, total: STEP_COUNT })}</p>
+        {matching && selected ? (
+          <h1 ref={headingRef} tabIndex={-1} className="ob-head-title">
+            {copy(selected.family === 'voice' ? 'match.onboarding.title.voice' : 'match.onboarding.title.instrument')}
+          </h1>
+        ) : null}
+        <p className="ob-step">
+          <span>{copy('onboarding.step', { n: step, total: STEP_COUNT })}</span>
+          {matching ? <Button label={copy('action.skip')} variant="quiet" size="compact" onClick={() => dispatch({ type: 'match-done' })} /> : null}
+        </p>
       </header>
     ) : null;
 
@@ -267,7 +282,18 @@ function Onboarding({ services }: { services: OnboardingServices }) {
         </section>
       ) : null}
 
-      {step === 5 ? (
+      {matching && services.match && selected ? (
+        <MatchStep
+          key={selected.id}
+          services={matchServices ?? services.match}
+          instrument={selected}
+          cfg={cfg}
+          onContinue={() => dispatch({ type: 'match-done' })}
+          onChangeVoice={setInstrumentId}
+        />
+      ) : null}
+
+      {step === LEVEL_STEP ? (
         <Card className="ob-card ob-card-level">
           <section className="ob-body" data-testid="ob-level">
             <h1 ref={headingRef} tabIndex={-1} className="ob-title">

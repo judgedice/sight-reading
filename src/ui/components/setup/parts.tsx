@@ -9,12 +9,26 @@ export function XpTag({ line }: { line: TextLine }) {
   return <span className="su-tag">{lineText(line)}</span>;
 }
 
+/**
+ * A small caution tag ("Few pieces") whose tooltip and accessible name are the full sentence (01-ux section 6). The
+ * short word is drawn; a screen reader reads the sentence.
+ */
+export function FewTag({ tag, full, className }: { tag: TextLine; full: TextLine; className?: string }) {
+  const sentence = lineText(full);
+  return (
+    <span className={cls('su-few', className)} title={sentence} data-setup-few="">
+      <span aria-hidden="true">{lineText(tag)}</span>
+      <span className="ui-visually-hidden">{sentence}</span>
+    </span>
+  );
+}
+
 /** A visible explanation under a control, with the info mark: skipped difficulties, hidden meters, later keys. */
-export function NoteLine({ id, line }: { id?: string; line: TextLine }) {
+export function NoteLine({ id, line, text }: { id?: string; line?: TextLine; text?: string }) {
   return (
     <p id={id} className="su-note-line">
       <Glyph id="info" size={16} className="su-note-icon" />
-      <span>{lineText(line)}</span>
+      <span>{text ?? (line ? lineText(line) : '')}</span>
     </p>
   );
 }

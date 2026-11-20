@@ -3,11 +3,13 @@ import type { Clef, PracticeSettings } from '../../../core/types.ts';
 import { copy } from '../../../ui/copy/copy.ts';
 import { instrumentName } from '../../../ui/copy/instrument-names.ts';
 import { Banner } from '../../../ui/components/containers/index.ts';
+import { CalStatusPill } from '../../../ui/components/calibration-status/index.ts';
 import { Button } from '../../../ui/components/form/index.ts';
 import { RankEmblem } from '../../../ui/components/domain/index.ts';
 import { PICKER_GROUPS, voiceClef, type PickerResult } from '../../../ui/components/picker/index.ts';
 import { RangePicture } from '../../../ui/components/range/index.ts';
-import { ModeControl, XpLine, type RankedBlock } from '../../../ui/components/setup/index.ts';
+import { ModeControl, XpLine, lineText, type RankedBlock } from '../../../ui/components/setup/index.ts';
+import { splitAt } from '../../../ui/components/setup/text.ts';
 import { Glyph } from '../../../ui/primitives/Glyph.tsx';
 import { openOverlayCount } from '../../../ui/primitives/index.ts';
 import { useNavigate } from '../../router.tsx';
@@ -17,7 +19,7 @@ import { deniedStepsKey } from '../states/mic.ts';
 import { applySetupChange, effectiveLevel, localSuggestions, normalize, setupModel, type FallbackNote, type SetupContext } from '../setup/model.ts';
 import { SETUP_ROWS, SetupForm, rowValueText, useFallbackNotes, type SetupRowId } from '../setup/SetupForm.tsx';
 import { InstrumentTile, SetupInstrumentPicker, SetupSheet, rangeDataFor } from '../setup/SetupSheet.tsx';
-import { BANNER_PRIORITY, type HomeBanner, type HomeServices } from './services.ts';
+import { BANNER_PRIORITY, type HomeBanner, type HomeServices, type LastTry } from './services.ts';
 import { liveStreakDays, rankProgress, streakAtRisk } from './today.ts';
 import './home.css';
 
@@ -98,19 +100,20 @@ const EMPTY_REASON_ID = 'home-empty-reason';
 
 const ROW_LABEL = { difficulty: 'row.level', key: 'row.key', time: 'row.time', tempo: 'row.tempo', length: 'row.length' } as const;
 
-/** The first-time hint under the summary chips stays hidden once a chip has been used in this visit. */
-let chipUsed = false;
-
 // ---- Notices -------------------------------------------------------------------------------------------------
 
-type Notice = HomeBanner | { kind: 'mic-denied' };
+type Notice = Exclude<HomeBanner, { kind: 'calibrate' }> | { kind: 'mic-denied' };
 
-/** Notices in priority order (05 section 8.6): storage loss, microphone off (or blocked), calibration, Bluetooth, offer. */
+/**
+ * Notices in priority order (05 section 8.6): storage loss, microphone off (or blocked), Bluetooth, offer. There is no
+ * calibration banner (round 2, 01-ux section 4): the status pill and the Mode line say it.
+ */
 function pickNotice(list: readonly HomeBanner[], micDenied: boolean): Notice | null {
   for (const kind of BANNER_PRIORITY) {
+    if (kind === 'calibrate') continue;
     if (kind === 'mic-off' && micDenied) return { kind: 'mic-denied' };
     const b = list.find((x) => x.kind === kind);
-    if (b) return b;
+    if (b && b.kind !== 'calibrate') return b;
   }
   return micDenied ? { kind: 'mic-denied' } : null;
 }
@@ -133,16 +136,6 @@ function NoticeRow({ services, notice }: { services: HomeServices; notice: Notic
       return <Banner tone="caution" text={copy('banner.micOff')} action={{ label: copy('action.checkMicrophone'), onClick: () => navigate('/calibrate') }} />;
     case 'mic-denied':
       return <Banner tone="caution" text={`${copy('permission.denied.title')} ${deniedSteps(services)}`} />;
-    case 'calibrate':
-      return (
-        <Banner
-          tone="info"
-          text={copy('banner.calibrateNeeded', { seconds: notice.seconds })}
-          action={{ label: copy('action.calibrate'), onClick: () => navigate('/calibrate') }}
-          dismissible
-          onDismiss={dismiss}
-        />
-      );
     case 'bluetooth':
       return <Banner tone="caution" text={copy('banner.bluetooth')} />;
     case 'level-up':
@@ -167,7 +160,7 @@ function TodayLine({ services, className }: { services: HomeServices; className:
   const day = services.localDay();
   const days = liveStreakDays(profile, day);
   const risk = streakAtRisk(profile, day, stats);
-  const text = copy('home.today', { days, takes: stats.takes, xp: stats.xp });
+  const text = copy('home.today', { days, takes: stats.tries ?? stats.takes, xp: stats.xp });
   const parts = text.split(` ${SEPARATOR} `);
   return (
     <div className={className} role="group" aria-label={copy('common.today')}>
@@ -187,7 +180,10 @@ function TodayLine({ services, className }: { services: HomeServices; className:
   );
 }
 
-/** "Student · 79% to Section player" with the bar; the difficulty gate only while unmet (05 section 8.6). */
+/**
+ * "Novice · 12% to Apprentice" with a small progress ring, in the header beside the Today line (round 2, 01-ux
+ * section 6). The difficulty gate, while unmet, is in the ring's name and tooltip.
+ */
 function RankLine({ services }: { services: HomeServices }) {
   const profile = useReadable(services.profile);
   const rank = rankProgress(services.configs, profile);
@@ -196,26 +192,78 @@ function RankLine({ services }: { services: HomeServices }) {
   const gate = rank.next && reached < rank.next.minLevel ? copy('rank.bar.needsLevel', { level: rank.next.minLevel }) : null;
   const line = rank.next ? copy('home.rankLine', { rank: rank.name, percent, nextRank: rank.next.name }) : copy('rank.header', { n: rank.rank, total: rank.total });
   const cut = line.indexOf(' · ');
+  const name = gate ? `${line}. ${gate}` : line;
   return (
-    <div className="home-rank" data-testid="rank-line">
-      <RankEmblem rank={rank.rank} state="current" size={24} />
-      <div className="home-rank-body">
-        <p className="home-rank-text">
-          {rank.next && cut > 0 ? (
-            <>
-              <b>{line.slice(0, cut)}</b>
-              <span className="home-muted">{line.slice(cut)}</span>
-            </>
-          ) : (
-            <b>{line}</b>
-          )}
-        </p>
-        <div className="home-rank-bar" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent} aria-label={line}>
-          <div className="home-rank-fill" style={{ width: `${percent}%` }} />
-        </div>
-        {gate ? <p className="home-rank-gate">{gate}</p> : null}
-      </div>
+    <div className="home-rank" data-testid="rank-line" title={gate ?? undefined}>
+      <span
+        className="home-rank-ring"
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={percent}
+        aria-label={name}
+        style={{ ['--home-rank-p' as string]: `${percent}%` }}
+      >
+        <RankEmblem rank={rank.rank} state="current" size={24} />
+      </span>
+      <p className="home-rank-text">
+        {rank.next && cut > 0 ? (
+          <>
+            <b>{line.slice(0, cut)}</b>
+            <span className="home-muted">{line.slice(cut)}</span>
+          </>
+        ) : (
+          <b>{line}</b>
+        )}
+        {gate ? <span className="ui-visually-hidden">{` ${gate}`}</span> : null}
+      </p>
     </div>
+  );
+}
+
+/** "Last try: B 84, Melody in F major · All tries" (round 2, 01-ux section 5.3); phones drop the title. */
+function LastTryLine({ last, short, onAll }: { last: LastTry; short: boolean; onAll: () => void }) {
+  let lead: ReactNode;
+  if (last.grade === null || last.score === null) {
+    lead = copy('home.lastTry.notGraded', { title: last.title });
+  } else {
+    const key = short ? 'home.lastTry.short' : 'home.lastTry';
+    const [before, after] = splitAt(key, { score: last.score, title: last.title }, 'grade');
+    lead = (
+      <>
+        {before}
+        <b className="home-last-grade">{last.grade}</b>
+        {after}
+      </>
+    );
+  }
+  return (
+    <p className="home-last" data-testid="last-try">
+      <Glyph id="history" size={16} className="home-last-icon" />
+      <span className="home-last-text">{lead}</span>
+      <span className="home-today-dot" aria-hidden="true">
+        {SEPARATOR}
+      </span>
+      <button type="button" className="su-link home-last-all" onClick={onAll}>
+        {copy('home.allTries')}
+      </button>
+    </p>
+  );
+}
+
+/** "Match a note": the warm-up row (round 2, 01-ux section 3.2). Desktop: a card row with a line; phone: one line. */
+function MatchRow({ phone, voice, onOpen }: { phone: boolean; voice: boolean; onOpen: () => void }) {
+  return (
+    <button type="button" className={phone ? 'home-match home-match-phone' : 'home-match'} data-testid="match-entry" onClick={onOpen}>
+      <span className="home-match-badge" aria-hidden="true">
+        <Glyph id="tuning-fork" size={20} />
+      </span>
+      <span className="home-match-text">
+        <span className="home-match-title">{copy(phone ? 'match.entry.phone' : 'match.entry')}</span>
+        {phone ? null : <span className="home-match-body">{copy(voice ? 'home.matchEntry.body' : 'home.matchEntry.body.instrument')}</span>}
+      </span>
+      <Glyph id="chevron-right" size={20} className="home-match-chevron" />
+    </button>
   );
 }
 
@@ -275,17 +323,18 @@ export function HomeScreen(_props: ScreenProps) {
   const profile = useReadable(services.profile);
   const banners = useReadable(services.banners);
   const availability = useOptionalReadable(services.rankedAvailability);
+  const calStatus = useOptionalReadable(services.calibrationStatus);
+  const lastTry = useOptionalReadable(services.lastTry);
+  const pickerSound = services.pickerSound;
+  const rangeSound = useOptionalReadable(pickerSound?.state);
   const view = useSessionView(services);
   const fallback = useFallbackNotes();
   const [stalePool, setStalePool] = useState<Partial<PracticeSettings>[] | null>(null);
   const [sheetRow, setSheetRow] = useState<SetupRowId | null>(null);
   const [picking, setPicking] = useState(false);
   const [micDenied, setMicDenied] = useState(false);
-  const [hintShown] = useState(() => !chipUsed);
   const chipRefs = useRef<Partial<Record<SetupRowId, HTMLButtonElement | null>>>({});
   const lastRow = useRef<SetupRowId | null>(null);
-  const dockRef = useRef<HTMLDivElement>(null);
-  const [dockHeight, setDockHeight] = useState(0);
 
   const ctx = useMemo<SetupContext>(
     () => ({
@@ -307,19 +356,13 @@ export function HomeScreen(_props: ScreenProps) {
 
   // Leaving Practice stops any sound it started.
   const stopSounds = services.stopSounds;
-  useEffect(() => () => stopSounds?.(), [stopSounds]);
-
-  // The docked Start's height: the page keeps that much (plus 16 px) free at its end, so no row is ever under it.
-  useEffect(() => {
-    const el = dockRef.current;
-    if (!el) return undefined;
-    const measure = (): void => setDockHeight(el.getBoundingClientRect().height);
-    measure();
-    if (typeof ResizeObserver !== 'function') return undefined;
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [wide]);
+  useEffect(
+    () => () => {
+      stopSounds?.();
+      pickerSound?.stop();
+    },
+    [stopSounds, pickerSound],
+  );
 
   const save = (next: PracticeSettings, notes: FallbackNote[] = []): void => {
     // The session's suggestions were for the settings before this change.
@@ -371,9 +414,13 @@ export function HomeScreen(_props: ScreenProps) {
     ? (bpm: number, beats: number): void => void services.hearTempo?.(bpm, beats).catch(() => undefined)
     : undefined;
 
+  const calibrate = (): void => navigate('/calibrate');
+  const openMatch = (): void => (services.openMatch ? services.openMatch() : navigate('/match'));
+  const allTries = (): void => navigate('/history');
+
   const fix = (b: RankedBlock): void => {
     if (b === 'calibration') {
-      navigate('/calibrate');
+      calibrate();
       return;
     }
     const on = services.turnOnMic?.();
@@ -394,7 +441,6 @@ export function HomeScreen(_props: ScreenProps) {
   };
 
   const openRow = (row: SetupRowId): void => {
-    chipUsed = true;
     lastRow.current = row;
     setSheetRow(row);
   };
@@ -402,6 +448,20 @@ export function HomeScreen(_props: ScreenProps) {
   const notice = pickNotice(banners, micDenied);
   const name = inst ? instrumentName(inst) : practice.instrumentId;
   const group = inst ? PICKER_GROUPS.find((g) => g.families.includes(inst.family)) : undefined;
+  const voice = inst?.family === 'voice';
+
+  // "Play my range": the four notes of the picture, low to high, at concert pitch, in the instrument's sound.
+  const playing = rangeSound?.playing === practice.instrumentId;
+  const soundingSlot = playing ? (rangeSound?.index ?? null) : null;
+  const playRange = (): void => {
+    if (!pickerSound || !range) return;
+    if (playing) {
+      pickerSound.stop();
+      return;
+    }
+    const c = range.model.concert;
+    void pickerSound.play(practice.instrumentId, [c.full[0], c.served[0], c.served[1], c.full[1]]).catch(() => undefined);
+  };
 
   const emptyCard = empty ? (
     <StateCard
@@ -450,23 +510,29 @@ export function HomeScreen(_props: ScreenProps) {
       {...(wide ? { kbd: copy('shortcuts.spaceKey') } : {})}
     />
   );
-  const modeControl = (
-    <ModeControl
-      inlineLabel={wide}
-      value={mode}
-      rankedBlock={block}
-      onFix={fix}
-      onChange={(m) => apply({ mode: m })}
-    />
-  );
-  const xp = mode === 'ranked' ? model.xp.line : null;
+  // One Calibrate control (round 2, 01-ux section 4): on the desktop it is the link in the Mode line; on the phone the
+  // summary card's calibration row has it, so the Mode line names the reason without a link.
+  const modeFix = wide || block !== 'calibration' || !calStatus ? fix : undefined;
+  const modeControl = <ModeControl value={mode} rankedBlock={block} onFix={modeFix} onChange={(m) => apply({ mode: m })} />;
+  const xpLine = empty ? null : <XpLine line={model.xp.line} none={model.xp.none} />;
+  const lastLine = lastTry ? <LastTryLine last={lastTry} short={!wide} onAll={allTries} /> : null;
 
   if (wide) {
     return (
       <section className="home home-wide" data-testid="screen-home" data-route-id="home">
         <div className="home-head">
           <h1 className="home-title">{copy('setup.title')}</h1>
-          <TodayLine services={services} className="home-today home-today-inline" />
+          <div className="home-head-status">
+            <TodayLine services={services} className="home-today home-today-inline" />
+            <span className="home-head-rule" aria-hidden="true" />
+            <RankLine services={services} />
+            {calStatus ? (
+              <>
+                <span className="home-head-rule" aria-hidden="true" />
+                <CalStatusPill status={calStatus} variant="header" onCalibrate={calibrate} onSettings={() => navigate('/settings/audio')} />
+              </>
+            ) : null}
+          </div>
         </div>
         {notice ? <NoticeRow key={notice.kind} services={services} notice={notice} /> : null}
         <div className="home-grid">
@@ -485,25 +551,44 @@ export function HomeScreen(_props: ScreenProps) {
               <div className="home-range">
                 <div className="home-range-head">
                   <h3 className="home-range-title">{copy('home.rangeTitle')}</h3>
-                  {hearNote ? <p className="home-range-hint">{copy('home.rangeHint')}</p> : null}
+                  {pickerSound ? (
+                    <Button
+                      size="compact"
+                      variant="tonal"
+                      icon={playing ? 'stop' : 'play'}
+                      label={copy(playing ? 'picker.play.stop' : 'picker.play.range')}
+                      onClick={playRange}
+                      onPointerEnter={() => pickerSound.prepare(practice.instrumentId)}
+                      onFocus={() => pickerSound.prepare(practice.instrumentId)}
+                      data-testid="play-range"
+                    />
+                  ) : hearNote ? (
+                    <p className="home-range-hint">{copy('home.rangeHint')}</p>
+                  ) : null}
                 </div>
-                <RangePicture data={range} instrumentName={name} onHearNote={hearNote} />
+                <RangePicture data={range} instrumentName={name} onHearNote={hearNote} soundingSlot={soundingSlot} />
               </div>
             ) : null}
-            <RankLine services={services} />
+            <MatchRow phone={false} voice={voice} onOpen={openMatch} />
           </section>
           <section className="home-card home-setup" aria-label={copy('action.changeSetup')}>
-            <div className="home-setup-scroll" data-testid="setup-scroll">
-              <SetupForm value={practice} ctx={ctx} onChange={save} notes={fallback.notes} onNoteExpire={fallback.expire} onHearTempo={hearTempo} />
-            </div>
-            <div className="home-setup-foot" data-testid="setup-foot">
-              {modeControl}
+            <SetupForm
+              layout="form"
+              value={practice}
+              ctx={ctx}
+              onChange={save}
+              notes={fallback.notes}
+              onNoteExpire={fallback.expire}
+              onHearTempo={hearTempo}
+              onMatch={openMatch}
+            />
+            <div className="home-setup-foot setup" data-testid="setup-foot">
+              <div className="home-setup-mode">{modeControl}</div>
               {errorCard}
               {emptyCard}
-              <div className="home-start-line">
-                {empty ? null : <XpLine line={xp} />}
-                {startButton}
-              </div>
+              {xpLine}
+              {startButton}
+              {lastLine}
             </div>
           </section>
         </div>
@@ -513,14 +598,11 @@ export function HomeScreen(_props: ScreenProps) {
   }
 
   return (
-    <section
-      className="home home-narrow"
-      data-testid="screen-home"
-      data-route-id="home"
-      style={{ paddingBottom: `calc(${Math.ceil(dockHeight)}px + var(--space-4))` }}
-    >
-      <TodayLine services={services} className="home-today home-today-strip" />
-      <h1 className="home-title">{copy('setup.title')}</h1>
+    <section className="home home-narrow" data-testid="screen-home" data-route-id="home">
+      <div className="home-head home-head-narrow">
+        <h1 className="home-title">{copy('setup.title')}</h1>
+        <TodayLine services={services} className="home-today home-today-strip" />
+      </div>
       {notice ? <NoticeRow key={notice.kind} services={services} notice={notice} /> : null}
       <section className="home-card home-summary" aria-label={copy('action.changeSetup')}>
         {inst && range ? (
@@ -529,8 +611,8 @@ export function HomeScreen(_props: ScreenProps) {
             <span className="home-summary-inst-text">
               <span className="home-summary-inst-name">{name}</span>
               <span className="home-summary-inst-range">
-                <RangePicture data={range} instrumentName={name} size="bar" barWidth={88} />
-                <span>{copy('range.cardText', { low: range.model.names.full[0], high: range.model.names.full[1] })}</span>
+                <RangePicture data={range} instrumentName={name} size="bar" barWidth={64} />
+                <span>{lineText(range.model.servedLine)}</span>
               </span>
             </span>
             <span className="ui-visually-hidden">{copy('setup.changeInstrument')}</span>
@@ -554,32 +636,25 @@ export function HomeScreen(_props: ScreenProps) {
                 aria-label={copy('setup.chip.a11y', { row: label, value })}
                 onClick={() => openRow(row)}
               >
-                <span className="home-chip-text">
-                  <span className="home-chip-label">{label}</span>{' '}
+                <span className="home-chip-label">{label}</span>
+                <span className="home-chip-line">
                   <span className="home-chip-value">{value}</span>
+                  <Glyph id="chevron-down" size={16} className="home-chip-chevron" />
                 </span>
-                <Glyph id="chevron-down" size={16} className="home-chip-chevron" />
               </button>
             );
           })}
         </div>
-        {hintShown && !notice ? (
-          <p className="home-first-hint">
-            <Glyph id="info" size={16} className="home-first-hint-icon" />
-            {copy('setup.firstTimeHint')}
-          </p>
-        ) : null}
+        {calStatus ? <CalStatusPill status={calStatus} variant="card-row" onCalibrate={calibrate} onSettings={() => navigate('/settings/audio')} className="home-cal-row" /> : null}
       </section>
       {errorCard}
       {emptyCard}
-      <div className="home-mode">{modeControl}</div>
-      <section className="home-card home-rank-card">
-        <RankLine services={services} />
-      </section>
-      <div className="home-dock" ref={dockRef} data-testid="start-dock">
-        {empty ? null : <XpLine line={xp} />}
+      <div className="home-mode setup">{modeControl}</div>
+      <div className="home-go">
         {startButton}
+        {lastLine}
       </div>
+      <MatchRow phone voice={voice} onOpen={openMatch} />
       <SetupSheet
         open={sheetRow !== null}
         row={sheetRow}

@@ -14,6 +14,7 @@ import { createAttemptScreen, createHistoryScreen } from './index.ts';
 import { createStore } from 'zustand/vanilla';
 import type { SoundView } from '../../../session/index.ts';
 import type { AttemptServices } from './AttemptScreen.tsx';
+import type { ReviewExtras } from '../results/review/index.ts';
 import { creditLine } from '../results/model.ts';
 import type { HistoryServices } from './services.ts';
 import { localDayOf } from './model.ts';
@@ -89,7 +90,10 @@ describe('HistoryScreen', () => {
     const rows = document.querySelectorAll('[data-testid="history-row"]');
     expect(rows).toHaveLength(25);
     expect(rows[0]?.getAttribute('href')).toBe(`#/history/${newest.id}`);
-    expect(document.querySelector('.hist-day-heading')?.textContent).toBe(copy('history.day.today'));
+    // Round 2: the day heading counts its tries, with the one definition (compose/tries.ts).
+    const day = localDayOf(newest.createdAt);
+    const sameDay = (await repos.attempts.all()).filter((a) => localDayOf(a.createdAt) === day).length;
+    expect(document.querySelector('.hist-day-heading')?.textContent).toBe(copy('history.day', { day: copy('history.day.today'), n: sameDay }));
   });
 
   it('filters by instrument and writes the choice to the URL query', async () => {
@@ -225,7 +229,7 @@ describe('attempt detail: title, score and Listen', () => {
     const sounds = createStore<SoundView>()(() => idle());
     const calls: { id: string; o: { fromBar?: number; slower?: boolean } }[] = [];
     let stops = 0;
-    let extras: { highlightBar?: number | null; onBarTap?: (i: number) => void } = {};
+    let extras: ReviewExtras = {};
     const services: AttemptServices = {
       configs: cfg,
       repos,
@@ -240,7 +244,12 @@ describe('attempt detail: title, score and Listen', () => {
       },
       renderReview: (_r, e) => {
         extras = e;
-        return <div data-testid="fake-review">{e.toolbarEnd}</div>;
+        return (
+          <div data-testid="fake-review">
+            {e.toolbarEnd}
+            {e.caption}
+          </div>
+        );
       },
       ...extra,
     };
@@ -323,5 +332,158 @@ describe('historyScreenOverrides', () => {
     const table = createRouteTable(historyScreenOverrides(services));
     expect(table.find((r) => r.id === 'history')?.Screen).not.toBe(PlaceholderScreen);
     expect(table.find((r) => r.id === 'history.attempt')?.Screen).not.toBe(PlaceholderScreen);
+  });
+});
+
+describe('round 2: rows, This piece and the day count', () => {
+  /** Today: 2 graded and 1 not graded tries, plus 1 stopped before bar 1; yesterday: 1. Two today at ex-1. */
+  async function seedDay() {
+    const repos = memoryRepos();
+    const at = (i: number, iso: string, over: Partial<AttemptRecord>) => repos.attempts.add(makeAttempt(i, { createdAt: iso, ...over }));
+    await at(0, '2026-02-02T09:00:00.000Z', { excerptId: 'ex-1', score: makeScore(84, false), endReason: 'complete' });
+    await at(1, '2026-02-02T09:05:00.000Z', { excerptId: 'ex-1', score: makeScore(71, false), endReason: 'complete' });
+    await at(2, '2026-02-02T09:10:00.000Z', { excerptId: 'ex-2', score: null, endReason: 'void', voidReason: 'no-signal' });
+    await at(3, '2026-02-02T09:15:00.000Z', { excerptId: 'ex-2', score: null, endReason: 'void', voidReason: 'stopped-before-first-note' });
+    await at(4, '2026-02-01T09:00:00.000Z', { excerptId: 'ex-3', score: makeScore(80, false), endReason: 'complete' });
+    return repos;
+  }
+  const today = localDayOf('2026-02-02T09:00:00.000Z');
+
+  it('shows the grade and score, or "Not graded" in words, never a dash', async () => {
+    const repos = await seedDay();
+    await renderAt('#/history', { configs: cfg, repos, localDay: () => today });
+    const grades = [...document.querySelectorAll('[data-testid="history-grade"]')].map((g) => g.textContent);
+    expect(grades).toContain('B84');
+    expect(grades).toContain(copy('history.notGraded'));
+    expect(document.querySelector('[data-testid="history-row"]')?.textContent).not.toContain('–');
+  });
+
+  it('counts the day with the one definition of a try: the same count as the Practice header and streak line', async () => {
+    const repos = await seedDay();
+    await renderAt('#/history', { configs: cfg, repos, localDay: () => today });
+    await flush();
+    const records = await repos.attempts.all();
+    // compose/tries.ts is what app-services counts `today.tries` with (Practice header and streak line).
+    const { triesOnDay } = await import('../../compose/tries.ts');
+    const n = triesOnDay(records, today, localDayOf);
+    expect(n).toBe(3);
+    const headings = [...document.querySelectorAll('[data-testid="history-day-heading"]')].map((h) => h.textContent);
+    expect(headings[0]).toBe(copy('history.day', { day: copy('history.day.today'), n }));
+    expect(headings[1]).toBe(copy('history.day', { day: copy('history.day.yesterday'), n: 1 }));
+  });
+
+  it('"This piece" from results: the chip, the line, the rows at the piece and "3 tries, 2 at this piece"', async () => {
+    const repos = await seedDay();
+    window.location.hash = '#/history?piece=ex-1';
+    const src = await renderAt('#/history?piece=ex-1', { configs: cfg, repos, localDay: () => today });
+    await flush();
+    expect(document.querySelectorAll('[data-testid="history-row"]')).toHaveLength(2);
+    expect(document.querySelector('[data-testid="history-piece-chip"]')?.textContent).toContain(copy('history.filter.piece'));
+    expect(document.querySelector('[data-testid="history-piece-line"]')?.textContent).toContain(copy('history.filter.pieceLine', { n: 2, total: 4, title: 'Work 1' }));
+    expect(document.querySelector('[data-testid="history-day-heading"]')?.textContent).toBe(copy('history.day.piece', { day: copy('history.day.today'), n: 3, m: 2 }));
+    click(q('[data-testid="history-piece-chip"]'));
+    await flush();
+    expect(src.navigated).toContain('/history');
+    expect(document.querySelectorAll('[data-testid="history-row"]')).toHaveLength(5);
+  });
+});
+
+describe('round 2: try detail', () => {
+  const idle = (): SoundView => ({ playing: null, caption: null, bar: null, fromBar: null, slower: false, attemptId: null, failed: false, startsAt: null, endsAt: null });
+  const prepared = { meter: { beats: 4, beatType: 4 }, measures: [{ displayBar: 1 }, { displayBar: 2 }, { displayBar: 3 }] };
+
+  async function three() {
+    const repos = memoryRepos();
+    for (let i = 0; i < 3; i++) await repos.attempts.add(makeAttempt(i, { createdAt: `2026-02-02T09:0${i}:00.000Z`, excerptId: 'ex-1', score: makeScore(80 + i, false), endReason: 'complete' }));
+    await repos.attempts.add(makeAttempt(3, { createdAt: '2026-02-02T09:04:00.000Z', excerptId: 'ex-1', score: null, endReason: 'void', voidReason: 'stopped-before-first-note' }));
+    await repos.attempts.add(makeAttempt(4, { createdAt: '2026-02-02T09:05:00.000Z', excerptId: 'ex-9', score: makeScore(90, false), endReason: 'complete' }));
+    return repos;
+  }
+
+  async function open(id: string, extra: Partial<AttemptServices> = {}) {
+    const repos = await three();
+    const sounds = createStore<SoundView>()(() => idle());
+    const heard: string[] = [];
+    const services: AttemptServices = {
+      configs: cfg,
+      repos,
+      localDay: () => '2026-02-02',
+      sounds,
+      preparedFor: async () => prepared as never,
+      listen: async () => undefined,
+      playHeard: async (aid) => {
+        heard.push(aid);
+      },
+      stopSounds: () => undefined,
+      renderReview: (_r, e) => (
+        <div data-testid="fake-review">
+          {e.toolbarEnd}
+          <div data-testid="fake-caption-line">{e.caption}</div>
+        </div>
+      ),
+      ...extra,
+    };
+    const src = await renderAt(`#/history/${id}`, services);
+    await flush();
+    return { repos, sounds, heard, src };
+  }
+  const idOf = (i: number) => makeAttempt(i).id;
+
+  it('reads "Try 2 of 3 at this piece" (a try stopped before bar 1 is not one) and steps to the neighbours', async () => {
+    const t = await open(idOf(1));
+    expect(document.querySelector('[data-testid="try-of"]')?.textContent).toBe(copy('history.tryOf', { n: 2, total: 3 }));
+    click(q('[data-testid="previous-try"]'));
+    click(q('[data-testid="next-try"]'));
+    expect(t.src.navigated).toEqual([`/history/${idOf(0)}`, `/history/${idOf(2)}`]);
+  });
+
+  it('the first try has no previous; a lone try shows no stepper', async () => {
+    await open(idOf(0));
+    expect(q('[data-testid="previous-try"]').getAttribute('aria-disabled')).toBe('true');
+    m?.unmount();
+    m = null;
+    await open(idOf(4));
+    expect(document.querySelector('[data-testid="try-nav"]')).toBeNull();
+  });
+
+  it('"Hear what we heard" plays the try, reads Stop while it plays, and captions "What we heard, bar n of m" on the reserved line', async () => {
+    const t = await open(idOf(1));
+    const hear = q<HTMLButtonElement>('[data-testid="hear-button"]');
+    expect(hear.textContent).toBe(copy('action.hearWhatWeHeard'));
+    // The unseen face holds the width of "Stop", so swapping labels moves nothing.
+    expect(hear.querySelector('.hist-steady-alt')?.getAttribute('data-alt')).toBe(copy('action.stop'));
+    click(hear);
+    expect(t.heard).toEqual([idOf(1)]);
+    act(() => t.sounds.setState({ playing: 'heard', attemptId: idOf(1), bar: 3, caption: { kind: 'heard-bar', bar: 3, of: 8 } }));
+    expect(q('[data-testid="hear-button"]').textContent).toBe(copy('action.stop'));
+    expect(q('[data-testid="hear-button"]').getAttribute('data-playing')).toBe('true');
+    expect(q('[data-testid="listen-button"]').textContent).toBe(copy('action.listen'));
+    const line = q('[data-testid="fake-caption-line"]');
+    expect(line.textContent).toContain(copy('heard.caption', { n: 3, total: 8 }));
+    expect(line.textContent).toContain(copy('heard.caption.note'));
+  });
+
+  it('says "We didn\'t hear any notes" when there is nothing to play', async () => {
+    await open(idOf(1), {
+      playHeard: () => Promise.reject(new Error('no-notes')),
+    });
+    click(q('[data-testid="hear-button"]'));
+    await flush();
+    expect(q('[data-testid="fake-caption-line"]').textContent).toContain(copy('heard.none'));
+  });
+
+  it('ends "How it went" with the sure line and the diagnostics button', async () => {
+    const diagnostics = {
+      supportAddress: null,
+      soundOptInShown: true,
+      exportTry: async () => null,
+      exportLast: async () => null,
+      exportRecent: async () => null,
+      settings: async () => ({ includeAudio: false }),
+      setSettings: async () => undefined,
+    };
+    await open(idOf(1), { diagnostics });
+    expect(document.querySelector('[data-testid="attempt-sure"]')).not.toBeNull();
+    expect(document.querySelector('[data-testid="attempt-diagnostics"]')?.textContent).toContain(copy('diagnostics.prompt'));
   });
 });

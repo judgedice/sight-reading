@@ -23,6 +23,8 @@ import {
 
 /** Width of the system-number gutter while page turns are active (12 px caption, 04 §4.3 rule 5). */
 export const GUTTER_PX = 24;
+/** The first note's ring pulse at the downbeat, ms (04-design §5, M1: about 300 ms; the slow motion token). */
+export const FIRST_NOTE_PULSE_MS = tokens.motion.dur.slow;
 
 /** 'slots': the take's fixed slots with page turns. 'all': every system in reading order (scan and review on phones). */
 export type Arrangement = 'slots' | 'all';
@@ -363,7 +365,7 @@ export class ScoreFrameController implements Omit<ScoreView<HTMLElement>, 'rende
     this.unfreeze();
     this.host.replaceChildren();
     this.host.classList.remove('sf-frame');
-    for (const a of ['data-arrangement', 'data-turns', 'data-row', 'data-purpose', 'data-band', 'data-clean']) this.host.removeAttribute(a);
+    for (const a of ['data-arrangement', 'data-turns', 'data-row', 'data-purpose', 'data-band', 'data-clean', 'data-dim']) this.host.removeAttribute(a);
     this.bandEl = null;
     this.laid = null;
   }
@@ -392,8 +394,48 @@ export class ScoreFrameController implements Omit<ScoreView<HTMLElement>, 'rende
   }
 
   /**
+   * The downbeat (01-ux §11): the first note's brass ring pulses once and fades, then goes. Clears any first-note
+   * highlight first. The ring is not part of the redrawn decor, so a turn or a scale never brings it back.
+   */
+  pulseFirstNote(ms: number = FIRST_NOTE_PULSE_MS): void {
+    this.highlightFirstNote(null);
+    for (const e of Array.from(this.score.querySelectorAll('.sf-hl-pulse'))) e.remove();
+    const l = this.laid;
+    if (!l) return;
+    const first = l.excerpt.measures.flatMap((m) => m.events).find((e) => e.kind === 'note');
+    const box = first ? l.info.layout.noteBoxes.get(first.id) : undefined;
+    const sys = box ? l.info.layout.systems.find((s) => s.index === box.system) : undefined;
+    const u = box ? this.underlay(box.system) : null;
+    if (!box || !sys || !u) return;
+    const sp = sys.lineSpacing;
+    const n = (v: number): string => String(Math.round(v * 100) / 100);
+    const ring = this.svgEl('circle', {
+      class: 'sf-hl-pulse',
+      cx: n(box.x + box.w / 2),
+      cy: n(box.y + box.h / 2),
+      r: n(1.6 * sp),
+      fill: 'var(--brass-wash)',
+      stroke: 'var(--brass)',
+      'stroke-width': n(0.14 * sp),
+      'pointer-events': 'none',
+    });
+    u.appendChild(ring);
+    const win = this.host.ownerDocument.defaultView;
+    win?.setTimeout(() => ring.remove(), ms);
+  }
+
+  /**
+   * The starting pitch (01-ux §10): the score steps back (first system 55%, later systems 30%) while the card speaks.
+   * Off from the first click: the count-in and the try are at full ink.
+   */
+  dim(on: boolean): void {
+    this.host.toggleAttribute('data-dim', on);
+  }
+
+  /**
    * The count-in band (06 section 6.12): `slot` is the element to render the band into, placed in the paper's top
-   * margin above the first system, never over its ink. While it is shown, systems after the first render at 50%.
+   * margin above the first system, never over its ink. Every system stays at full ink (round 2: dimming is the
+   * starting pitch's only, see `dim`).
    * Returns the slot, or null when nothing is laid out.
    */
   showBand(on: boolean): HTMLElement | null {
@@ -577,20 +619,23 @@ export class ScoreFrameController implements Omit<ScoreView<HTMLElement>, 'rende
         const cx = box.x + box.w / 2;
         const cy = box.y + box.h / 2;
         const r = 1.6 * sp;
-        u.appendChild(this.svgEl('circle', { class: 'sf-hl sf-hl-disc', cx: n(cx), cy: n(cy), r: n(r), fill: 'var(--brass-wash)', stroke: 'none', 'pointer-events': 'none' }));
+        u.appendChild(this.svgEl('circle', { class: 'sf-hl sf-hl-disc', cx: n(cx), cy: n(cy), r: n(r), fill: 'var(--brass-wash)', stroke: 'var(--brass)', 'stroke-width': n(0.14 * sp), 'pointer-events': 'none' }));
         const stemUp = cy > sys.staffTopY + 2 * sp;
         const bottom = Math.min(cy - r - 0.3 * sp, stemUp ? cy - 3.8 * sp : Infinity);
-        const t = this.svgEl('text', {
-          class: 'sf-hl sf-hl-name',
-          x: n(cx),
-          y: n(bottom),
-          'text-anchor': 'middle',
-          fill: 'var(--brass-ink)',
-          stroke: 'none',
-        });
-        t.textContent = this.decor.firstNote;
-        // Above the ink, so it reads over a stem; the underlay would sit behind it.
-        this.systemSvg(box.system)?.appendChild(t);
+        // An empty name keeps the ring alone (the beat before the count-in: "the ring stays so the note is easy to find").
+        if (this.decor.firstNote !== '') {
+          const t = this.svgEl('text', {
+            class: 'sf-hl sf-hl-name',
+            x: n(cx),
+            y: n(bottom),
+            'text-anchor': 'middle',
+            fill: 'var(--brass-ink)',
+            stroke: 'none',
+          });
+          t.textContent = this.decor.firstNote;
+          // Above the ink, so it reads over a stem; the underlay would sit behind it.
+          this.systemSvg(box.system)?.appendChild(t);
+        }
         for (const g of Array.from(this.score.querySelectorAll<SVGElement>(`[data-event-id="${first.id}"]`))) {
           g.style.color = 'var(--brass-ink)';
           this.recoloured.push(g);
@@ -623,17 +668,9 @@ export class ScoreFrameController implements Omit<ScoreView<HTMLElement>, 'rende
     const stageTop = this.stage.offsetTop + (slot0?.offsetTop ?? 0) * this.currentScale;
     const y = stageTop + inkTop * this.currentScale - tokens.component['count-band-gap'];
     band.style.setProperty('--sf-band-bottom', `${Math.round(y * 100) / 100}px`);
-    band.style.setProperty('--sf-count-compact', `${tokens.type.count.phoneSize}px`);
     band.removeAttribute('data-compact');
-    if (band.offsetHeight > 0 && band.offsetHeight > y) {
-      band.setAttribute('data-compact', 'true');
-      // Still taller than the room (a phone with every system on the page): the number shrinks to fit; the score
-      // never moves for it.
-      if (band.offsetHeight > y) {
-        const size = Math.max(tokens.type.h1.size, Math.floor(y / tokens.component['count-line-height']));
-        band.style.setProperty('--sf-count-compact', `${Math.min(tokens.type.count.phoneSize, size)}px`);
-      }
-    }
+    // Taller than the room above the first system: the band's compact size (smaller cells); the score never moves.
+    if (band.offsetHeight > 0 && band.offsetHeight > y) band.setAttribute('data-compact', 'true');
   }
 
   // ---- internals ----

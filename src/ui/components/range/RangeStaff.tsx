@@ -93,6 +93,8 @@ function Ledgers({ n, x }: { n: StaffNoteView; x: number }) {
 }
 
 export interface RangeStaffProps {
+  /** Slot (0 to 3) of the note that sounds now: its head turns brass with a soft halo. */
+  lit?: number | null;
   staff: StaffView;
   /** Hide the served notes and band (served data not loaded yet, 05 section 8.2). */
   showServed?: boolean;
@@ -104,7 +106,7 @@ export interface RangeStaffProps {
  * range model says so. Decorative: the note buttons and the legend carry the meaning. Served notes move by a CSS
  * transform, so a difficulty change animates over `--dur-base` and jumps under reduced motion.
  */
-export function RangeStaff({ staff, showServed = true }: RangeStaffProps) {
+export function RangeStaff({ staff, showServed = true, lit = null }: RangeStaffProps) {
   const g = staffGeometry(staff);
   const yOf = (position: number): number => g.mid - (position * S) / 2;
   const top = yOf(4);
@@ -151,7 +153,7 @@ export function RangeStaff({ staff, showServed = true }: RangeStaffProps) {
         return (
           <g
             key={slot}
-            className={served ? 'rp-note rp-note-served' : 'rp-note rp-note-full'}
+            className={[served ? 'rp-note rp-note-served' : 'rp-note rp-note-full', lit === slot ? 'rp-note-lit' : null].filter(Boolean).join(' ')}
             style={{ transform: `translateY(${y}px)` }}
             data-testid={`range-note-${slot}`}
             data-midi={n.midi}
@@ -167,6 +169,7 @@ export function RangeStaff({ staff, showServed = true }: RangeStaffProps) {
                 {changeGlyph.glyph}
               </text>
             ) : null}
+            {lit === slot ? <circle className="rp-halo" cx={x} cy={0} r={1.5 * S} data-testid="range-halo" /> : null}
             <Ledgers n={n} x={x} />
             <text className="rp-glyph" x={x - HEAD_HALF_WIDTH} y={0} fontSize={FONT_SIZE}>
               {GLYPH.wholeNote}

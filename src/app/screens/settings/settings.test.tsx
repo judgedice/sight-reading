@@ -5,7 +5,7 @@ import type { ReactElement } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { loadConfigs } from '../../../rules/index.ts';
 import { defaultAppSettings } from '../../../store/defaults.ts';
-import { makeAttempt, makeCalibration, makeProfile, MemoryKv, memoryRepos } from '../../../store/test-data.ts';
+import { makeAttempt, makeProfile, MemoryKv, memoryRepos } from '../../../store/test-data.ts';
 import type { AppSettings, Configs, PlayerProfile } from '../../../core/types.ts';
 import { copy } from '../../../ui/copy/copy.ts';
 import { act, click, mount, type Mounted } from '../../../ui/primitives/test-render.ts';
@@ -21,6 +21,13 @@ import { sizeParts, normalizeDisplayName, patchSection } from './model.ts';
 import { backupFileName } from './data-io.ts';
 import { settingsScreenOverrides } from './index.ts';
 import { PlaceholderScreen } from '../Placeholder.tsx';
+import type { CalStatus } from '../../compose/calibration-status.ts';
+import { calTexts } from '../../../ui/components/calibration-status/index.ts';
+import type { DiagnosticsExport } from '../states/services.ts';
+import type { DiagnosticsServices } from '../states/services.ts';
+
+const CAL_OK: CalStatus = { state: 'ok', output: 'speakers', oldOutput: null, when: 'today', ms: 80, reason: null };
+const NOT_CAL: CalStatus = { state: 'none', output: null, oldOutput: null, when: null, ms: null, reason: null };
 
 const read = (rel: string): unknown => JSON.parse(readFileSync(join(process.cwd(), rel), 'utf8')) as unknown;
 const cfg: Configs = loadConfigs({
@@ -96,6 +103,7 @@ function harness(over: Partial<SettingsServices> = {}, withProfile = true): Harn
     onDataReplaced: () => {
       reloaded.push(1);
     },
+    calibrationStatus: writable<CalStatus>(NOT_CAL),
     ...over,
   };
   const src = Object.assign(
@@ -204,14 +212,12 @@ describe('SettingsScreen', () => {
     expect(q<HTMLInputElement>('#set-name').disabled).toBe(true);
   });
 
-  it('shows the latest calibration on the sound card and offers Recalibrate', async () => {
-    const h = harness();
-    await h.repos.calibrations.put({ ...makeCalibration('route-a'), measuredAt: '2026-01-01T00:00:00.000Z', method: 'loopback' });
-    await h.repos.calibrations.put({ ...makeCalibration('route-b'), measuredAt: '2026-03-05T00:00:00.000Z', method: 'play-along' });
+  it('shows the shared calibration status on the sound card and offers Recalibrate when it is OK', async () => {
+    const h = harness({ calibrationStatus: writable<CalStatus>(CAL_OK) });
     await render(h);
-    expect(document.body.textContent).toContain(text('settings.audio.calibratedOn', { when: '5 Mar 2026', output: copy('output.speakers'), ms: 80 }));
-    const calibrate = [...document.querySelectorAll('button')].find((b) => b.textContent === copy('action.recalibrate'));
-    click(calibrate!);
+    expect(q('[data-testid="cal-status"]').getAttribute('data-state')).toBe('ok');
+    const recalibrate = [...document.querySelectorAll('button')].find((b) => b.textContent === copy('action.recalibrate'));
+    click(recalibrate!);
     expect(h.src.navigated).toContain('/calibrate');
   });
 
@@ -425,9 +431,26 @@ describe('Settings > Sound', () => {
     const h = harness();
     await render(h);
     expect(document.body.textContent).toContain(copy('settings.audio.a4.hint'));
-    expect(document.body.textContent).toContain(text('settings.audio.notCalibrated'));
-    click([...document.querySelectorAll('button')].find((b) => b.textContent === copy('action.calibrate'))!);
+    expect(q('[data-testid="cal-status"]').getAttribute('data-state')).toBe('none');
+    click([...document.querySelectorAll('button')].find((b) => b.textContent === calTexts(NOT_CAL).action)!);
     expect(h.src.navigated).toContain('/calibrate');
+  });
+
+  it('shows the changed-output status with the caution tone, and no Recalibrate button until it is OK', async () => {
+    const h = harness({ calibrationStatus: writable<CalStatus>({ ...CAL_OK, state: 'changed', output: 'bluetooth', oldOutput: 'speakers' }) });
+    await render(h);
+    expect(q('[data-testid="cal-status"]').getAttribute('data-state')).toBe('changed');
+    // The only button with that label is the pill's own link, not the separate Recalibrate action (shown when OK).
+    const matches = [...document.querySelectorAll('button')].filter((b) => b.textContent === copy('action.recalibrate'));
+    expect(matches.every((b) => b.classList.contains('cs-link'))).toBe(true);
+  });
+
+  it('leaves the calibration row out when the root does not provide the shared status', async () => {
+    const h = harness();
+    delete (h.services as { calibrationStatus?: unknown }).calibrationStatus;
+    await render(h);
+    expect(document.querySelector('[data-testid="cal-status"]')).toBeNull();
+    expect(document.body.textContent).toContain(copy('settings.section.audio'));
   });
 
   it('keeps the Technical details disclosure closed, holding the build facts', async () => {
@@ -466,5 +489,112 @@ describe('settingsScreenOverrides', () => {
     const screens = table.filter((r) => r.id === 'settings').map((r) => r.Screen);
     expect(screens).toHaveLength(2);
     expect(screens.every((S) => S !== PlaceholderScreen)).toBe(true);
+  });
+});
+
+describe('Settings round 2 additions', () => {
+  const voiceId = Object.values(cfg.instrumentById).find((i) => i.family === 'voice')!.id;
+  const flatId = Object.values(cfg.instrumentById).find((i) => i.family !== 'voice')!.id;
+  const switchFor = (name: string): HTMLInputElement | undefined =>
+    [...document.querySelectorAll<HTMLInputElement>('[role="switch"]')].find((el) => label(el.closest('label')).includes(name));
+
+  function withInstrument(h: Harness, instrumentId: string): void {
+    const base = defaultAppSettings();
+    h.settings.set({ ...base, practice: { ...base.practice, instrumentId } });
+  }
+
+  function diagnosticsFake(over: Partial<DiagnosticsServices> = {}): DiagnosticsServices {
+    return {
+      supportAddress: null,
+      soundOptInShown: true,
+      exportTry: vi.fn(async () => null),
+      exportLast: vi.fn(async () => null),
+      exportRecent: vi.fn(async (): Promise<DiagnosticsExport | null> => ({
+        fileName: 'sightread-tries-2026-11-18-1440.json',
+        text: '{"tries":[]}',
+        file: { tries: [] } as never,
+      })),
+      settings: vi.fn(async () => ({ includeAudio: false }) as never),
+      setSettings: vi.fn(async () => undefined),
+      download: vi.fn(),
+      ...over,
+    } as DiagnosticsServices;
+  }
+
+  it('shows the starting-pitch switch only for a voice, and stores the choice', async () => {
+    const h = harness();
+    withInstrument(h, flatId);
+    await render(h);
+    expect(switchFor(copy('settings.practice.autoReference'))).toBeUndefined();
+    m?.unmount();
+    m = null;
+
+    const v = harness();
+    withInstrument(v, voiceId);
+    await render(v);
+    const sw = switchFor(copy('settings.practice.autoReference'));
+    expect(sw?.checked).toBe(true);
+    click(sw!);
+    expect(v.settings.value().practice.autoReference).toBe(false);
+  });
+
+  it('chooses how played notes show live and stores it', async () => {
+    const h = harness();
+    await render(h);
+    expect(q<HTMLInputElement>('input[type="radio"][value="from4"]').checked).toBe(true);
+    click(q<HTMLInputElement>('input[type="radio"][value="always"]'));
+    expect(h.settings.value().display.ghostsLive).toBe('always');
+  });
+
+  it('toggles what the app hears, off by default, and stores it', async () => {
+    const h = harness();
+    await render(h);
+    const sw = switchFor(copy('settings.display.showHeard'));
+    expect(sw?.checked).toBe(false);
+    click(sw!);
+    expect(h.settings.value().display.showHeard).toBe(true);
+  });
+
+  it('shows no diagnostics card when the root does not provide the services', async () => {
+    const h = harness();
+    await render(h);
+    expect([...document.querySelectorAll('button')].some((b) => b.textContent === copy('action.exportDiagnostics'))).toBe(false);
+  });
+
+  it('exports every stored trace in the one file the service names', async () => {
+    const diagnostics = diagnosticsFake();
+    const h = harness({ diagnostics });
+    await render(h);
+    click([...document.querySelectorAll('button')].find((b) => b.textContent === copy('action.exportDiagnostics'))!);
+    await flush();
+    expect(diagnostics.exportRecent).toHaveBeenCalledOnce();
+    expect(diagnostics.download).toHaveBeenCalledWith('sightread-tries-2026-11-18-1440.json', '{"tries":[]}');
+  });
+
+  it('saves nothing when no try is stored yet', async () => {
+    const diagnostics = diagnosticsFake({ exportRecent: vi.fn(async () => null) });
+    const h = harness({ diagnostics });
+    await render(h);
+    click([...document.querySelectorAll('button')].find((b) => b.textContent === copy('action.exportDiagnostics'))!);
+    await flush();
+    expect(diagnostics.download).not.toHaveBeenCalled();
+  });
+
+  it('shows the microphone-audio opt-in when the build shows it, reads it and stores a change', async () => {
+    const diagnostics = diagnosticsFake({ settings: vi.fn(async () => ({ includeAudio: true }) as never) });
+    const h = harness({ diagnostics });
+    await render(h);
+    const sw = switchFor(copy('diagnostics.keepSound'));
+    expect(sw?.checked).toBe(true);
+    click(sw!);
+    await flush();
+    expect(diagnostics.setSettings).toHaveBeenCalledWith({ includeAudio: false });
+  });
+
+  it('hides the microphone-audio opt-in when the build does not show it', async () => {
+    const h = harness({ diagnostics: diagnosticsFake({ soundOptInShown: false }) });
+    await render(h);
+    expect(document.body.textContent).not.toContain(copy('diagnostics.keepSound'));
+    expect(document.body.textContent).toContain(copy('settings.data.exportDiagnostics'));
   });
 });

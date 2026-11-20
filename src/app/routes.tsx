@@ -36,6 +36,8 @@ const specs: readonly Spec[] = [
     devOnly: false,
     validate: (p) => (SETTINGS_SECTIONS as readonly string[]).includes(p['section'] ?? ''),
   },
+  // Match a note (01-ux §3.2): focused chrome, as the practice loop: no app bar and no tabs; the screen's own bar has back, title and dots.
+  { id: 'match', pattern: '/match', titleKey: 'match.title', tab: 'practice', chrome: 'loop', devOnly: false },
   { id: 'calibrate', pattern: '/calibrate', titleKey: 'action.calibrate', tab: null, chrome: 'full', devOnly: false },
   { id: 'credits', pattern: '/credits', titleKey: 'common.credits', tab: null, chrome: 'full', devOnly: false },
   { id: 'dev.components', pattern: '/dev/components', titleKey: null, tab: null, chrome: 'full', devOnly: true },

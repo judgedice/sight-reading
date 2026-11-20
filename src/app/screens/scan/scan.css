@@ -217,7 +217,7 @@
   inline-size: 100%;
   max-inline-size: 90rem;
   margin: 0 auto;
-  padding: var(--space-5) calc(var(--space-6) + var(--space-2)) var(--space-7);
+  padding: var(--space-5) calc(var(--space-6) + var(--space-2)) var(--space-5);
 }
 
 .scan-main {
@@ -287,23 +287,11 @@
 
 .scan-stars-card {
   box-sizing: border-box;
-  margin-block-start: var(--space-4);
-  padding: var(--space-5) var(--space-5) var(--space-2);
+  padding: var(--space-4) var(--space-5) var(--space-2);
   border: 0.0625rem solid var(--border);
   border-radius: var(--radius-l);
   background: var(--surface);
   box-shadow: var(--e1);
-}
-
-.scan-stars-card:empty {
-  display: none;
-}
-
-.scan-stars-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-3);
 }
 
 .scan-stars-title {
@@ -314,18 +302,7 @@
   font-weight: var(--type-label-weight);
 }
 
-.scan-stars-eyebrow {
-  margin-inline-start: auto;
-  color: var(--text-muted);
-  font-family: var(--type-eyebrow-family);
-  font-size: var(--type-eyebrow-size);
-  line-height: var(--type-eyebrow-line);
-  font-weight: var(--type-eyebrow-weight);
-  letter-spacing: var(--type-eyebrow-tracking);
-  text-transform: var(--type-eyebrow-transform);
-}
-
-.scan-stars-optional {
+.scan-stars-lead {
   margin: 0 0 var(--space-2);
   color: var(--text-muted);
   font-size: var(--type-caption-size);
@@ -340,19 +317,110 @@
   list-style: none;
 }
 
-.scan-stars-list > li + li {
+.scan-stars-list > li {
   border-block-start: 0.0625rem solid var(--border);
 }
 
+/* One line per row on a wide card: label, this piece's fact, then the advice. */
+.scan-stars-list .dom-check {
+  min-block-size: 0;
+  border-radius: 0;
+  border-inline-start: 0;
+}
+
+.scan-stars-list .dom-check-row {
+  min-block-size: 0;
+  padding: var(--space-2) 0;
+}
+
+@media (min-width: 64rem) {
+  .scan-stars-list .dom-check-row {
+    padding: var(--space-1) 0;
+  }
+}
+
+.scan-stars-list .dom-check-text {
+  display: grid;
+  grid-template-columns: 7.5rem minmax(0, 1fr);
+  column-gap: var(--space-4);
+  align-items: baseline;
+  inline-size: 100%;
+}
+
 .scan-stars-list .dom-check-title {
+  color: var(--text-muted);
+  font-size: var(--type-small-size);
+  line-height: var(--type-small-line);
+  font-weight: 500;
+}
+
+.scan-stars-list .dom-check-detail {
+  color: var(--text);
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
   font-weight: 600;
 }
 
-.scan-stars-letter {
-  margin-inline-end: var(--space-1);
+.scan-stars-list .dom-check-advice {
+  grid-column: 2;
   color: var(--text-muted);
-  font-family: var(--font-display);
+  font-size: var(--type-small-size);
+  line-height: var(--type-small-line);
+}
+
+@media (min-width: 64rem) {
+  .scan-stars-list .dom-check-text {
+    grid-template-columns: 7.5rem minmax(0, 0.9fr) minmax(0, 1.3fr);
+  }
+
+  .scan-stars-list .dom-check-advice {
+    grid-column: 3;
+  }
+}
+
+/* The calibration line sits under Start playing (desktop) and under the meta line (phones). */
+.scan-cal {
+  margin-block-start: var(--space-2);
+}
+
+.scan-cal .cs-link {
+  margin: 0;
+}
+
+.scan-cal[data-state='none'] .cs-link::before,
+.scan-cal[data-state='failed'] .cs-link::before {
+  content: '·';
+  display: inline-block;
+  margin-inline-end: var(--space-2);
+  text-decoration: none;
+}
+
+.scan-cal-phone {
+  display: flex;
+  justify-content: center;
+  margin-block-start: calc(-1 * var(--space-2));
+}
+
+.scan-cal-phone .scan-cal {
+  margin: 0;
+}
+
+.scan-menu-cal {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  text-align: start;
+}
+
+.scan-menu-cal-lead {
   font-weight: 600;
+}
+
+.scan-menu-cal-note {
+  color: var(--text-muted);
+  font-size: var(--type-small-size);
+  line-height: var(--type-small-line);
 }
 
 .scan-highlight {
@@ -423,10 +491,6 @@
   border-block-start: 0.0625rem solid var(--border);
   background: var(--surface);
   box-shadow: var(--e2);
-}
-
-.scan-dock-inner .sd-coach {
-  margin-block-start: 0;
 }
 
 .scan-dock-inner .scan-start {
@@ -509,7 +573,7 @@
   }
 }
 
-/* The caption line takes room only while something sounds (the coach mark sits right under Start playing). */
+/* The caption line takes room only while something sounds. */
 .scan .sd-live-cap:not([data-active]):not([data-failed]) {
   display: none;
 }

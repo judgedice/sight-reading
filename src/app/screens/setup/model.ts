@@ -66,15 +66,30 @@ export function allowedKeys(def: LevelDef): KeySig[] {
   return out;
 }
 
-/** The first level above `level` that allows more keys, for the "More keys from level n" footnote. */
+/** The first level above `level` that allows more keys (minor keys or more sharps and flats), or null. */
 export function moreKeysFromLevel(cfg: Configs, level: number): number | null {
+  return nextKeyChange(cfg, level)?.level ?? null;
+}
+
+/** What the next difficulty that changes the keys adds (round 2, 01-ux section 7), from `writtenKeys`. */
+export type KeyChange = { level: number; adds: 'minor' } | { level: number; adds: 'more'; max: number };
+
+export function nextKeyChange(cfg: Configs, level: number): KeyChange | null {
   const cur = levelDef(cfg, level).writtenKeys;
   for (let l = level + 1; l <= 10; l++) {
     const k = levelDef(cfg, l).writtenKeys;
-    if (k.maxAccidentals > cur.maxAccidentals || k.modes.length > cur.modes.length) return l;
+    if (k.modes.includes('minor') && !cur.modes.includes('minor')) return { level: l, adds: 'minor' };
+    if (k.maxAccidentals > cur.maxAccidentals) return { level: l, adds: 'more', max: k.maxAccidentals };
   }
   return null;
 }
+
+/** Above this many written keys the Key row is one button that opens the keys in a popover (04-design section 1). */
+export const KEY_CHIPS_MAX = 8;
+/** Above this many meters the Time signature row shows Any, the most used and "More" (04-design section 1). */
+export const METER_SEGMENTS_MAX = 7;
+/** How many meters stay in the row beside Any when the rest go behind "More". */
+export const METER_SEGMENTS_TOP = 5;
 
 export interface MeterChoice {
   meter: string;
@@ -265,7 +280,12 @@ export interface DifficultyRow {
   skippedNote: SetupText | null;
   /** Fewer than `levelThinThreshold` excerpts at this difficulty. */
   few: boolean;
+  /** The full sentence ("Few pieces here: some may repeat."): the tag's tooltip and accessible name. */
   fewNote: SetupText | null;
+  /** The small caution tag at the end of the description ("Few pieces"). */
+  fewTag: SetupText | null;
+  /** Difficulty 1 only: "Simpler? Match a note first." beside the switch (round 2, 01-ux section 3.3). */
+  matchHint: SetupText | null;
   /** The level description from levels.json. */
   description: string;
   /** "At difficulty 2: C3 to C4". */
@@ -301,7 +321,14 @@ export interface KeyRow {
   groups: KeyGroup[];
   /** The next difficulty that adds keys, or null. */
   moreFrom: number | null;
-  moreNote: SetupText | null;
+  /** "Difficulty 1 uses major keys with up to 1 sharp or flat." (01-ux section 7). */
+  uses: SetupText;
+  /** "Minor keys start at difficulty 2.", or null when no later difficulty adds keys. */
+  next: SetupText | null;
+  /** Written keys at this difficulty, Any not counted. */
+  count: number;
+  /** More than `KEY_CHIPS_MAX` keys: "18 keys: major and minor, up to 4 sharps or flats." beside the Key button. */
+  many: SetupText | null;
 }
 
 export interface TimeOption {
@@ -309,9 +336,10 @@ export interface TimeOption {
   beats: number;
   unit: number;
   count: number;
-  /** Fewer than `levelThinThreshold` excerpts: shows "few pieces". */
+  /** Fewer than `levelThinThreshold` excerpts: a small dot with the tooltip "Few pieces". */
   few: boolean;
   selected: boolean;
+  /** The accessible name always names the meter: "3 4 time", or "3/4, few pieces" (01-ux 16.5). */
   a11y: SetupText;
 }
 
@@ -320,9 +348,15 @@ export interface TimeRow {
   options: TimeOption[];
   /** Meters the difficulty allows but the row leaves out, in levels.json order. */
   hidden: string[];
+  /** "No 2/4 at difficulty 1 yet.", on the row's line. */
   hiddenNote: SetupText | null;
   /** The selected meter has few pieces: "Few pieces here: some may repeat." */
   fewNote: SetupText | null;
+  /** The tooltip of a few-pieces dot. */
+  fewTip: SetupText;
+  /** More than `METER_SEGMENTS_MAX` meters: the most used stay in the row, the rest open from "More". */
+  top: TimeOption[];
+  more: TimeOption[];
 }
 
 export interface TempoRow {
@@ -347,8 +381,8 @@ export interface SetupModel {
   time: TimeRow;
   tempo: TempoRow;
   length: LengthRow;
-  /** "Choosing Any: +24% XP", or null when the sum is 0. */
-  xp: { percent: number; line: SetupText | null };
+  /** "Choosing Any: +24% XP", or null when the sum is 0; `none` "Choose Any for more XP." then. */
+  xp: { percent: number; line: SetupText | null; none: SetupText };
 }
 
 /** Key options of one mode, by number of accidentals, sharp side before flat side: C, G, F, D, B♭, A, E♭… */
@@ -379,6 +413,8 @@ function difficultyRow(p: PracticeSettings, ctx: SetupContext, inst: Instrument,
     skippedNote: skipped.length > 0 ? text('home.levelNoMusic', { instrument: name, levels: formatLevelList(skipped) }) : null,
     few,
     fewNote: few ? text('home.levelFewMusic') : null,
+    fewTag: few ? text('setup.difficulty.fewTag') : null,
+    matchHint: level === 1 && !follow ? text('setup.difficulty.matchHint') : null,
     description: def.description,
     servedLine: rangeModel(ctx.cfg, inst, level).servedLine,
     followValue: follow ? text('setup.difficulty.followValue', { level, max: 10 }) : null,
@@ -407,7 +443,10 @@ function keyRow(p: PracticeSettings, ctx: SetupContext, inst: Instrument, level:
       ),
     }))
     .filter((g) => g.keys.length > 0);
-  const moreFrom = moreKeysFromLevel(ctx.cfg, level);
+  const change = nextKeyChange(ctx.cfg, level);
+  const max = def.writtenKeys.maxAccidentals;
+  const minor = def.writtenKeys.modes.includes('minor');
+  const count = groups.reduce((n, g) => n + g.keys.length, 0);
   return {
     any: {
       selected: chosen === null,
@@ -416,12 +455,20 @@ function keyRow(p: PracticeSettings, ctx: SetupContext, inst: Instrument, level:
       xpTag: text('setup.xpTag', { percent: anyXpPercent(ctx.cfg) }),
     },
     groups,
-    moreFrom,
-    moreNote: moreFrom !== null ? text('home.keyFootnote', { n: moreFrom }) : null,
+    moreFrom: change?.level ?? null,
+    uses: text('setup.key.uses', { level, modes: copy(minor ? 'setup.key.modes.majorMinor' : 'setup.key.modes.major'), n: max }),
+    next:
+      change === null
+        ? null
+        : change.adds === 'minor'
+          ? text('setup.key.next.minor', { next: change.level })
+          : text('setup.key.next.more', { n: change.max, next: change.level }),
+    count,
+    many: count > KEY_CHIPS_MAX ? text('setup.key.many', { n: count, max }) : null,
   };
 }
 
-function timeRow(p: PracticeSettings, ctx: SetupContext, inst: Instrument, name: string, level: number): TimeRow {
+function timeRow(p: PracticeSettings, ctx: SetupContext, inst: Instrument, level: number): TimeRow {
   const choices = meterChoices(ctx, inst.id, level);
   const options = choices
     .filter((c) => !c.disabled)
@@ -434,17 +481,29 @@ function timeRow(p: PracticeSettings, ctx: SetupContext, inst: Instrument, name:
         count: c.count,
         few: c.count < THIN_LEVEL,
         selected: p.meter === c.meter,
-        a11y: text('setup.time.a11y', { beats, unit }),
+        a11y: c.count < THIN_LEVEL ? text('setup.time.a11yFew', { beats, unit }) : text('setup.time.a11y', { beats, unit }),
       };
     });
   const hidden = choices.filter((c) => c.disabled).map((c) => c.meter);
   const sel = options.find((o) => o.selected);
+  let top = options;
+  let more: TimeOption[] = [];
+  if (options.length > METER_SEGMENTS_MAX) {
+    // The most used meters stay, in the difficulty's order; ties keep that order.
+    const ranked = options.map((o, i) => ({ o, i })).sort((a, b) => b.o.count - a.o.count || a.i - b.i);
+    const keep = new Set(ranked.slice(0, METER_SEGMENTS_TOP).map((r) => r.o.meter));
+    top = options.filter((o) => keep.has(o.meter));
+    more = options.filter((o) => !keep.has(o.meter));
+  }
   return {
     any: { selected: p.meter === 'random', label: text('setup.time.any'), xpTag: text('setup.xpTag', { percent: anyXpPercent(ctx.cfg) }) },
     options,
     hidden,
-    hiddenNote: hidden.length > 0 ? text('setup.time.unavailable', { meters: formatMeterList(hidden), instrument: name, level }) : null,
+    hiddenNote: hidden.length > 0 ? text('setup.time.noneShort', { meter: formatMeterList(hidden), level }) : null,
     fewNote: sel?.few ? text('home.levelFewMusic') : null,
+    fewTip: text('setup.time.fewTip'),
+    top,
+    more,
   };
 }
 
@@ -476,7 +535,7 @@ export function setupModel(p: PracticeSettings, ctx: SetupContext): SetupModel {
     level,
     difficulty: difficultyRow(p, ctx, inst, name, level, def),
     key: keyRow(p, ctx, inst, level, def),
-    time: timeRow(p, ctx, inst, name, level),
+    time: timeRow(p, ctx, inst, level),
     tempo: {
       any: p.bpm === 'random',
       range,
@@ -486,7 +545,7 @@ export function setupModel(p: PracticeSettings, ctx: SetupContext): SetupModel {
       xpTag: text('setup.xpTag', { percent: anyXpPercent(ctx.cfg) }),
     },
     length: lengthRow(p, level, def),
-    xp: { percent, line: percent > 0 ? text('xp.randomHint', { percent }) : null },
+    xp: { percent, line: percent > 0 ? text('setup.xp.line', { percent }) : null, none: text('setup.xp.none') },
   };
 }
 

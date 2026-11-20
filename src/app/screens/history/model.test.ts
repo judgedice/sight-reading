@@ -6,13 +6,13 @@ import { attemptTitle, metaLine, metaParts, rowDetail, servedMeter, dayLabel, fi
 describe('filter query', () => {
   it('round-trips instrument and ranked through the URL query', () => {
     const f = parseFilter('#/history?instrument=trumpet-bb&ranked=1');
-    expect(f).toEqual({ instrumentId: 'trumpet-bb', rankedOnly: true });
+    expect(f).toEqual({ instrumentId: 'trumpet-bb', rankedOnly: true, excerptId: null });
     expect(filterQuery(f)).toBe('?instrument=trumpet-bb&ranked=1');
   });
 
   it('is empty when nothing is set and ignores unknown parameters', () => {
-    expect(parseFilter('#/history')).toEqual({ instrumentId: null, rankedOnly: false });
-    expect(parseFilter('#/history?ranked=0&x=1')).toEqual({ instrumentId: null, rankedOnly: false });
+    expect(parseFilter('#/history')).toEqual({ instrumentId: null, rankedOnly: false, excerptId: null });
+    expect(parseFilter('#/history?ranked=0&x=1')).toEqual({ instrumentId: null, rankedOnly: false, excerptId: null });
     expect(filterQuery({ instrumentId: null, rankedOnly: false })).toBe('');
   });
 

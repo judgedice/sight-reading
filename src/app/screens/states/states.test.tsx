@@ -171,14 +171,14 @@ describe('practise without listening (R13)', () => {
 });
 
 describe('full-screen errors (05 section 8.13)', () => {
-  const kinds = ['clock-rate', 'corpus', 'no-worklet'] as const;
+  const kinds = ['audio-start', 'mic-start', 'corpus', 'no-worklet'] as const;
 
   it.each(kinds)('%s: heading, cause, and both actions fire', (kind) => {
     const retry = vi.fn();
     const back = vi.fn();
     current = mount(<ErrorKindScreen kind={kind} onTryAgain={retry} onBackToPractice={back} />);
     expect(document.querySelector('h1')?.textContent).toBeTruthy();
-    expect(document.querySelectorAll('p')).toHaveLength(1);
+    expect(document.querySelector('.err-screen-body')?.textContent).toBeTruthy();
     expect(buttons()).toEqual(['Try again', 'Back to Practice']);
     click(buttonNamed('Try again'));
     expect(retry).toHaveBeenCalledOnce();
@@ -187,13 +187,31 @@ describe('full-screen errors (05 section 8.13)', () => {
     expect(back).toHaveBeenCalledOnce();
   });
 
-  it('clock rate is titled Audio timing problem and gives the cause', () => {
-    current = mount(<ErrorKindScreen kind="clock-rate" onTryAgain={() => undefined} onBackToPractice={() => undefined} />);
-    expect(document.querySelector('h1')?.textContent).toBe('Audio timing problem');
-    expect(document.querySelector('p')?.textContent).toBe(
-      "Your device's audio clock is running at the wrong speed, so timing can't be measured. Close other apps that play sound, then try again.",
-    );
-    expect(document.body.textContent).not.toMatch(/reload/i);
+  it('the sound screen gives its heading, cause and the kept line, and never mentions the clock rate', () => {
+    current = mount(<ErrorKindScreen kind="audio-start" onTryAgain={() => undefined} onBackToPractice={() => undefined} />);
+    expect(document.querySelector('h1')?.textContent).toBe("The sound didn't start");
+    expect(document.body.textContent).toContain('Your piece is kept. Try again starts it from the beginning.');
+    expect(document.body.textContent).not.toMatch(/wrong speed|clock/i);
+  });
+
+  it('the microphone screen has its heading and offers Save diagnostics when services are given', () => {
+    const services = {
+      supportAddress: null,
+      soundOptInShown: true,
+      exportTry: async () => null,
+      exportLast: async () => null,
+      settings: async () => ({ includeAudio: false }),
+      setSettings: async () => undefined,
+    };
+    current = mount(<ErrorKindScreen kind="mic-start" diagnostics={services} onTryAgain={() => undefined} onBackToPractice={() => undefined} />);
+    expect(document.querySelector('h1')?.textContent).toBe("The microphone didn't open");
+    expect(document.body.textContent).toContain('Keeps happening? Save what the app saw for the team.');
+    expect(buttons()).toContain('Save diagnostics');
+  });
+
+  it('corpus and no-worklet screens carry no kept line', () => {
+    current = mount(<ErrorKindScreen kind="corpus" onTryAgain={() => undefined} onBackToPractice={() => undefined} />);
+    expect(document.querySelector('[data-testid="error-kept"]')).toBeNull();
   });
 
   it('puts focus on the heading so the problem is announced', () => {

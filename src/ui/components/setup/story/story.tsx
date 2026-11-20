@@ -30,7 +30,7 @@ function Story() {
   const [mode, setMode] = useState<PracticeMode>('ranked');
   const [heard, setHeard] = useState<number | null>(null);
   const anyCount = (key === null ? 1 : 0) + (meter === 'random' ? 1 : 0) + (bpm === 'random' ? 1 : 0);
-  const xp = anyCount > 0 ? { key: 'xp.randomHint', vars: { percent: anyCount * 8 } } : null;
+  const xp = anyCount > 0 ? { key: 'setup.xp.line', vars: { percent: anyCount * 8 } } : null;
 
   return (
     <main className="story">
@@ -52,8 +52,8 @@ function Story() {
 
       <section className="story-card story-sheet" data-story="sheet">
         <DifficultyControl row={difficultyRow(false)} onChange={() => undefined} />
-        <KeyGrid row={keyRow(1, key, 3)} clef="bass" difficulty={2} onChange={(k) => setKey(keyValue(k))} />
-        <TimeSegments row={timeRow(meter)} onChange={(m) => setMeter(m as typeof meter)} />
+        <KeyGrid expanded row={keyRow(1, key, 3)} clef="bass" difficulty={2} onChange={(k) => setKey(keyValue(k))} />
+        <TimeSegments expanded row={timeRow(meter)} onChange={(m) => setMeter(m as typeof meter)} />
         <TempoRow row={tempoRow(bpm === 'random')} value={bpm} onChange={setBpm} onHearTempo={setHeard} />
         <LengthRow row={lengthOnly} onChange={() => undefined} />
       </section>
@@ -80,7 +80,10 @@ function Story() {
           />
         </section>
         <section className="story-card story-wide" data-story="key-clarinet">
-          <KeyGrid row={keyRow(3, '3:major', 6, -2)} clef="treble" difficulty={5} onChange={() => undefined} />
+          <KeyGrid expanded row={keyRow(3, '3:major', 6, -2)} clef="treble" difficulty={5} onChange={() => undefined} />
+        </section>
+        <section className="story-card story-wide" data-story="key-many">
+          <KeyGrid row={keyRow(3, '3:major', 6)} clef="treble" difficulty={5} onChange={() => undefined} />
         </section>
         <section className="story-card" data-story="extras">
           <DifficultyControl row={difficultyRow(true)} onChange={() => undefined} />

@@ -6,10 +6,14 @@ import { act, mount, type Mounted } from '../../../ui/primitives/test-render.ts'
 import { RouterProvider, type LocationSource } from '../../router.tsx';
 import { createRouteTable } from '../../routes.tsx';
 import { fakeServices, playAlongOk } from '../calibration/test-services.ts';
-import { initialOnboarding, onboardingReducer } from './flow.ts';
+import { initialOnboarding, onboardingReducer, STEP_COUNT } from './flow.ts';
 import { MIC_GRANTED_HOLD_MS, OnboardingScreen } from './OnboardingScreen.tsx';
 import { OnboardingServicesProvider, type MicOutcome, type OnboardingResult, type OnboardingServices } from './services.ts';
 import type { ScreenProps } from '../../route-types.ts';
+import type { MatchNoteService } from '../../../session/index.ts';
+import { appConfigs } from '../../compose/configs.ts';
+import { at, FakeEngine } from '../match/match-test-kit.ts';
+import type { MatchFrame } from '../../../session/index.ts';
 
 const instruments = (instrumentsJson as unknown as { instruments: Instrument[] }).instruments;
 
@@ -47,10 +51,11 @@ const press = async (name: string): Promise<void> => {
   });
 };
 
-function services(o: { mic?: MicOutcome; caps?: Parameters<typeof fakeServices>[0] } = {}) {
+function services(o: { mic?: MicOutcome; caps?: Parameters<typeof fakeServices>[0]; match?: boolean } = {}) {
   const cal = fakeServices({ output: 'wired', playAlong: [playAlongOk()], ...(o.caps ?? {}) });
   const finished: OnboardingResult[] = [];
   const requestMic = vi.fn(() => Promise.resolve(o.mic ?? { ok: true as const }));
+  const engine = new FakeEngine();
   const svc: OnboardingServices = {
     capabilities: cal.capabilities,
     instruments,
@@ -61,12 +66,13 @@ function services(o: { mic?: MicOutcome; caps?: Parameters<typeof fakeServices>[
     micBrowser: 'chrome',
     requestMic,
     calibration: cal,
+    ...(o.match === false ? {} : { match: { service: engine as unknown as MatchNoteService, cfg: appConfigs(), micAllowed: () => Promise.resolve(true), requestMic } }),
     finish: async (r) => {
       finished.push(r);
       return r.level.kind === 'placement' ? '/practice/scan?placement=1' : '/';
     },
   };
-  return { svc, cal, finished, requestMic };
+  return { svc, cal, finished, requestMic, engine };
 }
 
 function render(svc: OnboardingServices): void {
@@ -86,7 +92,7 @@ describe('flow', () => {
     s = onboardingReducer(s, { type: 'next' });
     expect(s.step).toBe(3);
     s = onboardingReducer(s, { type: 'mic-skip' });
-    expect(s.step).toBe(5);
+    expect(s.step).toBe(6);
     expect(s.mic).toBe('declined');
     s = onboardingReducer(s, { type: 'back' });
     expect(s.step).toBe(3);
@@ -97,8 +103,21 @@ describe('flow', () => {
     expect(s.step).toBe(4);
     s = onboardingReducer(s, { type: 'calibration-done', result: 'skipped' });
     expect(s.step).toBe(5);
+    s = onboardingReducer(s, { type: 'match-done' });
+    expect(s.step).toBe(6);
+    s = onboardingReducer(s, { type: 'back' });
+    expect(s.step).toBe(5);
     s = onboardingReducer(s, { type: 'back' });
     expect(s.step).toBe(4);
+  });
+  it('has 6 steps; without the match engine calibration goes straight to the difficulty', () => {
+    expect(STEP_COUNT).toBe(6);
+    let s = initialOnboarding({ match: false });
+    for (const e of [{ type: 'next' }, { type: 'next' }, { type: 'mic-granted' }, { type: 'mic-continue' }] as const) s = onboardingReducer(s, e);
+    expect(s.step).toBe(4);
+    expect(onboardingReducer(s, { type: 'calibration-done', result: 'skipped' }).step).toBe(6);
+    // match-done only acts on the note step.
+    expect(onboardingReducer(s, { type: 'match-done' }).step).toBe(4);
   });
   it('a mic problem keeps step 3; events from other steps are ignored', () => {
     let s = onboardingReducer(onboardingReducer(initialOnboarding(), { type: 'next' }), { type: 'next' });
@@ -123,24 +142,27 @@ describe('OnboardingScreen', () => {
     clicks = 0;
     const { svc, requestMic, finished } = services();
     render(svc);
-    expect(document.body.textContent).not.toContain('Step 1 of 5');
+    expect(document.body.textContent).not.toContain('Step 1 of 6');
     expect(document.body.textContent).toContain('Read it. Play it. See how it went.');
     expect(document.querySelector('input[type=text]')).toBeNull();
     expect(document.activeElement?.textContent).toBe('Get started');
     await press('Get started');
-    expect(document.body.textContent).toContain('Step 2 of 5');
+    expect(document.body.textContent).toContain('Step 2 of 6');
     expect(requestMic).not.toHaveBeenCalled();
     await press('Continue'); // flute is preselected
-    expect(document.body.textContent).toContain('Step 3 of 5');
+    expect(document.body.textContent).toContain('Step 3 of 6');
     expect(requestMic).not.toHaveBeenCalled();
     await press('Allow microphone');
     expect(requestMic).toHaveBeenCalledOnce();
     expect(document.body.textContent).toContain('Microphone is on.');
-    expect(document.body.textContent).toContain('Step 3 of 5');
+    expect(document.body.textContent).toContain('Step 3 of 6');
     await settle(MIC_GRANTED_HOLD_MS + 50);
-    expect(document.body.textContent).toContain('Step 4 of 5');
+    expect(document.body.textContent).toContain('Step 4 of 6');
     await press('Skip');
-    expect(document.body.textContent).toContain('Step 5 of 5');
+    expect(document.body.textContent).toContain('Step 5 of 6');
+    expect(document.body.textContent).toContain('Play one note');
+    await press('Skip');
+    expect(document.body.textContent).toContain('Step 6 of 6');
     await press('Find my difficulty (3 short pieces, about 3 minutes)');
     expect(clicks).toBeLessThanOrEqual(6);
     expect(finished).toHaveLength(1);
@@ -165,7 +187,7 @@ describe('OnboardingScreen', () => {
     expect(document.querySelector('[data-testid="picked-range"]')?.textContent).toContain('Clarinet');
     await press('Continue');
     await press('Not now');
-    expect(document.body.textContent).toContain('Step 5 of 5');
+    expect(document.body.textContent).toContain('Step 6 of 6');
     await press("I'll choose");
     expect(document.querySelector('[data-testid="ob-level"]')?.textContent).toContain('Level 2 description');
     await press('Start practising');
@@ -215,7 +237,7 @@ describe('OnboardingScreen', () => {
     await press('Try again');
     expect(requestMic).toHaveBeenCalledTimes(2);
     await press('Continue without the microphone');
-    expect(document.body.textContent).toContain('Step 5 of 5');
+    expect(document.body.textContent).toContain('Step 6 of 6');
   });
 
   it.each([
@@ -294,7 +316,7 @@ describe('OnboardingScreen', () => {
     await press('Continue');
     await press('Allow microphone');
     await settle(MIC_GRANTED_HOLD_MS + 50);
-    expect(document.body.textContent).toContain('Step 4 of 5');
+    expect(document.body.textContent).toContain('Step 4 of 6');
     expect(names()).not.toContain('Skip');
     expect(document.body.textContent).not.toContain('Without calibration');
     expect(names()).toContain('Start');
@@ -309,8 +331,117 @@ describe('OnboardingScreen', () => {
     await settle(MIC_GRANTED_HOLD_MS + 50);
     await press('Start');
     await press('Continue');
-    expect(document.body.textContent).toContain('Step 5 of 5');
+    expect(document.body.textContent).toContain('Step 5 of 6');
+    await press('Skip');
+    expect(document.body.textContent).toContain('Step 6 of 6');
     await press('Find my difficulty (3 short pieces, about 3 minutes)');
     expect(finished[0]?.calibration).toBe('calibrated');
+  });
+
+  describe('Sing one note / Play one note', () => {
+    /** Sends `ms` of frames on the engine's clock, 20 ms apart. Hits come from frames alone, so no timers run. */
+    const sing = async (engine: FakeEngine, ms: number, frame: (e: FakeEngine) => Omit<MatchFrame, 't' | 'levelDb'>): Promise<void> => {
+      await act(async () => {
+        for (let left = ms; left > 0; left -= 20) {
+          engine.clock += 20;
+          engine.emit(frame(engine));
+        }
+        await Promise.resolve();
+      });
+    };
+    const toMatchStep = async (svc: OnboardingServices): Promise<void> => {
+      render(svc);
+      await press('Get started');
+      await press('Continue');
+      await press('Allow microphone');
+      await settle(MIC_GRANTED_HOLD_MS + 50);
+      await press('Skip');
+      await settle(0);
+    };
+
+    it('comes after calibration as step 5 of 6, plays one note and listens, with Skip and no range chips', async () => {
+      const { svc, engine } = services();
+      svc.initial.instrumentId = 'voice-baritone';
+      await toMatchStep(svc);
+      expect(document.body.textContent).toContain('Step 5 of 6');
+      expect(document.querySelector('.ob-head-title')?.textContent).toBe('Sing one note');
+      expect(document.activeElement).toBe(document.querySelector('.ob-head-title'));
+      expect(document.body.textContent).toContain('A quick check that we hear you. Not graded.');
+      expect(engine.played).toHaveLength(1);
+      expect(engine.listening).toBe(true);
+      expect(names()).toContain('Skip');
+      expect(names()).toContain('Play it again');
+      expect(names()).not.toContain('Continue');
+      expect(document.querySelector('.mt-chip')).toBeNull();
+    });
+
+    it('after a hit it offers Continue and never moves on by itself', async () => {
+      const { svc, engine, finished } = services();
+      await toMatchStep(svc);
+      expect(document.querySelector('.ob-head-title')?.textContent).toBe('Play one note');
+      await sing(engine, 1000, at(4));
+      expect(document.querySelector('[data-testid="match-line"]')?.textContent).toBe("We heard you clearly. You're ready.");
+      expect(names()).toContain('Continue');
+      // Ten seconds later on the engine's clock, with the screen's ticks running: still the note step.
+      engine.clock += 10_000;
+      await settle(350);
+      expect(document.body.textContent).toContain('Step 5 of 6');
+      expect(engine.played).toHaveLength(1);
+      // Play it again keeps Continue.
+      await press('Play it again');
+      expect(engine.played).toHaveLength(2);
+      expect(names()).toContain('Continue');
+      await press('Continue');
+      expect(document.body.textContent).toContain('Step 6 of 6');
+      await press('Back');
+      expect(document.body.textContent).toContain('Step 5 of 6');
+      await press('Skip');
+      await press('Find my difficulty (3 short pieces, about 3 minutes)');
+      expect(finished[0]).toMatchObject({ instrumentId: 'flute', micAllowed: true });
+    });
+
+    it('a baritone whose notes sit above the range is offered the tenor, and choosing it restarts on the tenor', async () => {
+      const { svc, engine, finished } = services();
+      svc.initial.instrumentId = 'voice-baritone';
+      await toMatchStep(svc);
+      await sing(engine, 2500, (e) => ({ midi: e.target + 6, cents: 0, steady: true }));
+      const offer = document.querySelector('[data-testid="ob-other-voice"]');
+      expect(offer?.textContent).toContain('Your notes sat above the baritone range. Would tenor fit better?');
+      await press('Choose Tenor');
+      expect(document.querySelector('[data-testid="ob-other-voice"]')).toBeNull();
+      expect(engine.played).toHaveLength(2);
+      await press('Skip');
+      await press('Find my difficulty (3 short pieces, about 3 minutes)');
+      expect(finished[0]).toMatchObject({ instrumentId: 'voice-tenor' });
+    });
+
+    it('without the microphone the note step is left out', async () => {
+      const { svc } = services();
+      render(svc);
+      await press('Get started');
+      await press('Continue');
+      await press('Not now');
+      expect(document.body.textContent).toContain('Step 6 of 6');
+      expect(document.querySelector('[data-testid="ob-match"]')).toBeNull();
+    });
+
+    it('without the match engine calibration goes to the difficulty', async () => {
+      const { svc } = services({ match: false });
+      render(svc);
+      await press('Get started');
+      await press('Continue');
+      await press('Allow microphone');
+      await settle(MIC_GRANTED_HOLD_MS + 50);
+      await press('Skip');
+      expect(document.body.textContent).toContain('Step 6 of 6');
+    });
+
+    it('leaving the step stops the engine', async () => {
+      const { svc, engine } = services();
+      await toMatchStep(svc);
+      const before = engine.stops;
+      await press('Skip');
+      expect(engine.stops).toBeGreaterThan(before);
+    });
   });
 });

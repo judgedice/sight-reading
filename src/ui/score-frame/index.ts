@@ -4,6 +4,7 @@ export { CountInBand, type CountInBandProps } from './CountInBand.tsx';
 export {
   ScoreFrameController,
   GUTTER_PX,
+  FIRST_NOTE_PULSE_MS,
   purposeGeometry,
   purposePlan,
   contentBox,

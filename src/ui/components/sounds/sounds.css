@@ -1,5 +1,5 @@
 /*
- * Sounds group, dock, explain sheet, live caption, listen confirm and coach mark (05 sections 8.8, 9.4 and 10;
+ * Sounds group, dock, explain sheet, live caption, listen confirm (05 sections 8.8, 9.4 and 10;
  * 06 section 6.8). Tokens only: no raw colours, no px (0.0625rem = 1 px).
  */
 
@@ -125,12 +125,12 @@
   font-weight: var(--type-label-weight);
 }
 
-.sd-group-note {
+.sd-group-lead {
+  margin: calc(-1 * var(--space-2)) 0 var(--space-3);
   color: var(--text-muted);
   font-size: var(--type-caption-size);
   line-height: var(--type-caption-line);
   font-weight: var(--type-caption-weight);
-  text-align: right;
 }
 
 .sd-group-rows {
@@ -435,57 +435,4 @@
 /* The confirm sheet has no corner close: the grabber, Escape and the scrim all keep it ranked. */
 .ui-sheet:has(.sd-confirm-sheet) .ui-sheet-head .ui-icon-button {
   display: none;
-}
-
-/* ---- Coach mark --------------------------------------------------------------------- */
-
-.sd-coach {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  box-sizing: border-box;
-  margin: var(--space-3) 0;
-  padding: var(--space-3) var(--space-4);
-  border: 0.0625rem solid color-mix(in srgb, var(--brass) 40%, transparent);
-  border-radius: var(--radius-m);
-  background: var(--brass-wash);
-  color: var(--text);
-  font-family: var(--font-ui);
-}
-
-.sd-coach-text {
-  flex: 1;
-  margin: 0;
-  font-size: var(--type-small-size);
-  line-height: var(--type-small-line);
-  font-weight: 500;
-}
-
-.sd-coach .ui-button {
-  flex: none;
-}
-
-.sd-coach-arrow {
-  position: absolute;
-  left: var(--space-5);
-  bottom: -0.4375rem;
-  width: 0.875rem;
-  height: 0.875rem;
-  box-sizing: border-box;
-  background: color-mix(in srgb, var(--brass) 14%, var(--bg));
-  border-right: 0.0625rem solid color-mix(in srgb, var(--brass) 40%, transparent);
-  border-bottom: 0.0625rem solid color-mix(in srgb, var(--brass) 40%, transparent);
-  transform: rotate(45deg);
-}
-
-@media (max-width: 63.9375rem) {
-  .sd-coach {
-    margin: 0 0 var(--space-2);
-    padding: var(--space-2) var(--space-3);
-  }
-
-  .sd-coach-arrow {
-    display: none;
-  }
 }

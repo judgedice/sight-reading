@@ -56,6 +56,8 @@ export interface KeyboardStripProps {
   showServed?: boolean;
   /** 34 px keys in place of 40 (06 section 6.10). */
   compact?: boolean;
+  /** Sounding MIDI of the note that sounds now: its key is pressed (brass). */
+  litMidi?: number | null;
 }
 
 /**
@@ -63,7 +65,7 @@ export interface KeyboardStripProps {
  * (4 px `range-full-bar`) and the served bracket (5 px `accent`) above, keys tinted by range, a dot on middle C and
  * the C's named below. Decorative: the legend says the same in words.
  */
-export function KeyboardStrip({ keyboard, showServed = true, compact = false }: KeyboardStripProps) {
+export function KeyboardStrip({ keyboard, showServed = true, compact = false, litMidi = null }: KeyboardStripProps) {
   const boxes = keyBoxes(keyboard.low, keyboard.high);
   const served = showServed ? keyboard.served : undefined;
   return (
@@ -78,10 +80,11 @@ export function KeyboardStrip({ keyboard, showServed = true, compact = false }: 
           return (
             <span
               key={b.midi}
-              className={`rp-kb-key ${b.white ? 'rp-kb-white' : 'rp-kb-black'} rp-kb-${state}`}
+              className={`rp-kb-key ${b.white ? 'rp-kb-white' : 'rp-kb-black'} rp-kb-${state}${b.midi === litMidi ? ' rp-kb-lit' : ''}`}
               style={{ left: pct(b.left), width: pct(b.right - b.left) }}
               data-midi={b.midi}
               data-state={state}
+              data-lit={b.midi === litMidi ? 'true' : undefined}
             >
               {b.midi === keyboard.middleC ? <span className="rp-kb-dot" data-testid="kb-middle-c" /> : null}
             </span>

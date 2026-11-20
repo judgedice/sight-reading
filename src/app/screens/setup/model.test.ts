@@ -104,7 +104,7 @@ describe('setup model at difficulty 1, 2, 5 and 9', () => {
         expect(m.time.hidden).toEqual(def.meters.filter((x) => !shown.has(x)));
         for (const o of m.time.options) expect(o.few).toBe(o.count < tokens.ui.levelThinThreshold);
         if (m.time.hidden.length > 0) {
-          expect(t(m.time.hiddenNote)).toBe(`No ${formatMeterList(m.time.hidden)} music for ${NAMES[id]} at difficulty ${level} yet.`);
+          expect(t(m.time.hiddenNote)).toBe(`No ${formatMeterList(m.time.hidden)} at difficulty ${level} yet.`);
         }
 
         // Length: one value is a line of text, more is a segmented control with Any first.
@@ -122,6 +122,14 @@ describe('setup model at difficulty 1, 2, 5 and 9', () => {
         // Tempo and XP.
         expect(t(m.tempo.anyValue)).toBe(`Any tempo from ${def.tempo.minBpm} to ${def.tempo.maxBpm}`);
         expect(t(m.xp.line)).toBe('Choosing Any: +24% XP');
+
+        // Round 2: the few-pieces tag, the key note and the fold above eight keys and seven meters.
+        expect(t(m.difficulty.fewTag)).toBe(m.difficulty.few ? 'Few pieces' : null);
+        expect(t(m.difficulty.matchHint)).toBe(level === 1 ? 'Simpler? Match a note first.' : null);
+        expect(m.key.count).toBe(def.writtenKeys.modes.length * (1 + 2 * def.writtenKeys.maxAccidentals));
+        expect(m.key.many !== null).toBe(m.key.count > 8);
+        expect(m.time.top.length + m.time.more.length).toBe(m.time.options.length);
+        expect(m.time.more.length > 0).toBe(m.time.options.length > 7);
       });
     }
   }
@@ -130,13 +138,17 @@ describe('setup model at difficulty 1, 2, 5 and 9', () => {
     for (const id of INSTRUMENTS) expect(keyRowText(model({ instrumentId: id, level: 1 }))).toEqual(['Any key', 'Major', 'C', 'G', 'F']);
     const m = model({ level: 1 });
     expect(t(m.key.any.hint)).toBe('Any key up to 1 sharp or flat');
-    expect(t(m.key.moreNote)).toBe('More keys from difficulty 2.');
+    // Round 2, 01-ux section 7: what this difficulty uses, then what the next change adds. No "More keys from".
+    expect(t(m.key.uses)).toBe('Difficulty 1 uses major keys with up to 1 sharp or flat.');
+    expect(t(m.key.next)).toBe('Minor keys start at difficulty 2.');
+    expect(m.key.many).toBeNull();
   });
 
   it('keys at difficulty 2: Any key; Major C, G, F; Minor A, E, D', () => {
     const m = model({ instrumentId: 'voice-bass', level: 2 });
     expect(keyRowText(m)).toEqual(['Any key', 'Major', 'C', 'G', 'F', 'Minor', 'A', 'E', 'D']);
-    expect(t(m.key.moreNote)).toBe('More keys from difficulty 3.');
+    expect(t(m.key.uses)).toBe('Difficulty 2 uses major and minor keys with up to 1 sharp or flat.');
+    expect(t(m.key.next)).toBe('Keys with 2 sharps or flats start at difficulty 3.');
   });
 
   it('keys at difficulty 5 and 9', () => {
@@ -144,11 +156,12 @@ describe('setup model at difficulty 1, 2, 5 and 9', () => {
     expect(m5.key.groups[0]!.keys.map((k) => k.tonic)).toEqual(['C', 'G', 'F', 'D', 'B♭', 'A', 'E♭', 'E', 'A♭']);
     expect(m5.key.groups[1]!.keys.map((k) => k.tonic)).toEqual(['A', 'E', 'D', 'B', 'G', 'F♯', 'C', 'C♯', 'F']);
     expect(t(m5.key.any.hint)).toBe('Any key up to 4 sharps or flats');
-    expect(t(m5.key.moreNote)).toBe('More keys from difficulty 6.');
+    expect(t(m5.key.next)).toBe('Keys with 5 sharps or flats start at difficulty 6.');
+    expect(t(m5.key.many)).toBe('18 keys: major and minor, up to 4 sharps or flats.');
     const m9 = model({ instrumentId: 'cello', level: 9 });
     expect(m9.key.groups[0]!.keys.at(-1)!.name).toBe('C♭ major');
     expect(m9.key.moreFrom).toBeNull();
-    expect(m9.key.moreNote).toBeNull();
+    expect(m9.key.next).toBeNull();
   });
 
   it('trumpet in B♭ shows concert keys', () => {
@@ -177,7 +190,7 @@ describe('setup model at difficulty 1, 2, 5 and 9', () => {
     const fl1 = model({ instrumentId: 'flute', level: 1 });
     expect(fl1.time.options.map((o) => o.meter)).toEqual(['4/4', '3/4']);
     expect(fl1.time.options.every((o) => o.few)).toBe(true);
-    expect(t(fl1.time.hiddenNote)).toBe('No 2/4 music for Flute at difficulty 1 yet.');
+    expect(t(fl1.time.hiddenNote)).toBe('No 2/4 at difficulty 1 yet.');
     // Cello at 5: 2/2 has exactly 5 (shown, few); 3/8 and 3/2 are left out.
     const c5 = model({ instrumentId: 'cello', level: 5, meter: '2/2' });
     expect(c5.time.options.map((o) => o.meter)).toEqual(['4/4', '3/4', '2/4', '6/8', '2/2']);
@@ -185,6 +198,18 @@ describe('setup model at difficulty 1, 2, 5 and 9', () => {
     expect(t(c5.time.fewNote)).toBe('Few pieces here: some may repeat.');
     expect(c5.time.hidden).toEqual(['3/8', '3/2']);
     expect(t(c5.time.options[0]!.a11y)).toBe('4 4 time');
+    // A few-pieces meter still names the meter (01-ux 16.5).
+    expect(t(c5.time.options.find((o) => o.meter === '2/2')!.a11y)).toBe('2/2, few pieces');
+  });
+
+  it('above seven meters the five most used stay in the row and the rest go behind More', () => {
+    const many: EligibleFn = (_id, _level, meter) => (meter === null ? 400 : ({ '6/8': 90, '3/4': 80, '4/4': 70, '2/2': 60, '9/8': 50 } as Record<string, number>)[meter] ?? 20);
+    const m = model({ instrumentId: 'flute', level: 10 }, ctxWith(many));
+    expect(m.time.top.map((o) => o.meter)).toEqual(['4/4', '3/4', '6/8', '2/2', '9/8']);
+    expect(m.time.more.map((o) => o.meter)).toEqual(m.time.options.map((o) => o.meter).filter((x) => !['4/4', '3/4', '6/8', '2/2', '9/8'].includes(x)));
+    const m5 = model({ instrumentId: 'flute', level: 5 }, ctxWith(many));
+    expect(m5.time.options).toHaveLength(7);
+    expect(m5.time.more).toEqual([]);
   });
 });
 

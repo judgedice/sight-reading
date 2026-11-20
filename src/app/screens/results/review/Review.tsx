@@ -6,13 +6,15 @@
  */
 import { useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
 import type { AttemptRecord, Configs, ExpectedNote, PreparedExcerpt, ResolvedTolerance, ScoreLayout } from '../../../../core/types.ts';
-import { SegmentedControl } from '../../../../ui/components/form/index.ts';
+import { drawPitchTrace } from '../../../../notation/overlay/svg-overlay.ts';
+import { sureLevel } from '../../../../ui/components/diagnostics/sure.ts';
+import { SegmentedControl, Toggle } from '../../../../ui/components/form/index.ts';
 import type { Insets } from '../../../../ui/layout-table.ts';
 import { Glyph, openOverlayCount, Popover } from '../../../../ui/primitives/index.ts';
 import { ScoreFrame, type Box, type FrameLayoutInfo, type FrameNotation, type ScoreFrameController } from '../../../../ui/score-frame/index.ts';
 import type { ReviewBus } from './bus.ts';
 import { clearExtras, decorateNotes, drawExtras, drawSelection, ghostGroup, noteGroup, setTabStop, systemSvgs } from './dom.ts';
-import { buildReview, inspectorFor, sameTarget, slipsFor, stepSlip, type GhostSpeller, type ReviewModel, type SlipFilter, type SlipTarget } from './model.ts';
+import { buildReview, hasTrack, heardTrace, inspectorFor, sameTarget, slipsFor, stepSlip, type GhostSpeller, type HeardTraceSource, type ReviewModel, type SlipFilter, type SlipTarget } from './model.ts';
 import { rtext, type ReviewTextKey } from './text.ts';
 import './review.css';
 
@@ -50,6 +52,17 @@ export interface ReviewProps {
   onBarTap?: (barIndex: number) => void;
   /** The right end of the score toolbar: the live caption, Slower and Listen (results owns them). */
   toolbarEnd?: ReactNode;
+  /**
+   * The try's stored diagnostics trace, for "Show what we heard". Omitted or resolving to null (or a trace without
+   * frames): the switch is disabled and `diagnostics.noTrack` says why.
+   */
+  loadTrace?: () => Promise<HeardTraceSource | null>;
+  /** "Show what the app hears" (Settings > Display): the switch starts on. */
+  showHeardDefault?: boolean;
+  /** The line under the toolbar ("What we heard, bar 3 of 8"); with `reserveCaption` the line keeps its height when empty. */
+  caption?: ReactNode;
+  /** Keep the caption line's height even when empty, so starting a sound moves nothing (try detail). */
+  reserveCaption?: boolean;
 }
 
 const FILTER_TEXT: Record<Exclude<SlipFilter, 'all'>, ReviewTextKey> = {
@@ -90,6 +103,26 @@ export function Review(props: ReviewProps) {
   const [selected, setSelected] = useState<SlipTarget | null>(null);
   const [inspecting, setInspecting] = useState(false);
   const [filter, setFilter] = useFilter(bus);
+  const [showHeard, setShowHeard] = useState(props.showHeardDefault === true);
+  /** undefined while loading, null when the try has no stored trace. */
+  const [source, setSource] = useState<HeardTraceSource | null | undefined>(props.loadTrace ? undefined : null);
+  const loadTrace = props.loadTrace;
+
+  useEffect(() => {
+    if (!loadTrace) {
+      setSource(null);
+      return undefined;
+    }
+    let live = true;
+    setSource(undefined);
+    loadTrace().then(
+      (t) => live && setSource(t),
+      () => live && setSource(null),
+    );
+    return () => {
+      live = false;
+    };
+  }, [loadTrace, record.id]);
 
   const model: ReviewModel | null = useMemo(() => {
     if (!instrument) return null;
@@ -106,15 +139,22 @@ export function Review(props: ReviewProps) {
   }, [record, prepared, expected, instrument, spell, tolerances, configs, showNumbers]);
 
   const slips = useMemo(() => (model ? slipsFor(model, filter) : []), [model, filter]);
+  const trace = useMemo(
+    () => (instrument && hasTrack(source) ? heardTrace({ record, prepared, expected, instrument, spell, source }) : null),
+    [record, prepared, expected, instrument, spell, source],
+  );
+  const traceShown = showHeard && trace !== null;
+  // 01-ux 15.1: on an Unsure try at the calm difficulties, extras and ghosts are drawn at 50%.
+  const calm = record.levelServed <= configs.grading.ui.calmLiveUpTo && sureLevel(record, configs.grading.ui.sure) === 'unsure';
   const eventIdOf = useCallback((idx: number) => expected[idx]?.eventIds[0], [expected]);
-  const latest = useRef({ model, show, selected });
-  latest.current = { model, show, selected };
+  const latest = useRef({ model, show, selected, trace: traceShown ? trace : null });
+  latest.current = { model, show, selected, trace: traceShown ? trace : null };
 
   /** Paint the review onto the frame: final states and ghosts (My take) or plain ink (Clean score), then the extras. */
   const paint = useCallback(
     (frame: ScoreFrameController, layout: ScoreLayout) => {
       const host = wrapRef.current?.querySelector<HTMLElement>('.sf-host');
-      const { model: m, show: s, selected: sel } = latest.current;
+      const { model: m, show: s, selected: sel, trace: tr } = latest.current;
       if (!host || !m) return;
       frame.clearOverlay();
       frame.setMode('review');
@@ -125,6 +165,7 @@ export function Review(props: ReviewProps) {
       } else clearExtras(host);
       notesRef.current = decorateNotes(host, m, sel?.kind === 'note' ? sel.idx : null);
       drawSelection(host, layout, m, eventIdOf, sel, prepared.clef);
+      drawPitchTrace(systemSvgs(host), layout, prepared.clef, tr);
     },
     [prepared.clef, uid, eventIdOf],
   );
@@ -144,7 +185,7 @@ export function Review(props: ReviewProps) {
     const f = frameRef.current;
     const l = layoutRef.current;
     if (f && l) paint(f, l);
-  }, [show, model, paint, forcedClean]);
+  }, [show, model, paint, forcedClean, traceShown, trace]);
 
   // The selection ring and the roving tab stop follow the selection.
   useEffect(() => {
@@ -275,8 +316,37 @@ export function Review(props: ReviewProps) {
   const at = selected ? slips.findIndex((s) => sameTarget(s, selected)) : -1;
 
   const clean = forcedClean || show === 'clean';
+  // One line under the toolbar: the screen's caption (a sound playing), else the trace's key, else why there is none.
+  const lineContent: ReactNode =
+    props.caption ??
+    (traceShown ? (
+      <span className="rv-heard-key" data-testid="show-heard-key">
+        <svg className="rv-heard-key-glyph" viewBox="0 0 24 8" aria-hidden="true" focusable="false">
+          <path d="M1 5C6 1 12 1 16 3S21 6 23 7" />
+        </svg>
+        {rtext('results.showHeard.key')}
+      </span>
+    ) : loadTrace && source === null ? (
+      <span className="rv-no-track" data-testid="show-heard-none">
+        {rtext('diagnostics.noTrack')}
+      </span>
+    ) : null);
+  const captionLine =
+    lineContent !== null || props.reserveCaption ? (
+      <div className="rv-caption-line" data-testid="review-caption-line" data-reserved={props.reserveCaption ? 'true' : undefined}>
+        {lineContent}
+      </div>
+    ) : null;
   return (
-    <div className="rv-review" data-testid="review" data-show={clean ? 'clean' : 'take'} data-filter={filter} data-void={forcedClean ? 'true' : undefined}>
+    <div
+      className="rv-review"
+      data-testid="review"
+      data-show={clean ? 'clean' : 'take'}
+      data-filter={filter}
+      data-void={forcedClean ? 'true' : undefined}
+      data-calm={calm ? 'true' : undefined}
+      data-heard={traceShown ? 'true' : undefined}
+    >
       {forcedClean ? (
         <p className="rv-void-line" data-testid="review-void-line">
           {rtext('results.void.cleanScore')}
@@ -329,8 +399,14 @@ export function Review(props: ReviewProps) {
             </button>
           </div>
         ) : null}
-        {props.toolbarEnd ? <div className="rv-toolbar-end">{props.toolbarEnd}</div> : null}
+        <div className="rv-toolbar-end">
+          <span className="rv-show-heard" data-testid="show-heard" data-available={trace ? 'true' : 'false'} title={source !== undefined && !trace ? rtext('diagnostics.noTrack') : undefined}>
+            <Toggle checked={traceShown} label={rtext('results.showHeard')} disabled={!trace} onChange={setShowHeard} />
+          </span>
+          {props.toolbarEnd}
+        </div>
       </div>
+      {captionLine}
       {/* Clicks and keys on the notes bubble here (the notes are SVG groups drawn by notation). */}
       <div ref={wrapRef} className="rv-score" onClick={onClick} onKeyDown={onKeyDown}>
         <ScoreFrame

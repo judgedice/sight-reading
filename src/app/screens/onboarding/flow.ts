@@ -1,9 +1,18 @@
-/** Onboarding steps as a small pure machine (04 section 5.1). Back returns to the step the player came from. */
+/**
+ * Onboarding steps as a small pure machine (04 section 5.1). Back returns to the step the player came from.
+ *
+ * Six steps (round 2, 01-ux §3.2): welcome, instrument, microphone, calibration, "Sing one note" or "Play one note",
+ * difficulty. The note step needs the microphone, so declining it goes straight to the difficulty; without the match
+ * engine (`match: false`) calibration does too.
+ */
 import type { MicProblem } from '../states/mic.ts';
 import type { CalibrationResult } from '../calibration/CalibrationCard.tsx';
 
-export type OnboardingStep = 1 | 2 | 3 | 4 | 5;
-export const STEP_COUNT = 5;
+export type OnboardingStep = 1 | 2 | 3 | 4 | 5 | 6;
+export const STEP_COUNT = 6;
+/** The note step and the difficulty step. */
+export const MATCH_STEP = 5;
+export const LEVEL_STEP = 6;
 
 export type MicState = 'unasked' | 'requesting' | 'granted' | 'declined' | MicProblem;
 
@@ -13,9 +22,11 @@ export interface OnboardingState {
   trail: OnboardingStep[];
   mic: MicState;
   calibration: CalibrationResult | null;
+  /** The note step is offered (the match engine is there). */
+  match: boolean;
 }
 
-export const initialOnboarding = (): OnboardingState => ({ step: 1, trail: [], mic: 'unasked', calibration: null });
+export const initialOnboarding = (o: { match?: boolean } = {}): OnboardingState => ({ step: 1, trail: [], mic: 'unasked', calibration: null, match: o.match ?? true });
 
 export type OnboardingEvent =
   | { type: 'next' }
@@ -27,7 +38,9 @@ export type OnboardingEvent =
   | { type: 'mic-problem'; problem: MicProblem }
   /** "Not now", or "Practise without listening" on the denied card: on to the difficulty step with the mic off. */
   | { type: 'mic-skip' }
-  | { type: 'calibration-done'; result: CalibrationResult };
+  | { type: 'calibration-done'; result: CalibrationResult }
+  /** Continue after a hit, or Skip, on the note step. The step never sends this by itself. */
+  | { type: 'match-done' };
 
 const go = (s: OnboardingState, step: OnboardingStep, patch: Partial<OnboardingState> = {}): OnboardingState => ({ ...s, ...patch, step, trail: [...s.trail, s.step] });
 
@@ -50,8 +63,10 @@ export function onboardingReducer(s: OnboardingState, e: OnboardingEvent): Onboa
     case 'mic-problem':
       return s.step === 3 ? { ...s, mic: e.problem } : s;
     case 'mic-skip':
-      return s.step === 3 ? go(s, 5, { mic: 'declined', calibration: null }) : s;
+      return s.step === 3 ? go(s, LEVEL_STEP, { mic: 'declined', calibration: null }) : s;
     case 'calibration-done':
-      return s.step === 4 ? go(s, 5, { calibration: e.result }) : s;
+      return s.step === 4 ? go(s, s.match ? MATCH_STEP : LEVEL_STEP, { calibration: e.result }) : s;
+    case 'match-done':
+      return s.step === MATCH_STEP ? go(s, LEVEL_STEP) : s;
   }
 }

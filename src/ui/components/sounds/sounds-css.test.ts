@@ -39,10 +39,4 @@ describe('sounds.css', () => {
     expect(css).toMatch(/prefers-reduced-motion: reduce\)[\s\S]*?:root\[data-motion='full'\] \.sd-eq i\s*\{[^}]*animation:/);
     expect(/\n\.sd-eq i\s*\{[^}]*animation/.test(css)).toBe(false);
   });
-
-  it('the coach mark takes its place in the flow: relative, no z-index, never fixed or absolute', () => {
-    const block = /\.sd-coach\s*\{[^}]*\}/.exec(css)?.[0] ?? '';
-    expect(block).toContain('position: relative');
-    expect(block).not.toMatch(/z-index|position:\s*(fixed|absolute)/);
-  });
 });
