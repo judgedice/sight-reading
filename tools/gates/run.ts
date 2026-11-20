@@ -15,6 +15,7 @@ import { fileURLToPath } from 'node:url';
 import { Worker } from 'node:worker_threads';
 import { configs } from '../../fixtures/follow/gen/io.ts';
 import { FAST_SCALE, FULL_SCALE, listJobs, renderReport, summarize, type Job, type SuiteScale, type TakeRecord } from '../../src/testkit/gates/index.ts';
+import { measureUntrained, renderUntrainedSection, summarizeUntrained, untrainedPlans } from '../../src/testkit/untrained/index.ts';
 
 const ROOT = new URL('../../', import.meta.url);
 const args = process.argv.slice(2);
@@ -83,8 +84,13 @@ process.stderr.write(`gates: ${jobs.length} takes on ${workers} workers (scale $
 const started = Date.now();
 const records = await runAll(jobs);
 const summary = summarize(records, cfg);
+// Round 2: the untrained-voice condition, its own reported gate that never fails the run.
+const untrainedTakes = scaleName === 'fast' ? 4 : 40;
+process.stderr.write(`gates: untrained voice, ${untrainedTakes} takes\n`);
+const untrained = untrainedPlans(untrainedTakes).map((p) => measureUntrained(p));
+const untrainedSummary = summarizeUntrained(untrained);
 const durationSec = (Date.now() - started) / 1000;
-const report = renderReport(summary, {
+const report = `${renderReport(summary, {
   scale,
   scaleName,
   durationSec,
@@ -92,7 +98,7 @@ const report = renderReport(summary, {
   date: new Date().toISOString().slice(0, 10),
   commit: commit(),
   liveProvisionalMs: cfg.grading.live.provisionalMs,
-});
+})}\n${renderUntrainedSection(untrained)}`;
 
 if (!flag('no-write')) {
   mkdirSync(dirname(outMd), { recursive: true });
@@ -111,6 +117,7 @@ if (!flag('no-write')) {
     latency: summary.latency,
     intonationLatency: summary.intonationLatency,
     gates: summary.gates,
+    untrainedVoice: untrainedSummary,
   };
   writeFileSync(outJson, `${JSON.stringify(artifact, null, 1)}\n`);
   process.stderr.write(`gates: wrote ${outMd} and ${outJson}\n`);
@@ -121,5 +128,8 @@ const blocking = failing.filter((g) => !g.note?.includes('R54'));
 for (const g of failing) {
   process.stderr.write(`gates: FAIL ${g.id} [${g.scope}] ${g.metric}: ${g.value === null ? 'n/a' : g.value.toFixed(4)} (needs ${g.op} ${g.threshold}; ${g.source})${g.note ? ` - ${g.note}` : ''}\n`);
 }
+process.stderr.write(
+  `gates: untrained voice (non-blocking) ${untrainedSummary.pass ? 'pass' : 'FAIL'}: extra ghosts ${untrainedSummary.extraGhostsPerNote.toFixed(3)}/note, extras ${untrainedSummary.extrasPerNote.toFixed(3)}/note, false wrong pitch ${(100 * untrainedSummary.falseWrongPitch).toFixed(2)}%, false missed ${(100 * untrainedSummary.falseMissed).toFixed(2)}%\n`,
+);
 process.stderr.write(`gates: ${summary.gates.length - failing.length}/${summary.gates.length} pass in ${(durationSec / 60).toFixed(1)} min; ${blocking.length} blocking failure(s)\n`);
 process.exit(blocking.length > 0 && !flag('report-only') ? 1 : 0);

@@ -23,7 +23,7 @@ import { DspWorkerCore } from '../platform/web/audio/dsp-worker-core.ts';
 import { FakeAudioBackend, type FakeBackendOptions } from '../testkit/fake-backend.ts';
 import { renderPerformance, type SynthNoteSpec } from '../testkit/synth/index.ts';
 import { MemoryKv, makeCalibration, memoryRepos } from '../store/test-data.ts';
-import { PracticeSession, initialSessionView, reduceSessionView, sessionApi, voiceReferenceTones, type PracticeSessionOptions } from './index.ts';
+import { PracticeSession, decodePcm16, initialSessionView, reduceSessionView, sessionApi, voiceReferenceTones, type DiagnosticsFile, type PracticeSessionOptions } from './index.ts';
 
 const cfg = configs();
 const RATE = 48000;
@@ -1003,4 +1003,61 @@ describe('own playback in the capture (round 2 detection: reference tone and cli
     await drive(h, 2);
     expect(h.events.filter((e) => e.type === 'follower' && (e.event.type === 'note-start' || e.event.type === 'ghost'))).toEqual([]);
   }, 60_000);
+});
+
+describe('diagnostics per try (round 2 detection)', () => {
+  const cal = (): Calibration => ({ ...makeCalibration(ROUTE), roundTripMs: 50, spreadMs: 1, clicksDetected: 10, templates: {} });
+  async function voiceTry(includeAudio: boolean): Promise<{ h: Harness; rec: AttemptRecord }> {
+    const h = await harness({ backend: { route: { routeKey: ROUTE, outputMode: 'speakers' }, loopback: { rtlSec: 0.05, gainDb: -20, toneGainDb: -20 } }, calibration: cal(), shippedCorpus: true });
+    await h.session.setDiagnosticsSettings({ includeAudio });
+    await h.session.prepare(settings({ instrumentId: 'voice-baritone', mode: 'practice', outputMode: 'speakers', level: 1 }));
+    await h.session.ensureAudio();
+    h.session.revealScan();
+    await h.session.startTake();
+    for (let i = 0; i < 20 && h.be.log.scheduledTakes.length === 0; i++) await flush();
+    play(h, 0.05);
+    await driveTo(h, 'results', 90);
+    return { h, rec: lastRecord(h) };
+  }
+
+  it('keeps a compact trace of every try, without audio by default, exportable as one JSON file', async () => {
+    const { h, rec } = await voiceTry(false);
+    expect(await h.session.diagnosticsSettings()).toEqual({ includeAudio: false });
+    const out = (await h.session.exportLastTry())!;
+    expect(out.fileName).toBe(`sightread-diagnostics-${rec.id.slice(0, 8)}.json`);
+    expect(out.text.length).toBeLessThan(200_000);
+    const t = (JSON.parse(out.text) as DiagnosticsFile).tries[0]!;
+    expect(t.attemptId).toBe(rec.id);
+    expect(t.audio).toBeUndefined();
+    expect(t.configs.dsp?.oneNote).not.toBeNull();
+    expect(t.configs.follow?.instrumentId).toBe('voice-baritone');
+    // About 50 Hz of frames over the whole capture.
+    const f = t.frames!;
+    expect(f.t.length).toBeGreaterThan(100);
+    expect((f.t.at(-1)! - f.t[0]!) / (f.t.length - 1)).toBeCloseTo(0.024, 1);
+    // The reference tones heard through the speakers are traced as ignored notes; the sung notes are not.
+    expect(t.playback.reference).toHaveLength(4);
+    expect(t.playback.countIn.length).toBeGreaterThan(0);
+    expect(t.detected.filter((d) => d.ignored).length).toBeGreaterThanOrEqual(4);
+    expect(t.detected.filter((d) => !d.ignored).length).toBe(rec.detected.length);
+    expect(t.events.some((e) => e.event.type === 'final')).toBe(true);
+    expect(t.events.some((e) => e.event.type === 'clock')).toBe(false);
+    expect(t.verdicts.judgments).toEqual(rec.judgments);
+    expect(await h.session.exportAttempt(rec.id)).not.toBeNull();
+    expect(await h.session.exportAttempt('not-an-attempt')).toBeNull();
+    // Device-local: diagnostics never go into the backup file.
+    expect((await h.repos.attempts.all()).length).toBe(1);
+    expect(await h.session.diagnosticsAttemptIds()).toEqual([rec.id]);
+  }, 90_000);
+
+  it('with the opt-in setting the export carries the try audio as 16 kHz mono PCM', async () => {
+    const { h } = await voiceTry(true);
+    const t = (await h.session.exportLastTry())!.file.tries[0]!;
+    expect(t.audio?.rate).toBe(16000);
+    const samples = decodePcm16(t.audio!.data, t.audio!.samples);
+    expect(samples.length / 16000).toBeGreaterThan(5);
+    let peak = 0;
+    for (const v of samples) peak = Math.max(peak, Math.abs(v));
+    expect(peak).toBeGreaterThan(0.01);
+  }, 90_000);
 });

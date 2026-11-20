@@ -14,7 +14,6 @@ import type { DetectedNote, ExpectedNote, FollowConfig, OwnSound, ResolvedTolera
 import { scoreSecondsOf } from './cost.ts';
 
 const MS = 1000;
-const HALF_SEMITONE_CENTS = 50;
 
 /** The 12-tone pitch-class distance between two fractional MIDI values, cents. */
 function pcDistanceCents(a: number, b: number): number {
@@ -72,14 +71,15 @@ export function extraMinMs(c: FollowConfig, d: DetectedNote, absorbed = false): 
 
 /**
  * True when `d` starts within `oneNote.absorbGapMs` of the end of `prev` (or while it sounds) at the same pitch class
- * (within half a semitone): a short note there is `prev` sung on, not a new note (round 2 detection).
+ * (within `intonation.wrongPitchAboveCents`, the same semitone): a short note there is `prev` sung on, not a new note
+ * (round 2 detection).
  */
 export function absorbedBy(c: FollowConfig, d: DetectedNote, prev: DetectedNote | null): boolean {
   const one = c.oneNote ?? null;
   if (!one || !prev) return false;
   const end = prev.offset ?? Infinity;
   if ((d.onset as number) - (end as number) > one.absorbGapMs / MS) return false;
-  return pcDistanceCents(d.provisionalMidi, prev.midi) <= HALF_SEMITONE_CENTS;
+  return pcDistanceCents(d.provisionalMidi, prev.midi) <= c.cfg.grading.intonation.wrongPitchAboveCents;
 }
 
 /** True when the take shows no wrong pitch at confirmation (`oneNote.wrongAtConfirm` false: a scoop is not a wrong note). */

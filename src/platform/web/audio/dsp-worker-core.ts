@@ -27,7 +27,7 @@
  *   the take ended first. The session applies `decideRecheck` to it.
  * - 'done'.voiceReference comes from the final alignment's drift replay (`alignFinalWithReference`; 02 §4.5, E23).
  */
-import type { CaptureBlock, CaptureReturn, ClickSpec, WorkerMessage, WorkerReply } from '../../../core/platform.ts';
+import type { CaptureBlock, CaptureReturn, ClickSpec, WorkerMessage, WorkerReply, WorkerTrace } from '../../../core/platform.ts';
 import type { ClockSeconds, DetectedNote, DspConfig, DspEvent, DspStats, EndReason, FinalAlignment, FollowConfig, FollowerEvent, LiveJudgment } from '../../../core/types.ts';
 import { DspPipeline } from '../../../dsp/pipeline.ts';
 // The worker is a composition point of its own (01 §2: live matcher and final alignment run in the DSP worker), so it
@@ -54,6 +54,13 @@ export interface DspWorkerCoreDeps {
 interface QueuedBlock {
   block: CaptureBlock;
 }
+
+/** Diagnostics trace frame spacing, seconds (about 50 Hz). */
+const TRACE_STEP_SEC = 0.02;
+const round = (x: number, d: number): number => {
+  const k = 10 ** d;
+  return Math.round(x * k) / k;
+};
 
 const p95 = (xs: readonly number[]): number | null => {
   if (xs.length === 0) return null;
@@ -100,6 +107,9 @@ export class DspWorkerCore {
   lateClickMessages = 0;
   /** Blocks dropped because they started at or after the end time. */
   blocksAfterEnd = 0;
+  /** The analysed low band, kept only with `DspConfig.traceAudio` (diagnostics export, opt-in). */
+  private audioChunks: Float32Array[] = [];
+  private audioStartT: number | null = null;
 
   constructor(deps: DspWorkerCoreDeps) {
     this.deps = deps;
@@ -215,6 +225,10 @@ export class DspWorkerCore {
     const follower = this.follower as LiveFollower;
     const t0 = this.deps.nowMs();
     const blockEnd = ((b.startT as number) + b.lowband.length / b.analysisRate) as ClockSeconds;
+    if (this.dspCfg?.traceAudio) {
+      if (this.audioStartT === null) this.audioStartT = b.startT as number;
+      this.audioChunks.push(b.lowband.slice());
+    }
     const out: FollowerEvent[] = [];
     for (const ev of dsp.push(b)) this.onDspEvent(ev, follower, out);
     for (const ev of follower.onClock(blockEnd)) out.push(ev);
@@ -226,6 +240,37 @@ export class DspWorkerCore {
       const r = this.recheck.push(b);
       if (r) this.postRecheck(r);
     }
+  }
+
+  /**
+   * The try's diagnostics trace (round 2 detection): pitch frames decimated to about 50 Hz (one frame per
+   * TRACE_STEP_SEC), every detected note, and the low band when `traceAudio` is on.
+   */
+  private trace(dsp: DspPipeline, all: DetectedNote[]): WorkerTrace {
+    const frames: WorkerTrace['frames'] = { t: [], midi: [], clarity: [], levelDb: [] };
+    let last = -Infinity;
+    for (const f of dsp.frames()) {
+      const t = f.t as number;
+      if (t < last + TRACE_STEP_SEC - 1e-6) continue;
+      last = t;
+      frames.t.push(round(t, 3));
+      frames.midi.push(f.midi === null ? null : round(f.midi, 2));
+      frames.clarity.push(round(f.clarity, 2));
+      frames.levelDb.push(round(Number.isFinite(f.rmsDb) ? f.rmsDb : -120, 1));
+    }
+    const out: WorkerTrace = { frames, detected: all };
+    if (this.dspCfg?.traceAudio && this.audioStartT !== null) {
+      let n = 0;
+      for (const c of this.audioChunks) n += c.length;
+      const samples = new Float32Array(n);
+      let k = 0;
+      for (const c of this.audioChunks) {
+        samples.set(c, k);
+        k += c.length;
+      }
+      out.audio = { rate: this.dspCfg.analysisRate, startT: this.audioStartT, samples };
+    }
+    return out;
   }
 
   private postRecheck(r: RecheckDetail): void {
@@ -293,6 +338,7 @@ export class DspWorkerCore {
       signal: { medianClarity: median(detected.map((d) => d.clarity)), clippingFrac: this.signals > 0 ? this.clipped / this.signals : 0 },
       // 02 §4.5: from the final alignment's drift replay; null for families without relative pitch.
       voiceReference,
+      trace: this.trace(dsp, [...this.latest.values()].sort((a, b) => a.id - b.id)),
     });
   }
 }

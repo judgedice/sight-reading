@@ -48,6 +48,24 @@ export {
   type TakePlan,
 } from './take-plan.ts';
 export * from './gates/index.ts';
+// Diagnostics per try (round 2 detection): the trace, its export file and the device-local store.
+export {
+  DIAG_AUDIO_KEEP,
+  DIAG_KEEP,
+  DIAGNOSTICS_FORMAT,
+  DiagnosticsStore,
+  TRACE_FORMAT,
+  buildTryTrace,
+  decodePcm16,
+  diagnosticsFile,
+  diagnosticsFileName,
+  encodePcm16,
+  type DiagnosticsFile,
+  type DiagnosticsSettings,
+  type TracedDspConfig,
+  type TracedFollowConfig,
+  type TryTrace,
+} from './diagnostics.ts';
 // The session summary (02 §6.1 item 8) lives in tips/; app/ reaches it through session/ (01 §4.2 boundaries).
 export {
   attemptTitle,

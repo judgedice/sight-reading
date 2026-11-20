@@ -185,6 +185,10 @@ const SMOOTH_MAX_SEC = 0.02;
 const NOISE_SPREAD_Q = 0.95;
 const NOISE_SPREAD_MAX_DB = 6;
 const NOISE_BAND_MARGIN_DB = 1;
+/** Round 2 release: confirming frames that rise more than this are an attack, not a dying tail, dB. */
+const TAIL_RISE_DB = 0.5;
+/** Round 2 scoop: a written onset up to this long after the change's first frame makes it a new note. */
+const SCOOP_HINT_SEC = 0.04;
 /** Voice and bowed pitch changes are measured against the note's frames older than this (`changeRef`). */
 const CHANGE_REF_LAG_SEC = 0.1;
 /** Cumulative-energy ring: about 4 s at 16 kHz. */
@@ -275,6 +279,8 @@ const mean = (xs: readonly Fr[]): number => {
 export class Segmenter {
   readonly o: SegmenterOptions;
   private readonly hints: readonly { t: number; halfWidthSec: number }[];
+  /** Written onsets on the input timeline (round 2 scoop exception), sorted. */
+  private readonly onsetHints: readonly number[];
   private readonly clickWins: Float64Array; // [start0, end0, start1, end1, ...] sorted
   private readonly clickArr: Float64Array; // arrivals, sorted (same order as clickWins)
   /** Per click: leak levels from the template fit (NaN until set). */
@@ -342,9 +348,10 @@ export class Segmenter {
   private boundary = false;
   private lastFrameT = -Infinity;
 
-  constructor(o: SegmenterOptions, hints: readonly { t: number; halfWidthSec: number }[] = [], clickArrivals: readonly number[] = []) {
+  constructor(o: SegmenterOptions, hints: readonly { t: number; halfWidthSec: number }[] = [], clickArrivals: readonly number[] = [], onsetHints: readonly number[] = []) {
     this.o = o;
     this.hints = hints;
+    this.onsetHints = [...onsetHints].sort((a, b) => a - b);
     const arr = [...clickArrivals].sort((a, b) => a - b);
     this.clickWins = new Float64Array(arr.length * 2);
     arr.forEach((a, i) => {
@@ -577,22 +584,14 @@ export class Segmenter {
       return;
     }
     const med = this.changeRef(cur, f.t);
-    if (Math.abs((f.midi as number) - med) >= this.tol && this.releaseTail(cur, f)) {
-      // Round 2 (`tailDropDb`): the note dying away at another pitch (a falling or wobbling end) is not a new note. The
-      // frame counts towards the offset and stays out of the note's pitch.
-      this.pitchCand = [];
-      this.silence += 1;
-      if (this.silence >= this.o.offsetFrames) {
-        this.finish(cur, this.estimateOffset(cur), out);
-        this.pending = null;
-      }
-      return;
-    }
     if (Math.abs((f.midi as number) - med) >= this.tol) {
       this.addStable(this.pitchCand, f);
       if (this.pitchCand.length >= this.o.changeConfirmFrames) {
         const cand = this.pitchCand;
         this.pitchCand = [];
+        // Round 2 (`tailDropDb`): the note dying away at another pitch (a falling or wobbling end) is not a new note;
+        // its frames stay out of the note's pitch.
+        if (this.releaseTail(cur, cand)) return;
         const newMed = median(cand.map((x) => x.midi as number));
         if ((cand[0] as Fr).t < cur.onset + this.o.minNoteSec || this.settling(cur, cand, med, newMed) || this.scoop(cur, cand, newMed)) {
           // The pitch settled inside the note's first 60 ms (window overlap with the previous note after a dip
@@ -667,6 +666,9 @@ export class Segmenter {
    */
   private scoop(cur: Note, cand: Fr[], next: number): boolean {
     if (this.o.scoopSec <= 0 || (cand[0] as Fr).t >= cur.onset + this.o.scoopSec) return false;
+    // The change reaches the next written onset: a new note (fast notes have no room for a plateau), never a scoop.
+    const reach = (cand[0] as Fr).t + SCOOP_HINT_SEC;
+    if (this.onsetHints.some((h) => h > cur.onset + this.o.minNoteSec && h <= reach)) return false;
     const fs = cur.frames;
     if (fs.length === 0) return true;
     const near = this.o.plateauCents / 100;
@@ -679,15 +681,17 @@ export class Segmenter {
   }
 
   /**
-   * The frames move towards `next`: the median of the last `plateauSec` is at least `plateauCents` closer to it than
-   * the median of the first `plateauSec` (a slow scoop starts flat, so its first frames can pass for a plateau).
+   * The frames move towards `next` and have nearly reached it: the median of the last `plateauSec` is within
+   * `changeCents` of it and at least `plateauCents` closer to it than the median of the first `plateauSec` (a slow
+   * scoop starts flat, so its first frames can pass for a plateau). A short note in a slurred run ends on a plateau a
+   * semitone or more from the next note, so it is never taken for a scoop.
    */
   private glidesTowards(fs: readonly Fr[], next: number): boolean {
     const k = Math.max(2, Math.round(this.o.plateauSec / this.o.hopSec));
     if (fs.length < k + 1) return true;
     const head = median(fs.slice(0, k).map((x) => x.midi as number));
     const tail = median(fs.slice(-k).map((x) => x.midi as number));
-    return Math.abs(next - head) - Math.abs(next - tail) >= this.o.plateauCents / 100;
+    return Math.abs(next - tail) < this.tol && Math.abs(next - head) - Math.abs(next - tail) >= this.o.plateauCents / 100;
   }
 
   /** A run of at least `plateauSec` whose frames all lie within `plateauCents` of the run's median, away from `next`. */
@@ -704,12 +708,17 @@ export class Segmenter {
   }
 
   /**
-   * Round 2 release (`tailDropDb`): a frame at another pitch, `tailDropDb` or more below the note's loudest frame, is
-   * the note's end dying away (a falling or wobbling release, a low-clarity tail). Off for profiles without a row.
+   * Round 2 release (`tailDropDb`): a pitch change whose confirming frames all lie `tailDropDb` or more below the
+   * note's loudest frame, and do not get louder, is the note's end dying away (a falling or wobbling release, a
+   * low-clarity tail). The split is decided at the same frame as before, so a real change is not delayed. Off for
+   * profiles without a row.
    */
-  private releaseTail(cur: Note, f: Fr): boolean {
-    if (!Number.isFinite(this.o.tailDropDb)) return false;
-    return f.rmsDb <= this.notePeakDb(cur) - this.o.tailDropDb;
+  private releaseTail(cur: Note, cand: readonly Fr[]): boolean {
+    if (!Number.isFinite(this.o.tailDropDb) || cand.length === 0) return false;
+    const floor = this.notePeakDb(cur) - this.o.tailDropDb;
+    if (cand.some((x) => x.rmsDb > floor)) return false;
+    // Only while the level is not rising: a new note's attack out of a re-articulation dip rises (it is no tail).
+    return (cand[cand.length - 1] as Fr).rmsDb <= (cand[0] as Fr).rmsDb + TAIL_RISE_DB;
   }
 
   /** The loudest frame of the note so far, dB (incremental; rescanned when the frames were replaced). */

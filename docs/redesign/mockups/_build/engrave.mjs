@@ -85,10 +85,10 @@ export function engrave(o) {
     const ksX = x;
     const ksParts = ks.map((s, i) => txt(x + i * 1.05 * sp, yOf(s), sp, o.key.type === '#' ? G.sharp : G.flat));
     x += ks.length ? ks.length * 1.05 * sp + 0.8 * sp : 0.2 * sp;
-    if (o.highlightKey && ks.length) {
+    if (o.highlightKey && ks.length && !(o.hlFirstOnly && si > 0)) {
       under.push(`<rect class="hl" x="${f(ksX - 0.5 * sp)}" y="${f(y0 - 1.6 * sp)}" width="${f(ks.length * 1.05 * sp + 0.9 * sp)}" height="${f(7.2 * sp)}" rx="${f(0.6 * sp)}" fill="var(--brass)" fill-opacity="0.16"/>`);
     }
-    parts.push(`<g class="keysig" ${o.highlightKey ? 'fill="var(--brass-ink)"' : ''}>${ksParts.join('')}</g>`);
+    parts.push(`<g class="keysig" ${o.highlightKey && !(o.hlFirstOnly && si > 0) ? 'fill="var(--brass-ink)"' : ''}>${ksParts.join('')}</g>`);
     parts.push(clefG);
     if (si === 0 && o.time) {
       parts.push(`<g class="timesig">${txt(x, yOf(6), sp, G.ts(o.time[0]))}${txt(x, yOf(2), sp, G.ts(o.time[1]))}</g>`);
@@ -140,6 +140,17 @@ export function engrave(o) {
           const rg = { q: G.restQ, h: G.restH, w: G.restW, e: G.restE }[n.d];
           const ry = n.d === 'w' ? yOf(6) : n.d === 'h' ? yOf(4) : yOf(4);
           parts.push(`<g class="rest">${txt(pn.x, ry, sp, rg)}</g>`);
+          // Round 2: an extra heard in a rest. Ghost head at the heard pitch, and a "+" in the lane.
+          const xm = (o.marks && o.marks[n.id || `b${barNo}n${pn.ni + 1}`]) || {};
+          if (xm.extra) {
+            const XP = parsePitch(xm.extra.p);
+            const xs = XP.dn - clef.ref;
+            const gx2 = pn.x + (xm.extra.dx ?? 1.6) * sp;
+            const xo = xm.extra.opacity ?? 1;
+            const ly = yb + 2.2 * sp;
+            const gs2 = sp * 0.62;
+            over.push(`<g class="extra" opacity="${xo}">${xm.extra.acc ? txt(gx2 - 1.2 * sp, yOf(xs), sp, xm.extra.acc === 'b' ? G.flat : G.sharp, 'fill="var(--ghost)"') : ''}${txt(gx2, yOf(xs), sp, G.black, `fill="var(--ghost)" fill-opacity="0.55" stroke="var(--ghost)" stroke-width="${f(Math.max(1.25, sp * 0.1))}"`)}<path d="M${f(gx2 + 0.6 * sp - gs2)} ${f(ly)} H${f(gx2 + 0.6 * sp + gs2)} M${f(gx2 + 0.6 * sp)} ${f(ly - gs2)} V${f(ly + gs2)}" stroke="var(--ghost)" stroke-width="${f(Math.max(1.75, sp * 0.16))}" stroke-linecap="round"/></g>`);
+          }
           continue;
         }
         const P = parsePitch(n.p);
@@ -150,7 +161,7 @@ export function engrave(o) {
         pn.y = y; pn.step = step; pn.hw = hw;
         const up = n.stem ? n.stem === 'up' : step < 4;
         pn.up = up;
-        const col = m.state === 'error' || m.state === 'missed' ? 'var(--error)' : m.state === 'hl' ? 'var(--brass-ink)' : ink;
+        const col = m.state === 'error' || m.state === 'missed' ? 'var(--error)' : m.state === 'hl' ? 'var(--brass-ink)' : m.state === 'hit' ? 'var(--correct)' : m.state === 'dim' ? 'var(--staff-line)' : ink;
         const g = [];
         // ledger lines
         const led = [];
@@ -221,6 +232,7 @@ export function engrave(o) {
           if (L === 'early') s = `<path d="M${f(gx + gs * 0.8)} ${f(laneY - gs)} L${f(gx - gs)} ${f(laneY)} L${f(gx + gs * 0.8)} ${f(laneY + gs)} Z" fill="${mcol}"/>`;
           if (L === 'sharp') s = `<path d="M${f(gx - gs)} ${f(laneY + gs * 0.8)} L${f(gx)} ${f(laneY - gs)} L${f(gx + gs)} ${f(laneY + gs * 0.8)} Z" fill="${mcol}"/>`;
           if (L === 'flat') s = `<path d="M${f(gx - gs)} ${f(laneY - gs * 0.8)} L${f(gx)} ${f(laneY + gs)} L${f(gx + gs)} ${f(laneY - gs * 0.8)} Z" fill="${mcol}"/>`;
+          if (L === 'unsure') s = `<circle cx="${f(gx)}" cy="${f(laneY)}" r="${f(Math.max(3, sp * 0.3))}" fill="none" stroke="var(--text-muted)" stroke-width="${f(Math.max(1.25, sp * 0.1))}"/>`;
           if (L === 'missed') s = `<circle cx="${f(gx)}" cy="${f(laneY)}" r="${f(gs * 0.85)}" fill="none" stroke="${mcol}" stroke-width="${f(Math.max(1.75, sp * 0.18))}"/>`;
           over.push(`<g class="lane"${lo}>${s}</g>`);
         }
@@ -258,19 +270,52 @@ export function engrave(o) {
           over.push(`<g class="ghost"${lo}>${gg.join('')}</g>`);
         }
         if (m.label) {
-          over.push(`<text x="${f(gx)}" y="${f(pn.y - 2.0 * sp)}" text-anchor="middle" font-family="var(--font-text)" font-weight="600" font-size="${f(Math.max(11, sp * 1.05))}" fill="var(--brass-ink)">${m.label}</text>`);
+          over.push(`<text x="${f(gx)}" y="${f(pn.y - 2.0 * sp)}" text-anchor="middle" font-family="var(--font-text)" font-weight="600" font-size="${f(Math.max(11, sp * (m.labelScale || 1.05)))}" fill="${m.labelColor || 'var(--brass-ink)'}">${m.label}</text>`);
+        }
+        if (m.ring) {
+          const rc = m.ring === 'hit' ? 'var(--correct)' : 'var(--brass)';
+          under.push(`<circle cx="${f(gx)}" cy="${f(pn.y)}" r="${f(sp * 1.7)}" fill="${rc}" fill-opacity="0.14" stroke="${rc}" stroke-width="${f(Math.max(1.5, sp * 0.14))}"/>`);
+          if (m.pulse) under.push(`<circle cx="${f(gx)}" cy="${f(pn.y)}" r="${f(sp * 2.5)}" fill="none" stroke="${rc}" stroke-opacity="0.45" stroke-width="${f(Math.max(1.5, sp * 0.12))}"/>`);
         }
         if (m.state === 'hl') {
           under.push(`<circle cx="${f(gx)}" cy="${f(pn.y)}" r="${f(sp * 1.5)}" fill="var(--brass)" fill-opacity="0.18"/>`);
         }
       }
+      // Round 2 (05 R25): "Show what we heard". The pitch track as a thin grey line over the staff: a short scoop into
+      // each note, the held pitch with a little wobble, and a tail that falls away past the note's end.
+      // o.trace: { [id]: { dev (semitones), delay (fraction of the note), tail (semitones), tailLen (spaces), skip } }.
+      if (o.trace) {
+        const seg = [];
+        const semiDy = (s) => ((s * 7) / 12) * (sp / 2);
+        placed.forEach((pn, i) => {
+          if (pn.n.r || pn.y === undefined) return;
+          const id = pn.n.id || `b${barNo}n${pn.ni + 1}`;
+          const t = o.trace[id] || {};
+          if (t.skip) return;
+          const nextX = i + 1 < placed.length ? placed[i + 1].x : bx + bw;
+          const xs0 = pn.x + pn.hw * 0.2;
+          const span = nextX - xs0 - 0.5 * sp;
+          const xs = xs0 + (t.delay || 0) * span;
+          const xe = xs0 + span * (pn.n.d === 'w' || pn.n.d === 'h' ? 0.92 : 0.85);
+          const yc = pn.y - semiDy(t.dev || 0);
+          const pts = [[xs, yc + semiDy(t.scoop ?? 0.7)], [xs + 0.7 * sp, yc + semiDy(0.1)]];
+          const n = Math.max(2, Math.round((xe - xs) / (0.9 * sp)));
+          for (let k = 1; k <= n; k++) pts.push([xs + 0.7 * sp + ((xe - xs - 0.7 * sp) * k) / n, yc + (k % 2 ? -1 : 1) * semiDy(0.08)]);
+          if (t.tail) {
+            const tl = (t.tailLen || 2.4) * sp;
+            pts.push([xe + tl * 0.4, yc - semiDy(t.tail * 0.35)], [xe + tl, yc - semiDy(t.tail)]);
+          }
+          seg.push(`<polyline points="${pts.map(([a, b]) => `${f(a)},${f(b)}`).join(' ')}" fill="none" stroke="var(--text-muted)" stroke-opacity="0.85" stroke-width="${f(Math.max(1.25, sp * 0.11))}" stroke-linecap="round" stroke-linejoin="round"/>`);
+        });
+        over.push(`<g class="trace">${seg.join('')}</g>`);
+      }
       bx += bw;
       barIndex++;
       // barline
-      const last = barIndex === o.bars.length;
+      const last = barIndex === o.bars.length && !o.noFinal;
       if (last) {
         parts.push(`<rect x="${f(bx - 0.75 * sp)}" y="${f(y0)}" width="${f(Math.max(1, sp * 0.16))}" height="${f(4 * sp)}" fill="var(--ink)"/><rect x="${f(bx - 0.5 * sp)}" y="${f(y0)}" width="${f(0.5 * sp)}" height="${f(4 * sp)}" fill="var(--ink)"/>`);
-      } else {
+      } else if (!(o.noFinal && barIndex === o.bars.length)) {
         parts.push(`<rect x="${f(bx - Math.max(1, sp * 0.16))}" y="${f(y0)}" width="${f(Math.max(1, sp * 0.16))}" height="${f(4 * sp)}" fill="var(--ink)"/>`);
       }
     });
@@ -281,7 +326,7 @@ export function engrave(o) {
 }
 
 /** Large range picture: staff, four whole notes, served band, note names. */
-export function rangePicture({ clef, full, served, width = 320, sp = 9, names = true, interactive = true }) {
+export function rangePicture({ clef, full, served, width = 320, sp = 9, names = true, interactive = true, playIndex = -1 }) {
   const C = CLEF[clef];
   const top = 4.6 * sp;
   const yb = top + 4 * sp;
@@ -307,8 +352,9 @@ export function rangePicture({ clef, full, served, width = 320, sp = 9, names = 
     const y = yOf(step);
     const x = xs[i];
     const hw = 1.69 * sp;
-    const col = n.kind === 'full' ? 'var(--range-full)' : 'var(--ink)';
+    const col = i === playIndex ? 'var(--brass)' : n.kind === 'full' ? 'var(--range-full)' : 'var(--ink)';
     const g = [];
+    if (i === playIndex) g.push(`<circle cx="${f(x + hw / 2)}" cy="${f(y)}" r="${f(sp * 1.9)}" fill="var(--brass)" fill-opacity="0.16"/>`);
     for (let s = -2; s >= step; s -= 2) g.push(`<line x1="${f(x - 0.45 * sp)}" x2="${f(x + hw + 0.45 * sp)}" y1="${f(yOf(s))}" y2="${f(yOf(s))}" stroke="${col}" stroke-width="1.2"/>`);
     for (let s = 10; s <= step; s += 2) g.push(`<line x1="${f(x - 0.45 * sp)}" x2="${f(x + hw + 0.45 * sp)}" y1="${f(yOf(s))}" y2="${f(yOf(s))}" stroke="${col}" stroke-width="1.2"/>`);
     if (P.acc) g.push(txt(x - 1.3 * sp, y, sp, P.acc === '#' ? G.sharp : G.flat, `fill="${col}"`));
@@ -361,7 +407,7 @@ export function rulerBar({ full, served, width = 160, height = 22, ticks = true 
 }
 
 /** Keyboard strip from loM to hiM (both C's ideally). */
-export function keyboard({ loM = 36, hiM = 72, full, served, width = 320, height = 44, labels = true }) {
+export function keyboard({ loM = 36, hiM = 72, full, served, width = 320, height = 44, labels = true, pressed = -1 }) {
   const isBlack = (m) => [1, 3, 6, 8, 10].includes(m % 12);
   const whites = [];
   for (let m = loM; m <= hiM; m++) if (!isBlack(m)) whites.push(m);
@@ -370,7 +416,7 @@ export function keyboard({ loM = 36, hiM = 72, full, served, width = 320, height
   const tone = (m) => (m >= served[0] && m <= served[1] ? 'served' : m >= full[0] && m <= full[1] ? 'full' : 'out');
   whites.forEach((m, i) => {
     const t = tone(m);
-    const fill = t === 'served' ? 'var(--kb-served)' : t === 'full' ? 'var(--kb-full)' : 'var(--kb-white)';
+    const fill = m === pressed ? 'var(--brass)' : t === 'served' ? 'var(--kb-served)' : t === 'full' ? 'var(--kb-full)' : 'var(--kb-white)';
     parts.push(`<rect x="${f(i * ww + 0.5)}" y="0.5" width="${f(ww - 1)}" height="${height - 1}" rx="2.5" fill="${fill}" stroke="var(--kb-edge)" stroke-width="1"/>`);
     if (m === 60) parts.push(`<circle cx="${f(i * ww + ww / 2)}" cy="${height - 7}" r="2" fill="var(--kb-dot)"/>`);
   });

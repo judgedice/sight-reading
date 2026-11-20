@@ -11,7 +11,8 @@
  * - `extrasFinal`: final extras; `extraGhosts`: extra ghosts drawn live (what the owner saw on the staff);
  * - `wrongFinal`: final wrong-pitch verdicts (for voice an octave is correct, R7); `wrongLive`: notes shown wrong
  *   pitch live at any time;
- * - `missedFinal`: final missed; `detected`: detected notes (segmentation: one sung note should be one note).
+ * - `missedFinal`: final missed; `detected`: detected notes (segmentation: one sung note should be one note);
+ * - `octaveFinal`: matched notes read an octave off (correct for voice, R7; a sign of octave errors on low notes).
  *
  * Node only (reads the shipped corpus).
  */
@@ -120,6 +121,8 @@ export interface UntrainedRecord {
   wrongFinal: number;
   wrongLive: number;
   missedFinal: number;
+  /** Matched notes read an octave off (correct for voice, R7, but a sign of the mic's fundamental roll-off). */
+  octaveFinal: number;
   /** Up to 6 examples ("#idx verdict"), for the report. */
   examples: string[];
 }
@@ -151,6 +154,7 @@ export function measureUntrained(p: UntrainedPlan, run: TakeRun = runTake(render
     wrongFinal: js.filter((j) => j.status === 'matched' && j.pitch === 'wrong-pitch').length,
     wrongLive: wrongLive.size,
     missedFinal: js.filter((j) => j.status === 'missed').length,
+    octaveFinal: js.filter((j) => j.status === 'matched' && j.octaveDisplaced).length,
     examples,
   };
 }
@@ -165,6 +169,7 @@ export interface UntrainedSummary {
   falseWrongPitch: number;
   falseWrongLive: number;
   falseMissed: number;
+  octaveRate: number;
   /** Non-blocking gate: extra ghosts drawn per written note at most `UNTRAINED_GATE.extraGhostsPerNote`, etc. */
   pass: boolean;
 }
@@ -184,6 +189,7 @@ export function summarizeUntrained(rs: readonly UntrainedRecord[]): UntrainedSum
     falseWrongPitch: sum((r) => r.wrongFinal) / notes,
     falseWrongLive: sum((r) => r.wrongLive) / notes,
     falseMissed: sum((r) => r.missedFinal) / notes,
+    octaveRate: sum((r) => r.octaveFinal) / notes,
   };
   const g = UNTRAINED_GATE;
   return { ...s, pass: s.extraGhostsPerNote <= g.extraGhostsPerNote && s.extrasPerNote <= g.extrasPerNote && s.falseWrongPitch <= g.falseWrongPitch && s.falseMissed <= g.falseMissed };

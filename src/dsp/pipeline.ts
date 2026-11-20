@@ -95,6 +95,7 @@ export class DspPipeline {
       this.segmenterOptions,
       cfg.repeatHints.map((h) => ({ t: h.t as number, halfWidthSec: h.halfWidthSec })),
       this.clicks.map((c) => c.arrival),
+      (cfg.onsetHints ?? []).map((t) => t as number),
     );
     // 01 section 7.6 item 5: the calibrated leak level is every click window's floor until a confident template fit
     // measures that click's own leak (`takeFits`).

@@ -10,7 +10,9 @@ export const KV_INSTALL = 'install';
 export const KV_PERSIST_REQUESTED = 'persistRequested';
 
 export const RESERVED_KV_KEYS: readonly string[] = [KV_SETTINGS, KV_INSTALL, KV_PERSIST_REQUESTED];
+/** Per-try diagnostics traces and their setting (src/session/diagnostics.ts): device-local, never in a backup. */
+export const KV_DIAGNOSTICS_PREFIX = 'diag:';
 
 export function isReservedKvKey(key: string): boolean {
-  return RESERVED_KV_KEYS.includes(key);
+  return RESERVED_KV_KEYS.includes(key) || key.startsWith(KV_DIAGNOSTICS_PREFIX);
 }

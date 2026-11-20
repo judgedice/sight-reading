@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Match a note: states</title>
+<link rel="stylesheet" href="../../mockups/mockup.css">
+<link rel="stylesheet" href="round2.css">
+<script>if (/dark/.test(location.search)) document.documentElement.dataset.theme = 'dark';</script>
+</head>
+<body class="">
+<main class="fb"><h1 class="t-title">Match a note: states</h1>
+  <p class="lead">One note, a needle you can read from across the room. The band is the in-tune window at difficulty 1 (voice ±25 cents). Low and high are said in words, with the chevron on the needle's side, never red: this is a warm-up, not a grade. A hit needs 0.8 s inside the band. In a round the next note comes 1.5 s after a hit; a note chosen from the range chips stays until another is chosen.</p>
+  <div class="mb-grid"><section class="card mb"><p class="state-label">1 · Idle: the note is playing</p>
+    <div class="head"><div class="paper" style="padding:0 10px;border-radius:12px;box-shadow:none;border:1px solid var(--border)"><svg class="score-svg" viewBox="0 0 94.5 75.6" width="94.5" height="75.6" xmlns="http://www.w3.org/2000/svg" font-family="Bravura" aria-hidden="true"><g class="under"><circle cx="56.2" cy="42.3" r="15.3" fill="var(--brass)" fill-opacity="0.14" stroke="var(--brass)" stroke-width="1.5"/></g><g fill="var(--ink)" color="var(--ink)"><g class="staff" stroke="var(--staff-line)" stroke-width="1"><line x1="0" x2="94.5" y1="28.8" y2="28.8"/><line x1="0" x2="94.5" y1="37.8" y2="37.8"/><line x1="0" x2="94.5" y1="46.8" y2="46.8"/><line x1="0" x2="94.5" y1="55.8" y2="55.8"/><line x1="0" x2="94.5" y1="64.8" y2="64.8"/></g><g class="keysig" ></g><g class="clef"><text x="6.3" y="37.8" font-size="36" ></text></g><g class="note" id="b1n1" fill="var(--ink)" color="var(--ink)"><text x="48.6" y="42.3" font-size="36" ></text></g></g><g class="over"></g></svg></div><span class="nm">E3</span></div>
+    <p class="st quiet "><svg class="icon " viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5 6.5 9H3v6h3.5L11 19z"/><path d="M15.5 9a4 4 0 0 1 0 6"/><path d="M18.5 6.5a7.5 7.5 0 0 1 0 11"/></svg>Listen…</p>
+    <p class="you"></p>
+    <div class="meter off" role="meter" aria-valuemin="-50" aria-valuemax="50"  aria-label="Pitch against the note">
+  <div class="trk"></div><div class="band" style="left:25%;width:50%"></div>
+  <span class="tk" style="left:0%"></span><span class="tk" style="left:25%"></span><span class="tk" style="left:75%"></span><span class="tk" style="left:100%"></span><span class="tk c" style="left:50%"></span>
+  <span class="lbl l">Low</span><span class="lbl" style="left:50%">In tune</span><span class="lbl r">High</span>
+  
+</div>
+    <p class="foot">The note plays for 1.5 seconds. The microphone opens after it.</p></section><section class="card mb"><p class="state-label">2 · Listening</p>
+    <div class="head"><div class="paper" style="padding:0 10px;border-radius:12px;box-shadow:none;border:1px solid var(--border)"><svg class="score-svg" viewBox="0 0 94.5 75.6" width="94.5" height="75.6" xmlns="http://www.w3.org/2000/svg" font-family="Bravura" aria-hidden="true"><g class="under"></g><g fill="var(--ink)" color="var(--ink)"><g class="staff" stroke="var(--staff-line)" stroke-width="1"><line x1="0" x2="94.5" y1="28.8" y2="28.8"/><line x1="0" x2="94.5" y1="37.8" y2="37.8"/><line x1="0" x2="94.5" y1="46.8" y2="46.8"/><line x1="0" x2="94.5" y1="55.8" y2="55.8"/><line x1="0" x2="94.5" y1="64.8" y2="64.8"/></g><g class="keysig" ></g><g class="clef"><text x="6.3" y="37.8" font-size="36" ></text></g><g class="note" id="b1n1" fill="var(--ink)" color="var(--ink)"><text x="48.6" y="42.3" font-size="36" ></text></g></g><g class="over"></g></svg></div><span class="nm">E3</span></div>
+    <p class="st quiet ">Sing E3 and hold it.</p>
+    <p class="you"><span class="mt-mic">Mic <span class="mic"><span class="bars"><i class="on" style="height:5px"></i><i class="on" style="height:8px"></i><i style="height:12px"></i><i style="height:9px"></i></span></span></span></p>
+    <div class="meter " role="meter" aria-valuemin="-50" aria-valuemax="50"  aria-label="Pitch against the note">
+  <div class="trk"></div><div class="band" style="left:25%;width:50%"></div>
+  <span class="tk" style="left:0%"></span><span class="tk" style="left:25%"></span><span class="tk" style="left:75%"></span><span class="tk" style="left:100%"></span><span class="tk c" style="left:50%"></span>
+  <span class="lbl l">Low</span><span class="lbl" style="left:50%">In tune</span><span class="lbl r">High</span>
+  
+</div>
+    <p class="foot">The needle moves when we hear a steady note.</p></section><section class="card mb"><p class="state-label">3 · Low</p>
+    <div class="head"><div class="paper" style="padding:0 10px;border-radius:12px;box-shadow:none;border:1px solid var(--border)"><svg class="score-svg" viewBox="0 0 94.5 75.6" width="94.5" height="75.6" xmlns="http://www.w3.org/2000/svg" font-family="Bravura" aria-hidden="true"><g class="under"></g><g fill="var(--ink)" color="var(--ink)"><g class="staff" stroke="var(--staff-line)" stroke-width="1"><line x1="0" x2="94.5" y1="28.8" y2="28.8"/><line x1="0" x2="94.5" y1="37.8" y2="37.8"/><line x1="0" x2="94.5" y1="46.8" y2="46.8"/><line x1="0" x2="94.5" y1="55.8" y2="55.8"/><line x1="0" x2="94.5" y1="64.8" y2="64.8"/></g><g class="keysig" ></g><g class="clef"><text x="6.3" y="37.8" font-size="36" ></text></g><g class="note" id="b1n1" fill="var(--ink)" color="var(--ink)"><text x="48.6" y="42.3" font-size="36" ></text></g></g><g class="over"></g></svg></div><span class="nm">E3</span></div>
+    <p class="st  "><svg class="icon " viewBox="0 0 24 24" aria-hidden="true"><path d="m6 15 6-6 6 6"/></svg>A little low. Go up.</p>
+    <p class="you">You: <b>E3</b>, 34 cents low</p>
+    <div class="meter " role="meter" aria-valuemin="-50" aria-valuemax="50" aria-valuenow="-34" aria-label="Pitch against the note">
+  <div class="trk"></div><div class="band" style="left:25%;width:50%"></div>
+  <span class="tk" style="left:0%"></span><span class="tk" style="left:25%"></span><span class="tk" style="left:75%"></span><span class="tk" style="left:100%"></span><span class="tk c" style="left:50%"></span>
+  <span class="lbl l">Low</span><span class="lbl" style="left:50%">In tune</span><span class="lbl r">High</span>
+  <span class="needle  " style="left:16%"></span>
+</div>
+    <p class="foot">Lift it a little until the needle sits in the middle.</p></section><section class="card mb"><p class="state-label">4 · High</p>
+    <div class="head"><div class="paper" style="padding:0 10px;border-radius:12px;box-shadow:none;border:1px solid var(--border)"><svg class="score-svg" viewBox="0 0 94.5 75.6" width="94.5" height="75.6" xmlns="http://www.w3.org/2000/svg" font-family="Bravura" aria-hidden="true"><g class="under"></g><g fill="var(--ink)" color="var(--ink)"><g class="staff" stroke="var(--staff-line)" stroke-width="1"><line x1="0" x2="94.5" y1="28.8" y2="28.8"/><line x1="0" x2="94.5" y1="37.8" y2="37.8"/><line x1="0" x2="94.5" y1="46.8" y2="46.8"/><line x1="0" x2="94.5" y1="55.8" y2="55.8"/><line x1="0" x2="94.5" y1="64.8" y2="64.8"/></g><g class="keysig" ></g><g class="clef"><text x="6.3" y="37.8" font-size="36" ></text></g><g class="note" id="b1n1" fill="var(--ink)" color="var(--ink)"><text x="48.6" y="42.3" font-size="36" ></text></g></g><g class="over"></g></svg></div><span class="nm">E3</span></div>
+    <p class="st  ">A little high. Go down.<svg class="icon " viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></p>
+    <p class="you">You: <b>E3</b>, 29 cents high</p>
+    <div class="meter " role="meter" aria-valuemin="-50" aria-valuemax="50" aria-valuenow="29" aria-label="Pitch against the note">
+  <div class="trk"></div><div class="band" style="left:25%;width:50%"></div>
+  <span class="tk" style="left:0%"></span><span class="tk" style="left:25%"></span><span class="tk" style="left:75%"></span><span class="tk" style="left:100%"></span><span class="tk c" style="left:50%"></span>
+  <span class="lbl l">Low</span><span class="lbl" style="left:50%">In tune</span><span class="lbl r">High</span>
+  <span class="needle  " style="left:79%"></span>
+</div>
+    <p class="foot">Ease it down a little.</p></section><section class="card mb"><p class="state-label">5 · In tune: hit</p>
+    <div class="head"><div class="paper" style="padding:0 10px;border-radius:12px;box-shadow:none;border:1px solid var(--border)"><svg class="score-svg" viewBox="0 0 94.5 75.6" width="94.5" height="75.6" xmlns="http://www.w3.org/2000/svg" font-family="Bravura" aria-hidden="true"><g class="under"><circle cx="56.2" cy="42.3" r="15.3" fill="var(--correct)" fill-opacity="0.14" stroke="var(--correct)" stroke-width="1.5"/></g><g fill="var(--ink)" color="var(--ink)"><g class="staff" stroke="var(--staff-line)" stroke-width="1"><line x1="0" x2="94.5" y1="28.8" y2="28.8"/><line x1="0" x2="94.5" y1="37.8" y2="37.8"/><line x1="0" x2="94.5" y1="46.8" y2="46.8"/><line x1="0" x2="94.5" y1="55.8" y2="55.8"/><line x1="0" x2="94.5" y1="64.8" y2="64.8"/></g><g class="keysig" ></g><g class="clef"><text x="6.3" y="37.8" font-size="36" ></text></g><g class="note is-hit" id="b1n1" fill="var(--correct)" color="var(--correct)"><text x="48.6" y="42.3" font-size="36" ></text></g></g><g class="over"></g></svg></div><span class="nm">E3</span></div>
+    <p class="st  hit"><svg class="icon " viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>You hit it: E3.</p>
+    <p class="you">You: <b>E3</b>, 6 cents high</p>
+    <div class="meter " role="meter" aria-valuemin="-50" aria-valuemax="50" aria-valuenow="6" aria-label="Pitch against the note">
+  <div class="trk"></div><div class="band" style="left:25%;width:50%"></div>
+  <span class="tk" style="left:0%"></span><span class="tk" style="left:25%"></span><span class="tk" style="left:75%"></span><span class="tk" style="left:100%"></span><span class="tk c" style="left:50%"></span>
+  <span class="lbl l">Low</span><span class="lbl" style="left:50%">In tune</span><span class="lbl r">High</span>
+  <span class="needle in " style="left:56%"></span>
+</div>
+    <p class="foot">Next note in 1.5 seconds.</p></section><section class="card mb"><p class="state-label">6 · No signal after 6 s</p>
+    <div class="head"><div class="paper" style="padding:0 10px;border-radius:12px;box-shadow:none;border:1px solid var(--border)"><svg class="score-svg" viewBox="0 0 94.5 75.6" width="94.5" height="75.6" xmlns="http://www.w3.org/2000/svg" font-family="Bravura" aria-hidden="true"><g class="under"></g><g fill="var(--ink)" color="var(--ink)"><g class="staff" stroke="var(--staff-line)" stroke-width="1"><line x1="0" x2="94.5" y1="28.8" y2="28.8"/><line x1="0" x2="94.5" y1="37.8" y2="37.8"/><line x1="0" x2="94.5" y1="46.8" y2="46.8"/><line x1="0" x2="94.5" y1="55.8" y2="55.8"/><line x1="0" x2="94.5" y1="64.8" y2="64.8"/></g><g class="keysig" ></g><g class="clef"><text x="6.3" y="37.8" font-size="36" ></text></g><g class="note" id="b1n1" fill="var(--ink)" color="var(--ink)"><text x="48.6" y="42.3" font-size="36" ></text></g></g><g class="over"></g></svg></div><span class="nm">E3</span></div>
+    <p class="st quiet ">We can't hear a steady note yet.</p>
+    <p class="you"></p>
+    <div class="meter off" role="meter" aria-valuemin="-50" aria-valuemax="50"  aria-label="Pitch against the note">
+  <div class="trk"></div><div class="band" style="left:25%;width:50%"></div>
+  <span class="tk" style="left:0%"></span><span class="tk" style="left:25%"></span><span class="tk" style="left:75%"></span><span class="tk" style="left:100%"></span><span class="tk c" style="left:50%"></span>
+  <span class="lbl l">Low</span><span class="lbl" style="left:50%">In tune</span><span class="lbl r">High</span>
+  
+</div>
+    <p class="foot">Move a little closer to the mic and hold one note.</p></section><section class="card mb"><p class="state-label">7 · Too far low for 2 s</p>
+    <div class="head"><div class="paper" style="padding:0 10px;border-radius:12px;box-shadow:none;border:1px solid var(--border)"><svg class="score-svg" viewBox="0 0 94.5 75.6" width="94.5" height="75.6" xmlns="http://www.w3.org/2000/svg" font-family="Bravura" aria-hidden="true"><g class="under"></g><g fill="var(--ink)" color="var(--ink)"><g class="staff" stroke="var(--staff-line)" stroke-width="1"><line x1="0" x2="94.5" y1="28.8" y2="28.8"/><line x1="0" x2="94.5" y1="37.8" y2="37.8"/><line x1="0" x2="94.5" y1="46.8" y2="46.8"/><line x1="0" x2="94.5" y1="55.8" y2="55.8"/><line x1="0" x2="94.5" y1="64.8" y2="64.8"/></g><g class="keysig" ></g><g class="clef"><text x="6.3" y="37.8" font-size="36" ></text></g><g class="note" id="b1n1" fill="var(--ink)" color="var(--ink)"><text x="48.6" y="42.3" font-size="36" ></text></g></g><g class="over"></g></svg></div><span class="nm">E3</span></div>
+    <p class="st  "><svg class="icon " viewBox="0 0 24 24" aria-hidden="true"><path d="m6 15 6-6 6 6"/></svg>Higher. Try E3.</p>
+    <p class="you">You: <b>B2</b>, 5 semitones low</p>
+    <div class="meter " role="meter" aria-valuemin="-50" aria-valuemax="50" aria-valuenow="-50" aria-label="Pitch against the note">
+  <div class="trk"></div><div class="band" style="left:25%;width:50%"></div>
+  <span class="tk" style="left:0%"></span><span class="tk" style="left:25%"></span><span class="tk" style="left:75%"></span><span class="tk" style="left:100%"></span><span class="tk c" style="left:50%"></span>
+  <span class="lbl l">Low</span><span class="lbl" style="left:50%">In tune</span><span class="lbl r">High</span>
+  <span class="needle  pin" style="left:2%"></span>
+</div>
+    <p class="foot">Slide up slowly. The needle comes in when you are close.</p></section><section class="card mb"><p class="state-label">8 · Too far high for 2 s</p>
+    <div class="head"><div class="paper" style="padding:0 10px;border-radius:12px;box-shadow:none;border:1px solid var(--border)"><svg class="score-svg" viewBox="0 0 94.5 75.6" width="94.5" height="75.6" xmlns="http://www.w3.org/2000/svg" font-family="Bravura" aria-hidden="true"><g class="under"></g><g fill="var(--ink)" color="var(--ink)"><g class="staff" stroke="var(--staff-line)" stroke-width="1"><line x1="0" x2="94.5" y1="28.8" y2="28.8"/><line x1="0" x2="94.5" y1="37.8" y2="37.8"/><line x1="0" x2="94.5" y1="46.8" y2="46.8"/><line x1="0" x2="94.5" y1="55.8" y2="55.8"/><line x1="0" x2="94.5" y1="64.8" y2="64.8"/></g><g class="keysig" ></g><g class="clef"><text x="6.3" y="37.8" font-size="36" ></text></g><g class="note" id="b1n1" fill="var(--ink)" color="var(--ink)"><text x="48.6" y="42.3" font-size="36" ></text></g></g><g class="over"></g></svg></div><span class="nm">E3</span></div>
+    <p class="st  ">Lower. Try E3.<svg class="icon " viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></p>
+    <p class="you">You: <b>A3</b>, 5 semitones high</p>
+    <div class="meter " role="meter" aria-valuemin="-50" aria-valuemax="50" aria-valuenow="50" aria-label="Pitch against the note">
+  <div class="trk"></div><div class="band" style="left:25%;width:50%"></div>
+  <span class="tk" style="left:0%"></span><span class="tk" style="left:25%"></span><span class="tk" style="left:75%"></span><span class="tk" style="left:100%"></span><span class="tk c" style="left:50%"></span>
+  <span class="lbl l">Low</span><span class="lbl" style="left:50%">In tune</span><span class="lbl r">High</span>
+  <span class="needle  pin" style="left:98%"></span>
+</div>
+    <p class="foot">Slide down slowly. The needle comes in when you are close.</p></section><section class="card mb"><p class="state-label">9 · Instruments: right note, wrong octave</p>
+    <div class="head"><div class="paper" style="padding:0 10px;border-radius:12px;box-shadow:none;border:1px solid var(--border)"><svg class="score-svg" viewBox="0 0 94.5 75.6" width="94.5" height="75.6" xmlns="http://www.w3.org/2000/svg" font-family="Bravura" aria-hidden="true"><g class="under"></g><g fill="var(--ink)" color="var(--ink)"><g class="staff" stroke="var(--staff-line)" stroke-width="1"><line x1="0" x2="94.5" y1="28.8" y2="28.8"/><line x1="0" x2="94.5" y1="37.8" y2="37.8"/><line x1="0" x2="94.5" y1="46.8" y2="46.8"/><line x1="0" x2="94.5" y1="55.8" y2="55.8"/><line x1="0" x2="94.5" y1="64.8" y2="64.8"/></g><g class="keysig" ></g><g class="clef"><text x="6.3" y="37.8" font-size="36" ></text></g><g class="note" id="b1n1" fill="var(--ink)" color="var(--ink)"><text x="48.6" y="42.3" font-size="36" ></text></g></g><g class="over"></g></svg></div><span class="nm">E3</span><span class="t-small muted" style="margin-left:auto">Cello</span></div>
+    <p class="st  ">Right note, wrong octave.</p>
+    <p class="you">You: <b>E4</b>. Play E3, an octave lower.</p>
+    <div class="meter " role="meter" aria-valuemin="-50" aria-valuemax="50" aria-valuenow="4" aria-label="Pitch against the note">
+  <div class="trk"></div><div class="band" style="left:25%;width:50%"></div>
+  <span class="tk" style="left:0%"></span><span class="tk" style="left:25%"></span><span class="tk" style="left:75%"></span><span class="tk" style="left:100%"></span><span class="tk c" style="left:50%"></span>
+  <span class="lbl l">Low</span><span class="lbl" style="left:50%">In tune</span><span class="lbl r">High</span>
+  <span class="needle  " style="left:54%"></span>
+</div>
+    <p class="foot">Instruments match the octave. Voices do not need to.</p></section><section class="card mb"><p class="state-label">10 · No microphone</p>
+    <div class="head"><div class="paper" style="padding:0 10px;border-radius:12px;box-shadow:none;border:1px solid var(--border)"><svg class="score-svg" viewBox="0 0 94.5 75.6" width="94.5" height="75.6" xmlns="http://www.w3.org/2000/svg" font-family="Bravura" aria-hidden="true"><g class="under"></g><g fill="var(--ink)" color="var(--ink)"><g class="staff" stroke="var(--staff-line)" stroke-width="1"><line x1="0" x2="94.5" y1="28.8" y2="28.8"/><line x1="0" x2="94.5" y1="37.8" y2="37.8"/><line x1="0" x2="94.5" y1="46.8" y2="46.8"/><line x1="0" x2="94.5" y1="55.8" y2="55.8"/><line x1="0" x2="94.5" y1="64.8" y2="64.8"/></g><g class="keysig" ></g><g class="clef"><text x="6.3" y="37.8" font-size="36" ></text></g><g class="note" id="b1n1" fill="var(--ink)" color="var(--ink)"><text x="48.6" y="42.3" font-size="36" ></text></g></g><g class="over"></g></svg></div><span class="nm">E3</span></div>
+    <p class="st quiet ">Matching a note needs the microphone.</p>
+    <p class="you"></p>
+    <div class="meter off" role="meter" aria-valuemin="-50" aria-valuemax="50"  aria-label="Pitch against the note">
+  <div class="trk"></div><div class="band" style="left:25%;width:50%"></div>
+  <span class="tk" style="left:0%"></span><span class="tk" style="left:25%"></span><span class="tk" style="left:75%"></span><span class="tk" style="left:100%"></span><span class="tk c" style="left:50%"></span>
+  <span class="lbl l">Low</span><span class="lbl" style="left:50%">In tune</span><span class="lbl r">High</span>
+  
+</div>
+    <p class="foot"></p><div style="margin-top:4px"><button class="btn btn-primary btn-compact"><svg class="icon sm" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="2.5" width="6" height="12" rx="3"/><path d="M18.5 11a6.5 6.5 0 0 1-13 0"/><path d="M12 17.5V21"/></svg>Allow microphone</button></div></section><section class="card mb"><p class="state-label">11 · Round summary, after note 5</p>
+    <div class="head"><span class="mt-dots big"><i class="hit"></i><i class="hit"></i><i class="hit"></i><i class="hit"></i><i></i></span></div>
+    <p class="st">4 of 5 hit.</p>
+    <p class="you">On average you were 8 cents low.</p>
+    <p class="foot" style="min-height:0">Nothing is graded or saved. Practice and History are unchanged.</p>
+    <div class="mb-acts"><button class="btn btn-primary btn-compact">Five more</button><button class="btn btn-secondary btn-compact">Done</button></div></section><section class="card mb"><p class="state-label">12 · Onboarding step: one note, never moves on by itself</p>
+    <p class="t-label" style="margin:2px 0 0">Sing one note</p><p class="t-small muted" style="margin:2px 0 0">A quick check that we hear you. Not graded.</p>
+    <p class="st hit"><svg class="icon " viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>We heard you clearly.</p>
+    <p class="you">You: <b>E3</b>, 6 cents high</p>
+    <p class="foot" style="min-height:0">You're ready. Continue when you like.</p>
+    <div class="mb-acts"><button class="btn btn-primary btn-compact">Continue</button><button class="btn btn-quiet btn-compact">Skip</button></div></section></div></main>
+<style>@media (max-width:700px){ .mb-grid { grid-template-columns: 1fr; } .fb { padding: 18px 14px 40px; } }</style>
+</body>
+</html>

@@ -88,6 +88,11 @@ export function repeatHints(plan: TakePlan, t0: number, rtlSec: number): DspConf
   return out;
 }
 
+/** Every written onset on the input timeline, sorted (round 2: `DspConfig.onsetHints`). */
+export function onsetHints(plan: TakePlan, t0: number, rtlSec: number): ClockSeconds[] {
+  return plan.expected.map((e) => (t0 + rtlSec + e.onsetSec) as ClockSeconds).sort((a, b) => a - b);
+}
+
 export interface DspConfigFacts {
   analysisRate: number;
   outputMode: OutputMode;
@@ -101,6 +106,8 @@ export interface DspConfigFacts {
   repeatHints: DspConfig['repeatHints'];
   /** The take's difficulty, for the one-note tolerances (round 2 detection); absent: none (the tuning note). */
   level?: number;
+  /** Written onsets (`onsetHints`), for the scoop rule. */
+  onsetHints?: ClockSeconds[];
 }
 
 /** DspConfig for a take or a tuning note (01 §5.6). Bleed handling is speakers only (01 §7.6). */
@@ -127,6 +134,7 @@ export function dspConfigFor(inst: Instrument, cfg: Configs, f: DspConfigFacts):
     attackExcludeMs: cfg.grading.intonation.attackExcludeMsByFamily[inst.family],
     clickLeakDb: speakers && f.calibration && f.calibration.method !== 'reported' ? f.calibration.clickLeakDb : null,
     oneNote: f.level === undefined ? null : resolveOneNote(cfg, inst, f.level),
+    ...(f.onsetHints ? { onsetHints: f.onsetHints } : {}),
   };
 }
 

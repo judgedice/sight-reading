@@ -113,6 +113,7 @@ export function gateDspConfig(r: ScenarioRender, tolerances: readonly ResolvedTo
     attackExcludeMs: cfg.grading.intonation.attackExcludeMsByFamily[base.inst.family],
     clickLeakDb: null,
     oneNote: resolveOneNote(cfg, base.inst, base.level),
+    onsetHints: base.expected.map((e) => (r.t0Sec + e.onsetSec) as ClockSeconds).sort((a, b) => a - b),
   };
 }
 

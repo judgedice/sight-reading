@@ -131,8 +131,21 @@ export type WorkerReply =
       signal: { medianClarity: number | null; clippingFrac: number };
       /** Voice drift reference values (02 §4.5), null for other families. */
       voiceReference: { finalOffsetCents: number; offsetAtThirdCents: number } | null;
+      /** The try's diagnostics trace (round 2 detection, src/session/diagnostics.ts). */
+      trace?: WorkerTrace;
     }
   | { v: 1; type: 'error'; message: string };
+
+/**
+ * What the DSP worker keeps of a try for its diagnostics trace (round 2 detection): pitch frames decimated to about
+ * 50 Hz (input times, fractional MIDI or null, clarity, dBFS), every detected note including those the follower
+ * ignored, and, only when `DspConfig.traceAudio` is set (an explicit opt-in), the analysed low band.
+ */
+export interface WorkerTrace {
+  frames: { t: number[]; midi: (number | null)[]; clarity: number[]; levelDb: number[] };
+  detected: DetectedNote[];
+  audio?: { rate: number; startT: number; samples: Float32Array };
+}
 
 /** The parameters of one take's metronome schedule (01 §5.2, §7.1, §7.6). */
 export interface TakeSchedule {

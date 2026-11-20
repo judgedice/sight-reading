@@ -52,6 +52,7 @@ import type {
   Configs,
   CorpusManifest,
   DetectedNote,
+  DspConfig,
   EndReason,
   ExcerptDoc,
   ExpectedNote,
@@ -82,7 +83,8 @@ import { createEmitter } from '../core/events.ts';
 import { createRng } from '../core/rng.ts';
 import { CorpusLoadError, loadExcerpt, prepareExcerpt, selectAndPrepare } from '../corpus/index.ts';
 import { DspPipeline } from '../dsp/pipeline.ts';
-import { alignFinalWithReference, liveOutcomeOf, withOwnPlayback } from '../follow/index.ts';
+import { alignFinalWithReference, ignoredNote, liveOutcomeOf, withOwnPlayback } from '../follow/index.ts';
+import { DiagnosticsStore, buildTryTrace, diagnosticsFile, diagnosticsFileName, type DiagnosticsFile, type DiagnosticsSettings, type TryTrace } from './diagnostics.ts';
 import {
   applyAttemptOnDay,
   createProfile,
@@ -121,6 +123,7 @@ import {
   dspConfigFor,
   followConfigFor,
   planTake,
+  onsetHints,
   referenceLengthSec,
   repeatHints,
   takesTuningNote,
@@ -274,6 +277,10 @@ interface Take {
   analysisRate: number | null;
   /** End of the last relayed block on the input timeline (relay mode), or null. */
   lastBlockEnd: number | null;
+  /** Diagnostics (round 2): the worker's configs, the reference tones, and follower events with their arrival time. */
+  dspCfg: DspConfig | null;
+  ownTones: OwnSound[];
+  traceEvents: { at: number; event: FollowerEvent }[];
 }
 
 const EMPTY_ALIGNMENT: FinalAlignment = { judgments: [], extras: [], displaced: [] };
@@ -327,6 +334,10 @@ export class PracticeSession implements PracticeSessionInstance {
   private readonly opts: PracticeSessionOptions;
   private readonly timers: SessionTimers;
   private readonly player: SoundPlayer;
+  /** Per-try traces (round 2 detection), device-local. */
+  private readonly diagnostics: DiagnosticsStore;
+  /** The last failure to store a trace (diagnostics only), or null. */
+  diagnosticsError: unknown = null;
   /** The "Hear it" store: what is sounding, its caption and bar (05 §8.8, §9.3). */
   readonly sounds: StoreApi<SoundView>;
   /** Prepared excerpts of stored attempts (history Listen), by attempt id. */
@@ -372,6 +383,7 @@ export class PracticeSession implements PracticeSessionInstance {
     const { store, detach } = createSessionStore(this.events);
     this.view = store;
     this.player = new SoundPlayer(this.audio, this.timers);
+    this.diagnostics = new DiagnosticsStore(deps.platform.kv);
     this.sounds = this.player.view;
     this.unsubs.push(detach);
     this.unsubs.push(this.audio.onInterruption((r) => this.voidTake(r === 'device-change' ? 'device-change' : 'interrupted')));
@@ -621,6 +633,7 @@ export class PracticeSession implements PracticeSessionInstance {
     }
 
     const stored = (await this.platform.repos.calibrations.get(route.routeKey)) ?? null;
+    const diagAudio = listening && (await this.diagnostics.settings().catch(() => ({ includeAudio: false }))).includeAudio;
     const used = stored ?? reportedCalibration(route, audio.capabilities.platform, this.cfg.budget.calibration, this.platform.clockWall(), audio.audioInfo().clockRateError);
     const rtlSec = listening ? (this.opts.rtlOverrideMs ?? used.roundTripMs) / 1000 : 0;
     const tuningCents = takesTuningNote(plan.inst) ? this.tuning.get(plan.inst.id) : undefined;
@@ -659,6 +672,9 @@ export class PracticeSession implements PracticeSessionInstance {
       scanSeconds,
       analysisRate: null,
       lastBlockEnd: null,
+      dspCfg: null,
+      ownTones,
+      traceEvents: [],
     };
     this.take = take;
 
@@ -705,7 +721,11 @@ export class PracticeSession implements PracticeSessionInstance {
         calibration: stored,
         repeatHints: repeatHints(plan, take.t0, rtlSec),
         level: plan.level,
+        onsetHints: onsetHints(plan, take.t0, rtlSec),
       });
+      // Diagnostics (round 2): the try's low band is kept only with the opt-in setting.
+      if (diagAudio) dsp.traceAudio = true;
+      take.dspCfg = dsp;
       const recheckOn = s.outputMode === 'speakers' && take.countIn.length > 0;
       const first = take.countIn[0];
       const template = stored?.templates[s.clickTimbre];
@@ -1220,6 +1240,7 @@ export class PracticeSession implements PracticeSessionInstance {
       case 'events':
         for (const e of r.events) {
           take.liveEvents.push(e);
+          take.traceEvents.push({ at: this.audio.now() as number, event: e });
           if (e.type === 'final') take.alignment = e.alignment;
           if (e.type === 'note-start') take.firstNoteHeard = true;
           this.emit({ type: 'follower', event: e });
@@ -1402,6 +1423,7 @@ export class PracticeSession implements PracticeSessionInstance {
     this.take = null;
     this.stopPolling();
     const record = await this.buildAndStore(c, t, reason, done);
+    await this.storeTrace(t, record, done);
     this.lastRecord = record;
     this.setState('results');
     return record;
@@ -1584,6 +1606,64 @@ export class PracticeSession implements PracticeSessionInstance {
     }
     if (recheck?.promptRecalibrate) this.emit({ type: 'recalibrate-prompt', routeKey: t.route.routeKey });
     return record;
+  }
+
+  // ---- diagnostics per try (round 2 detection, diagnostics.ts) -------------------------------------
+
+  /** Keeps the try's trace (the last DIAG_KEEP tries). A failure here never touches the try or its record. */
+  private async storeTrace(t: Take, record: AttemptRecord, done: DoneReply | null): Promise<void> {
+    try {
+      const follow = t.follow;
+      const trace = buildTryTrace({
+        record,
+        route: t.route,
+        used: t.listening ? t.used : null,
+        dsp: t.dspCfg,
+        follow,
+        t0: t.t0,
+        reference: t.ownTones,
+        clicks: t.clicks,
+        worker: done?.trace ?? null,
+        events: t.traceEvents,
+        ignored: (d) => (follow ? ignoredNote(follow, d) : false),
+      });
+      await this.diagnostics.put(trace);
+    } catch (e) {
+      // Storage full or unavailable: the try and its record stand; only its trace is lost.
+      this.diagnosticsError = e;
+    }
+  }
+
+  /** The device-local diagnostics setting (include the microphone audio in the export: off by default). */
+  diagnosticsSettings(): Promise<DiagnosticsSettings> {
+    return this.diagnostics.settings();
+  }
+
+  /** Turns the opt-in "include microphone audio" on or off; it applies from the next try. */
+  setDiagnosticsSettings(s: DiagnosticsSettings): Promise<void> {
+    return this.diagnostics.setSettings(s);
+  }
+
+  /** Attempt ids that have a stored trace, oldest first (at most DIAG_KEEP). */
+  diagnosticsAttemptIds(): Promise<string[]> {
+    return this.diagnostics.ids();
+  }
+
+  /** The last try's diagnostics as one JSON file, or null when no try has been traced yet. */
+  async exportLastTry(): Promise<{ fileName: string; text: string; file: DiagnosticsFile } | null> {
+    const t = await this.diagnostics.last();
+    return t ? this.exportOf(t) : null;
+  }
+
+  /** A given attempt's diagnostics as one JSON file, or null when its trace is no longer kept. */
+  async exportAttempt(attemptId: string): Promise<{ fileName: string; text: string; file: DiagnosticsFile } | null> {
+    const t = await this.diagnostics.get(attemptId);
+    return t ? this.exportOf(t) : null;
+  }
+
+  private exportOf(t: TryTrace): { fileName: string; text: string; file: DiagnosticsFile } {
+    const file = diagnosticsFile([t], this.platform.clockWall());
+    return { fileName: diagnosticsFileName(t), text: JSON.stringify(file), file };
   }
 
   // ---- profile and history -------------------------------------------------------------------------

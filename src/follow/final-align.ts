@@ -260,13 +260,9 @@ export function alignNotes(c: FollowConfig, detected: readonly DetectedNote[]): 
   const attackMs = c.cfg.grading.intonation.attackExcludeMsByFamily[c.instrument.family];
   // Notes before the music and the app's own tones are not the player's (own-playback.ts); a note at a click needs
   // to sound longer before it is an extra.
-  // A short note right after a note of the same pitch class is that note sung on (round 2, `oneNote.absorbMs`).
-  const byOnset = [...playerNotes(c, detected)].sort((a, b) => a.onset - b.onset || a.id - b.id);
-  return byOnset
-    .map((note, k) => {
-      const absorbed = absorbedBy(c, note, byOnset[k - 1] ?? null);
-      return { note, s: scoreSecondsOf(note.onset, c.t0, c.latencyCompensationSec), extraEligible: soundedSec(note, attackMs) >= extraMinMs(c, note, absorbed) / MS };
-    })
+  const minSec = c.cfg.grading.credit.extraMinDurMs / MS;
+  return playerNotes(c, detected)
+    .map((note) => ({ note, s: scoreSecondsOf(note.onset, c.t0, c.latencyCompensationSec), extraEligible: soundedSec(note, attackMs) >= minSec }))
     .sort((a, b) => a.s - b.s || a.note.id - b.note.id);
 }
 
@@ -343,8 +339,14 @@ export function alignFinalWithReference(
 
   const rests = restIntervals(c.expected);
   const need = c.cfg.grading.credit.restIntrusionMs / MS;
+  // Reported extras (round 2): beyond 02 §4.1's length, a note at a click, a scoop or breath fragment (`oneNote`) and
+  // a short note right after a note of the same pitch class (that note sung on, `oneNote.absorbMs`) are not extras.
+  // The DP above keeps the plain rule, so a short written note is never easier to skip.
+  const byOnset = [...notes].sort((a, b) => a.note.onset - b.note.onset || a.note.id - b.note.id);
+  const prevOf = new Map<number, AlignNote | null>(byOnset.map((n, k) => [n.note.id, byOnset[k - 1] ?? null]));
+  const reported = (n: AlignNote): boolean => soundedSec(n.note, attackMs) >= extraMinMs(c, n.note, absorbedBy(c, n.note, prevOf.get(n.note.id)?.note ?? null)) / MS;
   const extras: ExtraNote[] = unmatched
-    .filter((n) => n.extraEligible)
+    .filter((n) => n.extraEligible && reported(n))
     .sort((a, b) => a.note.id - b.note.id)
     .map((n) => {
       const dur = soundedSec(n.note, attackMs);

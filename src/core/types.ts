@@ -1483,6 +1483,13 @@ export interface DspConfig {
   clickLeakDb: number | null;
   /** One sung note stays one note (round 2 detection, `rules/resolveOneNote`); absent or null: the 01 §7.5 segmenter. */
   oneNote?: OneNoteTolerance | null;
+  /** Keep the analysed low band for the try's diagnostics export (opt-in, off by default; round 2 detection). */
+  traceAudio?: boolean;
+  /**
+   * Every written onset on the input timeline (t0 + RTL + onset), sorted (round 2 detection). A pitch change that
+   * reaches the next written onset is a new note, never a scoop (`oneNote.scoopMs`). Absent: no scoop exception.
+   */
+  onsetHints?: ClockSeconds[];
 }
 
 /** One pitch frame, stamped at the window centre (01 §7.3). */

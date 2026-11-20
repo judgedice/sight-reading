@@ -1,7 +1,7 @@
 {
- "generated": "2026-11-19T01:44:06.353Z",
+ "generated": "2026-11-19T23:12:06.964Z",
  "scale": "full",
- "commit": "9b1ae95",
+ "commit": "1624ed0",
  "liveProvisionalMs": 80,
  "onsetByClass": {
   "clean": {
@@ -67,10 +67,10 @@
    },
    "voice": {
     "n": 777,
-    "mean": 3.532346755741318,
-    "sd": 10.90812616845902,
-    "rms": 11.45912533350759,
-    "e90": 20.24470233264708
+    "mean": 3.453039743099594,
+    "sd": 10.969665749075102,
+    "rms": 11.493571275226568,
+    "e90": 20.45228585811376
    }
   }
  },
@@ -560,24 +560,24 @@
    },
    "voice": {
     "silence": {
-     "n": 383,
-     "mean": 8.562627969661737,
-     "sd": 7.981752218515941,
-     "rms": 11.698744626537795,
+     "n": 384,
+     "mean": 8.56264415770963,
+     "sd": 7.987852576444164,
+     "rms": 11.702927105911376,
      "e90": 20.055444198185057
     },
     "dip": {
-     "n": 253,
-     "mean": -4.184982627812981,
-     "sd": 10.199499544127313,
-     "rms": 11.00602951119434,
-     "e90": 20.359118203773896
+     "n": 252,
+     "mean": -4.457833021719775,
+     "sd": 10.248531550468336,
+     "rms": 11.15741363204697,
+     "e90": 20.457671882347483
     },
     "pitch-change": {
      "n": 141,
-     "mean": 3.715939869980446,
-     "sd": 11.025273032124556,
-     "rms": 11.597532094453758,
+     "mean": 3.6761024489451697,
+     "sd": 10.946280504111092,
+     "rms": 11.510212481106318,
      "e90": 20.182650918915357
     }
    },
@@ -731,7 +731,7 @@
    },
    "voice": {
     "steady": 7.763577354265294,
-    "all": 8.653613562009355,
+    "all": 8.701346362212803,
     "n": 323
    },
    "piano": {
@@ -2244,7 +2244,7 @@
    "id": "room-f1",
    "scope": "voice / planned",
    "metric": "onset F1 at ±30 ms",
-   "value": 0.886986301369863,
+   "value": 0.8925904652498564,
    "op": ">=",
    "threshold": 0.93,
    "source": "PLAN R45",
@@ -2366,7 +2366,7 @@
    "id": "tips-hit",
    "scope": "E6",
    "metric": "injected pattern fires",
-   "value": 0.9666666666666667,
+   "value": 0.9333333333333333,
    "op": ">=",
    "threshold": 0.9,
    "source": "02 §6.2",
@@ -2455,8 +2455,8 @@
   {
    "id": "tips-cross",
    "scope": "E23",
-   "metric": "worst cross-firing",
-   "value": 0,
+   "metric": "worst cross-firing (E6)",
+   "value": 0.03333333333333333,
    "op": "<=",
    "threshold": 0.05,
    "source": "02 §6.2",
@@ -2466,7 +2466,7 @@
    "id": "tips-hit",
    "scope": "E1",
    "metric": "injected pattern fires",
-   "value": 0.9333333333333333,
+   "value": 0.9666666666666667,
    "op": ">=",
    "threshold": 0.9,
    "source": "02 §6.2",
@@ -2546,7 +2546,7 @@
    "id": "tips-hit",
    "scope": "E9",
    "metric": "injected pattern fires",
-   "value": 1,
+   "value": 0.9666666666666667,
    "op": ">=",
    "threshold": 0.9,
    "source": "02 §6.2",
@@ -2606,7 +2606,7 @@
    "id": "tips-hit",
    "scope": "E4",
    "metric": "injected pattern fires",
-   "value": 0.9333333333333333,
+   "value": 0.9666666666666667,
    "op": ">=",
    "threshold": 0.9,
    "source": "02 §6.2",
@@ -2655,8 +2655,8 @@
   {
    "id": "tips-cross",
    "scope": "E26",
-   "metric": "worst cross-firing (E6)",
-   "value": 0.03333333333333333,
+   "metric": "worst cross-firing",
+   "value": 0,
    "op": "<=",
    "threshold": 0.05,
    "source": "02 §6.2",
@@ -2712,5 +2712,17 @@
    "source": "PLAN R50",
    "pass": true
   }
- ]
+ ],
+ "untrainedVoice": {
+  "takes": 40,
+  "notes": 1052,
+  "detectedPerNote": 1.0095057034220531,
+  "extrasPerNote": 0,
+  "extraGhostsPerNote": 0.015209125475285171,
+  "falseWrongPitch": 0.004752851711026616,
+  "falseWrongLive": 0.017110266159695818,
+  "falseMissed": 0.008555133079847909,
+  "octaveRate": 0,
+  "pass": true
+ }
 }
