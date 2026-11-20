@@ -259,7 +259,7 @@ describe('round 2 vocabulary and new copy (01-ux.md 2 to 16, 04-design.md 10, 02
     for (const name of ['Versilian Studios', 'tiny-orchestra', 'Frank Wen', 'Benjamin Gleitzman', 'Alexander Holm', 'Jan Forst', 'CC BY 3.0', 'CC0 1.0']) {
       expect(credit, name).toContain(name);
     }
-    expect(copy('credits.sounds.licences')).toContain('LICENSES/CC-BY-3.0.txt');
+    expect(copy('credits.sounds.licenceFiles')).toContain('LICENSES/CC-BY-3.0.txt');
   });
 
   it('keeps the old keys the code still uses, with the variables the code passes', () => {

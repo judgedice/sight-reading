@@ -1,4 +1,5 @@
 import react from '@vitejs/plugin-react';
+import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { defineConfig, type Plugin } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
@@ -45,6 +46,23 @@ function pwaHead(): Plugin {
   };
 }
 
+/**
+ * Ships the repo's LICENSES/*.txt as `LICENSES/<name>.txt` in the build, so the Credits links resolve in dist/ as they
+ * do on the dev server (which serves the project root). Not in the service worker's shell list (.txt).
+ */
+function licenceFiles(): Plugin {
+  const dir = fileURLToPath(new URL('./LICENSES/', import.meta.url));
+  return {
+    name: 'sightread-licence-files',
+    apply: 'build',
+    generateBundle() {
+      for (const name of readdirSync(dir).filter((n) => n.endsWith('.txt'))) {
+        this.emitFile({ type: 'asset', fileName: `LICENSES/${name}`, source: readFileSync(dir + name) });
+      }
+    },
+  };
+}
+
 /** `vexflow-src/x.js` → one VexFlow source module (tsconfig.json paths; src/notation/font/vexflow-bravura.ts). */
 export const vexflowSrcAlias = {
   find: /^vexflow-src\//,
@@ -57,6 +75,7 @@ export default defineConfig({
   plugins: [
     react(),
     pwaHead(),
+    licenceFiles(),
     VitePWA({
       strategies: 'injectManifest',
       srcDir: 'src/platform/web/sw',

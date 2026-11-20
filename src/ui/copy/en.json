@@ -1016,5 +1016,6 @@
   "credits.sounds.strings": "String, saxophone, horn, trombone and guitar samples: Fluid (R3) SoundFont © 2000–2002, 2008 Frank Wen, MIT licence; per-note recordings by Benjamin Gleitzman (midi-js-soundfonts), CC BY 3.0.",
   "credits.sounds.piano": "Piano: Salamander Grand Piano V3 by Alexander Holm, CC BY 3.0. MP3 edition by Jan Forst.",
   "credits.sounds.voices": "Voices: synthesised for this app.",
-  "credits.sounds.licences": "All samples were trimmed, looped, levelled and re-encoded for this app. Licence texts: LICENSES/CC0-1.0.txt, LICENSES/MIT-FluidR3.txt, LICENSES/CC-BY-3.0.txt."
+  "credits.sounds.licences": "All samples were trimmed, looped, levelled and re-encoded for this app. Licence texts:",
+  "credits.sounds.licenceFiles": "LICENSES/CC0-1.0.txt, LICENSES/MIT-FluidR3.txt, LICENSES/CC-BY-3.0.txt"
 }

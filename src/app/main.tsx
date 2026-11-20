@@ -218,6 +218,10 @@ export async function boot(root: Root): Promise<void> {
       iosBeta: iosBetaLabelKey(capabilities.osFamily) !== null,
       testClock,
       dev: import.meta.env.DEV,
+      navigate(path) {
+        const hash = hashFromPath(path);
+        if (window.location.hash !== hash) window.location.hash = hash;
+      },
     };
     const composed = composeApp(runtime);
 

@@ -359,6 +359,20 @@ export class WebAudioBackend implements AudioBackend {
     return this.completeUnlock(ctx);
   }
 
+  /**
+   * Stops capture and the microphone tracks and tears down the capture graph, keeping the context (core/platform
+   * `releaseInput`). The next `unlock` opens the microphone again and rebuilds the graph. A no-op without a track.
+   */
+  releaseInput(): void {
+    if (this.cap) this.stopCapture();
+    const old = this.track;
+    this.track = null;
+    old?.stop();
+    for (const t of this.stream?.getAudioTracks() ?? []) if (t !== old) t.stop();
+    this.stream = null;
+    this.teardownGraph();
+  }
+
   private setStream(stream: MediaStreamLike, track: TrackLike): void {
     this.stream = stream;
     this.track = track;

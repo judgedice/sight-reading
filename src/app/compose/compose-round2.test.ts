@@ -102,9 +102,10 @@ describe('composeApp round 2', () => {
     app.dispose();
   });
 
-  it('reads the support address and the opt-in from the build variables', () => {
-    expect(readDiagnosticsEnv({})).toEqual({ supportAddress: null, soundOptInShown: false });
-    expect(readDiagnosticsEnv({ VITE_SUPPORT_EMAIL: '  ', VITE_DIAG_SOUND_OPTIN: '0' })).toEqual({ supportAddress: null, soundOptInShown: false });
+  it('reads the support address from the build variables; the opt-in always shows', () => {
+    // PLAN ruling 64: the audio opt-in shows in every build, whatever the build variables say.
+    expect(readDiagnosticsEnv({})).toEqual({ supportAddress: null, soundOptInShown: true });
+    expect(readDiagnosticsEnv({ VITE_SUPPORT_EMAIL: '  ', VITE_DIAG_SOUND_OPTIN: '0' })).toEqual({ supportAddress: null, soundOptInShown: true });
     expect(readDiagnosticsEnv({ VITE_SUPPORT_EMAIL: 'help@example.org', VITE_DIAG_SOUND_OPTIN: '1' })).toEqual({ supportAddress: 'help@example.org', soundOptInShown: true });
   });
 

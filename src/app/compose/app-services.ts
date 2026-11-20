@@ -6,7 +6,7 @@
 import { createElement, lazy, Suspense, type ComponentType, type ReactNode } from 'react';
 import type { AudioBackend, KeyValue, PlatformCapabilities, PlatformServices, WorkerLike, MessagePortLike } from '../../core/platform.ts';
 import type { AppSettings, AttemptRecord, AttributionsFile, Calibration, Configs, CorpusManifest, PlayerProfile, PracticeSettings, PreparedExcerpt, Rng } from '../../core/types.ts';
-import { attemptTitle, PracticeSession, type PracticeSessionOptions, type RankedAvailability, type SoundPrefs } from '../../session/index.ts';
+import { attemptTitle, MatchNoteService, PracticeSession, type PracticeSessionOptions, type RankedAvailability, type SoundPrefs } from '../../session/index.ts';
 import { metronomeSoundOf } from '../../core/click-sounds.ts';
 import { countEligible, prefetchNeighbours } from '../../corpus/index.ts';
 import { createProfile, postRevealSkipAllowed, respondToLevelOffer, setInstrumentLevel, startPlacement } from '../../grade/index.ts';
@@ -31,7 +31,6 @@ import { classifyMicError, type MicBrowser } from '../screens/states/index.ts';
 import type { DiagnosticsServices } from '../screens/states/services.ts';
 import type { SettingsDiagnosticsServices } from '../screens/settings/services.ts';
 import type { MatchServices } from '../screens/match/services.ts';
-import { MatchNoteService } from '../../session/match-note.ts';
 import { createCalibrationServices, type CalibrationBackendExtras } from './calibration-services.ts';
 import { calibrationStatus as computeCalStatus, KV_CAL_LAST_FAILURE, type CalFailure, type CalStatus } from './calibration-status.ts';
 import { countTries, reachedBarOne } from './tries.ts';
@@ -86,12 +85,14 @@ export interface AppRuntime {
   env?: Readonly<Record<string, unknown>>;
 }
 
-/** The two build-time variables of the diagnostics button (round 2, 06-plan §4). */
+/**
+ * The diagnostics button's build-time variable (round 2, 06-plan §4). The microphone-audio opt-in is shown in every
+ * build (PLAN ruling 64): it is not behind a build variable, so `VITE_DIAG_SOUND_OPTIN` is no longer read.
+ */
 export function readDiagnosticsEnv(env: Readonly<Record<string, unknown>>): { supportAddress: string | null; soundOptInShown: boolean } {
   const addr = env['VITE_SUPPORT_EMAIL'];
   const supportAddress = typeof addr === 'string' && addr.trim() !== '' ? addr.trim() : null;
-  const optIn = env['VITE_DIAG_SOUND_OPTIN'];
-  return { supportAddress, soundOptInShown: optIn === '1' || optIn === 'true' };
+  return { supportAddress, soundOptInShown: true };
 }
 
 export interface ComposedApp {
@@ -131,6 +132,8 @@ export function composeApp(rt: AppRuntime): ComposedApp {
   const storageLost = createValue(rt.storageLost);
   const calibrations = createValue<readonly Calibration[]>([]);
   const calFailure = createValue<CalFailure | null>(null);
+  // The session's open route, refreshed on every state change; null falls back to the declared output mode.
+  const currentRouteKey = createValue<string | null>(null);
   const today = createValue<TodayStats>({ takes: 0, ranked: 0, xp: 0, tries: 0 });
   const lastTry = createValue<LastTry | null>(null);
   const sessionAttempts: AttemptRecord[] = [];
@@ -245,6 +248,7 @@ export function composeApp(rt: AppRuntime): ComposedApp {
         // The screen shows the code's message and the detail line; the console keeps the whole error and its cause.
         console.error(`Session error (${e.code}): ${e.detail ?? ''}`, session.lastError ?? undefined, session.lastError?.cause ?? undefined);
       } else if (e.type === 'state') {
+        currentRouteKey.set(session.routeKey);
         rt.onSessionState?.(e.state);
         // A take ends with a route known and perhaps a calibration marked stale (05 W7, R31).
         if (e.state === 'results' || e.state === 'covered') void refreshAvailability().catch(() => undefined);
@@ -324,14 +328,14 @@ export function composeApp(rt: AppRuntime): ComposedApp {
   };
 
   // ---- calibration status, diagnostics, picker sound, match ------------------------------------------
-  // One status for Practice, the read-through, Results and Settings. The route is not exposed by the session yet, so
-  // the status reads the declared output mode (01-ux §4); it agrees with `rankedAvailability` for that mode.
+  // One status for Practice, the read-through, Results and Settings: the session's open route when known, else the
+  // declared output mode (01-ux §4); it agrees with `rankedAvailability` for the same route and mode.
   const calibrationStatus: Readable<CalStatus> = derived(
-    [calibrations, calFailure, settings],
+    [calibrations, calFailure, settings, currentRouteKey],
     (): CalStatus =>
       computeCalStatus({
         calibrations: calibrations.get(),
-        routeKey: null,
+        routeKey: currentRouteKey.get(),
         outputMode: settings.get().practice.outputMode,
         lastFailure: calFailure.get(),
         now: Date.parse(platform.clockWall()),

@@ -514,6 +514,25 @@ describe('input switching (R13 practise without listening; 01 §13.4 test clock)
     await startRunning(world, be, port.sink);
     expect(be.captureOrigin()).not.toBeNull();
   });
+
+  it('releaseInput stops the microphone track and keeps the context; the next unlock opens it again', async () => {
+    const { world, be } = setup();
+    await be.unlock();
+    const first = world.tracks[0]!;
+    const port = workerPort();
+    await startRunning(world, be, port.sink);
+    be.releaseInput();
+    expect(first.readyState).toBe('ended');
+    expect(be.captureOrigin()).toBeNull();
+    expect(world.contexts.length).toBe(1);
+    await be.unlock();
+    expect(world.gumCount).toBe(2);
+    expect(world.tracks[1]!.readyState).toBe('live');
+    expect(world.contexts.length).toBe(1);
+    const port2 = workerPort();
+    await startRunning(world, be, port2.sink);
+    expect(be.captureOrigin()).not.toBeNull();
+  });
 });
 
 describe('metronome on the backend (W9)', () => {

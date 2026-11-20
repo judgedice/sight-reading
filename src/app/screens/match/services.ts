@@ -3,7 +3,7 @@
  * model reads, and the microphone gate. The screen never drives audio itself.
  */
 import type { Configs, Instrument } from '../../../core/types.ts';
-import type { MatchNoteService } from '../../../session/match-note.ts';
+import type { MatchNoteService } from '../../../session/index.ts';
 import type { MicOutcome } from '../onboarding/services.ts';
 
 export interface MatchServices {

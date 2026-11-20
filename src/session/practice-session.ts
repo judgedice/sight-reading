@@ -1905,6 +1905,11 @@ export class PracticeSession implements PracticeSessionInstance {
   }
 
   /** The error behind the last `error` event, with its cause (the composition root logs it). */
+  /** The route key of the open audio route, or null before the first unlock and after an interruption or close. */
+  get routeKey(): string | null {
+    return this.route?.routeKey ?? null;
+  }
+
   get lastError(): SessionError | null {
     return this._lastError;
   }

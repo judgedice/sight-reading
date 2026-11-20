@@ -92,17 +92,19 @@ export function CreditsScreen({ services }: { services: CreditsServices } & Scre
         <p className="cred-text">{copy('credits.sounds.strings')}</p>
         <p className="cred-text">{copy('credits.sounds.piano')}</p>
         <p className="cred-text">{copy('credits.sounds.voices')}</p>
-        <p className="cred-muted">
-          {licenceFileParts(copy('credits.sounds.licences')).map((part, i) =>
-            part.href ? (
-              <a key={i} href={part.href} target="_blank" rel="noopener noreferrer">
-                {part.text}
-              </a>
-            ) : (
-              <span key={i}>{part.text}</span>
-            ),
-          )}
-        </p>
+        {/* The licence files stand on their own lines so each link gets a full-size target (04 13.1 item 3). */}
+        <p className="cred-muted">{copy('credits.sounds.licences')}</p>
+        <ul className="cred-list">
+          {licenceFileParts(copy('credits.sounds.licenceFiles'))
+            .filter((part) => part.href !== null)
+            .map((part) => (
+              <li key={part.href}>
+                <a href={part.href ?? undefined} target="_blank" rel="noopener noreferrer">
+                  {part.text}
+                </a>
+              </li>
+            ))}
+        </ul>
       </Card>
 
       <p className="cred-links">

@@ -14,7 +14,7 @@ export interface DiagnosticsExport {
 export interface DiagnosticsServices {
   /** Where the player can send the file (`VITE_SUPPORT_EMAIL`), or null: the button then reads "Save diagnostics". */
   supportAddress: string | null;
-  /** Show the "include a short recording" opt-in (`VITE_DIAG_SOUND_OPTIN` = 1). */
+  /** Show the "include a short recording" opt-in. True in every build (PLAN ruling 64). */
   soundOptInShown: boolean;
   /** One try's file, or null when its trace is no longer kept. */
   exportTry(attemptId: string): Promise<DiagnosticsExport | null>;

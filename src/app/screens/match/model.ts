@@ -7,16 +7,10 @@
  */
 import type { Configs, Instrument } from '../../../core/types.ts';
 import { rangeModel } from '../../../instruments/range.ts';
+import type { MatchFrame } from '../../../session/index.ts';
 
-/** A frame from the pitch engine. Mirrors the type R2-07 exports from `src/session/match-note.ts`. */
-export interface MatchFrame {
-  /** Milliseconds. */
-  t: number;
-  midi: number | null;
-  cents: number | null;
-  levelDb: number;
-  steady: boolean;
-}
+/** A frame from the pitch engine (`MatchNoteService`, R2-07). */
+export type { MatchFrame };
 
 export const ROUND_SIZE = 5;
 /** In the band this long, in a row, is a hit. */
