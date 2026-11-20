@@ -233,7 +233,7 @@ describe('Read-through', () => {
     expect(h.session.startTake).not.toHaveBeenCalled();
   });
 
-  it('Before you play: five rows, the clock ticks them, a player tick sticks, and the signatures detail is generated', async () => {
+  it('Look before you play: five rows, the clock ticks them, a player tick sticks, and the signatures detail is generated', async () => {
     const h = harness();
     render(h);
     await reveal(h);

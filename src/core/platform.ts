@@ -173,11 +173,48 @@ export interface PlayNote {
   durSec: number;
 }
 
+/**
+ * A sample set: a folder name under `public/sounds/` and a key of `sets` in `public/sounds/index.json` (round 2,
+ * 02-sounds.md). `soundSetFor` in `src/instruments/sound-sets.ts` maps an instrument to its set.
+ */
+export type SoundSetId =
+  | 'flute'
+  | 'clarinet'
+  | 'sax-alto'
+  | 'trumpet'
+  | 'violin'
+  | 'cello'
+  | 'piano'
+  | 'voice-soprano'
+  | 'voice-mezzo'
+  | 'voice-alto'
+  | 'voice-tenor'
+  | 'voice-baritone'
+  | 'voice-bass'
+  | 'sax-tenor'
+  | 'sax-bari'
+  | 'oboe'
+  | 'bassoon'
+  | 'horn'
+  | 'trombone'
+  | 'tuba'
+  | 'viola'
+  | 'double-bass'
+  | 'guitar'
+  | 'choir-aah';
+
 export interface PlayNotesOptions {
   /** Context time of the schedule origin; default now. */
   at?: ClockSeconds;
   /** Peak level, 0..1. */
   peak: number;
+  /**
+   * Play the notes with this sample set. Without it, or while the set loads, when a fetch fails or when the set is
+   * missing, the notes play with the additive Listen voice (round 2 decision 3).
+   */
+  sound?: SoundSetId;
+  /** Overrides the set's attack, seconds (Match a note: about 0.08 s). Ignored by the additive voice. */
+  attackSec?: number;
 }
 
 /** Audio backend (01 §5.2). Web: `WebAudioBackend` in `src/platform/web/`. */
@@ -201,9 +238,14 @@ export interface AudioBackend {
   playTone(hz: number, durSec: number, at: ClockSeconds): Promise<void>;
   /** Plays notes at sounding pitch for reference playback (06 §9). Cancelled by `stopSounds`. */
   playNotes(notes: readonly PlayNote[], opts: PlayNotesOptions): Promise<void>;
+  /**
+   * Starts loading a sample set (hover or focus of an instrument row, before Listen). `ready` when the set will play,
+   * `fallback` when `playNotes` would use the additive voice (missing set, failed fetch or decode). Never rejects.
+   */
+  prepareSound(id: SoundSetId): Promise<'ready' | 'fallback'>;
   /** Previews and lead-ins: one click per time; `accents[i]` true accents click i. Cancelled by `stopSounds`. */
   playClicks(times: ClockSeconds[], sound: MetronomeSound, accents: boolean[]): Promise<void>;
-  /** Cancels everything scheduled by playNotes, playClicks, playTone and playCalibrationClicks; never a running take. */
+  /** Cancels everything scheduled by playNotes (samples too), playClicks, playTone and playCalibrationClicks; never a running take. */
   stopSounds(): void;
   /** Counts worklet input frames against wall time (01 §7.8). */
   measureClockRate(durSec: number): Promise<{ framesPerSec: number; expected: number }>;

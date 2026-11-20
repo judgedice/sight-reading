@@ -2,13 +2,18 @@
  * Cache strategies for the service worker (P19). The Cache API and fetch are injected, so the Vitest suite drives the
  * same code the worker runs. Routing decisions live in `policy.ts`.
  */
-import type { Route } from './policy.ts';
+import { relativeToScope, type Route } from './policy.ts';
 
 /** The cache names. The precache name carries a revision, so an update writes a new cache and the old one is dropped. */
 export const CACHE_NAMES = {
   precachePrefix: 'sightread-precache-',
   hashed: 'sightread-hashed-v1',
   corpusMeta: 'sightread-corpus-meta-v1',
+  /**
+   * Instrument sounds (`sounds/`, round 2): cached on first use, never precached (1.75 MB). Bump the version when the
+   * sets are rebuilt under the same file names, so `index.json` and the samples are fetched again together.
+   */
+  sounds: 'sightread-sounds-v1',
 } as const;
 
 export interface CacheLike {
@@ -79,6 +84,36 @@ async function navigate(request: Request, deps: StrategyDeps): Promise<Response>
   }
 }
 
+/**
+ * True for a GET of a file under `sounds/` in the scope (the manifest and the samples). Checked before the policy, so
+ * a sound is cache-first even though it is not in the precache list.
+ */
+export function isSoundRequest(request: { readonly method: string; readonly url: string }, scope: string): boolean {
+  if (request.method.toUpperCase() !== 'GET') return false;
+  try {
+    const url = new URL(request.url);
+    const base = new URL(scope);
+    if (url.origin !== base.origin) return false;
+    const rel = relativeToScope(url.pathname, base.pathname);
+    return rel !== null && rel.startsWith('sounds/') && rel.length > 'sounds/'.length;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Cache-first for the instrument sounds, so an instrument heard once plays offline. Only a complete answer (200) is
+ * stored: a partial (206) or failed response is passed through and fetched again next time.
+ */
+export async function respondSound(request: Request, deps: StrategyDeps): Promise<Response> {
+  const cache = await deps.caches.open(CACHE_NAMES.sounds);
+  const hit = await cache.match(request.url);
+  if (hit) return hit;
+  const response = await deps.fetch(request);
+  if (response.status === 200) await cache.put(request.url, response.clone());
+  return response;
+}
+
 /** Answers one request with the strategy the policy chose. `bypass` is never passed here. */
 export function respondWith(route: Exclude<Route, 'bypass'>, request: Request, deps: StrategyDeps): Promise<Response> {
   switch (route) {
@@ -111,11 +146,16 @@ export async function precacheAll(
   }
 }
 
-/** Activate: drops every precache revision except the current one. Hashed and corpus caches are kept across builds. */
+/**
+ * Activate: drops every precache revision except the current one, and sound caches of an older version. Hashed, corpus
+ * and current sound caches are kept across builds.
+ */
 export async function pruneOldPrecaches(caches: CacheStorageLike, current: string): Promise<string[]> {
   const removed: string[] = [];
   for (const key of await caches.keys()) {
-    if (key.startsWith(CACHE_NAMES.precachePrefix) && key !== current) {
+    const oldPrecache = key.startsWith(CACHE_NAMES.precachePrefix) && key !== current;
+    const oldSounds = key.startsWith('sightread-sounds-') && key !== CACHE_NAMES.sounds;
+    if (oldPrecache || oldSounds) {
       await caches.delete(key);
       removed.push(key);
     }

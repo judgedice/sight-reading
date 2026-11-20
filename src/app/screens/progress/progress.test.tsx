@@ -136,7 +136,7 @@ describe('ProgressScreen rank gate and boxes', () => {
     const el = renderWith(makeProfile({ activeInstrumentId: 'flute', instruments: { flute: progress({ window: [{ attemptId: 'a', score: 90, atMidTempo: false }] }) } }));
     const list = el.querySelector('.prog-window')!;
     const label = document.getElementById(list.getAttribute('aria-labelledby')!)!;
-    expect(label.textContent).toBe('Recent ranked takes at this difficulty');
+    expect(label.textContent).toBe('Recent ranked tries at this difficulty');
     expect(label.classList.contains('ui-visually-hidden')).toBe(false);
     const empty = list.querySelectorAll('[data-state="empty"]');
     expect(empty).toHaveLength(cfg.progression.levelWindow.size - 1);

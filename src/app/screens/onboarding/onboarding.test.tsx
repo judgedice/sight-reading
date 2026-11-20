@@ -238,7 +238,7 @@ describe('OnboardingScreen', () => {
     render(svc);
     await press('Get started');
     await press('Continue');
-    expect(document.body.textContent).toContain("You can still practise, but takes won't be graded.");
+    expect(document.body.textContent).toContain("You can still practise, but tries won't be graded.");
   });
 
   it('without the microphone, placement says it needs it and cannot be chosen; I\'ll choose is open', async () => {
@@ -284,7 +284,7 @@ describe('OnboardingScreen', () => {
     await settle(MIC_GRANTED_HOLD_MS + 50);
     const step = document.querySelector('[data-testid="ob-calibration"]') as HTMLElement;
     expect(step.querySelectorAll('.ui-card')).toHaveLength(1);
-    expect(step.textContent).toContain('Without calibration, takes on this device are practice only.');
+    expect(step.textContent).toContain('Without calibration, tries on this device are practice only.');
   });
 
   it('iOS with unreported latency: calibration step has no Skip control', async () => {

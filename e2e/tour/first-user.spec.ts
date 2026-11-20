@@ -127,7 +127,7 @@ test('first-time user: three takes on three instruments, results, tips, history,
     expect(r!.score!.ranked).toBe(false);
     if (t.mode === 'ranked') expect(r!.score!.rankedReasons).toContain('calibration');
     // Next: the tips interstitial when tips were chosen, then home (or a session summary every 10 takes).
-    await page.getByRole('button', { name: 'Next excerpt' }).click();
+    await page.getByRole('button', { name: 'Next piece' }).click();
     const tips = page.getByTestId('screen-practice.tips');
     const next = tips.or(home).or(page.getByTestId('scan-cover'));
     await expect(next.first()).toBeVisible({ timeout: 15_000 });

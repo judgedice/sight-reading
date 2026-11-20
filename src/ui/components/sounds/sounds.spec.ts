@@ -63,7 +63,7 @@ test('the popover text is the catalogue text, and the button has a native title'
   await info(page).click();
   await expect(page.locator('.ui-popover-title')).toHaveText('What is the key chord?');
   await expect(page.locator('.ui-popover-body')).toHaveText(
-    'The key chord is the home chord of this piece, at concert pitch. It gives away no notes, so you can use it in ranked takes too.',
+    'The key chord is the home chord of this piece, at concert pitch. It gives away no notes, so you can use it in ranked tries too.',
   );
 });
 

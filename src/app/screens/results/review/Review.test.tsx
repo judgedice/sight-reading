@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // D8b <Review> against the real notation module (VexScoreView + SvgOverlay) in jsdom: review rendering of the final
 // alignment, heat strip, replay bracket and tails, the note inspector (click, Enter, Esc), the roving tabindex and
-// arrow keys, the slip stepper and its filters from the counts line, My take / Clean score (C), and the session-bound
+// arrow keys, the slip stepper and its filters from the counts line, My marks / Clean score (C), and the session-bound
 // renderer.
 import type React from 'react';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
@@ -192,7 +192,7 @@ describe('<Review> interactions', () => {
     const { root } = await render({ bus });
     act(() => bus.set('missed'));
     expect(root.getAttribute('data-filter')).toBe('missed');
-    expect(root.querySelector('[data-testid="review-filter"]')?.textContent).toContain('Showing slips: missed');
+    expect(root.querySelector('[data-testid="review-filter"]')?.textContent).toContain('Showing mistakes: missed');
     // The first slip of the set is shown at once.
     expect(inspectorLines()[0]).toBe('Bar 3, beat 1');
     expect(root.querySelector('.rv-slip-count')?.textContent).toBe('1 of 6');
@@ -279,14 +279,14 @@ describe('<Review> redesign (06 sections 6.15, 7)', () => {
     expect(root.querySelector('.sf-host')!.getAttribute('data-purpose')).toBe('review');
     const end = root.querySelector('.rv-toolbar-end')!;
     expect(end.textContent).toBe('Listen');
-    expect(root.querySelector('[data-testid="prev-slip"]')!.textContent).toBe('Previous slip');
-    expect(root.querySelector('[data-testid="next-slip"]')!.textContent).toBe('Next slip');
+    expect(root.querySelector('[data-testid="prev-slip"]')!.textContent).toBe('Previous mistake');
+    expect(root.querySelector('[data-testid="next-slip"]')!.textContent).toBe('Next mistake');
   });
 
   it('not graded: the clean score with no marks, the void line, no switch and no stepper', async () => {
     const { root } = await render({ clean: true });
     expect(root.getAttribute('data-void')).toBe('true');
-    expect(root.querySelector('[data-testid="review-void-line"]')!.textContent).toBe('Clean score. Nothing is marked when a take is not graded.');
+    expect(root.querySelector('[data-testid="review-void-line"]')!.textContent).toBe('Clean score. Nothing is marked when a try is not graded.');
     expect(root.querySelectorAll('.sr-ghost')).toHaveLength(0);
     expect(root.querySelectorAll('.n-error, .n-error-hollow')).toHaveLength(0);
     expect(root.querySelector('[data-testid="prev-slip"]')).toBeNull();

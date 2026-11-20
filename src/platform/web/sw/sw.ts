@@ -5,13 +5,16 @@
  *
  * Install stores the shell under a revision-named cache and does not skip waiting, so a new build is held back until
  * the player accepts the update prompt (`SKIP_WAITING`). Routing and the cache policy live in `policy.ts` and
- * `strategies.ts`, which the Vitest suite covers.
+ * `strategies.ts`, which the Vitest suite covers. Instrument sounds under `sounds/` are answered cache-first from their
+ * own cache before the policy runs (`isSoundRequest`), so they work offline once heard and add nothing to install.
  */
 import { relativeToScope, routeFor } from './policy.ts';
 import {
   CACHE_NAMES,
+  isSoundRequest,
   precacheAll,
   pruneOldPrecaches,
+  respondSound,
   respondWith,
   revisionOf,
   type CacheStorageLike,
@@ -94,6 +97,11 @@ sw.addEventListener('message', (event) => {
 });
 
 sw.addEventListener('fetch', (event) => {
+  // Instrument sounds: cache-first at run time, not precached (round 2, 02-sounds.md).
+  if (isSoundRequest(event.request, scope)) {
+    event.respondWith(respondSound(event.request, deps));
+    return;
+  }
   const route = routeFor(
     { method: event.request.method, url: event.request.url, mode: event.request.mode },
     scope,

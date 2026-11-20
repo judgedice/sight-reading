@@ -68,7 +68,7 @@ test('ranked read-through: Listen first asks, makes the take practice, and resul
   await page.getByRole('dialog', { name: 'Listen first?' }).getByRole('button', { name: 'Listen, make it practice' }).click();
   await expect(scan).toHaveAttribute('data-mode', 'practice');
   await expect(chip).toHaveText('Practice');
-  await expect(page.getByTestId('scan-announce')).toHaveText('Now a practice take');
+  await expect(page.getByTestId('scan-announce')).toHaveText('Now a practice try');
   await expect(page.getByRole('button', { name: /^Stop/ })).toBeVisible();
 
   // The take: render this excerpt into the fake microphone's file, then Start playing (it stops the music first).

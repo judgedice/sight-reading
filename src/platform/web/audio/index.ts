@@ -8,3 +8,7 @@ export { ListenVoiceCache, LISTEN_BUS_GAIN, LISTEN_BUS_DBFS, listenEnvelope, ren
 export { CAPTURE_PROCESSOR_NAME, FRAMES_PER_BLOCK, isCaptureReturn } from './protocol.ts';
 export type { CaptureReturn } from './protocol.ts';
 export { routeKeyOf, inputKindOf, appliedProcessingOf } from './route.ts';
+export { Sampler, SAMPLE_GAIN, isSamplerContext, loopPoints, midiOfHz, onsetSec, pickSample, playbackRateFor, startSampleNote } from './sampler.ts';
+export type { Decoder, FetchLike, LoadedSet, SoundLoadState } from './sampler.ts';
+export { parseSoundManifest } from './sample-manifest.ts';
+export type { SampleDef, SetDef, SoundManifest } from './sample-manifest.ts';

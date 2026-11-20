@@ -15,8 +15,8 @@ import type { SoundsModel } from './types.ts';
 
 // The reference text as 05 section 10 sets it, quoted here on purpose so a catalogue edit cannot drift unnoticed.
 const VOICE_INFO =
-  "This is your reference. It's the key of the piece: you hear its home chord, then the first note you'll sing. Find your pitch from there. We mark your pitch relative to this start, in any octave that suits your voice. It also plays by itself just before the count-in.";
-const INSTRUMENT_INFO = 'The key chord is the home chord of this piece, at concert pitch. It gives away no notes, so you can use it in ranked takes too.';
+  "This is your reference. It's the key of the piece: you hear its home chord, then the first note you'll sing. Find your pitch from there. We mark your pitch relative to this start, in any octave that suits your voice. It also plays just before the count-in; you can turn that off in Settings.";
+const INSTRUMENT_INFO = 'The key chord is the home chord of this piece, at concert pitch. It gives away no notes, so you can use it in ranked tries too.';
 
 let current: Mounted | null = null;
 afterEach(() => {
@@ -250,7 +250,7 @@ describe('SoundsExplainSheet', () => {
     expect(qa('.sd-explain-row')).toHaveLength(3);
     expect(qa('.sd-explain-title').map((el) => el.textContent)).toEqual(['Listen first', 'Hear the tempo', 'Hear starting pitch']);
     expect(qa('.sd-explain-row[data-highlight=true]').map((el) => el.dataset['sound'])).toEqual(['reference']);
-    expect(q('.sd-explain-extra').textContent).toBe('In a ranked take, this makes it practice. We ask first.');
+    expect(q('.sd-explain-extra').textContent).toBe('In a ranked try, this makes it practice. We ask first.');
   });
 
   it('lists four rows for a clarinet: the dock sounds plus Check my tuning', () => {
@@ -302,7 +302,7 @@ describe('ListenConfirm', () => {
     current = mount(<ListenConfirm open secondsLeft={18} onKeepRanked={noop} onListen={noop} />);
     expect(q('[role=dialog]').classList.contains('ui-modal')).toBe(true);
     expect(q('.ui-modal-title').textContent).toBe('Listen first?');
-    expect(q('.ui-modal-body').textContent).toContain("Hearing the music before you play makes this a practice take. It earns less XP and doesn't count toward your rank.");
+    expect(q('.ui-modal-body').textContent).toContain("Hearing the music before you play makes this a practice try. It earns less XP and doesn't count toward your rank.");
     expect(q('[data-testid=confirm-time]').textContent).toBe('0:18 left');
     const keep = document.activeElement as HTMLElement;
     expect(keep.textContent).toBe('Keep it ranked');

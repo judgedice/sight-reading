@@ -59,7 +59,7 @@ test('practice loop: onboarding, setup, scan, count-in, live red note, graded re
   // goes straight on to the scan.
   const tipsShown = await page.evaluate(() => (window as unknown as { __sr: { session: { record: { score: { tipsShown: string[] } | null } | null } } }).__sr.session.record?.score?.tipsShown ?? []);
   expect(tipsShown).not.toContain('U18');
-  await page.getByRole('button', { name: 'Next excerpt' }).click();
+  await page.getByRole('button', { name: 'Next piece' }).click();
   await expect(page.getByTestId('screen-practice.tips')).toHaveCount(0);
   await expect(page.getByTestId('scan-cover')).toBeVisible({ timeout: 30_000 });
   const nextExcerpt = await page.evaluate(() => (window as unknown as { __sr: { session: { prepared: { excerptId: string } | null } } }).__sr.session.prepared?.excerptId);

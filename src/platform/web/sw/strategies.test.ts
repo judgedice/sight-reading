@@ -1,8 +1,13 @@
+import { readdirSync, readFileSync } from 'node:fs';
+import { matchesGlob } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it, vi } from 'vitest';
 import {
   CACHE_NAMES,
+  isSoundRequest,
   precacheAll,
   pruneOldPrecaches,
+  respondSound,
   respondWith,
   revisionOf,
   type CacheLike,
@@ -157,12 +162,12 @@ describe('install and activate', () => {
 
   it('pruneOldPrecaches drops old revisions and keeps the hashed and corpus caches', async () => {
     const storage = new MemoryStorage();
-    for (const name of [`${CACHE_NAMES.precachePrefix}old`, PRECACHE, CACHE_NAMES.hashed, CACHE_NAMES.corpusMeta, 'unrelated']) {
+    for (const name of [`${CACHE_NAMES.precachePrefix}old`, PRECACHE, CACHE_NAMES.hashed, CACHE_NAMES.corpusMeta, CACHE_NAMES.sounds, 'sightread-sounds-v0', 'unrelated']) {
       await storage.open(name);
     }
     const removed = await pruneOldPrecaches(storage, PRECACHE);
-    expect(removed).toEqual([`${CACHE_NAMES.precachePrefix}old`]);
-    expect(await storage.keys()).toEqual([PRECACHE, CACHE_NAMES.hashed, CACHE_NAMES.corpusMeta, 'unrelated']);
+    expect(removed).toEqual([`${CACHE_NAMES.precachePrefix}old`, 'sightread-sounds-v0']);
+    expect(await storage.keys()).toEqual([PRECACHE, CACHE_NAMES.hashed, CACHE_NAMES.corpusMeta, CACHE_NAMES.sounds, 'unrelated']);
   });
 
   it('revisionOf changes when any entry changes and is stable otherwise', () => {
@@ -170,5 +175,56 @@ describe('install and activate', () => {
     expect(revisionOf(a)).toBe(revisionOf([...a]));
     expect(revisionOf(a)).not.toBe(revisionOf([{ url: 'index.html', revision: 'r1' }, { url: 'assets/a.js', revision: 'r3' }]));
     expect(revisionOf(a)).toMatch(/^[0-9a-f]{8}$/);
+  });
+});
+
+describe('instrument sounds (round 2: cache-first at run time, never precached)', () => {
+  it('isSoundRequest takes GETs of files under sounds/ in the scope, and nothing else', () => {
+    expect(isSoundRequest({ method: 'GET', url: url('sounds/index.json') }, SCOPE)).toBe(true);
+    expect(isSoundRequest({ method: 'get', url: url('sounds/voice-bass/Gs2.mp3') }, SCOPE)).toBe(true);
+    expect(isSoundRequest({ method: 'POST', url: url('sounds/index.json') }, SCOPE)).toBe(false);
+    expect(isSoundRequest({ method: 'GET', url: url('sounds/') }, SCOPE)).toBe(false);
+    expect(isSoundRequest({ method: 'GET', url: url('assets/sounds/x.mp3') }, SCOPE)).toBe(false);
+    expect(isSoundRequest({ method: 'GET', url: 'https://example.test/sounds/index.json' }, SCOPE)).toBe(false);
+    expect(isSoundRequest({ method: 'GET', url: 'https://other.test/some/sub/path/sounds/index.json' }, SCOPE)).toBe(false);
+    expect(isSoundRequest({ method: 'GET', url: 'not a url' }, SCOPE)).toBe(false);
+  });
+
+  it('a miss fetches once and stores a complete answer; a hit never reaches the network', async () => {
+    const { deps, fetchSpy, storage } = setup(async () => ok('mp3'));
+    const req = new Request(url('sounds/flute/C4.mp3'));
+    expect(await (await respondSound(req, deps)).text()).toBe('mp3');
+    expect(await (await respondSound(req, deps)).text()).toBe('mp3');
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(storage.caches.get(CACHE_NAMES.sounds)?.entries.has(req.url)).toBe(true);
+  });
+
+  it('does not store a partial or failed answer, and rethrows offline with nothing cached', async () => {
+    const partial = setup(async () => new Response('mp', { status: 206 }));
+    await respondSound(new Request(url('sounds/flute/C4.mp3')), partial.deps);
+    expect(partial.storage.caches.get(CACHE_NAMES.sounds)?.entries.size).toBe(0);
+    const missing = setup(async () => new Response('', { status: 404 }));
+    expect((await respondSound(new Request(url('sounds/kazoo/C4.mp3')), missing.deps)).status).toBe(404);
+    expect(missing.storage.caches.get(CACHE_NAMES.sounds)?.entries.size).toBe(0);
+    const offline = setup(async () => {
+      throw new TypeError('Failed to fetch');
+    });
+    await expect(respondSound(new Request(url('sounds/index.json')), offline.deps)).rejects.toThrow(TypeError);
+  });
+
+  it('no file in public/sounds matches the precache globs in vite.config.ts', () => {
+    const root = fileURLToPath(new URL('../../../../', import.meta.url));
+    const config = readFileSync(`${root}vite.config.ts`, 'utf8');
+    const m = /globPatterns:\s*\[([^\]]*)\]/.exec(config);
+    const globs = [...(m?.[1] ?? '').matchAll(/'([^']+)'/g)].map((g) => g[1] as string);
+    expect(globs.length).toBeGreaterThan(0);
+    const files = readdirSync(`${root}public/sounds`, { recursive: true, withFileTypes: true })
+      .filter((d) => d.isFile())
+      .map((d) => `${d.parentPath.slice(`${root}public/`.length).replace(/\\/g, '/')}/${d.name}`);
+    expect(files.length).toBeGreaterThan(140);
+    expect(files).toContain('sounds/index.json');
+    for (const f of files) for (const g of globs) expect(matchesGlob(f, g), `${f} ~ ${g}`).toBe(false);
+    // The globs do match the shell, so the check above is not vacuous.
+    expect(globs.some((g) => matchesGlob('assets/index-abc.js', g))).toBe(true);
   });
 });

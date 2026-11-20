@@ -331,7 +331,7 @@ describe('TipCard and EmptyState', () => {
   });
   it('renders the empty state with its action', () => {
     const c = m(<EmptyState icon="info" title={copy('empty.history.title')} body={copy('empty.history.body')} action={<button type="button">{'Go'}</button>} />);
-    expect(c.querySelector('h3')?.textContent).toBe('No takes yet');
+    expect(c.querySelector('h3')?.textContent).toBe('No tries yet');
     expect(c.querySelector('.dom-empty-action button')).not.toBeNull();
     act(() => undefined);
   });

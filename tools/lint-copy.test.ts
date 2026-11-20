@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import round2 from '../src/ui/copy/round2-spec.json';
 import { lintCopy } from './lint-copy.ts';
 
 describe('lintCopy', () => {
@@ -17,7 +18,8 @@ describe('lintCopy', () => {
     const en = JSON.parse(readFileSync('src/ui/copy/en.json', 'utf8')) as Record<string, string>;
     const files = walk('src').filter((f) => /\.tsx?$/.test(f) && !/\.(test|spec)\.tsx?$|test-services|testkit|copy\/copy\.ts/.test(f));
     const r = lintCopy(Object.keys(en), files.map((f) => readFileSync(f, 'utf8')));
-    expect(r.unused).toEqual([]);
+    // Keys added in round 2 wait for the screens that use them (06-plan.md decision 11); R2-22 empties the list.
+    expect(r.unused.filter((k) => !(k in round2.added))).toEqual([]);
     expect(r.staleAllow).toEqual([]);
   });
 });

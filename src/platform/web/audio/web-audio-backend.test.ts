@@ -775,3 +775,187 @@ describe('Listen sounds (05 §9.2; playback-engine)', () => {
     expect(Array.from(a ?? []).slice(1000, 1010)).toEqual(Array.from(b ?? []).slice(1000, 1010));
   });
 });
+
+describe('sampled notes (round 2, 02-sounds.md)', () => {
+  const note = (hz: number, startSec: number, durSec: number) => ({ hz, startSec, durSec });
+  const index = { version: 1, sets: { flute: { kind: 'sustain', range: [60, 96], attack: 0.03, release: 0.2, samples: [
+    { file: 'C4.mp3', midi: 60, tune: 0, onset: 0.004, loopStart: 0.9, loopEnd: 1.8 },
+    { file: 'A4.mp3', midi: 69, tune: 0, onset: 0.004, loopStart: 0.9, loopEnd: 1.8 },
+  ] } }, instruments: { flute: { set: 'flute' } } };
+
+  function soundFetch(o: { offline?: boolean } = {}) {
+    const urls: string[] = [];
+    const f = async (url: string) => {
+      urls.push(url);
+      if (o.offline) throw new TypeError('Failed to fetch');
+      return { ok: true, status: 200, json: async () => index, arrayBuffer: async () => new Uint8Array(8).buffer };
+    };
+    return { urls, f };
+  }
+
+  const decoded = () => {
+    const x = new Float32Array(2000).fill(0.5);
+    return { sampleRate: 1000, length: 2000, duration: 2, getChannelData: () => x };
+  };
+
+  /** Gives a fake context what the sampler needs: decoding, gain automation and source rate and loop fields. */
+  function sampling(ctx: unknown): { automated: { kind: string; v: number; t: number }[][] } {
+    const c = ctx as Record<string, unknown> & { createGain(): FakeGain; createBufferSource(): object };
+    const automated: { kind: string; v: number; t: number }[][] = [];
+    const g0 = c.createGain.bind(c);
+    const s0 = c.createBufferSource.bind(c);
+    c.decodeAudioData = async () => decoded();
+    c.createGain = () => {
+      const g = g0();
+      const ev: { kind: string; v: number; t: number }[] = [];
+      automated.push(ev);
+      Object.assign(g.gain, {
+        setValueAtTime: (v: number, t: number) => ev.push({ kind: 'set', v, t }),
+        linearRampToValueAtTime: (v: number, t: number) => ev.push({ kind: 'ramp', v, t }),
+        cancelScheduledValues: (t: number) => ev.push({ kind: 'cancel', v: 0, t }),
+      });
+      return g;
+    };
+    c.createBufferSource = () => Object.assign(s0(), { playbackRate: { value: 1 }, loop: false, loopStart: 0, loopEnd: 0 });
+    return { automated };
+  }
+
+  it('plays the additive voice while the set loads, then the samples on the Listen bus', async () => {
+    const sf = soundFetch();
+    const { world, be } = setup({}, { fetchSound: sf.f });
+    await be.unlock();
+    sampling(world.ctx);
+    await be.playNotes([note(440, 0, 0.5)], { at: 1 as never, peak: 1, sound: 'flute' });
+    const first = world.ctx.bufferSources[0];
+    // Additive: a rendered buffer of the note plus its 60 ms release, straight onto the Listen bus.
+    expect(first?.buffer?.getChannelData(0).length).toBe(Math.ceil(0.56 * 48000));
+    const bus = first?.outs[0] as unknown as FakeGain;
+    expect(bus.gain.value).toBeCloseTo(10 ** (-12 / 20), 9);
+    expect(be.soundState('flute')).toBe('loading');
+    await expect(be.prepareSound('flute')).resolves.toBe('ready');
+    expect(sf.urls).toEqual(['sounds/index.json', 'sounds/flute/C4.mp3', 'sounds/flute/A4.mp3']);
+
+    await be.playNotes([note(523.2511306, 0, 0.5)], { at: 2 as never, peak: 0.5, sound: 'flute', attackSec: 0.08 });
+    const src = world.ctx.bufferSources[1] as unknown as { playbackRate: { value: number }; loop: boolean; startedAt: number; outs: FakeGain[] };
+    expect(1200 * Math.log2(src.playbackRate.value)).toBeCloseTo(300, 3); // C5 from A4
+    expect(src.loop).toBe(true);
+    expect(src.startedAt).toBe(2);
+    const env = src.outs[0] as FakeGain;
+    expect(env.outs[0]).toBe(bus);
+    expect(world.ctx.bufferSources).toHaveLength(2);
+  });
+
+  it('stopSounds stops sampled notes with the rest', async () => {
+    const sf = soundFetch();
+    const { world, be } = setup({}, { fetchSound: sf.f });
+    await be.unlock();
+    const { automated } = sampling(world.ctx);
+    await be.prepareSound('flute');
+    await be.playNotes([note(440, 0, 2), note(494, 2, 2)], { at: 1 as never, peak: 1, sound: 'flute' });
+    await be.playClicks([1 as never], 'classic', [true]);
+    be.stopSounds();
+    expect(world.ctx.bufferSources).toHaveLength(3);
+    expect(world.ctx.bufferSources.every((s) => s.stopped)).toBe(true);
+    // Each sampled note fades out over 15 ms instead of being cut.
+    const cuts = automated.filter((ev) => ev.some((e) => e.kind === 'cancel'));
+    expect(cuts).toHaveLength(2);
+  });
+
+  it('a missing set or a failed fetch falls back to the additive voice with no throw', async () => {
+    const sf = soundFetch({ offline: true });
+    const { world, be } = setup({}, { fetchSound: sf.f });
+    await be.unlock();
+    sampling(world.ctx);
+    await expect(be.prepareSound('flute')).resolves.toBe('fallback');
+    await expect(be.playNotes([note(440, 0, 0.5)], { peak: 1, sound: 'flute' })).resolves.toBeUndefined();
+    expect(world.ctx.bufferSources[0]?.buffer?.getChannelData(0).length).toBe(Math.ceil(0.56 * 48000));
+
+    const ok = soundFetch();
+    const two = setup({}, { fetchSound: ok.f });
+    await two.be.unlock();
+    sampling(two.world.ctx);
+    await expect(two.be.prepareSound('tuba')).resolves.toBe('fallback');
+    expect(two.be.soundState('tuba')).toBe('missing');
+    await two.be.playNotes([note(110, 0, 0.5)], { peak: 1, sound: 'tuba' });
+    expect(two.world.ctx.bufferSources[0]?.buffer?.getChannelData(0).length).toBe(Math.ceil(0.56 * 48000));
+  });
+
+  it('a context that cannot decode falls back, and prepareSound before unlock uses the decode-only context', async () => {
+    const sf = soundFetch();
+    const { world, be } = setup({}, { fetchSound: sf.f, createDecoder: () => null });
+    await expect(be.prepareSound('flute')).resolves.toBe('fallback');
+    await be.unlock();
+    await be.playNotes([note(440, 0, 0.5)], { peak: 1, sound: 'flute' });
+    expect(world.ctx.bufferSources).toHaveLength(1);
+
+    let decodes = 0;
+    const early = setup({}, { fetchSound: soundFetch().f, createDecoder: () => ({ decodeAudioData: async () => (decodes++, decoded()) }) });
+    await expect(early.be.prepareSound('flute')).resolves.toBe('ready');
+    expect(decodes).toBe(2);
+    await early.be.unlock();
+    sampling(early.world.ctx);
+    await early.be.playNotes([note(440, 0, 0.5)], { peak: 1, sound: 'flute' });
+    expect((early.world.ctx.bufferSources[0] as unknown as { loop: boolean }).loop).toBe(true);
+  });
+});
+
+describe('FakeAudioBackend sounds (round 2)', () => {
+  it('records the sound id of each playNotes call and every prepareSound', async () => {
+    const fb = new FakeAudioBackend({ sampleRate: 48000, readySounds: ['flute'] });
+    await fb.unlock();
+    await fb.playNotes([{ hz: 440, startSec: 0, durSec: 0.2 }], { peak: 1, sound: 'voice-bass', attackSec: 0.08 });
+    await fb.playNotes([{ hz: 440, startSec: 0, durSec: 0.2 }], { peak: 1 });
+    expect(fb.log.noteSounds).toEqual(['voice-bass', null]);
+    expect(fb.log.notePlays[0]?.opts.attackSec).toBe(0.08);
+    await expect(fb.prepareSound('flute')).resolves.toBe('ready');
+    await expect(fb.prepareSound('tuba')).resolves.toBe('fallback');
+    expect(fb.log.soundPrepares).toEqual(['flute', 'tuba']);
+  });
+
+  /** Mean square of the captured low band between two clock times. */
+  async function bleed(stopAt: number | null): Promise<{ during: number; late: number; after: number; before: number }> {
+    const fb = new FakeAudioBackend({ sampleRate: 48000, source: new Float32Array(48000 * 4), loopback: { rtlSec: 0.02, gainDb: -60, toneGainDb: -20 } });
+    await fb.unlock();
+    const blocks: CaptureBlock[] = [];
+    await fb.startCapture((m) => {
+      if (m.type === 'block') blocks.push(m.block);
+    });
+    const t = fb.now() as number;
+    await fb.playNotes([{ hz: 220, startSec: 0.5, durSec: 1 }], { at: (t) as never, peak: 1, sound: 'voice-bass' });
+    if (stopAt !== null) {
+      fb.advance(stopAt);
+      fb.stopSounds();
+      fb.advance(3 - stopAt);
+    } else fb.advance(3);
+    const ms = (a: number, b: number): number => {
+      let s = 0;
+      let n = 0;
+      for (const bl of blocks) {
+        for (let i = 0; i < bl.lowband.length; i++) {
+          const tt = bl.startT + i / bl.analysisRate - t;
+          if (tt >= a && tt < b) {
+            s += (bl.lowband[i] as number) ** 2;
+            n++;
+          }
+        }
+      }
+      return n ? s / n : 0;
+    };
+    return { before: ms(0, 0.5), during: ms(0.7, 1.4), late: ms(1.05, 1.4), after: ms(2, 2.9) };
+  }
+
+  it('mixes played notes into the capture with toneGainDb, as it does tones', async () => {
+    const r = await bleed(null);
+    expect(r.before).toBe(0);
+    // A harmonic tone peaking at 0.5 x -20 dB: a mean square well above silence.
+    expect(r.during).toBeGreaterThan(1e-4);
+    expect(r.after).toBe(0);
+  });
+
+  it('stopSounds cuts the notes still sounding', async () => {
+    const r = await bleed(0.9);
+    expect(r.during).toBeGreaterThan(1e-5);
+    expect(r.late).toBeLessThan(1e-9);
+    expect((await bleed(null)).late).toBeGreaterThan(1e-4);
+  });
+});

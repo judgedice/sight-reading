@@ -3,6 +3,7 @@
 // catalogue carries every enum value the other roles define.
 import { describe, expect, it } from 'vitest';
 import en from './en.json';
+import round2 from './round2-spec.json';
 import { copy, copyKeys, copyTemplate, formatMessage, isCopyKey, requiredVariables, type CopyKey } from './copy.ts';
 import { instrumentName, instrumentShortName } from './instrument-names.ts';
 
@@ -13,10 +14,10 @@ describe('formatMessage', () => {
   });
 
   it('chooses the one or other branch of a plural and replaces # with the number', () => {
-    const t = '{n, plural, one {# note re-judged after the take} other {# notes re-judged after the take}}';
-    expect(formatMessage(t, { n: 1 })).toBe('1 note re-judged after the take');
-    expect(formatMessage(t, { n: 2 })).toBe('2 notes re-judged after the take');
-    expect(formatMessage(t, { n: 0 })).toBe('0 notes re-judged after the take');
+    const t = '{n, plural, one {# mark changed after the try} other {# marks changed after the try}}';
+    expect(formatMessage(t, { n: 1 })).toBe('1 mark changed after the try');
+    expect(formatMessage(t, { n: 2 })).toBe('2 marks changed after the try');
+    expect(formatMessage(t, { n: 0 })).toBe('0 marks changed after the try');
   });
 
   it('formats placeholders nested inside a plural branch', () => {
@@ -51,11 +52,11 @@ describe('copy() and the typed key union', () => {
     expect(copy('scan.startingIn', { n: 5 })).toBe('Starting in 5');
     expect(copy('play.status.bar', { n: 4, total: 10 })).toBe('Bar 4 of 10');
     expect(copy('results.scoring')).toBe('Scoring…');
-    expect(copy('grade.B')).toBe('Solid. A few slips.');
-    expect(copy('ranked.reason.seen-before')).toBe("You've seen this excerpt before, so it isn't sight reading any more.");
+    expect(copy('grade.B')).toBe('Solid. A few mistakes.');
+    expect(copy('ranked.reason.seen-before')).toBe("You've seen this piece before, so it isn't sight reading any more.");
     expect(copy('results.counts.total', { n: 42 })).toBe('42 notes');
     expect(copy('results.stops', { n: 1, bar: 5, beats: 2 })).toBe('Stops: 1 (bar 5, 2 beats)');
-    expect(copy('streak.atRisk', { n: 1, days: 6 })).toBe('1 more ranked take today keeps your 6-day streak.');
+    expect(copy('streak.atRisk', { n: 1, days: 6 })).toBe('1 more ranked try today keeps your 6-day streak.');
     expect(copy('rankup.headline', { rank: 'Section player' })).toBe('New rank: Section player!');
     expect(copy('credit.source', { encoder: 'OpenScore Lieder contributors', corpus: 'OpenScore Lieder' })).toBe(
       'Typeset by OpenScore Lieder contributors · OpenScore Lieder · CC BY 4.0',
@@ -113,6 +114,7 @@ describe('en.json catalogue', () => {
       'familiar',
       'skip-limit',
       'listened-first',
+      'clockRate',
     ];
     const keys = copyKeys.filter((k) => k.startsWith('ranked.reason.')).map((k) => k.slice('ranked.reason.'.length)).sort();
     expect(keys).toEqual([...enumValues].sort());
@@ -202,12 +204,70 @@ describe('en.json catalogue', () => {
   });
 
   it('places the iOS calibration note and no iOS skip string (PLAN ruling 16)', () => {
-    expect(copy('onboarding.calibration.iosNote')).toBe('On iPhone and iPad, takes earn XP only after this check.');
+    expect(copy('onboarding.calibration.iosNote')).toBe('On iPhone and iPad, tries earn XP only after this check.');
     expect(copyKeys.some((k) => k !== 'calibrate.skipHint' && k.includes('skip') && k.toLowerCase().includes('calibrat'))).toBe(false);
   });
 
   it('keeps the CC BY credit line in the take (PLAN ruling 26)', () => {
     expect(copy('credit.source', { encoder: 'E', corpus: 'C' })).toMatch(/· CC BY 4\.0$/);
+  });
+});
+
+describe('round 2 vocabulary and new copy (01-ux.md 2 to 16, 04-design.md 10, 02-sounds.md)', () => {
+  const blank = (t: string): string => t.replace(/\{\s*[A-Za-z_]+/g, '{');
+  /** Keys where "take" is the ordinary verb ("a sound takes time", "Take a moment"), not the noun for a try. */
+  const TAKE_VERB = ['calibrate.result.meaning.loopback', 'calibrate.result.meaning.playAlong', 'scan.cover', 'banner.calibrateNeeded', 'calStatus.none.detail', 'calStatus.ok.detail'];
+
+  it('has no value that says take(s) for a try, excerpt(s), slip(s), scan or "a stretch"', () => {
+    const hits = (re: RegExp, skip: readonly string[] = []): string[] =>
+      copyKeys.filter((k) => !skip.includes(k) && re.test(blank(en[k])));
+    expect(hits(/\btakes?\b/i, TAKE_VERB)).toEqual([]);
+    expect(hits(/\bexcerpts?\b/i)).toEqual([]);
+    expect(hits(/\bslips?\b/i)).toEqual([]);
+    expect(hits(/\bscan\b/i)).toEqual([]);
+    expect(hits(/\ba stretch\b/i)).toEqual([]);
+    expect(hits(/\bre-?judged\b/i)).toEqual([]);
+    expect(hits(/\brecalibrate\b/i)).toEqual([]);
+  });
+
+  it('names the time signature, not the time', () => {
+    expect(copy('row.time')).toBe('Time signature');
+    expect(copy('setup.time.anyChip')).toBe('Any');
+  });
+
+  it('has every key the round 2 documents name, with its text', () => {
+    const added = Object.entries(round2.added);
+    expect(added.length).toBeGreaterThan(150);
+    for (const [key, text] of [...added, ...Object.entries(round2.changed)]) {
+      expect(isCopyKey(key), `missing key ${key}`).toBe(true);
+      expect(copyTemplate(key as CopyKey), key).toBe(text);
+    }
+    // One key from every family the task names, so a deleted family cannot hide behind the count.
+    for (const family of [
+      'match.', 'calStatus.', 'countIn.', 'look.', 'sure.', 'diagnostics.', 'heard.', 'error.audioStart.',
+      'error.micStart.', 'settings.display.ghostsLive', 'settings.display.showHeard', 'settings.practice.autoReference',
+      'settings.data.exportDiagnostics', 'credits.sounds.',
+    ]) {
+      expect(Object.keys(round2.added).some((k) => k.startsWith(family)), family).toBe(true);
+    }
+  });
+
+  it('credits every sound source of 02-sounds.md', () => {
+    const credit = ['credits.sounds.winds', 'credits.sounds.strings', 'credits.sounds.piano', 'credits.sounds.voices'].map((k) =>
+      copyTemplate(k as CopyKey),
+    ).join(' ');
+    for (const name of ['Versilian Studios', 'tiny-orchestra', 'Frank Wen', 'Benjamin Gleitzman', 'Alexander Holm', 'Jan Forst', 'CC BY 3.0', 'CC0 1.0']) {
+      expect(credit, name).toContain(name);
+    }
+    expect(copy('credits.sounds.licences')).toContain('LICENSES/CC-BY-3.0.txt');
+  });
+
+  it('keeps the old keys the code still uses, with the variables the code passes', () => {
+    expect(copyTemplate('setup.mode.blocked.calibration')).toBe('Ranked needs a calibrated setup on this device.');
+    expect(copyTemplate('a11y.countIn.announce')).toBe('Count-in, then play. Press Escape to stop.');
+    for (const k of ['scan.coach', 'scan.practice.timeUp', 'home.keyFootnote', 'banner.calibrateNeeded', 'stars.optional', 'stars.title', 'error.clockRate']) {
+      expect(isCopyKey(k), k).toBe(true);
+    }
   });
 });
 
@@ -218,16 +278,16 @@ const SPEC: Readonly<Record<string, string>> = {
   "action.tuningNote": "Check my tuning",
   "action.stayAt": "Stay at difficulty {level}",
   "action.goToLevel": "Go to difficulty {level}",
-  "onboarding.level.placement": "Find my difficulty ({count} short excerpts, about {minutes} minutes)",
+  "onboarding.level.placement": "Find my difficulty ({count} short pieces, about {minutes} minutes)",
   "onboarding.level.title": "Choose a starting difficulty",
   "onboarding.level.stepper": "Starting difficulty",
   "onboarding.instrument.body": "We choose music in your range. Pick the card that fits you best.",
   "scan.practice.timeUp": "Reading time's up. Start when ready.",
   "scan.chip.ranked": "Ranked · {time} to read",
   "scan.summary": "Difficulty {level} · {key} · {meter} · {tempo} · {bars} bars",
-  "scan.peek": "Before you play: {n} of {total}",
+  "scan.peek": "Look before you play",
   "grade.D": "Rough one. Stay at this difficulty for now.",
-  "grade.F": "This one was a stretch. Try an easier difficulty?",
+  "grade.F": "This one was hard. Try an easier difficulty?",
   "ranked.reason.practice-mode": "You chose Practice.",
   "ranked.reason.scan-extended": "The reading time ran past this difficulty's limit.",
   "ranked.reason.tempo-below-90pct": "The tempo was below this difficulty's range.",
@@ -248,8 +308,8 @@ const SPEC: Readonly<Record<string, string>> = {
   "rank.bar.needsLevel": "Reach difficulty {level} on any instrument to unlock",
   "rankup.next": "Next: {rank}, at {xp} XP and difficulty {level} on any instrument.",
   "level.offer": "You're reading difficulty {level} well. Move up to difficulty {next}?",
-  "level.autoUp": "Moved up to difficulty {level}: {n} takes in a row at {score} or more.",
-  "level.down": "Difficulty {level} has been a stretch lately. A few takes at difficulty {lower} can build the reading back up.",
+  "level.autoUp": "Moved up to difficulty {level}: {n} tries in a row at {score} or more.",
+  "level.down": "Difficulty {level} has been hard lately. A few tries at difficulty {lower} can build the reading back up.",
   "home.levelNoMusic": "No music yet for {instrument} at difficulty {levels}.",
   "home.levelFewMusic": "Few pieces here: some may repeat.",
   "home.keyFootnote": "More keys from difficulty {n}.",
@@ -259,26 +319,26 @@ const SPEC: Readonly<Record<string, string>> = {
   "progress.instrumentLevel": "Difficulty {level}",
   "progress.ladder.future": "{xp} XP, difficulty {level}",
   "progress.best": "Best at difficulty {level}: {score}",
-  "progress.window.label": "Recent ranked takes at this difficulty",
-  "empty.progress.body": "Play an excerpt and your score, difficulty and rank show up here.",
-  "settings.placement.hint": "Plays three short excerpts to find your difficulty again.",
+  "progress.window.label": "Recent ranked tries at this difficulty",
+  "empty.progress.body": "Play a piece and your score, difficulty and rank show up here.",
+  "settings.placement.hint": "Plays three short pieces to find your difficulty again.",
   "settings.section.audio": "Sound",
   "settings.audio.clickSound": "Metronome sound",
   "settings.audio.metronomeVolume": "Click volume",
-  "settings.audio.metronome": "Click during the take",
+  "settings.audio.metronome": "Click during the try",
   "settings.audio.metronome.audible": "On",
   "settings.audio.metronome.countInOnly": "Count-in only",
   "settings.audio.a4": "Tuning pitch",
-  "settings.practice.stars": "Show the Before you play checklist",
-  "settings.practice.tips": "Show a tip after each take",
+  "settings.practice.stars": "Show \"Look before you play\"",
+  "settings.practice.tips": "Show a tip after each try",
   "settings.practice.beta": "Show more instruments (less tested)",
-  "tips.showBetween": "Show a tip after each take",
+  "tips.showBetween": "Show a tip after each try",
   "badge.beta": "less tested",
   "calibrate.audibility.hint": "Try the Woodblock or Beep sound, or wired headphones.",
   "calibrate.audibility.link": "Open metronome sound settings",
   "error.clockRate": "Your device's audio clock is running at the wrong speed, so timing can't be measured. Close other apps that play sound, then try again.",
   "shortcuts.space": "Show the music, then Start playing",
-  "shortcuts.n": "Next excerpt",
+  "shortcuts.n": "Next piece",
   "instrument.name.voice-soprano": "Soprano voice",
   "instrument.name.voice-mezzo": "Mezzo-soprano voice",
   "instrument.name.voice-alto": "Alto voice",
@@ -321,7 +381,7 @@ const SPEC: Readonly<Record<string, string>> = {
   "setup.key.a11yConcert": "{key}, {accidentals}, sounds {concert}",
   "accidentals.none": "no sharps or flats",
   "setup.time.any": "Any",
-  "setup.time.anyChip": "Any time",
+  "setup.time.anyChip": "Any",
   "setup.time.a11y": "{beats} {unit} time",
   "setup.time.few": "few pieces",
   "setup.time.unavailable": "No {meters} music for {instrument} at difficulty {level} yet.",
@@ -333,7 +393,7 @@ const SPEC: Readonly<Record<string, string>> = {
   "setup.length.chip": "{bars} bars",
   "setup.xpTag": "+{percent}% XP",
   "setup.fallback.key": "Key set to Any: {key} isn't used at difficulty {level}.",
-  "setup.fallback.time": "Time set to Any: {meter} isn't available at difficulty {level}.",
+  "setup.fallback.time": "Time signature set to Any: {meter} isn't available at difficulty {level}.",
   "setup.fallback.length": "Length set to Any: {bars} bars isn't used at difficulty {level}.",
   "setup.fallback.difficulty": "Difficulty set to {level}: no music yet for {instrument} at difficulty {from}.",
   "setup.mode.ranked.hint": "Full XP. Fresh music and timed reading.",
@@ -344,15 +404,15 @@ const SPEC: Readonly<Record<string, string>> = {
   "action.turnOnMic": "Turn on microphone",
   "home.loadingMusic": "Loading music…",
   "home.rankLine": "{rank} · {percent}% to {nextRank}",
-  "onboarding.mic.notNowHint": "You can still practise, but takes won't be graded.",
+  "onboarding.mic.notNowHint": "You can still practise, but tries won't be graded.",
   "onboarding.mic.continueWithout": "Continue without the microphone",
   "onboarding.level.needsMic": "Needs the microphone.",
-  "calibrate.skipHint": "Without calibration, takes on this device are practice only. You can calibrate later from Practice or Settings.",
+  "calibrate.skipHint": "Without calibration, tries on this device are practice only. You can calibrate later from Practice or Settings.",
   "action.hearClick": "Hear the click",
   "scan.cover.loading": "Getting the music…",
   "scan.skipFreeHint": "Skip is free before you see the music.",
   "scan.timeLeft": "{time} left",
-  "stars.heading": "Before you play",
+  "stars.heading": "Look before you play",
   "stars.optional": "Optional. Tick as you check.",
   "scan.coach": "New: hear the tempo, the key and the music before you play.",
   "scan.sounds.whatAreThese": "What do these do?",
@@ -364,8 +424,8 @@ const SPEC: Readonly<Record<string, string>> = {
   "hearTempo.caption": "One bar of clicks at {tempo}.",
   "reference.caption.voice": "Plays the key chord, then your first note.",
   "reference.caption.instrument": "Plays the key chord, so you hear the key.",
-  "reference.info.voice": "This is your reference. It's the key of the piece: you hear its home chord, then the first note you'll sing. Find your pitch from there. We mark your pitch relative to this start, in any octave that suits your voice. It also plays by itself just before the count-in.",
-  "reference.info.instrument": "The key chord is the home chord of this piece, at concert pitch. It gives away no notes, so you can use it in ranked takes too.",
+  "reference.info.voice": "This is your reference. It's the key of the piece: you hear its home chord, then the first note you'll sing. Find your pitch from there. We mark your pitch relative to this start, in any octave that suits your voice. It also plays just before the count-in; you can turn that off in Settings.",
+  "reference.info.instrument": "The key chord is the home chord of this piece, at concert pitch. It gives away no notes, so you can use it in ranked tries too.",
   "reference.info.button": "About {control}",
   "reference.playing.chord": "Key chord: {key}",
   "reference.playing.first": "First note: {note}",
@@ -383,10 +443,10 @@ const SPEC: Readonly<Record<string, string>> = {
   "listen.playing": "Playing bar {n} of {total}",
   "listen.stopped": "Stopped",
   "listen.confirm.title": "Listen first?",
-  "listen.confirm.body": "Hearing the music before you play makes this a practice take. It earns less XP and doesn't count toward your rank.",
+  "listen.confirm.body": "Hearing the music before you play makes this a practice try. It earns less XP and doesn't count toward your rank.",
   "listen.confirm.yes": "Listen, make it practice",
   "listen.confirm.no": "Keep it ranked",
-  "listen.nowPractice": "Now a practice take",
+  "listen.nowPractice": "Now a practice try",
   "ranked.reason.listened-first": "You listened first, so this one is practice.",
   "action.hearBar": "Hear bar {bar}",
   "shortcuts.l": "Listen or stop",
@@ -395,10 +455,10 @@ const SPEC: Readonly<Record<string, string>> = {
   "results.tip.more": "Show {n, plural, one {# more tip} other {# more tips}}",
   "results.badge.notGraded": "Not graded",
   "results.drift.ms": "({ms} ms)",
-  "results.saveFailed": "This take couldn't be saved on this device.",
+  "results.saveFailed": "This try couldn't be saved on this device.",
   "action.changeSetup": "Change setup",
-  "action.previousSlip": "Previous slip",
-  "action.nextSlip": "Next slip",
+  "action.previousSlip": "Previous mistake",
+  "action.nextSlip": "Next mistake",
   "settings.audio.click.classic": "Classic",
   "settings.audio.click.classic.hint": "A mechanical metronome: a firm, woody click.",
   "settings.audio.click.woodblock": "Woodblock",
@@ -419,15 +479,15 @@ const SPEC: Readonly<Record<string, string>> = {
   "results.tip.less": "Hide {n, plural, one {tip} other {tips}}",
   "action.hearBars": "Hear bars {from} to {to}",
   "listen.fromBar": "From bar {n}",
-  "results.void.cleanScore": "Clean score. Nothing is marked when a take is not graded.",
+  "results.void.cleanScore": "Clean score. Nothing is marked when a try is not graded.",
   "tips.offToast": "Tips turned off. Turn them on in Settings > Practice.",
   "calibrate.devicesLocked": "Device choice is locked while we listen.",
   "settings.audio.click.keepsCalibration": "Changing the sound keeps your calibration.",
   "settings.audio.click.playing": "Playing: {sound}",
   "settings.audio.metronomeVolume.hint": "Plays one click when you let go.",
   "scan.practice.readHint": "Read it through. Start when you are ready.",
-  "setup.empty.title": "No excerpt fits these settings",
-  "scan.sounds.listenRanked": "In a ranked take, this makes it practice. We ask first.",
+  "setup.empty.title": "No piece fits these settings",
+  "scan.sounds.listenRanked": "In a ranked try, this makes it practice. We ask first.",
 };
 
 /** Strings allowed to contain the word "level" (a sound level, say). Expected to stay empty. */

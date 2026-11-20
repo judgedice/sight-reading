@@ -100,7 +100,7 @@ describe('void cards', () => {
   it('renders the table in 04 section 9.3', () => {
     const fns = { onTryAgain: vi.fn(), onCheckMicrophone: vi.fn(), onRecalibrate: vi.fn() };
     current = mount(<VoidCard reason="no-signal" {...fns} />);
-    expect(document.body.textContent).toContain("We couldn't hear you, so this take wasn't graded.");
+    expect(document.body.textContent).toContain("We couldn't hear you, so this try wasn't graded.");
     expect(buttons()).toEqual(['Check microphone', 'Try again']);
     current.render(<VoidCard reason="device-change" {...fns} />);
     expect(buttons()).toEqual(['Recalibrate']);
@@ -109,7 +109,7 @@ describe('void cards', () => {
     current.render(<VoidCard reason="backlog" {...fns} />);
     expect(document.body.textContent).toContain('This device fell behind while listening');
     current.render(<VoidCard reason="interrupted" {...fns} />);
-    expect(document.body.textContent).toContain('The take was interrupted');
+    expect(document.body.textContent).toContain('The try was interrupted');
     expect(buttons()).toEqual(['Try again']);
   });
   it('never shows a grade or XP', () => {
@@ -124,23 +124,23 @@ describe('error and empty states', () => {
     current = mount(<ErrorCard kind="storage-loss" onPrimary={f} onSecondary={f} />);
     expect(buttons()).toEqual(['Import backup', 'Start fresh']);
     current.render(<ErrorCard kind="storage-blocked" onPrimary={f} />);
-    expect(buttons()).toEqual(['Export this take']);
+    expect(buttons()).toEqual(['Export this try']);
   });
   it('empty states match 9.1', () => {
     const f = vi.fn();
     current = mount(<ProgressEmpty onStart={f} />);
-    expect(document.body.textContent).toContain('Your progress starts with one take');
+    expect(document.body.textContent).toContain('Your progress starts with one try');
     click(buttonNamed('Start practising'));
     expect(f).toHaveBeenCalledOnce();
     current.render(<HistoryEmpty onStart={f} />);
-    expect(document.body.textContent).toContain('Every take you play is saved on this device.');
+    expect(document.body.textContent).toContain('Every try you play is saved on this device.');
     current.render(<HistoryFilteredEmpty onClear={f} />);
     expect(buttons()).toEqual(['Clear filters']);
     current.render(<SlipsEmpty />);
     expect(buttons()).toEqual([]);
-    current.render(<SelectorEmpty body="Level 2 has no unseen music in 3/4 for flute yet." suggestions={[{ label: 'Set time to Random', onSelect: f }, { label: 'Practise a seen excerpt', onSelect: f }]} />);
-    expect(buttons()).toEqual(['Set time to Random', 'Practise a seen excerpt']);
-    expect(document.body.textContent).toContain('No excerpt fits these settings');
+    current.render(<SelectorEmpty body="Level 2 has no unseen music in 3/4 for flute yet." suggestions={[{ label: 'Set time to Random', onSelect: f }, { label: 'Practise a piece you\'ve seen', onSelect: f }]} />);
+    expect(buttons()).toEqual(['Set time to Random', 'Practise a piece you\'ve seen']);
+    expect(document.body.textContent).toContain('No piece fits these settings');
   });
   it('calibration banner never blocks: it is dismissible and carries Calibrate', () => {
     const f = vi.fn();

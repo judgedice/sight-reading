@@ -166,7 +166,7 @@ test('owner review: baritone, ranked, key and time, tempo, starting pitch, liste
     issues.push('listen first: no confirmation in Ranked');
   }
   await expect(page.getByText(/^Playing bar \d+ of \d+/).filter({ visible: true }).first()).toBeVisible({ timeout: 10_000 });
-  await expect(page.getByText(/Now a practice take|practice/i).filter({ visible: true }).first()).toBeVisible();
+  await expect(page.getByText(/Now a practice try|practice/i).filter({ visible: true }).first()).toBeVisible();
   await shot('scan-listening', false);
   await page.getByRole('button', { name: /^Stop/ }).first().click();
   await shot('scan-after-listen', false);

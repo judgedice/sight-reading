@@ -87,7 +87,7 @@ describe('CalibrationCard', () => {
     current = mount(wrap(<CalibrationCard services={svc} onDone={done} allowSkip />));
     expect(document.body.textContent).toContain("About 15 seconds: clicks at uneven gaps (on purpose, so an echo can't fool the timing), a short tone, then a one-bar count-in.");
     expect(names()).toEqual(['Hear the click', 'Start', 'Skip']);
-    expect(document.body.textContent).toContain('Without calibration, takes on this device are practice only.');
+    expect(document.body.textContent).toContain('Without calibration, tries on this device are practice only.');
     act(() => button('Start').click());
     // unlock was called synchronously from the click, before any await resolved.
     expect(svc.calls[0]).toBe('unlock');
@@ -143,7 +143,7 @@ describe('CalibrationCard', () => {
     expect(document.body.textContent).toContain("Needs the speakers, so it doesn't run with headphones.");
     expect(names()).toEqual(['Try again', 'Export diagnostics', 'Skip']);
     await press('Try again');
-    expect(document.body.textContent).toContain("Timing can't be trusted with an estimate, so takes won't earn XP until you calibrate.");
+    expect(document.body.textContent).toContain("Timing can't be trusted with an estimate, so tries won't earn XP until you calibrate.");
     expect(names()).toContain('Use an estimate');
     await press('Use an estimate');
     expect(svc.saved).toEqual([]);
@@ -161,7 +161,7 @@ describe('CalibrationCard', () => {
     const svc = fakeServices({ caps: { osFamily: 'ios', outputLatencyReported: false }, output: 'wired', playAlong: [playAlongBad(), playAlongBad()] });
     current = mount(wrap(<CalibrationCard services={svc} onDone={() => undefined} allowSkip />));
     expect(document.body.textContent).toContain('iOS: beta');
-    expect(document.body.textContent).toContain('On iPhone and iPad, takes earn XP only after this check.');
+    expect(document.body.textContent).toContain('On iPhone and iPad, tries earn XP only after this check.');
     expect(names()).toEqual(['Hear the click', 'Start']);
     await press('Start');
     await press('Try again');

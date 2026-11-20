@@ -34,6 +34,7 @@ import type {
   PlayNote,
   PlayNotesOptions,
   PlatformCapabilities,
+  SoundSetId,
   TakeSchedule,
   WorkerMessage,
 } from '../../../core/platform.ts';
@@ -41,6 +42,7 @@ import budgetJson from '../../../../config/measurement-budget.json';
 import { browserAudioDeps, type AudioContextLike, type GainNodeLike, type TrackLike, type WebAudioDeps, type WorkletNodeLike, type MediaStreamLike, type AudioNodeLike } from './deps.ts';
 import type { ClickBuffer } from './metronome.ts';
 import { ListenVoiceCache, LISTEN_BUS_GAIN } from './listen-voice.ts';
+import { isSamplerContext, midiOfHz, Sampler, SAMPLE_GAIN, type Decoder, type FetchLike, type SamplerNode } from './sampler.ts';
 import { CALIBRATION_ACCENT_DB, Metronome } from './metronome.ts';
 import { fitClockWindow, median, type ClockFit, type ClockSample } from './clock-fit.ts';
 import { CAPTURE_PROCESSOR_NAME, FRAMES_PER_BLOCK, type FromWorklet, type ToWorklet } from './protocol.ts';
@@ -87,6 +89,33 @@ export interface WebAudioBackendOptions {
   statsEvery?: number;
   /** Clock-rate measurement tuning (tests); defaults `CLOCK_CHECK`. */
   clockCheck?: Partial<Omit<typeof CLOCK_CHECK, 'windowSec'>>;
+  /** URL of the sounds folder, ending in '/' (default `sounds/`, relative to the page like every asset). */
+  soundsBase?: string;
+  /** Fetch for the sample sets (default the global `fetch`; tests inject one). */
+  fetchSound?: FetchLike;
+  /**
+   * A decoder for sets prepared before `unlock` (default a one-frame `OfflineAudioContext` where the browser has one).
+   * Decoded buffers play in any context.
+   */
+  createDecoder?: () => Decoder | null;
+}
+
+/** The default sounds fetch: the global one, when there is one. */
+const defaultSoundFetch: FetchLike = (url) => {
+  if (typeof fetch !== 'function') return Promise.reject(new Error('no fetch'));
+  return fetch(url);
+};
+
+/** A decode-only context for sets prepared before the AudioContext exists. */
+function defaultDecoder(): Decoder | null {
+  const Offline = (globalThis as { OfflineAudioContext?: new (channels: number, length: number, rate: number) => unknown }).OfflineAudioContext;
+  if (typeof Offline !== 'function') return null;
+  try {
+    const off = new Offline(1, 1, 44100);
+    return isSamplerContext(off) ? off : null;
+  } catch {
+    return null;
+  }
 }
 
 export interface CaptureStats {
@@ -188,6 +217,8 @@ export class WebAudioBackend implements AudioBackend {
   /** The Listen voice's own gain, about -12 dBFS peak, feeding the click bus at unity (click volume is set per click, not on the bus). */
   private listenBus: GainNodeLike | null = null;
   private readonly listenVoice = new ListenVoiceCache();
+  private readonly sampler: Sampler;
+  private offlineDecoder: Decoder | null | undefined;
   private stream: MediaStreamLike | null = null;
   private track: TrackLike | null = null;
   private route: AudioRouteInfo | null = null;
@@ -226,6 +257,19 @@ export class WebAudioBackend implements AudioBackend {
     this.budget = { ...DEFAULT_CAPTURE_BUDGET, ...opts.budget };
     this.outputMode = opts.outputMode ?? 'speakers';
     this.relayUsed = opts.forceRelay ?? false;
+    this.sampler = new Sampler({
+      base: opts.soundsBase ?? 'sounds/',
+      fetch: opts.fetchSound ?? defaultSoundFetch,
+      decoder: () => this.soundDecoder(),
+    });
+  }
+
+  /** The live context when it can decode, else a decode-only one (created once). */
+  private soundDecoder(): Decoder | null {
+    const ctx = this.ctx;
+    if (ctx && ctx.state !== 'closed' && isSamplerContext(ctx)) return ctx;
+    if (this.offlineDecoder === undefined) this.offlineDecoder = (this.opts.createDecoder ?? defaultDecoder)();
+    return this.offlineDecoder;
   }
 
   /** True once a take's capture used the main-thread relay (AudioEnv.captureRelay). */
@@ -569,18 +613,46 @@ export class WebAudioBackend implements AudioBackend {
     this.startTone(hz, durSec, at, 0.5);
   }
 
-  /** Listen (05 §9.2): the pre-rendered additive tone on the Listen bus. `opts.peak` scales the bus's -12 dBFS ceiling (0..1). */
+  /**
+   * Listen (05 §9.2) and every other note the app plays, on the Listen bus. With `opts.sound` and the set loaded, the
+   * notes are sampled (round 2, 02-sounds.md); otherwise they are the pre-rendered additive tone, and a set that is
+   * not loaded yet starts loading for the next call. `opts.peak` scales the bus's -12 dBFS ceiling (0..1).
+   */
   async playNotes(notes: readonly PlayNote[], opts: PlayNotesOptions): Promise<void> {
     const ctx = this.requireContext();
     this.requireIdle();
     const origin = opts.at ?? (ctx.currentTime as ClockSeconds);
     const peak = Math.min(1, Math.max(0, opts.peak));
+    const set = opts.sound !== undefined ? this.sampler.ready(opts.sound) : null;
+    if (opts.sound !== undefined && !set) void this.sampler.prepare(opts.sound);
+    if (set && isSamplerContext(ctx)) {
+      for (const n of notes) {
+        if (!(n.hz > 0) || !(n.durSec > 0)) continue;
+        const voice = this.sampler.play(ctx, this.listenBus as unknown as SamplerNode, set, midiOfHz(n.hz), origin + n.startSec, n.durSec, {
+          gain: peak * SAMPLE_GAIN,
+          ...(opts.attackSec !== undefined ? { attackSec: opts.attackSec } : {}),
+        });
+        this.liveTones.add(voice);
+        voice.onended = () => this.liveTones.delete(voice);
+      }
+      return;
+    }
     for (const n of notes) {
       const data = this.listenVoice.get(n.hz, n.durSec, ctx.sampleRate, peak);
       const real = ctx.createBuffer(1, data.length, ctx.sampleRate);
       real.getChannelData(0).set(data);
       this.startSource(real, this.listenBus as GainNodeLike, origin + n.startSec);
     }
+  }
+
+  /** Starts loading a sample set; works before `unlock` where the browser can decode without a context. */
+  prepareSound(id: SoundSetId): Promise<'ready' | 'fallback'> {
+    return this.sampler.prepare(id);
+  }
+
+  /** Where a set's load stands (diagnostics and tests). */
+  soundState(id: SoundSetId): ReturnType<Sampler['state']> {
+    return this.sampler.state(id);
   }
 
   /** Previews and lead-ins through the metronome's click recipes, on a scheduler a take never shares. */

@@ -698,7 +698,7 @@
       "minLevel": 1,
       "maxLevel": 10,
       "enabled": true,
-      "text": "Written accidentals were missed. During your scan, find every accidental before you play a note."
+      "text": "Written accidentals were missed. During your read-through, find every accidental before you play a note."
     },
     {
       "_source": "02 §6.3",
@@ -737,7 +737,7 @@
       "minLevel": 1,
       "maxLevel": 10,
       "enabled": true,
-      "text": "Clean read. Try the next one 8 bpm faster, or take a stretch excerpt at the next level."
+      "text": "Clean read. Try the next one 8 bpm faster, or a harder piece at the next difficulty."
     },
     {
       "_source": "02 §6.3",
@@ -751,7 +751,7 @@
       "minLevel": 1,
       "maxLevel": 10,
       "enabled": true,
-      "text": "The first note was late. Prepare on the last count-in beat (breathe, set the bow, place the hand) so sound starts exactly on beat 1. Look at the pickup during the scan."
+      "text": "The first note was late. Prepare on the last count-in beat (breathe, set the bow, place the hand) so sound starts exactly on beat 1. Look at the pickup during the read-through."
     },
     {
       "_source": "02 §6.3",
@@ -790,7 +790,7 @@
       "minLevel": 1,
       "maxLevel": 10,
       "enabled": false,
-      "text": "You hesitated before leaps. Spot leaps during the scan and decide the landing note before you start, so the leap is already solved when you reach it."
+      "text": "You hesitated before leaps. Spot leaps during the read-through and decide the landing note before you start, so the leap is already solved when you reach it."
     },
     {
       "_source": "02 §L-D (Later annex, disabled data)",
@@ -855,7 +855,7 @@
       "minLevel": 1,
       "maxLevel": 10,
       "enabled": false,
-      "text": "Accuracy dropped near the end. Glance at the last line during your scan so the ending is not a surprise, and keep the same focus to the double bar."
+      "text": "Accuracy dropped near the end. Glance at the last line during your read-through so the ending is not a surprise, and keep the same focus to the double bar."
     },
     {
       "_source": "02 §L-D (Later annex, disabled data)",
@@ -948,7 +948,7 @@
       "minLevel": 1,
       "maxLevel": 10,
       "enabled": true,
-      "text": "If you stopped to breathe, plan breaths at rests and phrase ends during the scan, and take a quick low breath at each one."
+      "text": "If you stopped to breathe, plan breaths at rests and phrase ends during the read-through, and take a quick low breath at each one."
     },
     {
       "_source": "02 §6.4",
@@ -988,7 +988,7 @@
       "minLevel": 1,
       "maxLevel": 10,
       "enabled": true,
-      "text": "Accidentals and key notes on flute often hide in B♭ and F♯. Choose thumb B♭ in flat keys and when no B naturals are near; decide in the scan."
+      "text": "Accidentals and key notes on flute often hide in B♭ and F♯. Choose thumb B♭ in flat keys and when no B naturals are near; decide in the read-through."
     },
     {
       "_source": "02 §6.4",
@@ -1005,7 +1005,7 @@
       "minLevel": 1,
       "maxLevel": 10,
       "enabled": true,
-      "text": "If you stopped to breathe, mark breaths in the scan, after long notes or before pickups, and take quick breaths through the corners of the mouth."
+      "text": "If you stopped to breathe, mark breaths in the read-through, after long notes or before pickups, and take quick breaths through the corners of the mouth."
     },
     {
       "_source": "02 §6.4",
@@ -1056,7 +1056,7 @@
       "minLevel": 1,
       "maxLevel": 10,
       "enabled": true,
-      "text": "Fast passages tangled the little fingers. In the scan, find runs that need alternating left and right little-finger keys and decide which side each note takes."
+      "text": "Fast passages tangled the little fingers. In the read-through, find runs that need alternating left and right little-finger keys and decide which side each note takes."
     },
     {
       "_source": "02 §6.4",
@@ -1075,7 +1075,7 @@
       "minLevel": 1,
       "maxLevel": 10,
       "enabled": true,
-      "text": "B♭ fingerings: use bis B♭ in flat keys, side B♭ in chromatic lines, and 1-and-1 next to B naturals. Choose in the scan."
+      "text": "B♭ fingerings: use bis B♭ in flat keys, side B♭ in chromatic lines, and 1-and-1 next to B naturals. Choose in the read-through."
     },
     {
       "_source": "02 §6.4",
@@ -1109,7 +1109,7 @@
       "minLevel": 1,
       "maxLevel": 10,
       "enabled": true,
-      "text": "You landed on a neighbouring partial (same fingering, different note). Brass needs you to hear the pitch first. In the scan, hum or buzz the tricky intervals."
+      "text": "You landed on a neighbouring partial (same fingering, different note). Brass needs you to hear the pitch first. In the read-through, hum or buzz the tricky intervals."
     },
     {
       "_source": "02 §6.4",
@@ -1194,7 +1194,7 @@
       "minLevel": 1,
       "maxLevel": 10,
       "enabled": true,
-      "text": "Sharp keys on cello need forward extensions. Find the F♯ and C♯ positions in the scan and decide where to extend."
+      "text": "Sharp keys on cello need forward extensions. Find the F♯ and C♯ positions in the read-through and decide where to extend."
     },
     {
       "_source": "02 §6.4",
@@ -1246,7 +1246,7 @@
       "minLevel": 1,
       "maxLevel": 10,
       "enabled": true,
-      "text": "Runs broke down. Decide fingering at position changes during the scan, including where the thumb passes under."
+      "text": "Runs broke down. Decide fingering at position changes during the read-through, including where the thumb passes under."
     },
     {
       "_source": "02 §6.4",
@@ -1801,7 +1801,7 @@
       "minLevel": 1,
       "maxLevel": 10,
       "enabled": false,
-      "text": "Wrong octaves usually mean a late octave key or half-hole (oboe) or a missed flick key (bassoon). Find register crossings in the scan and prepare early."
+      "text": "Wrong octaves usually mean a late octave key or half-hole (oboe) or a missed flick key (bassoon). Find register crossings in the read-through and prepare early."
     },
     {
       "_source": "02 §L-E (Later annex, disabled data; text from revision 1 §6.4, commit a2454fe)",
@@ -1835,7 +1835,7 @@
       "minLevel": 1,
       "maxLevel": 10,
       "enabled": false,
-      "text": "Fast passages with F: pick left F or forked F during the scan so the fingering is decided before you play."
+      "text": "Fast passages with F: pick left F or forked F during the read-through so the fingering is decided before you play."
     },
     {
       "_source": "02 §L-E (Later annex, disabled data; text from revision 1 §6.4, commit a2454fe)",
@@ -1923,7 +1923,7 @@
       "minLevel": 1,
       "maxLevel": 10,
       "enabled": false,
-      "text": "You hit a neighbouring partial. Hear the note before you play it, and in the scan check which partial each leap lands on."
+      "text": "You hit a neighbouring partial. Hear the note before you play it, and in the read-through check which partial each leap lands on."
     },
     {
       "_source": "02 §L-E (Later annex, disabled data; text from revision 1 §6.4, commit a2454fe)",
@@ -2107,7 +2107,7 @@
       "minLevel": 1,
       "maxLevel": 10,
       "enabled": false,
-      "text": "You hesitated on position changes. Choose one position that covers the excerpt's range during the scan and stay there if you can."
+      "text": "You hesitated on position changes. Choose one position that covers the piece's range during the read-through and stay there if you can."
     },
     {
       "_source": "02 §L-E (Later annex, disabled data; text from revision 1 §6.4, commit a2454fe)",

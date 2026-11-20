@@ -194,7 +194,7 @@ describe('model over fixtures/grade', () => {
     expect(lines).toContain('Score ×0.85');
     expect(lines).toContain('Streak 6 days ×1.12');
     expect(lines).toContain('Below your difficulty ×0.25');
-    expect(lines).toContain('Over 60 takes today ×0.25');
+    expect(lines).toContain('Over 60 tries today ×0.25');
     expect(lines).toContain('Any key ×1.08');
   });
 
@@ -394,7 +394,7 @@ describe('ResultsPanel', () => {
     expect(onStayAt).toHaveBeenCalledWith('flute', 5);
   });
 
-  it('actions in the header on desktop: Next excerpt, Try again (practice) with its tooltip, Change setup', () => {
+  it('actions in the header on desktop: Next piece, Try again (practice) with its tooltip, Change setup', () => {
     const onNext = vi.fn();
     const onTryAgain = vi.fn();
     const onChangeSetup = vi.fn();
@@ -588,7 +588,7 @@ describe('ResultsScreen', () => {
     expect(open).toHaveBeenCalledWith(f.store.getState().record);
   });
 
-  it('Next excerpt goes to the scan whether or not tips exist (the tips route redirects, decision 13)', () => {
+  it('Next piece goes to the scan whether or not tips exist (the tips route redirects, decision 13)', () => {
     const rec = attemptFrom('case05-key-signature-f-sharp');
     const withTips = fixture({ record: rec });
     expect(withTips.store.getState().tips.length).toBeGreaterThan(0);
@@ -615,7 +615,7 @@ describe('ResultsScreen', () => {
     renderScreen(f);
     click(button(copy('action.nextExcerpt')));
     expect(f.hash.value).toBe('#/practice/results');
-    expect($('[data-testid="session-summary"]').textContent).toContain('10 takes');
+    expect($('[data-testid="session-summary"]').textContent).toContain('10 tries');
     // Each top pattern carries its tip.
     const items = [...document.querySelectorAll('[data-pattern]')];
     expect(items.length).toBeGreaterThan(0);
@@ -653,7 +653,7 @@ describe('ResultsScreen', () => {
     expect(f.hash.value).toBe('#/practice/results');
   });
 
-  it('keyboard: N is Next excerpt, R is Try again, and nothing fires inside an overlay or with shortcuts off', () => {
+  it('keyboard: N is Next piece, R is Try again, and nothing fires inside an overlay or with shortcuts off', () => {
     const f = fixture({ view: { tips: [] } });
     renderScreen(f);
     act(() => {
@@ -808,7 +808,7 @@ describe('"One thing to try" on the results page', () => {
     expect(document.querySelectorAll('.res-tip-other')).toHaveLength(Math.max(0, Math.min(3, max) - 1));
   });
 
-  it('nothing at all with no tips, or with "Show a tip after each take" off', () => {
+  it('nothing at all with no tips, or with "Show a tip after each try" off', () => {
     render({ tips: [] });
     expect(q('[data-testid="res-tips"]')).toBeNull();
     m?.unmount();

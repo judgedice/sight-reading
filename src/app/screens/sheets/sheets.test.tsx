@@ -151,11 +151,11 @@ describe('Skip after reveal', () => {
     const onKeep = vi.fn();
     m = mount(<SkipSheet open limitExceeded={false} perRanked={5} onSkip={onSkip} onKeepReading={onKeep} />);
     expect(document.body.textContent).toContain(copy('dialog.skip.title'));
-    expect(document.body.textContent).not.toContain('Your next excerpt will be practice');
+    expect(document.body.textContent).not.toContain('Your next piece will be practice');
     click(button(copy('action.skip')));
     expect(onSkip).toHaveBeenCalled();
     m.render(<SkipSheet open limitExceeded perRanked={5} onSkip={onSkip} onKeepReading={onKeep} />);
-    expect(document.body.textContent).toContain('Your next excerpt will be practice: one skip per 5 ranked takes.');
+    expect(document.body.textContent).toContain('Your next piece will be practice: one skip per 5 ranked tries.');
     click(button(copy('action.keepReading')));
     expect(onKeep).toHaveBeenCalled();
   });
@@ -252,7 +252,7 @@ describe('Session summary', () => {
         <SessionSummary open data={data} onKeepGoing={onKeepGoing} onFinish={onFinish} />
       </RouterProvider>,
     );
-    expect($('[data-testid="session-summary"]').textContent).toContain('3 takes');
+    expect($('[data-testid="session-summary"]').textContent).toContain('3 tries');
     expect($('[data-testid="summary-best"] a').getAttribute('href')).toBe(`#/history/${data.best!.attemptId}`);
     expect($('[data-testid="summary-focus"]').textContent).toBe(copy('session.focusCard', { pattern: data.focus!.name }));
     click(button(copy('action.finish')));
@@ -265,7 +265,7 @@ describe('Session summary', () => {
     m = mount(
       <SessionSummary open data={summarizeSession([], cfg, undefined, [])} onKeepGoing={vi.fn()} onFinish={vi.fn()} />,
     );
-    expect(document.body.textContent).toContain('No takes in this session yet.');
+    expect(document.body.textContent).toContain('No tries in this session yet.');
   });
 });
 

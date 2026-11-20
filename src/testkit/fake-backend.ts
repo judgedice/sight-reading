@@ -23,6 +23,7 @@ import type {
   PlatformCapabilities,
   PlayNote,
   PlayNotesOptions,
+  SoundSetId,
   TakeSchedule,
   WorkerMessage,
 } from '../core/platform.ts';
@@ -54,6 +55,10 @@ export interface FakeBackendOptions {
    * tones (the voice starting-pitch reference), arrive in the capture `rtlSec` after their scheduled time. Tones are
    * rendered as the real backend plays them (a sine at peak 0.5 with 10 ms fades), scaled by `toneGainDb`. A sound
    * scheduled before `startCapture` is still heard if it is still sounding once capture runs.
+   *
+   * `toneGainDb` also mixes `playNotes` notes into the capture, sampled or not: a harmonic tone (fundamental, 2nd at
+   * -8 dB, 3rd at -16 dB) peaking at no more than `0.5 * opts.peak` before `toneGainDb`, with the call's `attackSec` (default
+   * 30 ms) and a 250 ms linear release. `stopSounds` cuts the notes still sounding at the clock of the call.
    */
   loopback?: { rtlSec: number; gainDb: number; timbre?: ClickTimbre; toneGainDb?: number };
   /** Reported by `measureClockRate`; default exact. */
@@ -63,7 +68,15 @@ export interface FakeBackendOptions {
   /** Seqs to skip posting (the seq counter still advances), to test gap detection. */
   dropSeqs?: readonly number[];
   permission?: 'granted' | 'denied' | 'prompt' | 'unknown';
+  /** What `prepareSound` answers: `ready` for the listed sets (default every set), `fallback` for the rest. */
+  readySounds?: readonly SoundSetId[];
 }
+
+/** Release of a played note in the fake's loopback, seconds. */
+export const FAKE_NOTE_RELEASE_SEC = 0.25;
+/** Attack of a played note in the fake's loopback when the call gives none, seconds. */
+export const FAKE_NOTE_ATTACK_SEC = 0.03;
+const NOTE_HARMONICS_DB = [0, -8, -16];
 
 const QUANTUM = 128;
 const FRAMES_PER_BLOCK = 2 * QUANTUM;
@@ -84,6 +97,7 @@ export type FakeBackendMethod =
   | 'playTone'
   | 'playNotes'
   | 'playClicks'
+  | 'prepareSound'
   | 'stopSounds';
 
 interface ScriptedEvent { at: number; fire: () => void }
@@ -99,6 +113,10 @@ export class FakeAudioBackend implements AudioBackend {
     calibrationClicks: [] as { times: ClockSeconds[]; timbre: ClickTimbre }[],
     tones: [] as { hz: number; durSec: number; at: ClockSeconds }[],
     notePlays: [] as { notes: PlayNote[]; opts: PlayNotesOptions }[],
+    /** The sound id of each `playNotes` call, in order (null: the additive voice). */
+    noteSounds: [] as (SoundSetId | null)[],
+    /** Every `prepareSound` call, in order. */
+    soundPrepares: [] as SoundSetId[],
     clickPlays: [] as { times: ClockSeconds[]; sound: MetronomeSound; accents: boolean[] }[],
     stopSounds: 0,
     /** Every call above in order, with the clock at the call. */
@@ -124,6 +142,10 @@ export class FakeAudioBackend implements AudioBackend {
   private pendingClicks: { t: number; accent: boolean; timbre: ClickTimbre }[] = [];
   /** Tones played so far (clock times), for the tone bleed. */
   private playedTones: { hz: number; durSec: number; at: number }[] = [];
+  /** Notes played so far, for the note bleed; `cutAt` is the clock of a `stopSounds` that cut them. */
+  private playedNotes: { hz: number; durSec: number; at: number; peak: number; attack: number; cutAt: number | null }[] = [];
+  /** The rendered note bleed, apart from the click buffers so `cancelTake` keeps it. */
+  private noteBuffers: { startFrame: number; samples: Float32Array }[] = [];
   private dropSeqs: Set<number>;
 
   // capture state
@@ -292,6 +314,8 @@ export class FakeAudioBackend implements AudioBackend {
     this.clickBuffers = [];
     this.mixClicks();
     for (const t of this.playedTones) this.mixTone(t);
+    this.noteBuffers = [];
+    for (const n of this.playedNotes) this.mixNote(n);
   }
 
   stopCapture(): void {
@@ -318,7 +342,22 @@ export class FakeAudioBackend implements AudioBackend {
 
   async playNotes(notes: readonly PlayNote[], opts: PlayNotesOptions): Promise<void> {
     this.log.notePlays.push({ notes: notes.map((n) => ({ ...n })), opts: { ...opts } });
+    this.log.noteSounds.push(opts.sound ?? null);
     this.call('playNotes');
+    const origin = (opts.at as number | undefined) ?? this.clockSec;
+    const peak = Math.min(1, Math.max(0, opts.peak));
+    for (const n of notes) {
+      const note = { hz: n.hz, durSec: n.durSec, at: origin + n.startSec, peak, attack: opts.attackSec ?? FAKE_NOTE_ATTACK_SEC, cutAt: null };
+      this.playedNotes.push(note);
+      if (this.capturing) this.mixNote(note);
+    }
+  }
+
+  async prepareSound(id: SoundSetId): Promise<'ready' | 'fallback'> {
+    this.log.soundPrepares.push(id);
+    this.call('prepareSound');
+    const ready = this.opts.readySounds;
+    return ready === undefined || ready.includes(id) ? 'ready' : 'fallback';
   }
 
   async playClicks(times: ClockSeconds[], sound: MetronomeSound, accents: boolean[]): Promise<void> {
@@ -330,6 +369,18 @@ export class FakeAudioBackend implements AudioBackend {
   stopSounds(): void {
     this.log.stopSounds++;
     this.call('stopSounds');
+    const now = this.clockSec;
+    let cut = false;
+    for (const n of this.playedNotes) {
+      if (n.cutAt === null && now < n.at + n.durSec + FAKE_NOTE_RELEASE_SEC) {
+        n.cutAt = now;
+        cut = true;
+      }
+    }
+    if (cut && this.capturing) {
+      this.noteBuffers = [];
+      for (const n of this.playedNotes) this.mixNote(n);
+    }
   }
 
   async measureClockRate(durSec: number): Promise<{ framesPerSec: number; expected: number }> {
@@ -410,10 +461,49 @@ export class FakeAudioBackend implements AudioBackend {
     this.clickBuffers.push({ startFrame, samples });
   }
 
+  /**
+   * Renders one played note's bleed (`loopback.toneGainDb`): harmonics, linear attack, hold, linear release, cut by
+   * `stopSounds` at `cutAt` (a 15 ms fade, as the sampler does).
+   */
+  private mixNote(n: { hz: number; durSec: number; at: number; peak: number; attack: number; cutAt: number | null }): void {
+    const lb = this.opts.loopback;
+    if (!lb || lb.toneGainDb === undefined || !(n.hz > 0)) return;
+    const sr = this.sampleRate;
+    const hold = Math.max(n.attack, n.durSec);
+    let endSec = hold + FAKE_NOTE_RELEASE_SEC;
+    const cutRel = n.cutAt === null ? null : n.cutAt - n.at;
+    if (cutRel !== null) endSec = Math.min(endSec, Math.max(0, cutRel) + 0.015);
+    const len = Math.max(0, Math.round(endSec * sr));
+    const startFrame = Math.round((n.at + lb.rtlSec - this.captureOrigin) * sr);
+    if (len === 0 || startFrame + len <= 0) return;
+    const g = 0.5 * n.peak * 10 ** (lb.toneGainDb / 20);
+    const amps = NOTE_HARMONICS_DB.map((db) => 10 ** (db / 20));
+    const norm = 1 / amps.reduce((a, b) => a + b, 0);
+    const nyquist = sr / 2;
+    const samples = new Float32Array(len);
+    for (let i = 0; i < len; i++) {
+      const t = i / sr;
+      let env = n.attack > 0 ? Math.min(1, t / n.attack) : 1;
+      if (t > hold) env *= Math.max(0, 1 - (t - hold) / FAKE_NOTE_RELEASE_SEC);
+      if (cutRel !== null && t > cutRel) env *= Math.max(0, 1 - (t - cutRel) / 0.015);
+      let x = 0;
+      for (let h = 0; h < amps.length; h++) {
+        const f = n.hz * (h + 1);
+        if (f < nyquist) x += (amps[h] as number) * Math.sin(2 * Math.PI * f * t);
+      }
+      samples[i] = g * env * norm * x;
+    }
+    this.noteBuffers.push({ startFrame, samples });
+  }
+
   private inputSample(frame: number): number {
     const si = frame - Math.round((this.sourceOrigin - this.captureOrigin) * this.sampleRate);
     let x = si >= 0 && si < this.source.length ? (this.source[si] as number) : 0;
     for (const b of this.clickBuffers) {
+      const k = frame - b.startFrame;
+      if (k >= 0 && k < b.samples.length) x += b.samples[k] as number;
+    }
+    for (const b of this.noteBuffers) {
       const k = frame - b.startFrame;
       if (k >= 0 && k < b.samples.length) x += b.samples[k] as number;
     }

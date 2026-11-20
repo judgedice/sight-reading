@@ -168,7 +168,7 @@ describe('note inspector (04 §6.5)', () => {
       'Written F4 (eighth)',
       'Played F4, on time',
       'On time, 90 ms late (a little credit lost)',
-      'Listening live has a fraction of a second to decide. After the take we look at the whole performance.',
+      'Listening live has a fraction of a second to decide. After the try we look at the whole performance.',
     ]);
   });
 
@@ -177,7 +177,7 @@ describe('note inspector (04 §6.5)', () => {
     const j = fx.record.judgments[REJUDGED]!;
     const live = [{ ...j, timing: 'late' as const, provisional: false }];
     const { m } = model({}, { debug: { live } });
-    expect(note(m, REJUDGED).inspector.at(-1)).toBe('During the take this showed as late. Looking at the whole take, it was on time.');
+    expect(note(m, REJUDGED).inspector.at(-1)).toBe('During the try this showed as late. Looking at the whole try, it was on time.');
   });
 
   it('with "Show cents and milliseconds" off the verdicts carry no numbers', () => {
