@@ -101,16 +101,17 @@ The owner asked for a designer and a UX expert to review the built app. Their sp
 59. Listening to the excerpt before a take makes that take practice, recorded with the reason `listened-first`. The session sets this; `src/grade` is not changed. Listening after results is free.
 60. The redesign build may not touch `src/dsp`, `src/follow`, or `src/grade`.
 
-## Round 2 (R61 to R66)
+## Round 2 (R61 to R67)
 
 Specs are in `docs/redesign/round2/`. They override earlier documents for what they cover.
 
-61. At difficulties 1 to 3, only green and red marks show live, and only when the app is sure. Ghost notes and extras wait for results. This amends ruling 11 for those difficulties. Setting: `display.ghostsLive`, default from difficulty 4.
-62. Voices use the synthesised formant sets until the owner hears them and rules otherwise. No licensed solo voice recordings were found.
+61. At difficulties 1 to 3, only green and red marks show live, and only when the app is sure. Ghost notes and extras wait for results. This amends ruling 11 for those difficulties. Setting: `display.ghostsLive`, default from difficulty 4. Status: proposed, owner to confirm.
+62. Each instrument plays its own sampled sound (`02-sounds.md`). The picker, the Practice range card, the starting pitch, Listen, Match a note and "Hear what we heard" all play through the same sampler. Voices use the synthesised formant sets (`voice-*`) until the owner hears them beside the choir set and rules otherwise. The choir set is never used for the starting pitch or Match a note. No licensed solo voice recordings were found. Status: the owner's choice is not yet recorded.
 63. "Try" and "tries" replace "take" and "takes" in everything the player reads. "Time signature" replaces "Time".
 64. The diagnostics export may include the try's microphone audio when the player turns the setting on. It is off by default, local, and never sent automatically. This is the only exception to ruling 9. The setting is visible in normal builds, not hidden behind a build variable. The results button saves a file; there is no email sending.
 65. The count-in stays 2 bars at difficulties 1 to 3, with a visual that makes the last bar and the entry clear.
 66. Size limits: 150 KB initial and 560 KB total of JavaScript and CSS (gzip). Sound files load per instrument on demand and are outside this limit, at most 150 KB per instrument.
+67. Match a note is a warm-up, not a difficulty, and it sits outside the 1 to 10 scale. Difficulty stays 1 to 10 and means how hard the music is. Match a note has no score, XP, rank, streak or History entry. It is the route `#/match`, a permanent entry on Practice, and a step in onboarding after calibration.
 
 ## What the owner should know
 
@@ -135,38 +136,38 @@ Package ids refer to the "work plan" part of each section. Overlaps are merged: 
 
 ### Wave 0: foundation (sequential, frozen before anything else)
 
-| Step | Packages | Model |
+| Step | Packages | Tier |
 | --- | --- | --- |
-| 0.1 | P0a scaffold and tooling | Sonnet 5.5 |
-| 0.2 | P0b core types, platform seam, schemas (with 03's and 05's type additions) | Opus 5.5 |
-| 0.3 in parallel | P0c utilities and onset definition; P0d + G0 config seeding and floor check; P0g minimal testkit; D0a tokens; D0b glyphs; D0c copy; D0d visual states; D0e layout table | Sonnet 5.5, Haiku 5.5 for D0a and D0c |
-| 0.4 | P0e fixture corpus and golden expected notes | Opus 5.5 |
-| 0.5 | P0f follow, grade, and render fixtures | Opus 5.5 |
-| 0.6 | Review and repair: typecheck, lint, tests green | Opus 5.5 |
+| 0.1 | P0a scaffold and tooling | moderate |
+| 0.2 | P0b core types, platform seam, schemas (with 03's and 05's type additions) | hard |
+| 0.3 in parallel | P0c utilities and onset definition; P0d + G0 config seeding and floor check; P0g minimal testkit; D0a tokens; D0b glyphs; D0c copy; D0d visual states; D0e layout table | moderate, routine for D0a and D0c |
+| 0.4 | P0e fixture corpus and golden expected notes | hard |
+| 0.5 | P0f follow, grade, and render fixtures | hard |
+| 0.6 | Review and repair: typecheck, lint, tests green | hard |
 
 ### Wave 1: independent modules
 
-P1 theory (Sonnet). P2 rules (Opus). P3 full synth (Opus). P4a capture primitives, then P4b pitch (Sonnet). P6 store (Sonnet). P7 static notation (Opus). P9a corpus loading (Haiku). G2 level tagger (Sonnet). D1 shell, then D2a and D2b components (Sonnet, Haiku for D2a). IOS1 capabilities (Haiku). Corpus pipeline C1, C2 (Haiku), C3a, C4 (Sonnet).
+P1 theory (moderate). P2 rules (hard). P3 full synth (hard). P4a capture primitives, then P4b pitch (moderate). P6 store (moderate). P7 static notation (hard). P9a corpus loading (routine). G2 level tagger (moderate). D1 shell, then D2a and D2b components (moderate, routine for D2a). IOS1 capabilities (routine). Corpus pipeline C1, C2 (routine), C3a, C4 (moderate).
 
 ### Wave 2: the hard core
 
-P4c segmenter, then P4d click handling (Opus). P10a live follower, then P10b final alignment (Opus). P11 web audio backend (Opus). P9b selection and transposition (Opus), then P9c expected notes (Sonnet). P12 grade (Sonnet). G6 and G7 progression (Sonnet). P12b pattern detectors (Opus). P13 tips (Haiku). P15 overlay (Sonnet). C5 windowing (Opus), C6 features (Sonnet), C7 filters (Opus).
+P4c segmenter, then P4d click handling (hard). P10a live follower, then P10b final alignment (hard). P11 web audio backend (hard). P9b selection and transposition (hard), then P9c expected notes (moderate). P12 grade (moderate). G6 and G7 progression (moderate). P12b pattern detectors (hard). P13 tips (routine). P15 overlay (moderate). C5 windowing (hard), C6 features (moderate), C7 filters (hard).
 
 ### Wave 3: integration and screens
 
-S1 thin slice (Opus). P14 calibration (Opus). P16 session state machine (Opus). D3 score frame (Opus). D4 to D7, D8a, D10 screens (Sonnet). D9, D11, D12 (Haiku). D8b review interactions (Opus). IOS2, IOS3, IOS6, IOS7 (Sonnet). IOS4, IOS5, IOS8 (Haiku). C8 review layer (Opus), C8r agent review run (Opus), C9 emitter (Sonnet), C3b Mutopia (Sonnet, optional).
+S1 thin slice (hard). P14 calibration (hard). P16 session state machine (hard). D3 score frame (hard). D4 to D7, D8a, D10 screens (moderate). D9, D11, D12 (routine). D8b review interactions (hard). IOS2, IOS3, IOS6, IOS7 (moderate). IOS4, IOS5, IOS8 (routine). C8 review layer (hard), C8r agent review run (hard), C9 emitter (moderate), C3b Mutopia (moderate, optional).
 
 ### Wave 4: gates and hardening
 
-P18 synthetic accuracy gates (Opus). C10 corpus validation (Sonnet). P19 PWA (Haiku). P20 replay route (Haiku). P21 WebKit projects (Sonnet). D13 design QA (Sonnet). A final Opus review of the whole diff, then repairs.
+P18 synthetic accuracy gates (hard). C10 corpus validation (moderate). P19 PWA (routine). P20 replay route (routine). P21 WebKit projects (moderate). D13 design QA (moderate). A final hard review of the whole diff, then repairs.
 
 ## How the swarm runs
 
-- Each wave is one orchestrated run. Fable reviews the result, commits, and decides whether the next wave starts.
+- Each wave is one orchestrated run. The overseer reviews the result, commits, and decides whether the next wave starts.
 - Each package has one implementer that owns a set of directories and may not edit outside them. Frozen artefacts change only through the overseer.
 - Each implementer reads its section of the spec, writes tests first where the spec gives acceptance criteria, and returns the commands it ran and their results.
-- Each wave ends with an Opus reviewer that runs the full typecheck, lint, and test suite and repairs integration breaks.
-- Routine packages go to Haiku 5.5, moderate ones to Sonnet 5.5, hard ones to Opus 5.5.
+- Each wave ends with a hard reviewer that runs the full typecheck, lint, and test suite and repairs integration breaks.
+- Routine packages go to the routine tier, moderate ones to the moderate tier, hard ones to the hard tier.
 
 ## Definition of done for v1
 

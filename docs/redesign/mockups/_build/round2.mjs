@@ -45,7 +45,8 @@ const VR = {
   gapSec: num(takePlanTs, /VOICE_REFERENCE = \{[^}]*gapSec:\s*([\d.]+)/, 'VOICE_REFERENCE.gapSec'),
   firstNoteSec: num(takePlanTs, /VOICE_REFERENCE = \{[^}]*firstNoteSec:\s*([\d.]+)/, 'VOICE_REFERENCE.firstNoteSec'),
   leadSec: num(sessionTs, /VOICE_REFERENCE_LEAD_SEC = ([\d.]+)/, 'VOICE_REFERENCE_LEAD_SEC'),
-  afterSec: num(sessionTs, /AFTER_REFERENCE_SEC = ([\d.]+)/, 'AFTER_REFERENCE_SEC'),
+  // The first click comes one beat after the first note ends: `firstClickAt = ref.end + 60 / plan.bpm`. The board is at 60 bpm.
+  afterSec: sessionTs.includes('firstClickAt = ref.end + 60 / plan.bpm') ? 60 / 60 : num('', /(x)/, 'the one-beat gap after the reference in practice-session.ts'),
 };
 // Same arithmetic as voiceReferenceTones(): three chord tones, one extra gap, then the first note.
 const REF_T = (() => {
@@ -564,7 +565,7 @@ function framesBoard() {
   }
   const body = `<main class="fb">
   <h1 class="t-title">Before you sing: frame by frame</h1>
-  <p class="lead">Baritone, difficulty 1, ${T(60)}, 4/4, speakers. Times from pressing Start. The cue zone (232 px desktop, 196 px phone) sits above the first system, so the music never moves between frames. Every time on this board is computed by the build from <code>VOICE_REFERENCE</code> (<code>src/session/take-plan.ts</code>: chord tones ${VR.triadToneSec} s, gaps ${VR.gapSec} s, first note ${VR.firstNoteSec} s) and from <code>VOICE_REFERENCE_LEAD_SEC</code> (${VR.leadSec} s) and <code>AFTER_REFERENCE_SEC</code> (${VR.afterSec} s) in <code>practice-session.ts</code>. The build stops if it cannot read them. Count-in kept at 2 bars for difficulties 1 to 3 (see 04-design.md, disagreement 1). For a 1-bar count-in, drop the dashed group and frames C1.1 to C1.4.</p>
+  <p class="lead">Baritone, difficulty 1, ${T(60)}, 4/4, speakers. Times from pressing Start. The cue zone (232 px desktop, 196 px phone) sits above the first system, so the music never moves between frames. Every time on this board is computed by the build from <code>VOICE_REFERENCE</code> (<code>src/session/take-plan.ts</code>: chord tones ${VR.triadToneSec} s, gaps ${VR.gapSec} s, first note ${VR.firstNoteSec} s) and from <code>VOICE_REFERENCE_LEAD_SEC</code> (${VR.leadSec} s) and from the one-beat gap before the first click (<code>firstClickAt = ref.end + 60 / plan.bpm</code>, ${VR.afterSec} s at 60 bpm) in <code>practice-session.ts</code>. The build stops if it cannot read them. Count-in kept at 2 bars for difficulties 1 to 3 (see 04-design.md, disagreement 1). For a 1-bar count-in, drop the dashed group and frames C1.1 to C1.4.</p>
   <div class="fgrid">
     <h2 class="t-h3 fsec">Starting pitch (voice only; instruments skip to C1.1)</h2>
     ${frame({ id: 'R0 · card appears', t: '0 s', cue: cueRef(0), bar: 'Starting pitch', sound: `Silence, ${VR.leadSec * 1000} ms`, line: 'The card appears with the press of Start, so it is on screen before the first tone. Score dimmed to 55%. The microphone is open, but nothing heard before bar 1 is judged or drawn.' })}

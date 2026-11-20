@@ -2,11 +2,19 @@
 
 A web app for practising sight-reading on a real instrument. You pick an instrument (its range is drawn on a staff and a keyboard as you choose), a difficulty from 1 to 10, a key, a time signature, a tempo and a length (any of them can be left to chance). The app shows an 8 to 12 bar excerpt of real public-domain repertoire, gives you a short read-through and a count-in, then listens through the microphone while a metronome plays.
 
-Before a take you can hear the tempo (one bar of clicks), hear the key chord (instruments) or the key chord and your first note (voices, "Hear starting pitch"), and listen to the whole excerpt. Nothing plays during a take. Listening to the excerpt first makes that take practice: in Ranked mode the app asks before it plays, the toolbar changes to Practice at once, and the results say "You listened first, so this one is practice." After the results, Listen plays the written music again with the bar highlighted, at the take's tempo or slower. The metronome has three sounds (Classic, Woodblock, Beep), each with a preview in Settings > Sound.
+Before a try you can hear the tempo (one bar of clicks), hear the key chord (instruments) or the key chord and your first note (voices, "Hear starting pitch"), and listen to the whole excerpt. On the instrument picker, "Play my range" plays your lowest note, the notes at this difficulty and your highest, in the instrument's own sound. Sounds play only when you ask for them. Apart from the metronome, nothing plays during a try. Listening to the excerpt first makes that try practice: in Ranked mode the app asks before it plays, the toolbar changes to Practice at once, and the results say "You listened first, so this one is practice." After the results, Listen plays the written music again with the bar highlighted, at the try's tempo or slower. The metronome has three sounds (Classic, Woodblock, Beep), each with a preview in Settings > Sound.
 
-Notes are judged as you play. A note that is early or late appears on the staff where you played it and the written note turns red. A wrong or out-of-tune note appears as a ghost note at the pitch you played, and the written note turns red. Each take gets a score from 0 to 100 and a letter grade, earns XP toward a rank, and the results show at most two tips ("One thing to try") chosen from the mistakes you made.
+Notes are judged as you play. From difficulty 4, a note that is early or late appears on the staff where you played it and the written note turns red. A wrong or out-of-tune note appears as a ghost note at the pitch you played, and the written note turns red. At difficulties 1 to 3 the live marks are calmer: only green and red marks on the written notes, and only when the app is sure. The purple played notes and the plus-sign extras wait for the results (PLAN R61, which amends ruling 11 for those difficulties). The Display setting "Show played notes live" (From difficulty 4, Always or Never) changes when they show. Each try gets a score from 0 to 100 and a letter grade, earns XP toward a rank, and the results show at most two tips ("One thing to try") chosen from the mistakes you made.
 
 Everything runs in the browser. There is no server, no account and no stored audio. Progress, history and settings live in the browser's storage and can be exported to a file and imported again.
+
+**Match a note** is a warm-up, not a difficulty. It has its own screen at `#/match` and an entry on Practice: a row under the instrument card, or "Warm up: match a note" on a phone. It plays one note, shows a live needle, and says "You hit it" when you hold the note in tune. It has no score, XP, rank, streak or History entry, and it sits outside the 1 to 10 difficulty scale (PLAN R67). Onboarding has the same check as a step after calibration.
+
+**Calibration status** stays on screen. The pill on Practice and in the read-through reads "Calibrated for {output}" once you have calibrated, and "Not calibrated" until then. Calibration lives at `#/calibrate`. Tries count as practice until you calibrate, and calibration never blocks a try. Once measured, the app takes the setup's delay off every note, so early and late are fair.
+
+**Sounds and credits.** Each instrument plays its own sampled sound. The four voice types sing an open "ah" that the app synthesises for each voice type; it is not a recording of a singer. The samples come from VSCO 2 Community Edition (CC0), Fluid R3 (MIT, with per-note renders under CC BY 3.0) and Salamander Grand Piano (CC BY 3.0). The credits screen names every source. The licence texts are in `LICENSES/`, and `docs/redesign/round2/02-sounds.md` records how each licence was checked.
+
+**Diagnostics and replay.** On the results, "Marks look wrong?" offers a button that saves a JSON file of what the app heard in that try: every note, every mark and the marks that changed after the try, and your settings and device with no names. The button reads "Send diagnostics" when a support address is set at build time (`VITE_SUPPORT_EMAIL`). The app never sends the file itself. "Share…" uses the system share sheet where the browser allows it. Settings > Data exports the last 20 tries as one file. A switch, "Keep the sound of my next tries for diagnostics", is off by default and applies from the next try. When it is on, those files include the microphone audio of the tries. This is the only stored audio the app keeps, and it is the exception to the no-stored-audio rule (PLAN R64). To replay a file with the current detector and follower, run `pnpm exec tsx tools/diagnostics/replay.ts <file.json> [--try N] [--fixture out.json]`. It prints the stored verdict and the replayed one for each written note, and marks every row that changed. A file with audio runs through the DSP worker core. A file without audio replays the traced notes through the follower and final alignment only.
 
 Eight instrument families are the launch set and are covered by the accuracy gates: flute, B♭ clarinet, alto saxophone, B♭ trumpet, violin, cello, voice (soprano, mezzo-soprano, alto, tenor, baritone and bass) and piano (single line). Sixteen more ship as data with a beta label, behind "Show more instruments (less tested)".
 
@@ -35,6 +43,15 @@ pnpm preview    # serves dist/ on http://localhost:4173
 ```
 
 Use a browser on `localhost` or over HTTPS. The microphone, the audio worklet and the service worker need a secure context.
+
+### Build variables
+
+Two variables are read at build time. Both are optional.
+
+- `VITE_SUPPORT_EMAIL`: the support address the diagnostics dialog names. When it is set, the button reads "Send diagnostics" and the dialog says where to send the file. The app does not send mail.
+- `VITE_NOTATION_DEV=1`: includes the notation development screen in a production build. The dev server always includes it.
+
+For example: `VITE_SUPPORT_EMAIL=support@example.org pnpm build`.
 
 ## Test it
 
@@ -105,7 +122,7 @@ The service worker caches the app shell and every corpus file it has fetched, so
 
 - Detection and grading accuracy: `pnpm gates` renders 1771 synthetic takes with the built-in synthesiser across the eight launch instruments. It covers clean capture, device conditions (click bleed, phone microphone, noise) and simulated rooms. Each take goes through the production analysis path: the decimator, the DSP worker, live score following, final alignment and grading. The report gives onset F1, timing error, intonation error, verdict agreement, false misses and extras, live-versus-final divergence, latency, displacement handling (stops, restarts, skips) and tip precision. See `docs/accuracy-report.md` for the current numbers and the gates that still fail.
 - Measurement floors: a unit test fails the build if any grading tolerance in `config/grading-config.json` is tighter than the measurement budget in `config/measurement-budget.json`.
-- The practice loop: Playwright plays rendered audio into Chromium through its fake microphone and checks that a take lands on a graded result with the right red notes and ghosts (`e2e/loop`, `e2e/tour`).
+- The practice loop: Playwright plays rendered audio into Chromium through its fake microphone and checks that a try lands on a graded result with the right red notes and ghosts (`e2e/loop`, `e2e/tour`).
 - The corpus: the Python pipeline enforces the licence and public-domain gate (CC0 sources, composers who died before 1931), notation rules, dedupe and the size budgets. `pnpm corpus:check` loads every shipped excerpt through the app's own selector, transposer and renderer. It checks that every launch instrument can be served at every served level, and that every excerpt carries a source, a licence and a credit.
 - Accessibility and design: axe-core reports no serious or critical issues on every screen in light and dark themes. Tap targets are at least 44 px, and nothing animates under reduced motion. A contrast test covers every token pair.
 - Offline and portability: the PWA suite boots the build from another origin under a subpath with third-party network blocked, then reloads it offline.
@@ -119,8 +136,10 @@ The service worker caches the app shell and every corpus file it has fetched, so
 - Instruments below about 70 Hz (tuba, double bass, baritone sax) are beta, because laptop and phone microphones roll off there.
 - Difficulties 1, 2 and 9 have fewer than 30 excerpts each (7, 7 and 18) and are marked unserved. The CC0 sources are art songs and string quartets, which are thin on beginner material. Practice at those difficulties draws on a very small pool, mostly borrowed from the neighbouring levels.
 - iOS Safari is beta. WebKit has not been run in this build's own environment, and nothing has been tested on a physical phone.
-- Calibration has been exercised on synthetic loopback and play-along only, not on real devices. A take without a measured calibration is practice (unranked).
-- Not in v1: Web MIDI, polyphony, playback of your own take (Listen plays the written music, never your recording), swing, accounts and sync, and a native iOS app.
+- Calibration has been exercised on synthetic loopback and play-along only, not on real devices. A try without a measured calibration is practice (unranked).
+- Not in v1: Web MIDI, polyphony, playback of your own try (Listen plays the written music, never your recording), swing, accounts and sync, and a native iOS app. The one exception is the optional diagnostics sound described above.
+- Live marks at difficulties 1 to 3 are calmer on purpose (PLAN R61). The owner has not yet confirmed that rule.
+- Voices are synthesised, not sampled from a singer (PLAN R62). The owner has not yet chosen between the formant voices and the choir set.
 
 ## Layout
 
@@ -131,7 +150,7 @@ The service worker caches the app shell and every corpus file it has fetched, so
 | `src/dsp/`, `src/follow/` | pitch and onset detection, live score following, final alignment |
 | `src/grade/`, `src/tips/` | scoring, XP and rank, error patterns, tips |
 | `src/corpus/`, `src/notation/` | excerpt selection and transposition, VexFlow rendering and the feedback overlay |
-| `src/session/`, `src/calibration/` | the take state machine, latency calibration and gates |
+| `src/session/`, `src/calibration/` | the try state machine, the Match a note service, latency calibration and gates |
 | `src/platform/web/` | Web Audio backend, DSP worker, storage, service worker, iOS accommodations |
 | `src/ui/`, `src/app/` | components, design tokens, copy, screens and the composition root |
 | `config/`, `schemas/`, `fixtures/` | tolerances and level data, JSON schemas, test fixtures |
