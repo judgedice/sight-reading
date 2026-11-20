@@ -67,6 +67,7 @@ export function engrave(o) {
   const under = [];
   const ink = 'var(--ink)';
   let barIndex = 0;
+  const noteList = [];
   systems.forEach((bars, si) => {
     const y0 = si * (sysH + (o.systemGap ?? 0)) + top; // top staff line
     const sysOp = o.systemOpacity ? o.systemOpacity[si] ?? o.systemOpacity[o.systemOpacity.length - 1] : 1;
@@ -173,7 +174,10 @@ export function engrave(o) {
           g.push(txt(pn.x, y, sp, G[head], `fill="var(--error)"`)); // keep the written head (C38)
           over.push(`<ellipse cx="${f(pn.x + hw / 2)}" cy="${f(y)}" rx="${f(hw * 0.95)}" ry="${f(sp * 0.95)}" fill="none" stroke="var(--error)" stroke-width="${f(Math.max(1.5, sp * 0.14))}"/>`);
         } else {
-          g.push(txt(pn.x, y, sp, G[head]));
+          // Note-colour proposal: o.headFill(note) colours the notehead only (stem, beam and ledger lines stay ink).
+          // A judged note keeps its feedback colour, so a wrong note still turns red.
+          const hf = o.headFill && !['error', 'missed', 'hit', 'hl'].includes(m.state) ? o.headFill(n) : null;
+          g.push(hf ? txt(pn.x, y, sp, G[head], `fill="${hf}"`) : txt(pn.x, y, sp, G[head]));
         }
         if (n.dot) g.push(txt(pn.x + hw + 0.35 * sp, step % 2 === 0 ? y - sp / 2 : y, sp, G.dot));
         // stem
@@ -218,6 +222,7 @@ export function engrave(o) {
         const op = m.past && (m.state === 'error' || m.state === 'missed') ? ` opacity="${m.past}"` : '';
         parts.push(`<g class="${cls.join(' ')}" id="${pn.id}" fill="${pn.col}" color="${pn.col}"${op}>${pn.g.join('')}</g>`);
         const laneY = Math.max(yb + 2.2 * sp, pn.y + 2.2 * sp);
+        noteList.push({ id: pn.id, n: pn.n, x: pn.x, hw: pn.hw, y: pn.y, si, yb, barNo });
         const gx = pn.x + pn.hw / 2;
         const gs = sp * 0.62; // glyph half-size
         const mcol = m.state === 'ok' ? 'var(--correct)' : 'var(--error)';
@@ -321,8 +326,10 @@ export function engrave(o) {
     });
     if (sysOp !== 1) parts.push('</g>');
   });
+  // Note-colour proposal: o.overlay(notes, { sp }) adds SVG over the music (the coloured letter band).
+  if (o.overlay) over.push(o.overlay(noteList, { sp, width: o.width }));
   const svg = `<svg class="score-svg" viewBox="0 0 ${f(o.width)} ${f(height)}" width="${f(o.width)}" height="${f(height)}" xmlns="http://www.w3.org/2000/svg" font-family="Bravura" aria-hidden="true"><g class="under">${under.join('')}</g><g fill="var(--ink)" color="var(--ink)">${parts.join('')}</g><g class="over">${over.join('')}</g></svg>`;
-  return { svg, height };
+  return { svg, height, notes: noteList };
 }
 
 /** Large range picture: staff, four whole notes, served band, note names. */
