@@ -38,6 +38,8 @@ import type {
   ClickSpec,
   MessagePortLike,
   PlatformServices,
+  PlayNote,
+  SoundSetId,
   WorkerLike,
   WorkerMessage,
   WorkerReply,
@@ -81,10 +83,21 @@ import type {
 import { metronomeSoundOf } from '../core/click-sounds.ts';
 import { createEmitter } from '../core/events.ts';
 import { createRng } from '../core/rng.ts';
-import { CorpusLoadError, loadExcerpt, prepareExcerpt, selectAndPrepare } from '../corpus/index.ts';
+import { CorpusLoadError, buildExpectedNotes, loadExcerpt, prepareExcerpt, selectAndPrepare } from '../corpus/index.ts';
+import { soundSetFor } from '../instruments/sound-sets.ts';
 import { DspPipeline } from '../dsp/pipeline.ts';
 import { alignFinalWithReference, ignoredNote, liveOutcomeOf, withOwnPlayback } from '../follow/index.ts';
-import { DiagnosticsStore, buildTryTrace, diagnosticsFile, diagnosticsFileName, type DiagnosticsFile, type DiagnosticsSettings, type TryTrace } from './diagnostics.ts';
+import {
+  DiagnosticsStore,
+  buildTryTrace,
+  diagnosticsFile,
+  diagnosticsFileName,
+  recentDiagnosticsFileName,
+  type DiagnosticsFile,
+  type DiagnosticsSettings,
+  type TryTrace,
+} from './diagnostics.ts';
+import { planHeard, scoreZeroOf } from './heard-plan.ts';
 import {
   applyAttemptOnDay,
   createProfile,
@@ -114,6 +127,8 @@ import {
   planBars,
   planClickBar,
   planListen,
+  planRange,
+  RANGE,
   type ListenOptions,
   type ListenPlan,
 } from './listen-plan.ts';
@@ -195,14 +210,31 @@ export interface ListenRequest extends ListenOptions {
   record?: AttemptRecord;
 }
 
-/** A session error with one of 04's copy codes. */
+/**
+ * Why a try could not start (round 2, 01-ux.md §9): the sound did not start (`audio-start`: the unlock, the schedule
+ * or the starting pitch failed) or the microphone did not open (`mic-start`). The error screens read this. A
+ * clock-rate result is never one of them: it makes the try practice instead.
+ */
+export type SessionStartKind = 'audio-start' | 'mic-start';
+
+/** A session error with one of 04's copy codes, and for a try that could not start, its kind. */
 export class SessionError extends Error {
   readonly code: SessionErrorCode;
-  constructor(code: SessionErrorCode, message: string, options?: { cause?: unknown }) {
-    super(message, options);
+  /** Set when the error stopped a try (or the audio for one) from starting; null otherwise. */
+  readonly kind: SessionStartKind | null;
+  constructor(code: SessionErrorCode, message: string, options?: { cause?: unknown; kind?: SessionStartKind | null }) {
+    super(message, options?.cause !== undefined ? { cause: options.cause } : undefined);
     this.name = 'SessionError';
     this.code = code;
+    this.kind = options?.kind ?? null;
   }
+}
+
+/** The start kind of a failure to open the audio: a microphone error by name, else the sound. */
+function startKindOf(e: unknown, code: SessionErrorCode): SessionStartKind {
+  if (code === 'mic-denied' || code === 'mic-not-found') return 'mic-start';
+  const name = typeof e === 'object' && e !== null && 'name' in e ? String((e as { name: unknown }).name) : '';
+  return name === 'NotReadableError' || name === 'TrackStartError' || name === 'AbortError' ? 'mic-start' : 'audio-start';
 }
 
 type DoneReply = Extract<WorkerReply, { type: 'done' }>;
@@ -265,6 +297,8 @@ interface Take {
   recheck: CountInRecheck | null;
   recheckResult: RecheckResult | null;
   tuning: { used: boolean; offsetCents: number } | null;
+  /** Wall time of Start playing, ISO 8601 UTC (the diagnostics file name). */
+  startedAt: string;
   firstNoteHeard: boolean;
   liveEvents: FollowerEvent[];
   alignment: FinalAlignment | null;
@@ -285,8 +319,14 @@ interface Take {
 
 const EMPTY_ALIGNMENT: FinalAlignment = { judgments: [], extras: [], displaced: [] };
 const SCAN_STRICT_SLACK_SEC = 0.25;
-const VOICE_REFERENCE_LEAD_SEC = 0.1;
-const AFTER_REFERENCE_SEC = 0.5;
+/** The starting-pitch card shows this long before the first sound (round 2, 01-ux.md §10), seconds. */
+export const VOICE_REFERENCE_LEAD_SEC = 0.6;
+/** Release of a sampled reference note and its room tail: the follower ignores its pitch class this long after it, seconds. */
+const REFERENCE_RELEASE_SEC = 0.3;
+/** Peak of the starting pitch on the Listen bus (0..1): as loud as the bus allows, as the old tone was. */
+const REFERENCE_PEAK = 1;
+/** `scheduleTake` needs at least this long from the call to the first click (01 §7.1), seconds. */
+const MIN_LEAD_SEC = 0.5;
 /** A metronome click as an own sound (its burst and the first room reflections), seconds. */
 const CLICK_SOUND_SEC = 0.04;
 
@@ -310,6 +350,21 @@ const seedOf = (s: string): number => {
   for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619);
   return h >>> 0;
 };
+
+/** The sample set an instrument plays with, or undefined (an instrument the table does not know: the additive voice). */
+function soundOf(instrumentId: string | undefined): SoundSetId | undefined {
+  if (instrumentId === undefined) return undefined;
+  try {
+    return soundSetFor(instrumentId).set;
+  } catch {
+    return undefined;
+  }
+}
+
+/** `playNotes` options at a clock time, with the instrument's set when it has one. */
+function notesAt(at: number, peak: number, sound: SoundSetId | undefined): { at: ClockSeconds; peak: number; sound?: SoundSetId } {
+  return { at: at as ClockSeconds, peak, ...(sound ? { sound } : {}) };
+}
 
 /** A drop of the audio clock larger than this between polls means a new context, not jitter, seconds. */
 const CLOCK_RESET_SEC = 0.25;
@@ -495,7 +550,8 @@ export class PracticeSession implements PracticeSessionInstance {
         return route;
       },
       (e: unknown) => {
-        throw this.fail(new SessionError(micErrorCode(e), e instanceof Error ? e.message : String(e), { cause: e }));
+        const code = micErrorCode(e);
+        throw this.fail(new SessionError(code, e instanceof Error ? e.message : String(e), { cause: e, kind: startKindOf(e, code) }));
       },
     );
     // A take started before the unlock settles (a permission prompt, a reopened context) waits for it.
@@ -618,18 +674,23 @@ export class PracticeSession implements PracticeSessionInstance {
     // The backend is unlocked only by `ensureAudio` inside a gesture (05 W1, W4); never resume it from here. An unlock
     // still in flight (Start playing calls ensureAudio first) is waited for.
     const route = this.route ?? (this.pendingUnlock ? await this.pendingUnlock : null);
-    if (!route) throw new SessionError('audio-setup', 'audio is not open (the page was hidden, Practice was left, or it was never opened): ensureAudio() must run in a gesture before the take');
+    if (!route) throw new SessionError('audio-setup', 'audio is not open (the page was hidden, Practice was left, or it was never opened): ensureAudio() must run in a gesture before the take', { kind: 'audio-start' });
     const gen = ++this.gen;
     const listening = s.listening;
     const leadBase = this.opts.leadSec ?? 0.6;
-    let leadSec = leadBase;
+    const startedAt = this.platform.clockWall();
 
-    // R7: the voice reference plays before every voice count-in, in every mode.
+    // R7: the voice reference plays before the voice count-in, in every mode, unless the player turned it off
+    // (round 2: `practice.autoReference`; "Hear starting pitch" stays on the read-through, so the try can be ranked).
+    // The first count-in click comes one beat after the first note ends (01-ux.md §10).
     let ownTones: OwnSound[] = [];
-    if (plan.inst.family === 'voice') {
-      const ref = await this.playReference(c);
+    let firstClickAt: number | null = null;
+    if (plan.inst.family === 'voice' && s.autoReference !== false) {
+      const ref = await this.playReference(c).catch((e: unknown) => {
+        throw new SessionError('audio-setup', `the starting pitch did not play: ${e instanceof Error ? e.message : String(e)}`, { cause: e, kind: 'audio-start' });
+      });
       ownTones = ref.sounds;
-      leadSec = Math.max(leadBase, ref.end - (audio.now() as number) + AFTER_REFERENCE_SEC);
+      firstClickAt = ref.end + 60 / plan.bpm;
     }
 
     const stored = (await this.platform.repos.calibrations.get(route.routeKey)) ?? null;
@@ -661,6 +722,7 @@ export class PracticeSession implements PracticeSessionInstance {
       recheck: null,
       recheckResult: null,
       tuning: takesTuningNote(plan.inst) ? { used: tuningCents !== undefined, offsetCents: tuningCents ?? 0 } : null,
+      startedAt,
       firstNoteHeard: false,
       liveEvents: [],
       alignment: null,
@@ -682,10 +744,19 @@ export class PracticeSession implements PracticeSessionInstance {
       const worker = this.workerFactory();
       take.worker = worker;
       worker.onmessage = (ev) => this.onWorker(take, ev.data);
-      if (channel) await audio.startCapture(channel.port1);
-      else await audio.startCapture((m) => this.onBlock(take, m));
+      try {
+        if (channel) await audio.startCapture(channel.port1);
+        else await audio.startCapture((m) => this.onBlock(take, m));
+      } catch (e) {
+        const code = micErrorCode(e);
+        throw new SessionError(code, e instanceof Error ? e.message : String(e), { cause: e, kind: 'mic-start' });
+      }
     }
-    const sched = await audio.scheduleTake({
+    if (this.take !== take) return; // voided or stopped while the microphone opened
+    // Read the clock last, so the gap after the starting pitch is exact however long the awaits above took.
+    const leadSec = firstClickAt === null ? leadBase : Math.max(MIN_LEAD_SEC, firstClickAt - (audio.now() as number));
+    const sched = await audio
+      .scheduleTake({
       leadSec,
       bpm: plan.bpm,
       beatsPerBar: plan.beatsPerBar,
@@ -695,7 +766,10 @@ export class PracticeSession implements PracticeSessionInstance {
       timbre: s.clickTimbre,
       accentDb: this.opts.accentDb ?? 5,
       accent: s.accentFirstBeat ?? true,
-    });
+    })
+      .catch((e: unknown) => {
+        throw new SessionError('audio-setup', e instanceof Error ? e.message : String(e), { cause: e, kind: 'audio-start' });
+      });
     if (this.take !== take) return; // voided or stopped while scheduling
     take.t0 = sched.t0 as number;
     take.clicks = sched.clicks;
@@ -758,33 +832,42 @@ export class PracticeSession implements PracticeSessionInstance {
   }
 
   /**
-   * Plays the voice reference now (R7); returns the clock time it ends and its tones as own sounds (the follower
-   * never takes them for the singer's notes). Its live caption follows it (05 §8.9).
+   * Plays the voice reference (R7) in the voice's sampled sound, after VOICE_REFERENCE_LEAD_SEC of the card with
+   * nothing playing; returns the clock time its first note ends and its notes as own sounds with their release (the
+   * follower never takes them for the singer's notes). Its live captions follow it (05 §8.9), then "Count-in next"
+   * for the beat before the first click.
    */
   private async playReference(c: Current): Promise<{ end: number; sounds: OwnSound[] }> {
-    const { tones, request } = this.referenceSound(c);
+    const { tones, request, notes, sound } = this.referenceSound(c, 60 / c.plan.bpm);
     const at = (this.audio.now() as number) + VOICE_REFERENCE_LEAD_SEC;
     this.player.follow(request, at);
-    await Promise.all(tones.map((t) => this.audio.playTone(t.hz, t.durSec, (at + t.atSec) as ClockSeconds)));
+    await this.audio.playNotes(notes, { at: at as ClockSeconds, peak: REFERENCE_PEAK, ...(sound ? { sound } : {}) });
     this.referenceEndsAt = at + referenceLengthSec(tones);
-    return { end: this.referenceEndsAt, sounds: tones.map((t) => ({ t: (at + t.atSec) as ClockSeconds, durSec: t.durSec, hz: t.hz })) };
+    return { end: this.referenceEndsAt, sounds: tones.map((t) => ({ t: (at + t.atSec) as ClockSeconds, durSec: t.durSec + REFERENCE_RELEASE_SEC, hz: t.hz })) };
   }
 
-  /** The voice reference's tones (as today, at the excerpt's tuning pitch) and its captions. */
-  private referenceSound(c: Current): { tones: ReturnType<typeof voiceReferenceTones>; request: { kind: 'reference'; durSec: number; segments: SoundSegment[] } } {
+  /**
+   * The voice reference's tones (at the excerpt's tuning pitch), as notes in the voice's set, and its captions. With
+   * `gapSec`, the sound lasts that much longer and the gap reads "Count-in next".
+   */
+  private referenceSound(
+    c: Current,
+    gapSec = 0,
+  ): { tones: ReturnType<typeof voiceReferenceTones>; notes: PlayNote[]; sound: SoundSetId | undefined; request: { kind: 'reference'; durSec: number; segments: SoundSegment[] } } {
     const first = c.plan.expected[0] as ExpectedNote;
     const tones = voiceReferenceTones(c.prepared, first.concertMidi, c.settings.a4Hz);
     const firstTone = tones[tones.length - 1] as { atSec: number };
+    const len = referenceLengthSec(tones);
+    const segments: SoundSegment[] = [
+      { atSec: 0, caption: { kind: 'key-chord', writtenKey: c.prepared.writtenKey, concertKey: c.prepared.concertKey } },
+      { atSec: firstTone.atSec, caption: { kind: 'first-note', written: first.writtenPitch, concertMidi: first.concertMidi } },
+    ];
+    if (gapSec > 0) segments.push({ atSec: len, caption: { kind: 'count-in-next' } });
     return {
       tones,
-      request: {
-        kind: 'reference',
-        durSec: referenceLengthSec(tones),
-        segments: [
-          { atSec: 0, caption: { kind: 'key-chord', writtenKey: c.prepared.writtenKey, concertKey: c.prepared.concertKey } },
-          { atSec: firstTone.atSec, caption: { kind: 'first-note', written: first.writtenPitch, concertMidi: first.concertMidi } },
-        ],
-      },
+      notes: tones.map((t) => ({ hz: t.hz, startSec: t.atSec, durSec: t.durSec })),
+      sound: soundOf(c.plan.inst.id),
+      request: { kind: 'reference', durSec: len + gapSec, segments },
     };
   }
 
@@ -796,12 +879,12 @@ export class PracticeSession implements PracticeSessionInstance {
     const refused = this.refuseSound('voice reference');
     if (refused) return refused;
     const unlocked = this.unlockForSound();
-    const { tones, request } = this.referenceSound(c);
+    const { tones, request, notes, sound } = this.referenceSound(c);
     return unlocked.then(() =>
       this.player.play({
         ...request,
         schedule: async (at) => {
-          await Promise.all(tones.map((t) => this.audio.playTone(t.hz, t.durSec, (at + t.atSec) as ClockSeconds)));
+          await this.audio.playNotes(notes, { at: at as ClockSeconds, peak: REFERENCE_PEAK, ...(sound ? { sound } : {}) });
           this.referenceEndsAt = at + referenceLengthSec(tones);
         },
       }),
@@ -897,7 +980,7 @@ export class PracticeSession implements PracticeSessionInstance {
         schedule: (at) =>
           this.audio.playNotes(
             tones.map((t) => ({ hz: t.hz, startSec: t.atSec, durSec: t.durSec })),
-            { at: at as ClockSeconds, peak: LISTEN.peak },
+            notesAt(at, LISTEN.peak, soundOf(c.plan.inst.id)),
           ),
       }),
     );
@@ -921,7 +1004,7 @@ export class PracticeSession implements PracticeSessionInstance {
       if (!prepared) throw new SessionError('corpus-load', `the excerpt of attempt ${record?.id ?? ''} is not available`);
       const bpm = record ? record.bpm : (c as Current).plan.bpm;
       const plan = planListen(listenSourceOf(prepared, this.cfg), { bpm, a4Hz: prefs.a4Hz, accent: prefs.accent }, o);
-      return this.playPlan('listen', plan, prefs.sound, { fromBar: plan.startBar, slower: !!o.slower, attemptId: record?.id ?? null });
+      return this.playPlan('listen', plan, prefs.sound, soundOf(record ? record.instrumentId : (c as Current).plan.inst.id), { fromBar: plan.startBar, slower: !!o.slower, attemptId: record?.id ?? null });
     });
   }
 
@@ -955,24 +1038,112 @@ export class PracticeSession implements PracticeSessionInstance {
       if (!prepared) throw new SessionError('corpus-load', `the excerpt of attempt ${record?.id ?? ''} is not available`);
       const bpm = record ? record.bpm : (c as Current).plan.bpm;
       const plan = planBars(listenSourceOf(prepared, this.cfg), { bpm, a4Hz: prefs.a4Hz, accent: prefs.accent }, from, to, o);
-      return this.playPlan('bar', plan, prefs.sound, { fromBar: plan.startBar, slower: !!o.slower, attemptId: record?.id ?? null });
+      return this.playPlan('bar', plan, prefs.sound, soundOf(record ? record.instrumentId : (c as Current).plan.inst.id), { fromBar: plan.startBar, slower: !!o.slower, attemptId: record?.id ?? null });
     });
   }
 
-  /** A range-picture note (05 §9.1): that concert MIDI note for one second on the Listen voice. */
-  playNote(concertMidi: number): Promise<void> {
+  /**
+   * A range-picture note (05 §9.1): that concert MIDI note for one second, in the instrument's sound (the excerpt's
+   * instrument when none is given; the additive voice with neither).
+   */
+  playNote(concertMidi: number, instrumentId?: string): Promise<void> {
     const refused = this.refuseSound('play a note');
     if (refused) return refused;
     const unlocked = this.unlockForSound();
     const hz = midiToFreq(concertMidi, this.prefs().a4Hz);
+    const inst = instrumentId ?? this.current?.plan.inst.id;
     return unlocked.then(() =>
       this.player.play({
         kind: 'note',
         durSec: LISTEN.noteSec,
         segments: [{ atSec: 0, caption: { kind: 'note', midi: concertMidi } }],
-        schedule: (at) => this.audio.playNotes([{ hz, startSec: 0, durSec: LISTEN.noteSec }], { at: at as ClockSeconds, peak: LISTEN.peak }),
+        instrumentId: inst ?? null,
+        schedule: (at) => this.audio.playNotes([{ hz, startSec: 0, durSec: LISTEN.noteSec }], notesAt(at, LISTEN.peak, soundOf(inst))),
       }),
     );
+  }
+
+  /**
+   * "Play my range" (round 2, 01-ux.md §2): the notes in the order given, in the instrument's sound, `noteSec` each
+   * with `gapSec` between (0.8 s and 0.15 s). The caption names the note sounding (`range-note`, its index), so the
+   * chip, the notehead and the key light together. Works with no excerpt loaded.
+   */
+  playRange(instrumentId: string, concertMidis: readonly number[], o: { noteSec?: number; gapSec?: number } = RANGE): Promise<void> {
+    const refused = this.refuseSound('play the range');
+    if (refused) return refused;
+    if (concertMidis.length === 0) return Promise.reject(new SessionError('unknown', 'play the range needs at least one note'));
+    const unlocked = this.unlockForSound();
+    const range = planRange(concertMidis, this.prefs().a4Hz, o);
+    const sound = soundOf(instrumentId);
+    return unlocked.then(() =>
+      this.player.play({
+        kind: 'range',
+        durSec: range.endSec,
+        segments: range.notes.map((n) => ({ atSec: n.atSec, caption: { kind: 'range-note', index: n.index, midi: n.midi } })),
+        instrumentId,
+        schedule: (at) =>
+          this.audio.playNotes(
+            range.notes.map((n) => ({ hz: n.hz, startSec: n.atSec, durSec: n.durSec })),
+            notesAt(at, LISTEN.peak, sound),
+          ),
+      }),
+    );
+  }
+
+  /**
+   * Starts loading an instrument's sample set (hover or focus of an instrument row, before Listen). `ready` when the
+   * set will play, `fallback` when notes would play with the additive voice. Never rejects, never unlocks audio.
+   */
+  prepareSound(instrumentId: string): Promise<'ready' | 'fallback'> {
+    const sound = soundOf(instrumentId);
+    if (!sound) return Promise.resolve('fallback');
+    try {
+      return this.audio.prepareSound(sound).catch(() => 'fallback' as const);
+    } catch {
+      return Promise.resolve('fallback');
+    }
+  }
+
+  /**
+   * "Hear what we heard" (round 2, 01-ux.md §5.3): the try's detected notes re-synthesised at their onsets and
+   * pitches in the instrument's sound, with "What we heard, bar n of m" captions and the bar highlight. Not a
+   * recording. Rejects with `no-notes` when nothing was detected (the screen shows `heard.none`), and when the
+   * attempt or its piece is not available.
+   */
+  async playHeard(attemptId: string): Promise<void> {
+    const refused = this.refuseSound('hear what we heard');
+    if (refused) return refused;
+    // Unlock inside the gesture, before any await; a failure surfaces when it is awaited below.
+    const unlocked = this.unlockForSound();
+    unlocked.catch(() => undefined);
+    const record = this.lastRecord?.id === attemptId ? this.lastRecord : ((await this.platform.repos.attempts.byId(attemptId)) ?? null);
+    if (!record) throw new SessionError('unknown', `no attempt ${attemptId}`);
+    if (record.detected.length === 0) throw new SessionError('unknown', 'no-notes');
+    const [prepared, trace] = await Promise.all([this.preparedForRecord(record), this.diagnostics.get(attemptId).catch(() => null)]);
+    if (!prepared) throw new SessionError('corpus-load', `the piece of attempt ${attemptId} is not available`);
+    const src = listenSourceOf(prepared, this.cfg);
+    const expected = buildExpectedNotes(prepared, record.bpm, this.cfg);
+    // The take's t0 is in its trace; without one, the matched notes and extras place the music.
+    const zero = trace
+      ? trace.playback.t0 + record.calibration.latencyCompensationMs / 1000
+      : scoreZeroOf({ detected: record.detected, judgments: record.judgments, extras: record.extras, expectedOnsetSec: expected.map((e) => e.onsetSec as number) });
+    if (zero === null) throw new SessionError('unknown', 'no-notes');
+    const plan = planHeard({ detected: record.detected, scoreZeroClock: zero, bpm: record.bpm, beatsPerBar: src.beatsPerBar, pickupBeats: src.pickupBeats, totalBars: src.totalBars, a4Hz: this.prefs().a4Hz });
+    if (plan.notes.length === 0) throw new SessionError('unknown', 'no-notes');
+    await unlocked;
+    const segments: SoundSegment[] = plan.bars.map((b) => ({ atSec: Math.max(0, b.startSec), caption: { kind: 'heard-bar', bar: b.bar, of: plan.totalBars }, bar: b.bar }));
+    const sound = soundOf(record.instrumentId);
+    return this.player.play({
+      kind: 'heard',
+      durSec: plan.endSec,
+      segments,
+      attemptId,
+      schedule: (at) =>
+        this.audio.playNotes(
+          plan.notes.map((n) => ({ hz: n.hz, startSec: n.startSec, durSec: n.durSec })),
+          notesAt(at, LISTEN.peak, sound),
+        ),
+    });
   }
 
   /** "Play a bar of Classic" (05 §11.2) and calibration's "Hear the click": one bar at ♩ = 90, accented if on. */
@@ -1025,7 +1196,7 @@ export class PracticeSession implements PracticeSessionInstance {
     return rankedAvailability({ routeKey, outputMode: f.outputMode, calibrations, listening: f.listening, permission });
   }
 
-  private playPlan(kind: 'listen' | 'bar', plan: ListenPlan, sound: MetronomeSound, extra: { fromBar: number; slower: boolean; attemptId: string | null }): Promise<void> {
+  private playPlan(kind: 'listen' | 'bar', plan: ListenPlan, sound: MetronomeSound, notesSound: SoundSetId | undefined, extra: { fromBar: number; slower: boolean; attemptId: string | null }): Promise<void> {
     const segments: SoundSegment[] = [{ atSec: 0, caption: { kind: 'lead-in', bpm: plan.bpm } }];
     for (const b of plan.bars) segments.push({ atSec: b.startSec, caption: { kind: 'bar', bar: b.bar, of: plan.totalBars }, bar: b.bar });
     return this.player.play({
@@ -1039,7 +1210,7 @@ export class PracticeSession implements PracticeSessionInstance {
           plan.notes.length > 0
             ? this.audio.playNotes(
                 plan.notes.map((n) => ({ hz: n.hz, startSec: n.startSec, durSec: n.durSec })),
-                { at: at as ClockSeconds, peak: LISTEN.peak },
+                notesAt(at, LISTEN.peak, notesSound),
               )
             : Promise.resolve(),
         ]);
@@ -1616,6 +1787,7 @@ export class PracticeSession implements PracticeSessionInstance {
       const follow = t.follow;
       const trace = buildTryTrace({
         record,
+        startedAt: t.startedAt,
         route: t.route,
         used: t.listening ? t.used : null,
         dsp: t.dspCfg,
@@ -1659,6 +1831,18 @@ export class PracticeSession implements PracticeSessionInstance {
   async exportAttempt(attemptId: string): Promise<{ fileName: string; text: string; file: DiagnosticsFile } | null> {
     const t = await this.diagnostics.get(attemptId);
     return t ? this.exportOf(t) : null;
+  }
+
+  /**
+   * Every stored trace (the last DIAG_KEEP tries) in one file, `sightread-tries-{yyyy-mm-dd}-{hhmm}.json` at the
+   * export's local time (Settings > Data). Null when no try has been traced yet.
+   */
+  async exportRecentTries(): Promise<{ fileName: string; text: string; file: DiagnosticsFile } | null> {
+    const tries = await this.diagnostics.all();
+    if (tries.length === 0) return null;
+    const now = this.platform.clockWall();
+    const file = diagnosticsFile(tries, now);
+    return { fileName: recentDiagnosticsFileName(now), text: JSON.stringify(file), file };
   }
 
   private exportOf(t: TryTrace): { fileName: string; text: string; file: DiagnosticsFile } {

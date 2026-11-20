@@ -5,6 +5,9 @@
  *
  * The capture port is the first transferred port of any message on the worker port (the session sends it with
  * 'config', or earlier). Blocks on it are answered with `CaptureReturn`s on the same port.
+ *
+ * The same worker serves Match a note: a 'pitch' message (sent with the port) instead of 'config' runs only the pitch
+ * analyser and posts 'pitch-frames' (dsp-worker-core.ts `PitchModeTracker`).
  */
 import type { CaptureReturn, WorkerMessage, WorkerReply } from '../../../core/platform.ts';
 import { DspWorkerCore } from './dsp-worker-core.ts';

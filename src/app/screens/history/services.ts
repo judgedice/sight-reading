@@ -4,9 +4,10 @@
  */
 import type { StoreApi } from 'zustand/vanilla';
 import type { StoreRepos } from '../../../core/platform.ts';
-import type { AttemptRecord, AttributionsFile, Configs, PlayerProfile, PreparedExcerpt } from '../../../core/types.ts';
+import type { AttemptQuery, AttemptRecord, AttemptSummary, AttributionsFile, Configs, PlayerProfile, PreparedExcerpt } from '../../../core/types.ts';
 import type { ListenOptions, SoundView } from '../../../session/index.ts';
 import type { Readable } from '../home/services.ts';
+import type { DiagnosticsServices } from '../states/services.ts';
 
 export interface HistoryServices {
   configs: Configs;
@@ -27,6 +28,11 @@ export interface HistoryServices {
   listen?(record: AttemptRecord, o: ListenOptions): Promise<void>;
   /** "Hear bar n" on attempt detail. */
   hearBar?(record: AttemptRecord, from: number, to?: number, o?: { slower?: boolean }): Promise<void>;
+  /** The attempt list with a filter ("This piece": `excerptId`). Omitted: `repos.attempts.list`. */
+  list?(q: AttemptQuery): Promise<AttemptSummary[]>;
+  /** "Hear what we heard": the try's detected notes in the instrument's sound. Rejects with `no-notes`. Call from the click. */
+  playHeard?(attemptId: string): Promise<void>;
+  diagnostics?: DiagnosticsServices;
   /** Stops any sound at once (leaving the screen). */
   stopSounds?(): void;
   /** What is sounding (`attemptId` says which attempt). */

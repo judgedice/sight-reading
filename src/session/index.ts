@@ -5,7 +5,9 @@ import { PracticeSession } from './practice-session.ts';
 export {
   PracticeSession,
   SessionError,
+  VOICE_REFERENCE_LEAD_SEC,
   listenedFirstReasons,
+  type SessionStartKind,
   type ListenRequest,
   type PracticeSessionOptions,
   type SessionTimers,
@@ -20,6 +22,8 @@ export {
   planBars,
   planClickBar,
   planListen,
+  planRange,
+  RANGE,
   type ChordTone,
   type ListenBar,
   type ListenClick,
@@ -28,8 +32,10 @@ export {
   type ListenOptions,
   type ListenPlan,
   type ListenSource,
+  type RangeNote,
 } from './listen-plan.ts';
-export { SoundPlayer, idleSoundView, SOUND_FAILED_MS, type SoundCaption, type SoundKind, type SoundView } from './sounds.ts';
+export { HEARD, planHeard, scoreZeroOf, type HeardFacts, type HeardNote, type HeardNoteIn, type HeardPlan, type ScoreZeroFacts } from './heard-plan.ts';
+export { SoundPlayer, idleSoundView, SOUND_FAILED_MS, type SoundCaption, type SoundKind, type SoundSegment, type SoundView } from './sounds.ts';
 export { createSessionStore, initialSessionView, reduceSessionView, type SessionStatus, type SessionView } from './view-store.ts';
 export {
   barOfBeat,
@@ -60,6 +66,8 @@ export {
   diagnosticsFile,
   diagnosticsFileName,
   encodePcm16,
+  localStamp,
+  recentDiagnosticsFileName,
   type DiagnosticsFile,
   type DiagnosticsSettings,
   type TracedDspConfig,

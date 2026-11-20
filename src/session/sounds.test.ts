@@ -107,3 +107,24 @@ describe('SoundPlayer', () => {
     expect(t.player.view.getState().playing).toBeNull();
   });
 });
+
+describe('round 2 sounds', () => {
+  it('a range run names its instrument and its notes; idle clears the instrument', async () => {
+    const t = setup();
+    await t.player.play({
+      kind: 'range',
+      durSec: 1.75,
+      instrumentId: 'voice-tenor',
+      segments: [
+        { atSec: 0, caption: { kind: 'range-note', index: 0, midi: 48 } },
+        { atSec: 0.95, caption: { kind: 'range-note', index: 1, midi: 60 } },
+      ],
+      schedule: () => Promise.resolve(),
+    });
+    expect(t.player.view.getState()).toMatchObject({ playing: 'range', instrumentId: 'voice-tenor', caption: { kind: 'range-note', index: 0, midi: 48 } });
+    t.advance(SOUND_LEAD_SEC + 1);
+    expect(t.player.view.getState().caption).toEqual({ kind: 'range-note', index: 1, midi: 60 });
+    t.advance(1);
+    expect(t.player.view.getState()).toMatchObject({ playing: null, instrumentId: null, caption: null });
+  });
+});

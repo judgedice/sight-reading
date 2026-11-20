@@ -244,3 +244,26 @@ export function barAt(plan: Pick<ListenPlan, 'bars'>, t: number): number | null 
   for (const b of plan.bars) if (t >= b.startSec - EPS && t < b.endSec - EPS) return b.bar;
   return null;
 }
+
+/** "Play my range" (round 2, 01-ux.md §2): each note this long, then this gap, seconds. */
+export const RANGE = { noteSec: 0.8, gapSec: 0.15 } as const;
+
+/** One note of a range run, seconds from its start. */
+export interface RangeNote {
+  /** Position in the notes asked for, 0-based (the chip to light). */
+  index: number;
+  midi: number;
+  hz: number;
+  atSec: number;
+  durSec: number;
+}
+
+/** "Play my range": the notes in the order given, `noteSec` each with `gapSec` between. */
+export function planRange(concertMidis: readonly number[], a4Hz: number, o: { noteSec?: number; gapSec?: number } = {}): { notes: RangeNote[]; endSec: number } {
+  const noteSec = o.noteSec ?? RANGE.noteSec;
+  const gapSec = o.gapSec ?? RANGE.gapSec;
+  if (!(noteSec > 0) || !(gapSec >= 0)) throw new RangeError(`bad range timing: note ${noteSec} s, gap ${gapSec} s`);
+  const notes = concertMidis.map((midi, index) => ({ index, midi, hz: midiToFreq(midi, a4Hz), atSec: index * (noteSec + gapSec), durSec: noteSec }));
+  const last = notes[notes.length - 1];
+  return { notes, endSec: last ? last.atSec + last.durSec : 0 };
+}

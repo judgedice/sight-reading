@@ -2,7 +2,18 @@
 import { describe, expect, it } from 'vitest';
 import { MemoryKv } from '../store/test-data.ts';
 import { isReservedKvKey } from '../store/index.ts';
-import { DIAG_AUDIO_KEEP, DIAG_KEEP, DiagnosticsStore, decodePcm16, encodePcm16, TRACE_FORMAT, type TryTrace } from './diagnostics.ts';
+import {
+  DIAG_AUDIO_KEEP,
+  DIAG_KEEP,
+  DiagnosticsStore,
+  decodePcm16,
+  diagnosticsFileName,
+  encodePcm16,
+  localStamp,
+  recentDiagnosticsFileName,
+  TRACE_FORMAT,
+  type TryTrace,
+} from './diagnostics.ts';
 
 const trace = (id: string, audio: boolean): TryTrace =>
   ({ format: TRACE_FORMAT, version: 1, attemptId: id, ...(audio ? { audio: { rate: 16000, startT: 0, encoding: 'pcm16le-base64', samples: 2, data: encodePcm16(Float32Array.of(0.5, -0.5)) } } : {}) }) as unknown as TryTrace;
@@ -40,5 +51,27 @@ describe('PCM16 base64', () => {
       expect(y.length).toBe(n);
       for (let i = 0; i < n; i++) expect(Math.abs((y[i] as number) - (x[i] as number))).toBeLessThan(1 / 32000);
     }
+  });
+});
+
+describe('diagnostics file names (round 2, 01-ux.md §15.4)', () => {
+  it('local time: sightread-try-{yyyy-mm-dd}-{hhmm} from the start, sightread-tries-... from the export', () => {
+    expect(localStamp('2026-11-18T23:07:59.000Z', 0)).toBe('2026-11-18-2307');
+    // 60 minutes behind UTC is UTC-1; -60 is UTC+1 (as Date#getTimezoneOffset gives them).
+    expect(localStamp('2026-11-18T23:07:59.000Z', -60)).toBe('2026-11-19-0007');
+    expect(localStamp('2026-01-01T00:30:00.000Z', 60)).toBe('2025-12-31-2330');
+    expect(diagnosticsFileName({ createdAt: '2026-11-18T09:05:00.000Z', startedAt: '2026-11-18T09:04:10.000Z' }, 0)).toBe('sightread-try-2026-11-18-0904.json');
+    expect(diagnosticsFileName({ createdAt: '2026-11-18T09:05:00.000Z' }, 0)).toBe('sightread-try-2026-11-18-0905.json');
+    expect(recentDiagnosticsFileName('2026-11-18T09:05:00.000Z', 0)).toBe('sightread-tries-2026-11-18-0905.json');
+    // The device's own offset by default.
+    expect(diagnosticsFileName({ createdAt: '2026-11-18T09:05:00.000Z' })).toMatch(/^sightread-try-\d{4}-\d{2}-\d{2}-\d{4}\.json$/);
+    expect(() => localStamp('yesterday')).toThrow(RangeError);
+  });
+
+  it('all() returns every stored trace, oldest first', async () => {
+    const s = new DiagnosticsStore(new MemoryKv());
+    expect(await s.all()).toEqual([]);
+    for (const id of ['a', 'b', 'c']) await s.put(trace(id, false));
+    expect((await s.all()).map((t) => t.attemptId)).toEqual(['a', 'b', 'c']);
   });
 });

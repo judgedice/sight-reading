@@ -23,7 +23,20 @@ import { DspWorkerCore } from '../platform/web/audio/dsp-worker-core.ts';
 import { FakeAudioBackend, type FakeBackendOptions } from '../testkit/fake-backend.ts';
 import { renderPerformance, type SynthNoteSpec } from '../testkit/synth/index.ts';
 import { MemoryKv, makeCalibration, memoryRepos } from '../store/test-data.ts';
-import { PracticeSession, decodePcm16, initialSessionView, reduceSessionView, sessionApi, voiceReferenceTones, type DiagnosticsFile, type PracticeSessionOptions } from './index.ts';
+import {
+  PracticeSession,
+  SessionError,
+  VOICE_REFERENCE_LEAD_SEC,
+  decodePcm16,
+  initialSessionView,
+  listenSourceOf,
+  reduceSessionView,
+  sessionApi,
+  voiceReferenceTones,
+  type DiagnosticsFile,
+  type PracticeSessionOptions,
+  type SoundCaption,
+} from './index.ts';
 
 const cfg = configs();
 const RATE = 48000;
@@ -114,7 +127,36 @@ class NodeWorker implements WorkerLike {
   }
 }
 
+/** Session timers on the fake backend's clock: `drive` fires the ones due (captions follow the clock exactly). */
+class ClockTimers {
+  private next = 1;
+  private readonly due = new Map<number, { at: number; fn: () => void }>();
+  constructor(private readonly be: FakeAudioBackend) {}
+  setInterval(): unknown {
+    throw new Error('ClockTimers: use pollMs manual');
+  }
+  clearInterval(): void {}
+  setTimeout(fn: () => void, ms: number): unknown {
+    const id = this.next++;
+    this.due.set(id, { at: (this.be.now() as number) + ms / 1000, fn });
+    return id;
+  }
+  clearTimeout(h: unknown): void {
+    this.due.delete(h as number);
+  }
+  run(): void {
+    for (;;) {
+      const now = this.be.now() as number;
+      const ready = [...this.due.entries()].filter(([, d]) => d.at <= now + 1e-9).sort((a, b) => a[1].at - b[1].at)[0];
+      if (!ready) return;
+      this.due.delete(ready[0]);
+      ready[1].fn();
+    }
+  }
+}
+
 interface Harness {
+  timers: ClockTimers | null;
   be: TestBackend;
   session: PracticeSession;
   repos: ReturnType<typeof memoryRepos>;
@@ -127,8 +169,11 @@ interface Harness {
 
 const playAlong = (rtlMs: number): Calibration => ({ ...makeCalibration(ROUTE), method: 'play-along', outputMode: 'wired', roundTripMs: rtlMs, spreadMs: 4, clicksDetected: 8, templates: {} });
 
-async function harness(o: { backend?: FakeBackendOptions; calibration?: Calibration | null; portMode?: boolean; options?: PracticeSessionOptions; shippedCorpus?: boolean } = {}): Promise<Harness> {
+async function harness(
+  o: { backend?: FakeBackendOptions; calibration?: Calibration | null; portMode?: boolean; options?: PracticeSessionOptions; shippedCorpus?: boolean; clockTimers?: boolean } = {},
+): Promise<Harness> {
   const be = new TestBackend({ sampleRate: RATE, route: { routeKey: ROUTE, outputMode: 'wired', reportedLatencySec: 0.02 }, ...o.backend });
+  const timers = o.clockTimers ? new ClockTimers(be) : null;
   const kv = new MemoryKv();
   const repos = memoryRepos(kv);
   if (o.calibration !== null) await repos.calibrations.put(o.calibration ?? playAlong(40));
@@ -153,7 +198,7 @@ async function harness(o: { backend?: FakeBackendOptions; calibration?: Calibrat
       workers.push(w);
       return w;
     } },
-    { pollMs: 'manual', rng: createRng(7), finishTimeoutMs: 2000, ...(o.portMode ? { createCaptureChannel: inProcessChannel } : {}), ...o.options },
+    { pollMs: 'manual', rng: createRng(7), finishTimeoutMs: 2000, ...(timers ? { timers } : {}), ...(o.portMode ? { createCaptureChannel: inProcessChannel } : {}), ...o.options },
   );
   const events: SessionEvent[] = [];
   const stateAt = new Map<SessionState, number>();
@@ -161,7 +206,7 @@ async function harness(o: { backend?: FakeBackendOptions; calibration?: Calibrat
     events.push(e);
     if (e.type === 'state' && !stateAt.has(e.state)) stateAt.set(e.state, be.now() as number);
   });
-  return { be, session, repos, workers, events, hide: () => vis.emit(false), stateAt };
+  return { timers, be, session, repos, workers, events, hide: () => vis.emit(false), stateAt };
 }
 
 function settings(p: Partial<PracticeSettings> = {}): PracticeSettings {
@@ -188,6 +233,7 @@ async function drive(h: Harness, sec: number, until?: () => boolean): Promise<vo
   while ((h.be.now() as number) < end - 1e-9) {
     if (until?.()) return;
     h.be.advance(Math.min(0.02, end - (h.be.now() as number)));
+    h.timers?.run();
     h.session.poll();
     await flush();
   }
@@ -575,7 +621,10 @@ describe('voice reference and tuning note (02 §4.5, R7)', () => {
     const expected = buildExpectedNotes(prepared, prepared.selection.settings.bpm, cfg);
     const first = expected[0]!.concertMidi;
     await h.session.playVoiceReference();
-    const tones = h.be.log.tones;
+    // Round 2: the reference plays through the sampler in the voice's own set (never the choir), not as sine tones.
+    expect(h.be.log.tones).toHaveLength(0);
+    expect(h.be.log.noteSounds).toEqual(['voice-alto']);
+    const tones = h.be.log.notePlays[0]!.notes;
     expect(tones).toHaveLength(4);
     const toMidiHz = (hz: number) => Math.round(69 + 12 * Math.log2(hz / 440));
     const midis = tones.map((t) => toMidiHz(t.hz));
@@ -587,11 +636,12 @@ describe('voice reference and tuning note (02 §4.5, R7)', () => {
     expect(tones[3]!.hz).toBeCloseTo(midiToFreq(first, 440), 6);
     expect(voiceReferenceTones(prepared, first, 440).map((t) => t.midi)).toEqual(midis);
 
-    // Mandatory before the count-in in every mode: four more tones, all ending before the first click.
+    // Before the count-in in every mode: four more notes in the voice set; the first click one beat after they end.
     await h.session.startTake();
-    expect(h.be.log.tones).toHaveLength(8);
+    expect(h.be.log.noteSounds).toEqual(['voice-alto', 'voice-alto']);
+    const ref = h.be.log.notePlays[1]!;
     const firstClick = h.be.log.scheduledTakes[0]!.clicks[0]!.t as number;
-    const refEnd = Math.max(...h.be.log.tones.slice(4).map((t) => (t.at as number) + t.durSec));
+    const refEnd = Math.max(...ref.notes.map((t) => (ref.opts.at as number) + t.startSec + t.durSec));
     expect(refEnd).toBeLessThan(firstClick);
     await expect(h.session.captureTuningNote()).rejects.toThrow(/winds, brass and strings/);
   }, 30_000);
@@ -782,7 +832,7 @@ describe('Hear it (05 §9, 08 session package)', () => {
     const calls = h.be.log.calls.map((c) => c.method);
     // "Start playing" stops the sound first, then the voice reference plays (R7), then the take is scheduled.
     const stopAt = calls.indexOf('stopSounds', listenAt);
-    const toneAt = calls.indexOf('playTone', listenAt);
+    const toneAt = calls.indexOf('playNotes', listenAt);
     const schedAt = calls.indexOf('scheduleTake');
     expect(stopAt).toBeGreaterThan(-1);
     expect(stopAt).toBeLessThan(toneAt);
@@ -811,7 +861,8 @@ describe('Hear it (05 §9, 08 session package)', () => {
     expect(during.filter((m) => SOUND_CALLS.has(m))).toEqual([]);
     // Listening after results is free.
     await h.session.listen({ slower: true });
-    expect(h.be.log.notePlays).toHaveLength(2);
+    // Listen, the starting pitch (sampled notes since round 2), then Listen again.
+    expect(h.be.log.notePlays).toHaveLength(3);
   }, 60_000);
 
   it('the ranked auto start stops a sound first, and Hear the tempo keeps the take ranked', async () => {
@@ -983,7 +1034,10 @@ describe('own playback in the capture (round 2 detection: reference tone and cli
       play(h, 0.05);
       await driveTo(h, 'results', 90);
       const rec = lastRecord(h);
-      expect(h.be.log.tones.length).toBe(4);
+      // Round 2 (05 R18): the reference is sampled notes in the voice's set, mixed into the capture by the fake.
+      expect(h.be.log.tones).toEqual([]);
+      expect(h.be.log.noteSounds).toEqual(['voice-baritone']);
+      expect(h.be.log.notePlays[0]!.notes).toHaveLength(4);
       expect(early(h)).toEqual([]);
       expect(rec.extras.filter((x) => x.onsetSec < 0)).toEqual([]);
       // The first note is the singer's, not the reference tone's.
@@ -1024,7 +1078,7 @@ describe('diagnostics per try (round 2 detection)', () => {
     const { h, rec } = await voiceTry(false);
     expect(await h.session.diagnosticsSettings()).toEqual({ includeAudio: false });
     const out = (await h.session.exportLastTry())!;
-    expect(out.fileName).toBe(`sightread-diagnostics-${rec.id.slice(0, 8)}.json`);
+    expect(out.fileName).toMatch(/^sightread-try-\d{4}-\d{2}-\d{2}-\d{4}\.json$/);
     expect(out.text.length).toBeLessThan(200_000);
     const t = (JSON.parse(out.text) as DiagnosticsFile).tries[0]!;
     expect(t.attemptId).toBe(rec.id);
@@ -1060,4 +1114,201 @@ describe('diagnostics per try (round 2 detection)', () => {
     for (const v of samples) peak = Math.max(peak, Math.abs(v));
     expect(peak).toBeGreaterThan(0.01);
   }, 90_000);
+});
+
+describe('round 2: sampled sounds, the starting pitch, what we heard, start errors (R2-06)', () => {
+  /** Every caption the sound store showed, in order. */
+  const captionsOf = (h: Harness): SoundCaption[] => {
+    const out: SoundCaption[] = [];
+    h.session.sounds.subscribe((v) => {
+      if (v.caption && out.at(-1) !== v.caption) out.push(v.caption);
+    });
+    return out;
+  };
+
+  it('the starting pitch: 0.6 s of the card, the voice set, then one beat of silence before the first click (fake clock, 5 ms)', async () => {
+    const h = await harness({ clockTimers: true });
+    await h.session.prepare(settings({ instrumentId: 'voice-baritone', mode: 'practice' }));
+    await h.session.ensureAudio();
+    h.session.revealScan();
+    const captions = captionsOf(h);
+    const pressedAt = h.be.now() as number;
+    await h.session.startTake();
+    for (let i = 0; i < 20 && h.be.log.scheduledTakes.length === 0; i++) await flush();
+    const ref = h.be.log.notePlays[0]!;
+    expect(h.be.log.noteSounds).toEqual(['voice-baritone']);
+    expect((ref.opts.at as number) - pressedAt).toBeCloseTo(VOICE_REFERENCE_LEAD_SEC, 6);
+    const firstNoteEnd = Math.max(...ref.notes.map((n) => (ref.opts.at as number) + n.startSec + n.durSec));
+    const firstClick = h.be.log.scheduledTakes[0]!.clicks[0]!.t as number;
+    const beat = 60 / h.session.plan!.bpm;
+    expect(Math.abs(firstClick - firstNoteEnd - beat)).toBeLessThanOrEqual(0.005);
+    // The captions: key chord, first note, then "Count-in next" during the gap.
+    await drive(h, firstNoteEnd - (h.be.now() as number) + beat / 2);
+    expect(captions.map((c) => c.kind)).toEqual(['key-chord', 'first-note', 'count-in-next']);
+    // The follower ignores each reference note through its release.
+    const trace = await (async () => {
+      await driveTo(h, 'results', 90);
+      return (await h.session.exportLastTry())!.file.tries[0]!;
+    })();
+    expect(trace.playback.reference).toHaveLength(4);
+    expect(trace.playback.reference[3]!.durSec).toBeCloseTo(ref.notes[3]!.durSec + 0.3, 6);
+  }, 90_000);
+
+  it('autoReference off: no starting pitch is scheduled and the try can still be ranked', async () => {
+    const h = await harness({ calibration: playAlong(40), shippedCorpus: true });
+    await h.session.prepare(settings({ instrumentId: 'voice-baritone', level: 1, autoReference: false }));
+    await h.session.ensureAudio();
+    h.session.revealScan();
+    await h.session.startTake();
+    for (let i = 0; i < 20 && h.be.log.scheduledTakes.length === 0; i++) await flush();
+    expect(h.be.log.notePlays).toEqual([]);
+    expect(h.be.log.tones).toEqual([]);
+    expect(h.be.log.scheduledTakes[0]!.params.leadSec).toBeCloseTo(0.6, 9);
+    play(h, 0.04);
+    await driveTo(h, 'results', 90);
+    const rec = lastRecord(h);
+    expect(h.be.log.notePlays).toEqual([]);
+    expect(rec.score!.rankedReasons).toEqual([]);
+    expect(rec.score!.ranked).toBe(true);
+  }, 90_000);
+
+  it('a forced clock-rate error never throws: the try reaches the count-in and is practice, with the clock-rate gate failure', async () => {
+    const h = await harness({ calibration: playAlong(40), backend: { clockRateError: 0.088 } });
+    await h.session.prepare(settings());
+    await h.session.ensureAudio();
+    h.session.revealScan();
+    await h.session.startTake();
+    expect(h.session.state).toBe('count-in');
+    expect(h.session.lastError).toBeNull();
+    play(h, 0.04);
+    await driveTo(h, 'results', 60);
+    const rec = lastRecord(h);
+    expect(rec.audioEnv.clockRateError).toBe(0.088);
+    expect(rec.audioEnv.gateFailures).toContain('sample-rate');
+    expect(rec.score!.ranked).toBe(false);
+    // RankedReason has no 'clock-rate' value yet (core/types.ts): the gate maps it to 'measurement' until it does.
+    expect(rec.score!.rankedReasons).toContain('measurement');
+  }, 60_000);
+
+  it('start errors carry their kind: the sound (audio-start) or the microphone (mic-start)', async () => {
+    const named = (name: string): Error => Object.assign(new Error(name), { name });
+    for (const [err, code, kind] of [
+      [named('NotAllowedError'), 'mic-denied', 'mic-start'],
+      [named('NotReadableError'), 'audio-setup', 'mic-start'],
+      [new Error('context would not resume'), 'audio-setup', 'audio-start'],
+    ] as const) {
+      const h = await harness();
+      await h.session.prepare(settings({ mode: 'practice' }));
+      h.be.unlock = () => Promise.reject(err);
+      await expect(h.session.ensureAudio()).rejects.toMatchObject({ code, kind });
+      expect(h.session.lastError).toBeInstanceOf(SessionError);
+    }
+    // The microphone fails to open at the start of the take.
+    const h = await harness();
+    await h.session.prepare(settings({ mode: 'practice' }));
+    await h.session.ensureAudio();
+    h.session.revealScan();
+    h.be.startCapture = () => Promise.reject(named('NotReadableError'));
+    await expect(h.session.startTake()).rejects.toMatchObject({ kind: 'mic-start' });
+    expect(h.session.state).toBe('error');
+    // Audio closed between tries: the sound did not start.
+    const g = await harness();
+    await g.session.prepare(settings({ mode: 'practice' }));
+    g.session.revealScan();
+    await expect(g.session.startTake()).rejects.toMatchObject({ code: 'audio-setup', kind: 'audio-start' });
+  }, 30_000);
+
+  it('every note plays in the instrument\'s sampled sound: range note, key chord, Listen, Hear bar', async () => {
+    const h = await harness();
+    await h.session.playNote(48, 'euphonium-bc');
+    await h.session.playNote(60);
+    expect(h.be.log.noteSounds).toEqual(['trombone', null]);
+    expect(h.session.sounds.getState().instrumentId).toBeNull();
+    await h.session.prepare(settings({ instrumentId: 'clarinet-bb', mode: 'practice' }));
+    await h.session.playNote(60);
+    await h.session.hearKey();
+    await h.session.listen();
+    await h.session.hearBar(1);
+    expect(h.be.log.noteSounds.slice(2)).toEqual(['clarinet', 'clarinet', 'clarinet', 'clarinet']);
+  }, 30_000);
+
+  it('playRange: four notes rising, 0.8 s each with 0.15 s between, in the voice set, with the note index as caption; no excerpt needed', async () => {
+    const h = await harness({ clockTimers: true });
+    const captions = captionsOf(h);
+    await h.session.playRange('voice-baritone', [43, 48, 60, 64]);
+    const p = h.be.log.notePlays[0]!;
+    expect(p.opts.sound).toBe('voice-baritone');
+    expect(p.notes.map((n) => [n.startSec, n.durSec])).toEqual([0, 0.95, 1.9, 2.85].map((t) => [expect.closeTo(t, 9), 0.8]));
+    expect(p.notes.map((n) => Math.round(69 + 12 * Math.log2(n.hz / 440)))).toEqual([43, 48, 60, 64]);
+    expect(h.session.sounds.getState()).toMatchObject({ playing: 'range', instrumentId: 'voice-baritone' });
+    await drive(h, 3.3);
+    expect(captions).toEqual([0, 1, 2, 3].map((index) => ({ kind: 'range-note', index, midi: [43, 48, 60, 64][index] })));
+    await drive(h, 1);
+    expect(h.session.sounds.getState().playing).toBeNull();
+    await expect(h.session.playRange('voice-baritone', [])).rejects.toThrow(/at least one note/);
+  });
+
+  it('prepareSound loads the instrument\'s set and never rejects', async () => {
+    const h = await harness({ backend: { readySounds: ['flute'] } });
+    expect(await h.session.prepareSound('flute')).toBe('ready');
+    expect(await h.session.prepareSound('tuba')).toBe('fallback');
+    expect(await h.session.prepareSound('kazoo')).toBe('fallback');
+    expect(h.be.log.soundPrepares).toEqual(['flute', 'tuba']);
+    expect(h.be.log.unlocks).toBe(0);
+  });
+
+  it('playHeard: one note per detected note at its onset and pitch, in the instrument\'s sound, with bar captions', async () => {
+    const h = await harness({ calibration: playAlong(40), clockTimers: true });
+    const prepared = await h.session.prepare(settings({ mode: 'practice' }));
+    await h.session.ensureAudio();
+    h.session.revealScan();
+    await h.session.startTake();
+    play(h, 0.04);
+    await driveTo(h, 'results', 60);
+    const rec = lastRecord(h);
+    const t0 = (await h.session.exportLastTry())!.file.tries[0]!.playback.t0;
+    const src = listenSourceOf(prepared, cfg);
+    const beat = 60 / rec.bpm;
+    const zero = t0 + rec.calibration.latencyCompensationMs / 1000;
+    const heard = rec.detected.filter((d) => (d.onset as number) >= zero - (src.pickupBeats + 1) * beat).sort((a, b) => (a.onset as number) - (b.onset as number));
+    expect(heard.length).toBeGreaterThan(3);
+    const captions = captionsOf(h);
+    const before = h.be.log.notePlays.length;
+    await h.session.playHeard(rec.id);
+    const p = h.be.log.notePlays[before]!;
+    expect(p.opts.sound).toBe('flute');
+    expect(p.notes).toHaveLength(heard.length);
+    p.notes.forEach((n, i) => {
+      const d = heard[i]!;
+      expect(n.startSec).toBeCloseTo((d.onset as number) - (heard[0]!.onset as number), 3);
+      expect(n.hz).toBeCloseTo(midiToFreq(d.midi, 440), 6);
+    });
+    expect(h.session.sounds.getState()).toMatchObject({ playing: 'heard', attemptId: rec.id });
+    await drive(h, Math.max(...p.notes.map((n) => n.startSec + n.durSec)) + 0.2);
+    expect(captions.length).toBeGreaterThan(1);
+    for (const c of captions) expect(c).toMatchObject({ kind: 'heard-bar', of: src.totalBars });
+    const bars = captions.map((c) => (c as { bar: number }).bar);
+    expect(bars).toEqual([...bars].sort((a, b) => a - b));
+
+    // A try with nothing detected rejects with no-notes.
+    await h.repos.attempts.add({ ...rec, id: 'silent-try', detected: [], judgments: [], extras: [] });
+    await expect(h.session.playHeard('silent-try')).rejects.toThrow('no-notes');
+  }, 60_000);
+
+  it('diagnostics files: sightread-try-{local start}.json and sightread-tries-{local now}.json', async () => {
+    const h = await harness();
+    await h.session.prepare(settings({ mode: 'practice' }));
+    expect(await h.session.exportRecentTries()).toBeNull();
+    await h.session.ensureAudio();
+    h.session.revealScan();
+    await h.session.startTake();
+    play(h, 0.04);
+    await driveTo(h, 'results', 60);
+    const one = (await h.session.exportLastTry())!;
+    expect(one.fileName).toMatch(/^sightread-try-\d{4}-\d{2}-\d{2}-\d{4}\.json$/);
+    expect(one.file.tries[0]!.startedAt).toBeDefined();
+    const all = (await h.session.exportRecentTries())!;
+    expect(all.fileName).toMatch(/^sightread-tries-\d{4}-\d{2}-\d{2}-\d{4}\.json$/);
+    expect(all.file.tries.map((t) => t.attemptId)).toEqual([lastRecord(h).id]);
+  }, 60_000);
 });

@@ -1,0 +1,40 @@
+/* Dev-only story page for the diagnostics components. Tokens only. Not shipped. */
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-ui);
+}
+
+.story {
+  display: grid;
+  gap: var(--space-5);
+  box-sizing: border-box;
+  max-width: 48rem;
+  margin: 0 auto;
+  padding: var(--space-6) var(--space-7);
+}
+
+.story h2 {
+  margin: 0 0 var(--space-2);
+  color: var(--text-muted);
+  font-size: var(--type-eyebrow-size);
+  letter-spacing: var(--type-eyebrow-tracking);
+  text-transform: uppercase;
+}
+
+.story p {
+  margin: 0;
+}
+
+.story-stack {
+  display: grid;
+  gap: var(--space-3);
+  justify-items: start;
+}
+
+@media (max-width: 40rem) {
+  .story {
+    padding: var(--space-4);
+  }
+}

@@ -1,0 +1,58 @@
+/* Dev-only story page for the calibration status. Tokens only. Not shipped. */
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-ui);
+}
+
+.story {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-5);
+  box-sizing: border-box;
+  max-width: 90rem;
+  margin: 0 auto;
+  padding: var(--space-6) var(--space-7);
+}
+
+.story h2 {
+  margin: 0 0 var(--space-2);
+  color: var(--text-muted);
+  font-size: var(--type-eyebrow-size);
+  letter-spacing: var(--type-eyebrow-tracking);
+  text-transform: uppercase;
+}
+
+.story-box {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-4);
+  box-sizing: border-box;
+  min-height: 5rem;
+  padding: var(--space-4);
+  border: 0.0625rem dashed var(--border-strong);
+  border-radius: var(--radius-l);
+}
+
+.story-card {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-radius: var(--radius-l);
+  background: var(--surface);
+  box-shadow: var(--e1);
+}
+
+.story-gap {
+  height: 12rem;
+}
+
+@media (max-width: 40rem) {
+  .story {
+    grid-template-columns: minmax(0, 1fr);
+    padding: var(--space-4);
+  }
+}

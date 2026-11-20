@@ -65,3 +65,16 @@ export function derived<T>(sources: readonly Readable<unknown>[], compute: () =>
 }
 
 export const jsonEqual = <T>(a: T, b: T): boolean => JSON.stringify(a) === JSON.stringify(b);
+
+/** A zustand-style store as a `Readable` of a projection of its state (the store's own `getState` and `subscribe`). */
+export function fromStore<S, T>(store: { getState(): S; subscribe(l: () => void): () => void }, project: (s: S) => T, equal: (a: T, b: T) => boolean = jsonEqual): Readable<T> {
+  let current = project(store.getState());
+  return {
+    get() {
+      const next = project(store.getState());
+      if (!equal(next, current)) current = next;
+      return current;
+    },
+    subscribe: (l) => store.subscribe(l),
+  };
+}

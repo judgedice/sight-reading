@@ -45,6 +45,8 @@ export interface OnboardingServices {
   finish(r: OnboardingResult): Promise<string>;
   /** A range-picture note button in the picker: that sounding MIDI note for 1 s. Call from the click. */
   playNote?(concertMidi: number): Promise<void>;
+  /** Opens "Match a note" inside onboarding. Omitted: the row is not shown. */
+  openMatch?(): void;
   /** Stops any sound at once (leaving the step). */
   stopSounds?(): void;
 }

@@ -6,7 +6,7 @@
 import { createElement, lazy, Suspense, type ComponentType, type ReactNode } from 'react';
 import type { AudioBackend, KeyValue, PlatformCapabilities, PlatformServices, WorkerLike, MessagePortLike } from '../../core/platform.ts';
 import type { AppSettings, AttemptRecord, AttributionsFile, Calibration, Configs, CorpusManifest, PlayerProfile, PracticeSettings, PreparedExcerpt, Rng } from '../../core/types.ts';
-import { PracticeSession, type PracticeSessionOptions, type RankedAvailability, type SoundPrefs } from '../../session/index.ts';
+import { attemptTitle, PracticeSession, type PracticeSessionOptions, type RankedAvailability, type SoundPrefs } from '../../session/index.ts';
 import { metronomeSoundOf } from '../../core/click-sounds.ts';
 import { countEligible, prefetchNeighbours } from '../../corpus/index.ts';
 import { createProfile, postRevealSkipAllowed, respondToLevelOffer, setInstrumentLevel, startPlacement } from '../../grade/index.ts';
@@ -17,7 +17,7 @@ import type { ScreenComponent, ScreenProps } from '../route-types.ts';
 import { creditsScreenOverrides } from '../screens/about/index.ts';
 import { CalibrationScreen, CalibrationServicesProvider, type CalibrationServices } from '../screens/calibration/index.ts';
 import { historyScreenOverrides } from '../screens/history/index.ts';
-import { homeScreenOverrides, type HomeBanner, type HomeServices, type Readable, type TodayStats } from '../screens/home/index.ts';
+import { homeScreenOverrides, type HomeBanner, type HomeServices, type LastTry, type PickerSound, type PickerSoundState, type Readable, type TodayStats } from '../screens/home/index.ts';
 import { OnboardingScreen, OnboardingServicesProvider, type MicOutcome, type OnboardingResult, type OnboardingServices } from '../screens/onboarding/index.ts';
 import { progressScreenOverrides } from '../screens/progress/index.ts';
 import { createReviewRenderer } from '../screens/results/review/index.ts';
@@ -28,8 +28,14 @@ import type { SettingsSoundServices } from '../screens/settings/services.ts';
 import type { AttemptServices } from '../screens/history/index.ts';
 import { tipsScreenOverrides, type TipsServices } from '../screens/sheets/index.ts';
 import { classifyMicError, type MicBrowser } from '../screens/states/index.ts';
+import type { DiagnosticsServices } from '../screens/states/services.ts';
+import type { SettingsDiagnosticsServices } from '../screens/settings/services.ts';
+import type { MatchServices } from '../screens/match/services.ts';
+import { MatchNoteService } from '../../session/match-note.ts';
 import { createCalibrationServices, type CalibrationBackendExtras } from './calibration-services.ts';
-import { createValue, derived, jsonEqual, type Value } from './values.ts';
+import { calibrationStatus as computeCalStatus, KV_CAL_LAST_FAILURE, type CalFailure, type CalStatus } from './calibration-status.ts';
+import { countTries, reachedBarOne } from './tries.ts';
+import { createValue, derived, fromStore, jsonEqual, type Value } from './values.ts';
 
 /** Backend members beyond the frozen seam (WebAudioBackend has them). */
 export type AppBackend = AudioBackend &
@@ -74,6 +80,18 @@ export interface AppRuntime {
   testClock: boolean;
   dev: boolean;
   rightsContact?: string;
+  /** Opens a route path (`/match`); the hash router's `navigate`. Absent: "Match a note" entries do nothing. */
+  navigate?(path: string): void;
+  /** Build-time variables (`import.meta.env`); tests pass their own. */
+  env?: Readonly<Record<string, unknown>>;
+}
+
+/** The two build-time variables of the diagnostics button (round 2, 06-plan §4). */
+export function readDiagnosticsEnv(env: Readonly<Record<string, unknown>>): { supportAddress: string | null; soundOptInShown: boolean } {
+  const addr = env['VITE_SUPPORT_EMAIL'];
+  const supportAddress = typeof addr === 'string' && addr.trim() !== '' ? addr.trim() : null;
+  const optIn = env['VITE_DIAG_SOUND_OPTIN'];
+  return { supportAddress, soundOptInShown: optIn === '1' || optIn === 'true' };
 }
 
 export interface ComposedApp {
@@ -90,8 +108,9 @@ export interface ComposedApp {
     results: ResultsServices & ResultsSetupServices;
     tips: TipsServices;
     calibration: CalibrationServices;
-    settings: SettingsServices & SettingsSoundServices;
+    settings: SettingsServices & SettingsSoundServices & SettingsDiagnosticsServices;
     history: AttemptServices;
+    match: MatchServices;
   };
   dispose(): void;
 }
@@ -110,8 +129,10 @@ export function composeApp(rt: AppRuntime): ComposedApp {
   const profile: Value<PlayerProfile | undefined> = createValue(rt.profile);
   const dismissed = createValue<readonly HomeBanner['kind'][]>([]);
   const storageLost = createValue(rt.storageLost);
-  const hasCalibration = createValue(false);
-  const today = createValue<TodayStats>({ takes: 0, ranked: 0, xp: 0 });
+  const calibrations = createValue<readonly Calibration[]>([]);
+  const calFailure = createValue<CalFailure | null>(null);
+  const today = createValue<TodayStats>({ takes: 0, ranked: 0, xp: 0, tries: 0 });
+  const lastTry = createValue<LastTry | null>(null);
   const sessionAttempts: AttemptRecord[] = [];
 
   // Every "Hear it" sound reads the player's settings as they are now (Settings can change them between takes).
@@ -140,10 +161,24 @@ export function composeApp(rt: AppRuntime): ComposedApp {
       takes: todays.length,
       ranked: todays.filter((a) => a.score?.ranked === true).length,
       xp: todays.reduce((n, a) => n + (a.score?.xp.total ?? 0), 0),
+      tries: countTries(todays),
     });
+    // The newest try that reached bar 1 (newest first by time, whatever order the store answers in).
+    const newest = [...recent].filter(reachedBarOne).sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+    const next: LastTry | null = newest
+      ? { id: newest.id, excerptId: newest.excerptId, title: attemptTitle(newest), grade: newest.score?.grade ?? null, score: newest.score?.score ?? null }
+      : null;
+    if (!jsonEqual(next, lastTry.get())) lastTry.replace(next);
   };
   const refreshCalibrations = async (): Promise<void> => {
-    hasCalibration.set((await repos.calibrations.all()).some((c) => c.method !== 'reported'));
+    calibrations.replace(await repos.calibrations.all());
+    try {
+      const f = await kv.get(KV_CAL_LAST_FAILURE);
+      const next = f && typeof f === 'object' && !Array.isArray(f) ? (f as unknown as CalFailure) : null;
+      if (!jsonEqual(next, calFailure.get())) calFailure.replace(next);
+    } catch {
+      /* the status then reads "not calibrated" */
+    }
     await refreshAvailability();
   };
   // Ranked availability for Practice (05 §4.5, §5.8). Until the first check resolves, a listening player is not
@@ -246,6 +281,7 @@ export function composeApp(rt: AppRuntime): ComposedApp {
     audio: platform.audio,
     capabilities: rt.capabilities,
     configs: cfg,
+    kv,
     rng: rt.rng,
     settings,
     saveSettings: (s) => settings.set(s),
@@ -261,6 +297,9 @@ export function composeApp(rt: AppRuntime): ComposedApp {
   });
   const calibration: CalibrationServices = {
     ...calibrationBase,
+    // A failed run writes `cal:lastFailure`; the status reads it again once a run ends.
+    runLoopback: (o) => calibrationBase.runLoopback(o).finally(() => void refreshCalibrations().catch(() => undefined)),
+    runPlayAlong: (o) => calibrationBase.runPlayAlong(o).finally(() => void refreshCalibrations().catch(() => undefined)),
     // "Hear the click" (designer's note 12): one bar of the chosen sound; the screen hides it while listening.
     hearClick: () => session.previewSound(soundPrefs().sound),
     stopSounds: () => session.stopSounds(),
@@ -284,15 +323,68 @@ export function composeApp(rt: AppRuntime): ComposedApp {
     );
   };
 
+  // ---- calibration status, diagnostics, picker sound, match ------------------------------------------
+  // One status for Practice, the read-through, Results and Settings. The route is not exposed by the session yet, so
+  // the status reads the declared output mode (01-ux §4); it agrees with `rankedAvailability` for that mode.
+  const calibrationStatus: Readable<CalStatus> = derived(
+    [calibrations, calFailure, settings],
+    (): CalStatus =>
+      computeCalStatus({
+        calibrations: calibrations.get(),
+        routeKey: null,
+        outputMode: settings.get().practice.outputMode,
+        lastFailure: calFailure.get(),
+        now: Date.parse(platform.clockWall()),
+        localDay: (ms) => rt.localDayOf(new Date(ms).toISOString()),
+      }),
+    jsonEqual,
+  );
+  const denv = readDiagnosticsEnv(rt.env ?? (import.meta.env as Readonly<Record<string, unknown>>));
+  const diagnostics: DiagnosticsServices = {
+    supportAddress: denv.supportAddress,
+    soundOptInShown: denv.soundOptInShown,
+    exportTry: async (id) => await session.exportAttempt(id),
+    exportLast: async () => await session.exportLastTry(),
+    exportRecent: async () => await session.exportRecentTries(),
+    settings: () => session.diagnosticsSettings(),
+    setSettings: (s) => session.setDiagnosticsSettings(s),
+    download: (name, text) => rt.download(name, text),
+  };
+  // "Play my range": which instrument and note sound comes from the session's sound view.
+  const pickerState: Readable<PickerSoundState> = fromStore(
+    session.sounds,
+    (v): PickerSoundState => ({
+      playing: v.playing === 'range' ? (v.instrumentId ?? null) : null,
+      index: v.playing === 'range' && v.caption?.kind === 'range-note' ? v.caption.index : null,
+      failed: v.failed,
+    }),
+  );
+  const pickerSound: PickerSound = {
+    play: (instrumentId, midis) => session.playRange(instrumentId, midis),
+    stop: () => session.stopSounds(),
+    prepare(instrumentId) {
+      void session.prepareSound(instrumentId).catch(() => undefined);
+    },
+    state: pickerState,
+  };
+  const matchService = new MatchNoteService({
+    audio: platform.audio,
+    cfg,
+    workerFactory: rt.workerFactory,
+    ...(rt.createCaptureChannel ? { createCaptureChannel: rt.createCaptureChannel } : {}),
+    a4Hz: () => settings.get().practice.a4Hz,
+  });
+  const openMatch = (): void => rt.navigate?.('/match');
+
   // ---- home ----------------------------------------------------------------------------------------
   const banners = derived<readonly HomeBanner[]>(
-    [storageLost, settings, hasCalibration, dismissed],
+    [storageLost, settings, dismissed],
     () => {
       const out: HomeBanner[] = [];
       const off = dismissed.get();
       if (storageLost.get() && !off.includes('storage-loss')) out.push({ kind: 'storage-loss' });
+      // The "calibrate" banner is gone (round 2): the calibration status line says it (01-ux §4).
       if (!settings.get().practice.listening && !off.includes('mic-off')) out.push({ kind: 'mic-off' });
-      else if (!hasCalibration.get() && !rt.testClock && !off.includes('calibrate')) out.push({ kind: 'calibrate', seconds: calibrationBase.plan(settings.get().practice.outputMode).seconds });
       return out;
     },
     jsonEqual,
@@ -329,6 +421,10 @@ export function composeApp(rt: AppRuntime): ComposedApp {
     stopSounds,
     sounds,
     rankedAvailability,
+    calibrationStatus,
+    lastTry,
+    pickerSound,
+    openMatch,
     turnOnMic() {
       // Inside the click: the permission request must start in the gesture (05 W1).
       const p = requestMic();
@@ -353,6 +449,7 @@ export function composeApp(rt: AppRuntime): ComposedApp {
     micBrowser: rt.micBrowser,
     requestMic,
     calibration,
+    openMatch,
     playNote,
     stopSounds,
     async finish(r: OnboardingResult) {
@@ -407,6 +504,7 @@ export function composeApp(rt: AppRuntime): ComposedApp {
     listenFirst: () => session.listenFirst(),
     hearKey: () => session.hearKey(),
     hearStartingPitch: () => session.playVoiceReference(),
+    calibrationStatus,
     stopSounds,
     sounds,
   };
@@ -419,6 +517,13 @@ export function composeApp(rt: AppRuntime): ComposedApp {
     settings,
     // 02 section 6.1 item 8: the every-10-attempts session summary opens from Next on results.
     sessionAttempts: () => sessionAttempts,
+    triesAtPiece: async (excerptId) => {
+      const rows = await repos.attempts.list({ excerptId });
+      // A summary does not say why a try was void, so only the voids are read in full.
+      const facts = await Promise.all(rows.map(async (r) => (r.endReason === 'void' ? ((await repos.attempts.byId(r.id)) ?? r) : r)));
+      return countTries(facts);
+    },
+    diagnostics,
     onFinish() {
       rt.keepAwake.leavePractice();
     },
@@ -471,6 +576,9 @@ export function composeApp(rt: AppRuntime): ComposedApp {
     localDay: () => platform.localDay(),
     profile,
     loadAttributions,
+    list: (q) => repos.attempts.list(q),
+    playHeard: (id) => session.playHeard(id),
+    diagnostics,
     preparedFor: async (record) => {
       const p = await session.preparedForRecord(record);
       preparedCache.set(record.id, p);
@@ -491,7 +599,7 @@ export function composeApp(rt: AppRuntime): ComposedApp {
   };
 
   // ---- settings (lazy: export and import validation stay out of the initial chunk) -------------------
-  const settingsServices: SettingsServices & SettingsSoundServices = {
+  const settingsServices: SettingsServices & SettingsSoundServices & SettingsDiagnosticsServices = {
     configs: cfg,
     repos,
     kv,
@@ -521,6 +629,8 @@ export function composeApp(rt: AppRuntime): ComposedApp {
       changeProfile((p) => startPlacement(p, s.practice.instrumentId, cfg).profile);
     },
     ...(rt.rightsContact ? { rightsContact: rt.rightsContact } : {}),
+    diagnostics,
+    calibrationStatus,
     previewSound: (sound) => session.previewSound(sound),
     playClick: (sound) => session.playClick(sound),
     stopSounds,
@@ -538,6 +648,18 @@ export function composeApp(rt: AppRuntime): ComposedApp {
   // `import.meta.env.DEV` is a build-time constant, so a production build drops the replay chunk altogether.
   const LazyReplay = import.meta.env.DEV ? lazy(() => import('../dev/replay/index.ts').then((m) => ({ default: m.DevReplayScreen }))) : null;
   const DevReplayRoute: ScreenComponent = () => (LazyReplay ? createElement(Suspense, { fallback: null }, createElement(LazyReplay)) : null);
+
+  const matchServices: MatchServices = {
+    service: matchService,
+    get instrument() {
+      const inst = cfg.instrumentById[settings.get().practice.instrumentId] ?? cfg.instruments.instruments[0];
+      if (!inst) throw new Error('no instruments configured');
+      return inst;
+    },
+    cfg,
+    micAllowed: () => platform.audio.permissionState().then((p) => p === 'granted'),
+    requestMic,
+  };
 
   // ---- route table ---------------------------------------------------------------------------------
   const withProvider = <S>(Provider: ComponentType<{ value: S; children?: ReactNode }>, value: S, Screen: ScreenComponent): ScreenComponent =>
@@ -566,7 +688,7 @@ export function composeApp(rt: AppRuntime): ComposedApp {
     table: createRouteTable(overrides),
     settings,
     session,
-    services: { home, onboarding, flow, results, tips, calibration, settings: settingsServices, history },
+    services: { home, onboarding, flow, results, tips, calibration, settings: settingsServices, history, match: matchServices },
     initialPath(current) {
       if (!settings.get().onboardingDone) return current === '/welcome' ? null : '/welcome';
       // A reload lands outside a take: the practice routes need a prepared excerpt.
@@ -575,6 +697,7 @@ export function composeApp(rt: AppRuntime): ComposedApp {
     },
     dispose() {
       unsubs.forEach((u) => u());
+      matchService.stop();
       session.dispose();
     },
   };

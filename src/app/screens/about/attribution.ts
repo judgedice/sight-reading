@@ -31,6 +31,26 @@ export function licenceLabel(licence: Licence): string {
   return text(`licence.${licence}` as AboutTextKey);
 }
 
+/** A licence file path in the sounds credit (`LICENSES/CC0-1.0.txt`), captured so it can be split out as a link. */
+const LICENCE_FILE = /(LICENSES\/[A-Za-z0-9.-]+\.txt)/;
+
+export interface CreditPart {
+  text: string;
+  /** Set for a licence file path: the link target, relative to the app's index page. */
+  href: string | null;
+}
+
+/**
+ * Splits a credit sentence at its licence file paths, so each path becomes a link to the file in the built app. The
+ * words come from the copy catalogue unchanged; only the paths are turned into links.
+ */
+export function licenceFileParts(sentence: string): CreditPart[] {
+  return sentence
+    .split(LICENCE_FILE)
+    .map((part, i): CreditPart => ({ text: part, href: i % 2 === 1 ? `./${part}` : null }))
+    .filter((p) => p.text !== '');
+}
+
 /**
  * The modifications the adapted line names: always "excerpted" (every take is an excerpt), the item's recorded
  * changes when attribution is on the device, and "transposed" when the written key differs from concert pitch.

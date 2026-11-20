@@ -7,6 +7,7 @@ import type { StoreApi } from 'zustand/vanilla';
 import type { AppSettings, AttemptRecord, Configs, PlayerProfile, ProgressEvent } from '../../../core/types.ts';
 import type { ListenOptions, SessionView, SoundView } from '../../../session/index.ts';
 import type { Readable, Writable } from '../home/services.ts';
+import type { DiagnosticsServices } from '../states/services.ts';
 import type { ReviewExtras } from './review/SessionReview.tsx';
 
 export interface ResultsActions {
@@ -58,6 +59,9 @@ export interface ResultsServices {
   listen?(o: ListenOptions): Promise<void>;
   /** "Hear bar n" or "Hear bars n to m": one bar of clicks, then the bars twice. */
   hearBar?(from: number, to?: number, o?: { slower?: boolean }): Promise<void>;
+  /** Tries stored for a piece, those that reached bar 1: "2 tries at this piece · See all tries". */
+  triesAtPiece?(excerptId: string): Promise<number>;
+  diagnostics?: DiagnosticsServices;
   /** Stops any sound at once (Stop, leaving the screen). */
   stopSounds?(): void;
   /** What is sounding: "Playing bar n of m" and the bar highlight. */

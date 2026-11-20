@@ -11,7 +11,8 @@ import { finalDetected, liveSubject, runFollowStream } from '../../../testkit/pr
 import { SLICE, sliceConfigs, sliceDspConfig, sliceFollowConfig, sliceGrade, sliceTake, type SliceTake } from '../../../app/compose/slice-take.ts';
 import { SLICE_EXTRA, SLICE_LATE_IDX, SLICE_OMIT_IDX, SLICE_WRONG_IDX, renderSlice } from '../../../../e2e/slice/slice-performance.ts';
 import { decideRecheck, withRecheckSpec } from '../../../calibration/index.ts';
-import { DspWorkerCore, copyBlock } from './dsp-worker-core.ts';
+import { DspWorkerCore, PitchModeTracker, copyBlock } from './dsp-worker-core.ts';
+import type { PitchModeConfig, PitchModeFrame } from '../../../core/platform.ts';
 
 const cfg = sliceConfigs();
 const RATE = 48000;
@@ -321,4 +322,112 @@ describe('count-in recheck in the worker (01 §7.7, R31, R55)', () => {
     expect(h.replies.some((r) => r.type === 'recheck')).toBe(false);
     expect(h.replies.some((r) => r.type === 'done')).toBe(true);
   }, 30_000);
+});
+
+// ---- pitch mode (Match a note, round 2, R2-07) ----------------------------------------------------------------------
+
+function pitchCfg(o: Partial<PitchModeConfig> = {}): PitchModeConfig {
+  return {
+    analysisRate: 16000, windowSamples: 1024, hopSamples: 128, minHz: 87.31, maxHz: 440, a4Hz: 440, clarityThreshold: 0.8,
+    fromT: 0 as ClockSeconds, stepSec: 0.02, smoothSec: 0.04, steadyMs: 150, steadySpreadCents: 120, gateDb: -65, ...o,
+  };
+}
+
+/** Analysis-rate blocks of 85 samples of `fn(t)` from input time `t0` for `durSec`. */
+function signalBlocks(rate: number, t0: number, durSec: number, fn: (t: number) => number): CaptureBlock[] {
+  const out: CaptureBlock[] = [];
+  const n = 85;
+  const total = Math.round(durSec * rate);
+  for (let k = 0, seq = 0; k < total; k += n, seq++) {
+    const lowband = new Float32Array(Math.min(n, total - k));
+    for (let i = 0; i < lowband.length; i++) lowband[i] = fn((k + i) / rate);
+    out.push({ v: 1, startT: (t0 + k / rate) as ClockSeconds, lowband, hiEnergy: new Float32Array(5), analysisRate: rate, seq });
+  }
+  return out;
+}
+
+const hzAt = (midi: number, cents: number): number => 440 * 2 ** ((midi - 69 + cents / 100) / 12);
+const sine = (hz: number, onset: number, amp = 0.1) => (t: number): number => (t < onset ? 0 : amp * Math.sin(2 * Math.PI * hz * (t - onset)));
+const framesOf = (replies: readonly WorkerReply[]): PitchModeFrame[] => replies.flatMap((r) => (r.type === 'pitch-frames' ? r.frames : []));
+
+describe('DspWorkerCore pitch mode', () => {
+  it('posts frames about every 20 ms, no ready, events or done, and returns port buffers', () => {
+    const h = harness();
+    h.core.onMessage({ v: 1, type: 'pitch', cfg: pitchCfg() });
+    for (const b of signalBlocks(16000, 5, 1, sine(hzAt(52, 6), 0.2))) h.port.postMessage({ v: 1, type: 'block', block: b });
+    const types = new Set(h.replies.map((r) => r.type));
+    expect([...types]).toEqual(['pitch-frames']);
+    const frames = framesOf(h.replies);
+    const span = (frames[frames.length - 1]!.t as number) - (frames[0]!.t as number);
+    expect((frames.length - 1) / span).toBeGreaterThan(48);
+    expect((frames.length - 1) / span).toBeLessThan(52);
+    expect(h.returns.length).toBeGreaterThan(150);
+  });
+
+  it('E3 +6 cents reads E3 within 3 cents and is steady 150 ms after the onset, at 16 and 14.7 kHz', () => {
+    for (const rate of [16000, 14700]) {
+      const h = harness();
+      h.core.onMessage({ v: 1, type: 'pitch', cfg: pitchCfg({ analysisRate: rate }) });
+      for (const b of signalBlocks(rate, 0, 1.2, sine(hzAt(52, 6), 0.3))) h.core.onMessage({ v: 1, type: 'block', block: b });
+      const frames = framesOf(h.replies);
+      expect(frames.filter((f) => (f.t as number) < 0.3 + 0.1 && f.steady)).toEqual([]);
+      const held = frames.filter((f) => (f.t as number) >= 0.3 + 0.15 + 1024 / rate);
+      expect(held.length).toBeGreaterThan(30);
+      for (const f of held) {
+        expect(f.midi).toBe(52);
+        expect(Math.abs(f.cents! - 6)).toBeLessThanOrEqual(3);
+        expect(f.steady).toBe(true);
+      }
+    }
+  });
+
+  it('posts nothing stamped before fromT, but analyses the blocks before it', () => {
+    const h = harness();
+    h.core.onMessage({ v: 1, type: 'pitch', cfg: pitchCfg({ fromT: 0.6 as ClockSeconds }) });
+    for (const b of signalBlocks(16000, 0, 1, sine(hzAt(52, 0), 0))) h.core.onMessage({ v: 1, type: 'block', block: b });
+    const frames = framesOf(h.replies);
+    expect(frames.length).toBeGreaterThan(15);
+    expect(Math.min(...frames.map((f) => f.t as number))).toBeGreaterThanOrEqual(0.6);
+    // The note started before fromT: it is already steady at the first posted frame.
+    expect(frames[0]!.steady).toBe(true);
+  });
+
+  it('silence and quiet input are unvoiced; a slide is never steady', () => {
+    const quiet = new PitchModeTracker(pitchCfg());
+    const qf = signalBlocks(16000, 0, 0.5, sine(220, 0, 10 ** (-80 / 20))).flatMap((b) => quiet.push(b));
+    expect(qf.every((f) => f.midi === null && f.cents === null && !f.steady)).toBe(true);
+    const slide = new PitchModeTracker(pitchCfg());
+    // 2 semitones per 100 ms: 300 cents over any 150 ms.
+    let phase = 0;
+    const fn = (t: number): number => {
+      phase += (2 * Math.PI * 110 * 2 ** ((t * 20) / 12)) / 16000;
+      return 0.1 * Math.sin(phase);
+    };
+    const sf = signalBlocks(16000, 0, 0.5, fn).flatMap((b) => slide.push(b));
+    expect(sf.some((f) => f.midi !== null)).toBe(true);
+    expect(sf.some((f) => f.steady)).toBe(false);
+  });
+
+  it('queues blocks that come before pitch, refuses config after it, and end stops the analysis', () => {
+    const h = harness();
+    const blocks = signalBlocks(16000, 0, 0.6, sine(hzAt(52, 0), 0));
+    for (const b of blocks.slice(0, 20)) h.port.postMessage({ v: 1, type: 'block', block: b });
+    expect(h.replies).toEqual([]);
+    h.core.onMessage({ v: 1, type: 'pitch', cfg: pitchCfg() });
+    expect(framesOf(h.replies).length).toBeGreaterThan(0);
+    h.core.onMessage(configFor(sliceTake(cfg), 16000, 1));
+    expect(h.replies.some((r) => r.type === 'error')).toBe(true);
+    h.core.onMessage({ v: 1, type: 'end', t: 0.3 as ClockSeconds, reason: { reason: 'stopped' } });
+    const n = h.replies.length;
+    for (const b of blocks.slice(20)) h.port.postMessage({ v: 1, type: 'block', block: b });
+    expect(h.replies.length).toBe(n);
+    expect(h.replies.some((r) => r.type === 'done' || r.type === 'ready')).toBe(false);
+  });
+
+  it('refuses pitch mode after a take config', () => {
+    const h = harness();
+    h.core.onMessage(configFor(sliceTake(cfg), 16000, 1));
+    h.core.onMessage({ v: 1, type: 'pitch', cfg: pitchCfg() });
+    expect(h.replies.map((r) => r.type)).toEqual(['ready', 'error']);
+  });
 });

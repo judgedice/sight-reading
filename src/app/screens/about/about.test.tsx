@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { ReactElement } from 'react';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -12,7 +12,7 @@ import { RouterProvider, useRoute, type LocationSource } from '../../router.tsx'
 import { createRouteTable } from '../../routes.tsx';
 import { createCreditsScreen, type CreditsServices } from './index.ts';
 import { SourceSheet } from './SourceSheet.tsx';
-import { adaptedChanges, adaptedLine, findItem, licenceLabel, sourceSheetModel, workTitle } from './attribution.ts';
+import { adaptedChanges, adaptedLine, findItem, licenceFileParts, licenceLabel, sourceSheetModel, workTitle } from './attribution.ts';
 import { text } from './text.ts';
 import { keyName } from '../setup/key-names.ts';
 import { creditsScreenOverrides } from './index.ts';
@@ -157,6 +157,44 @@ describe('CreditsScreen', () => {
     const el = document.querySelector('[data-testid="screen-credits"]')!;
     expect(el.querySelector('a[href^="mailto:"]')).toBeNull();
     expect(el.textContent).toContain(text('source.unavailable'));
+  });
+
+  it('credits the sound sources and links the three licence files, even when attribution cannot load', async () => {
+    renderCredits({ configs: cfg, loadAttributions: () => Promise.reject(new Error('offline')) });
+    await flush();
+    const el = document.querySelector('[data-testid="screen-credits"]')!;
+    const sounds = [...el.querySelectorAll('.cred-card')].find((c) => c.querySelector('h2')?.textContent === copy('credits.sounds.title'));
+    expect(sounds).toBeDefined();
+    const s = sounds!.textContent ?? '';
+    expect(s).toContain('VS Chamber Orchestra 2 Community Edition');
+    expect(s).toContain('Versilian Studios');
+    expect(s).toContain('Frank Wen');
+    expect(s).toContain('Benjamin Gleitzman');
+    expect(s).toContain('Salamander Grand Piano V3 by Alexander Holm');
+    expect(s).toContain(copy('credits.sounds.voices'));
+    const hrefs = [...sounds!.querySelectorAll('a')].map((a) => a.getAttribute('href'));
+    expect(hrefs).toEqual(['./LICENSES/CC0-1.0.txt', './LICENSES/MIT-FluidR3.txt', './LICENSES/CC-BY-3.0.txt']);
+    for (const href of hrefs) {
+      expect(existsSync(join(process.cwd(), href!.slice(2)))).toBe(true);
+    }
+  });
+});
+
+describe('licenceFileParts', () => {
+  it('splits the licence paths out as links and keeps every other word as text', () => {
+    const parts = licenceFileParts('Licence texts: LICENSES/CC0-1.0.txt, LICENSES/CC-BY-3.0.txt.');
+    expect(parts).toEqual([
+      { text: 'Licence texts: ', href: null },
+      { text: 'LICENSES/CC0-1.0.txt', href: './LICENSES/CC0-1.0.txt' },
+      { text: ', ', href: null },
+      { text: 'LICENSES/CC-BY-3.0.txt', href: './LICENSES/CC-BY-3.0.txt' },
+      { text: '.', href: null },
+    ]);
+    expect(parts.map((p) => p.text).join('')).toBe('Licence texts: LICENSES/CC0-1.0.txt, LICENSES/CC-BY-3.0.txt.');
+  });
+
+  it('returns the sentence whole when it has no licence path', () => {
+    expect(licenceFileParts('Voices: synthesised for this app.')).toEqual([{ text: 'Voices: synthesised for this app.', href: null }]);
   });
 });
 

@@ -9,6 +9,7 @@ import type { AppSettings, AttemptRecord, AudioRouteInfo, Configs, Emitter, Prep
 import type { SessionView, SoundView } from '../../../session/index.ts';
 import type { FrameNotation } from '../../../ui/score-frame/index.ts';
 import type { Readable } from '../home/services.ts';
+import type { CalStatus } from '../../compose/calibration-status.ts';
 
 /** The part of `PracticeSession` the screens call. A structural subset, so the real session fits and tests can fake it. */
 export interface PracticeSessionPort {
@@ -62,6 +63,8 @@ export interface PracticeFlowServices {
   sounds?: StoreApi<SoundView>;
   /** iOS only: true once the wake lock request failed, which shows the Auto-Lock hint. */
   wakeLockFailed?: Readable<boolean>;
+  /** The shared calibration status (round 2, 01-ux §4): the read-through's line and the Calibrate action. */
+  calibrationStatus?: Readable<CalStatus>;
   /** Input meter gate, dBFS (the no-signal gate). */
   inputGateDb?: number;
   reducedMotion?: () => boolean;

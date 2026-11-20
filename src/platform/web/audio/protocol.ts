@@ -22,6 +22,12 @@ export const FRAMES_PER_BLOCK = 256;
 /** Worker -> worklet on the capture port: give the block's buffers back to the pool (defined in core/platform.ts). */
 export type { CaptureReturn } from '../../../core/platform.ts';
 
+/**
+ * The DSP worker's pitch mode (Match a note, round 2): main -> worker `WorkerMessage` 'pitch' with a `PitchModeConfig`
+ * (sent with the capture port, like 'config'), worker -> main `WorkerReply` 'pitch-frames'. Defined in core/platform.ts.
+ */
+export type { PitchModeConfig, PitchModeFrame } from '../../../core/platform.ts';
+
 /** Main -> worklet, on `node.port`. */
 export type ToWorklet =
   | {

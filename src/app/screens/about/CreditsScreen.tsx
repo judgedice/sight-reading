@@ -5,7 +5,7 @@ import { copy } from '../../../ui/copy/copy.ts';
 import { Card } from '../../../ui/components/containers/index.ts';
 import { Link } from '../../router.tsx';
 import type { ScreenProps } from '../../route-types.ts';
-import { licenceLabel } from './attribution.ts';
+import { licenceFileParts, licenceLabel } from './attribution.ts';
 import type { CreditsServices } from './services.ts';
 import { text } from './text.ts';
 import './about.css';
@@ -85,6 +85,25 @@ export function CreditsScreen({ services }: { services: CreditsServices } & Scre
           </Card>
         </>
       ) : null}
+
+      <Card className="cred-card">
+        <h2 className="cred-heading">{copy('credits.sounds.title')}</h2>
+        <p>{copy('credits.sounds.winds')}</p>
+        <p>{copy('credits.sounds.strings')}</p>
+        <p>{copy('credits.sounds.piano')}</p>
+        <p>{copy('credits.sounds.voices')}</p>
+        <p className="cred-muted">
+          {licenceFileParts(copy('credits.sounds.licences')).map((part, i) =>
+            part.href ? (
+              <a key={i} href={part.href} target="_blank" rel="noopener noreferrer">
+                {part.text}
+              </a>
+            ) : (
+              <span key={i}>{part.text}</span>
+            ),
+          )}
+        </p>
+      </Card>
 
       <p className="cred-links">
         <Link to="/settings/about">{text('credits.back')}</Link>

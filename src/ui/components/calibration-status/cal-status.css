@@ -1,0 +1,163 @@
+/*
+ * Calibration status: the header pill, the line and the phone card row, and the popover body (04-design section 2).
+ * Only data-state='changed' takes the caution tone. Tokens only: no raw colours, no px.
+ */
+
+.cs-pill,
+.cs-row {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--target-min);
+  max-width: 100%;
+  margin: 0;
+  border: 0.0625rem solid var(--border);
+  background: var(--surface);
+  color: var(--text-muted);
+  font-family: var(--type-label-family);
+  font-size: var(--type-label-size);
+  line-height: var(--type-label-line);
+  font-weight: var(--type-body-weight);
+  cursor: pointer;
+}
+
+.cs-pill {
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-full);
+}
+
+.cs-row {
+  display: flex;
+  width: 100%;
+  min-height: 3rem;
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-l);
+  text-align: start;
+}
+
+.cs-pill:hover,
+.cs-row:hover {
+  background: var(--surface-2);
+}
+
+.cs-pill[aria-expanded='true'] {
+  border-color: var(--ink);
+  border-width: 0.125rem;
+  color: var(--text);
+}
+
+.cs-pill:focus-visible,
+.cs-row:focus-visible,
+.cs-link:focus-visible {
+  outline: 0.125rem solid var(--focus-ring);
+  outline-offset: 0.125rem;
+}
+
+.cs-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cs-row .cs-text {
+  flex: 1 1 auto;
+}
+
+.cs-glyph,
+.cs-chevron {
+  flex: none;
+}
+
+.cs-row-action {
+  flex: none;
+  color: var(--text);
+  font-weight: var(--type-label-weight);
+}
+
+.cs-pill[data-state='ok'] .cs-glyph,
+.cs-row[data-state='ok'] .cs-glyph {
+  color: var(--correct);
+}
+
+/* The only coloured state. */
+.cs-pill[data-state='changed'],
+.cs-row[data-state='changed'],
+.cs-line[data-state='changed'] {
+  color: var(--caution);
+}
+
+.cs-pill[data-state='changed'] {
+  border-color: color-mix(in srgb, var(--caution) 55%, transparent);
+  background: color-mix(in srgb, var(--caution) 10%, var(--surface));
+}
+
+.cs-pill[data-state='changed'][aria-expanded='true'] {
+  border-color: var(--ink);
+}
+
+/* ---- Line -------------------------------------------------------------------------- */
+
+.cs-line {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--type-small-size);
+  line-height: var(--type-small-line);
+}
+
+.cs-line[data-state='ok'] .cs-glyph {
+  color: var(--correct);
+}
+
+.cs-line-text {
+  min-width: 0;
+}
+
+.cs-link {
+  box-sizing: border-box;
+  min-height: var(--target-min);
+  margin: 0 0 0 auto;
+  padding: 0 var(--space-1);
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-weight: var(--type-label-weight);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+  cursor: pointer;
+}
+
+.cs-line[data-state='changed'] .cs-link {
+  margin-inline-start: 0;
+}
+
+/* ---- Popover body ------------------------------------------------------------------ */
+
+.cs-pop {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.cs-pop p {
+  margin: 0;
+}
+
+.cs-pop-detail {
+  color: var(--text);
+}
+
+.cs-pop-note {
+  color: var(--text-muted);
+  font-size: var(--type-small-size);
+}
+
+.cs-pop-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}

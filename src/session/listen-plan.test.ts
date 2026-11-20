@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import type { PreparedEvent, PreparedExcerpt, PreparedMeasure, SpelledPitch, Step } from '../core/types.ts';
 import { configs } from '../../fixtures/follow/gen/io.ts';
 import { midiToFreq } from '../theory/index.ts';
-import { LISTEN, barAt, keyChordTones, listenSourceOf, planBars, planClickBar, planListen } from './listen-plan.ts';
+import { LISTEN, RANGE, barAt, keyChordTones, listenSourceOf, planBars, planClickBar, planListen, planRange } from './listen-plan.ts';
 
 const cfg = configs();
 const Q = 480;
@@ -234,5 +234,26 @@ describe('planClickBar and keyChordTones', () => {
 
   it('peak is about −12 dBFS', () => {
     expect(20 * Math.log10(LISTEN.peak)).toBeCloseTo(-12, 6);
+  });
+});
+
+describe('planRange ("Play my range", round 2)', () => {
+  it('the notes in the order given, 0.8 s each with 0.15 s between, at the tuning pitch', () => {
+    expect(RANGE).toEqual({ noteSec: 0.8, gapSec: 0.15 });
+    const r = planRange([40, 45, 57, 64], 442);
+    expect(r.notes.map((n) => [n.index, n.midi, n.atSec, n.durSec])).toEqual([
+      [0, 40, 0, 0.8],
+      [1, 45, expect.closeTo(0.95, 9), 0.8],
+      [2, 57, expect.closeTo(1.9, 9), 0.8],
+      [3, 64, expect.closeTo(2.85, 9), 0.8],
+    ]);
+    expect(r.notes[3]!.hz).toBeCloseTo(midiToFreq(64, 442), 9);
+    expect(r.endSec).toBeCloseTo(3.65, 9);
+  });
+  it('other timings, no notes, and bad timings', () => {
+    expect(planRange([60, 62], 440, { noteSec: 1.5, gapSec: 0 }).notes.map((n) => n.atSec)).toEqual([0, 1.5]);
+    expect(planRange([], 440)).toEqual({ notes: [], endSec: 0 });
+    expect(() => planRange([60], 440, { noteSec: 0 })).toThrow(RangeError);
+    expect(() => planRange([60], 440, { gapSec: -1 })).toThrow(RangeError);
   });
 });

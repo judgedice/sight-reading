@@ -33,6 +33,7 @@ import type {
   PlayerProfile,
   RecheckResult,
   AudioRouteInfo,
+  WindowSamples,
 } from './types.ts';
 
 export type {
@@ -96,7 +97,50 @@ export type WorkerMessage =
   | { v: 1; type: 'block'; block: CaptureBlock }
   | { v: 1; type: 'clicks'; clicks: ClickSpec[] }
   /** Ends the take at input time t. `reason` added in P0b so the worker can call `LiveFollower.end`. */
-  | { v: 1; type: 'end'; t: ClockSeconds; reason: EndReason };
+  | { v: 1; type: 'end'; t: ClockSeconds; reason: EndReason }
+  /**
+   * Match a note (round 2, R2-07): instead of 'config', puts the worker in pitch mode. No pipeline and no follower run;
+   * the worker posts 'pitch-frames' replies and never 'ready', 'events' or 'done'. Sent with the capture port like
+   * 'config'. 'end' stops the analysis; the session terminates the worker.
+   */
+  | { v: 1; type: 'pitch'; cfg: PitchModeConfig };
+
+/** The worker's pitch mode (Match a note, round 2): the existing `PitchAnalyzer` and nothing else. */
+export interface PitchModeConfig {
+  /** Decimated rate, Hz (exact, for example 16000 or 14700). */
+  analysisRate: number;
+  windowSamples: WindowSamples;
+  hopSamples: 128;
+  /** Search range, Hz (the instrument's sounding range; the worker widens it as the pipeline does). */
+  minHz: number;
+  maxHz: number;
+  a4Hz: number;
+  clarityThreshold: number;
+  /** Input time before which nothing is posted: the target's release plus the listen delay. */
+  fromT: ClockSeconds;
+  /** Spacing of posted frames, seconds (0.02: about 50 Hz). */
+  stepSec: number;
+  /** The reported pitch is the mean of the voiced frames this far back, seconds. */
+  smoothSec: number;
+  /** A pitch held this long, ms, is steady. */
+  steadyMs: number;
+  /** ... while its frames over that time stay within this spread, cents (max minus min). */
+  steadySpreadCents: number;
+  /** Frames quieter than this, dBFS, are unvoiced. */
+  gateDb: number;
+}
+
+/** One pitch-mode frame (input time, seconds). `MatchNoteService` turns it into a `MatchFrame` in milliseconds. */
+export interface PitchModeFrame {
+  t: ClockSeconds;
+  /** Nearest concert MIDI note, or null when no pitch is heard. */
+  midi: number | null;
+  /** Deviation from `midi`, cents (-50 to 50), or null. */
+  cents: number | null;
+  /** Window level, dBFS. */
+  levelDb: number;
+  steady: boolean;
+}
 
 /**
  * DSP worker → capture worklet, on the capture port (P11; moved to core by the wave 2 review so dsp/ and the worker
@@ -134,6 +178,8 @@ export type WorkerReply =
       /** The try's diagnostics trace (round 2 detection, src/session/diagnostics.ts). */
       trace?: WorkerTrace;
     }
+  /** Pitch mode (Match a note): the frames of one capture block, about 50 per second. */
+  | { v: 1; type: 'pitch-frames'; frames: PitchModeFrame[] }
   | { v: 1; type: 'error'; message: string };
 
 /**
@@ -254,6 +300,11 @@ export interface AudioBackend {
   close(): Promise<void>;
   /** True when the main-thread relay is in use (AudioEnv.captureRelay). P0b addition. */
   readonly captureRelay: boolean;
+  /**
+   * Stops the microphone track and its capture graph; output and the context stay (round 2, Match a note: leaving the
+   * screen releases the microphone). The next `unlock` opens the microphone again. Optional until every backend has it.
+   */
+  releaseInput?(): void;
   /** Settings of the last unlock, for AudioEnv (05 §5.2). P0b addition. */
   audioInfo(): { contextSampleRate: number; contextRecreated: boolean; audioSessionType: string | null; clockRateError: number | null };
 }

@@ -26,10 +26,14 @@
  *   `WorkerReply` 'recheck' as soon as the count-in has been recorded, or at the end of the take (before 'done') if
  *   the take ended first. The session applies `decideRecheck` to it.
  * - 'done'.voiceReference comes from the final alignment's drift replay (`alignFinalWithReference`; 02 §4.5, E23).
+ * - Pitch mode (Match a note, round 2): 'pitch' instead of 'config'. Only the `PitchAnalyzer` runs (no pipeline, no
+ *   follower); each analysed block posts one 'pitch-frames' reply with the frames that fell due (about 50 Hz), none
+ *   before `PitchModeConfig.fromT`. 'end' stops the analysis. No 'ready', 'events' or 'done'.
  */
-import type { CaptureBlock, CaptureReturn, ClickSpec, WorkerMessage, WorkerReply, WorkerTrace } from '../../../core/platform.ts';
+import type { CaptureBlock, CaptureReturn, ClickSpec, PitchModeConfig, PitchModeFrame, WorkerMessage, WorkerReply, WorkerTrace } from '../../../core/platform.ts';
 import type { ClockSeconds, DetectedNote, DspConfig, DspEvent, DspStats, EndReason, FinalAlignment, FollowConfig, FollowerEvent, LiveJudgment } from '../../../core/types.ts';
 import { DspPipeline } from '../../../dsp/pipeline.ts';
+import { PitchAnalyzer, widenRange } from '../../../dsp/pitch.ts';
 // The worker is a composition point of its own (01 §2: live matcher and final alignment run in the DSP worker), so it
 // reaches follow/ although platform/web otherwise may not (needs an eslint composition-root entry, see the S1 report).
 import { LiveFollower, alignFinalWithReference, liveOutcomeOf, playerNotes } from '../../../follow/index.ts';
@@ -80,6 +84,91 @@ export function copyBlock(b: CaptureBlock): CaptureBlock {
   return { v: 1, startT: b.startT, lowband: b.lowband.slice(), hiEnergy: b.hiEnergy.slice(), analysisRate: b.analysisRate, seq: b.seq };
 }
 
+/**
+ * Match a note's pitch mode: the `PitchAnalyzer` frames (hop 128, about 8 ms) turned into one `PitchModeFrame` per
+ * `stepSec`. The pitch is the mean of the voiced frames of the last `smoothSec`; it is steady once frames have been
+ * voiced without a break for `steadyMs` and stayed within `steadySpreadCents` over that time. Frames before `fromT`
+ * are analysed (the octave hysteresis and the run need them) but never posted.
+ */
+export class PitchModeTracker {
+  readonly cfg: PitchModeConfig;
+  private readonly analyzer: PitchAnalyzer;
+  /** Voiced frames of the current run: time and fractional MIDI, oldest first. */
+  private run: { t: number; midi: number }[] = [];
+  private runStart: number | null = null;
+  /** Time the next frame is due; frames are posted on a `stepSec` grid, so the mean rate is 1 / stepSec. */
+  private nextDue = -Infinity;
+
+  constructor(cfg: PitchModeConfig) {
+    this.cfg = cfg;
+    const { minHz, maxHz } = widenRange(cfg.minHz, cfg.maxHz);
+    this.analyzer = new PitchAnalyzer({
+      analysisRate: cfg.analysisRate,
+      windowSamples: cfg.windowSamples,
+      minHz,
+      maxHz,
+      a4Hz: cfg.a4Hz,
+      clarityThreshold: cfg.clarityThreshold,
+      hopSamples: cfg.hopSamples,
+    });
+  }
+
+  /** Analyses one block and returns the frames that fell due. */
+  push(b: CaptureBlock): PitchModeFrame[] {
+    if (b.analysisRate !== this.cfg.analysisRate) {
+      throw new RangeError(`pitch mode: block analysisRate ${b.analysisRate} differs from ${this.cfg.analysisRate}`);
+    }
+    const out: PitchModeFrame[] = [];
+    for (const e of this.analyzer.push(b.lowband, b.startT)) {
+      const t = e.t as number;
+      const voiced = e.midi !== null && Number.isFinite(e.midi) && e.rmsDb >= this.cfg.gateDb;
+      if (voiced) {
+        if (this.runStart === null) this.runStart = t;
+        this.run.push({ t, midi: e.midi as number });
+        const keep = t - Math.max(this.cfg.smoothSec, this.cfg.steadyMs / 1000) - 1e-9;
+        let k = 0;
+        while (k < this.run.length && (this.run[k] as { t: number }).t < keep) k++;
+        if (k > 0) this.run.splice(0, k);
+      } else {
+        this.run = [];
+        this.runStart = null;
+        this.analyzer.resetNote();
+      }
+      if (t < (this.cfg.fromT as number) || t < this.nextDue - 1e-6) continue;
+      // On the grid; after a gap (or the first frame) the grid restarts here.
+      this.nextDue = this.nextDue + this.cfg.stepSec < t ? t + this.cfg.stepSec : this.nextDue + this.cfg.stepSec;
+      out.push(this.frameAt(t, e.rmsDb, voiced));
+    }
+    return out;
+  }
+
+  private frameAt(t: number, rmsDb: number, voiced: boolean): PitchModeFrame {
+    const levelDb = Math.round((Number.isFinite(rmsDb) ? rmsDb : -120) * 10) / 10;
+    if (!voiced || this.runStart === null) return { t: t as ClockSeconds, midi: null, cents: null, levelDb, steady: false };
+    let sum = 0;
+    let n = 0;
+    let lo = Infinity;
+    let hi = -Infinity;
+    const steadyFrom = t - this.cfg.steadyMs / 1000 - 1e-9;
+    for (const f of this.run) {
+      if (f.t >= t - this.cfg.smoothSec - 1e-9) {
+        sum += f.midi;
+        n++;
+      }
+      if (f.t >= steadyFrom) {
+        lo = Math.min(lo, f.midi);
+        hi = Math.max(hi, f.midi);
+      }
+    }
+    const mean = sum / n;
+    const midi = Math.round(mean);
+    const cents = Math.round((mean - midi) * 1000) / 10;
+    const held = t - this.runStart >= this.cfg.steadyMs / 1000 - 1e-9;
+    const steady = held && (hi - lo) * 100 <= this.cfg.steadySpreadCents;
+    return { t: t as ClockSeconds, midi, cents, levelDb, steady };
+  }
+}
+
 export class DspWorkerCore {
   private readonly deps: DspWorkerCoreDeps;
   private returnPort: ReturnPort | null = null;
@@ -101,6 +190,8 @@ export class DspWorkerCore {
   private finished = false;
   private recheck: CountInRecheck | null = null;
   private recheckPosted = false;
+  /** Pitch mode (Match a note): set by 'pitch' instead of 'config'. */
+  private pitch: PitchModeTracker | null = null;
   /** Port blocks whose buffers went back to the worklet. */
   returned = 0;
   /** 'clicks' messages that came after analysis had started. */
@@ -143,7 +234,11 @@ export class DspWorkerCore {
     try {
       switch (m.type) {
         case 'config':
+          if (this.pitch) throw new Error('DSP worker: config received in pitch mode');
           this.configure(m.cfg, m.follow);
+          break;
+        case 'pitch':
+          this.configurePitch(m.cfg);
           break;
         case 'block':
           // Relay mode: the block is ours (the backend copied it for us).
@@ -153,6 +248,11 @@ export class DspWorkerCore {
           this.setClicks(m.clicks);
           break;
         case 'end':
+          if (this.pitch) {
+            this.finished = true;
+            this.queue.length = 0;
+            break;
+          }
           this.requestEnd(m.t, m.reason);
           break;
       }
@@ -184,6 +284,19 @@ export class DspWorkerCore {
     this.maybeFinish();
   }
 
+  private configurePitch(cfg: PitchModeConfig): void {
+    if (this.dsp || this.pitch) throw new Error('DSP worker: pitch mode after a config');
+    this.pitch = new PitchModeTracker(cfg);
+    const queued = this.queue.splice(0);
+    for (const q of queued) this.analysePitch(q.block);
+  }
+
+  private analysePitch(b: CaptureBlock): void {
+    const frames = (this.pitch as PitchModeTracker).push(b);
+    this.analysed++;
+    if (frames.length > 0) this.deps.post({ v: 1, type: 'pitch-frames', frames });
+  }
+
   private setClicks(clicks: ClickSpec[]): void {
     if (this.analysed > 0) {
       this.lateClickMessages++;
@@ -207,6 +320,10 @@ export class DspWorkerCore {
 
   private accept(b: CaptureBlock): void {
     if (this.finished) return;
+    if (this.pitch) {
+      this.analysePitch(b);
+      return;
+    }
     if (this.pendingEnd && (b.startT as number) >= (this.pendingEnd.t as number)) {
       this.blocksAfterEnd++;
       this.maybeFinish(true);

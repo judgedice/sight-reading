@@ -60,6 +60,8 @@ export interface TryTrace {
   version: 1;
   attemptId: string;
   createdAt: string;
+  /** Wall time the try started (Start playing), ISO 8601 UTC; absent on traces from before round 2. */
+  startedAt?: string;
   appVersion: string;
   configVersion: string;
   coreVersion: string;
@@ -103,6 +105,8 @@ const r = (x: number, d = 4): number => {
 /** What the session hands over at the end of a try. */
 export interface TraceInput {
   record: AttemptRecord;
+  /** Wall time the try started, ISO 8601 UTC. */
+  startedAt?: string;
   route: AudioRouteInfo;
   used: Calibration | null;
   dsp: DspConfig | null;
@@ -133,6 +137,7 @@ export function buildTryTrace(x: TraceInput): TryTrace {
     version: 1,
     attemptId: rec.id,
     createdAt: rec.createdAt,
+    ...(x.startedAt !== undefined ? { startedAt: x.startedAt } : {}),
     appVersion: rec.appVersion,
     configVersion: rec.configVersion,
     coreVersion: rec.coreVersion,
@@ -253,6 +258,16 @@ export class DiagnosticsStore {
     return v && v.format === TRACE_FORMAT ? v : null;
   }
 
+  /** Every stored trace, oldest first. */
+  async all(): Promise<TryTrace[]> {
+    const out: TryTrace[] = [];
+    for (const id of await this.ids()) {
+      const t = await this.get(id);
+      if (t) out.push(t);
+    }
+    return out;
+  }
+
   async last(): Promise<TryTrace | null> {
     const ids = await this.ids();
     const id = ids[ids.length - 1];
@@ -265,9 +280,27 @@ export function diagnosticsFile(tries: readonly TryTrace[], exportedAt: string):
   return { format: DIAGNOSTICS_FORMAT, version: 1, exportedAt, tries: [...tries] };
 }
 
-/** File name for an export: sightread-diagnostics-<first 8 of the attempt id>.json. */
-export function diagnosticsFileName(t: TryTrace): string {
-  return `sightread-diagnostics-${t.attemptId.slice(0, 8)}.json`;
+/**
+ * `yyyy-mm-dd-hhmm` of a wall time in local time. `tzOffsetMin` is minutes behind UTC as `Date#getTimezoneOffset`
+ * gives it (default: the device's offset at that time).
+ */
+export function localStamp(iso: string, tzOffsetMin?: number): string {
+  const ms = Date.parse(iso);
+  if (!Number.isFinite(ms)) throw new RangeError(`not a time: ${iso}`);
+  const off = tzOffsetMin ?? new Date(ms).getTimezoneOffset();
+  const d = new Date(ms - off * 60_000);
+  const p2 = (n: number): string => String(n).padStart(2, '0');
+  return `${String(d.getUTCFullYear()).padStart(4, '0')}-${p2(d.getUTCMonth() + 1)}-${p2(d.getUTCDate())}-${p2(d.getUTCHours())}${p2(d.getUTCMinutes())}`;
+}
+
+/** File name for one try's export (01-ux.md §15.4): `sightread-try-{yyyy-mm-dd}-{hhmm}.json`, the try's local start time. */
+export function diagnosticsFileName(t: Pick<TryTrace, 'createdAt' | 'startedAt'>, tzOffsetMin?: number): string {
+  return `sightread-try-${localStamp(t.startedAt ?? t.createdAt, tzOffsetMin)}.json`;
+}
+
+/** File name for the recent tries' export: `sightread-tries-{yyyy-mm-dd}-{hhmm}.json`, the local time of the export. */
+export function recentDiagnosticsFileName(exportedAt: string, tzOffsetMin?: number): string {
+  return `sightread-tries-${localStamp(exportedAt, tzOffsetMin)}.json`;
 }
 
 /** Expected notes and tolerances of a traced follow config (for the replay). */

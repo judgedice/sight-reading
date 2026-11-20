@@ -11,7 +11,7 @@ import type { AudioBackend } from '../core/platform.ts';
 import type { KeySig, MetronomeSound, SpelledPitch } from '../core/types.ts';
 
 /** Which control is sounding. */
-export type SoundKind = 'listen' | 'bar' | 'tempo' | 'key' | 'reference' | 'note' | 'preview';
+export type SoundKind = 'listen' | 'bar' | 'tempo' | 'key' | 'reference' | 'note' | 'preview' | 'range' | 'heard';
 
 /** What the live caption says (05 §8.8): the screen turns it into copy. */
 export type SoundCaption =
@@ -25,8 +25,14 @@ export type SoundCaption =
   | { kind: 'key-chord'; writtenKey: KeySig; concertKey: KeySig }
   /** "First note: G3": the excerpt's written first note, and the pitch that sounds. */
   | { kind: 'first-note'; written: SpelledPitch; concertMidi: number }
+  /** The gap of one beat after the starting pitch, before the first count-in click: "Count-in next". */
+  | { kind: 'count-in-next' }
   /** A range-picture note. */
   | { kind: 'note'; midi: number }
+  /** "Play my range" (round 2): the note at `index` (0-based) of the notes asked for is sounding. */
+  | { kind: 'range-note'; index: number; midi: number }
+  /** "Hear what we heard" (round 2): "What we heard, bar {n} of {total}". */
+  | { kind: 'heard-bar'; bar: number; of: number }
   /** A metronome sound preview. */
   | { kind: 'preview'; sound: MetronomeSound };
 
@@ -41,6 +47,8 @@ export interface SoundView {
   slower: boolean;
   /** The stored attempt being played (history), or null for the excerpt on screen. */
   attemptId: string | null;
+  /** The instrument whose range is playing ("Play my range", a range note), or null. */
+  instrumentId?: string | null;
   /** The last sound could not start: "That sound didn't play." for six seconds. */
   failed: boolean;
   /** Backend clock times of the sound playing now. */
@@ -55,6 +63,7 @@ export const idleSoundView = (): SoundView => ({
   fromBar: null,
   slower: false,
   attemptId: null,
+  instrumentId: null,
   failed: false,
   startsAt: null,
   endsAt: null,
@@ -75,6 +84,7 @@ export interface SoundRequest {
   fromBar?: number | null;
   slower?: boolean;
   attemptId?: string | null;
+  instrumentId?: string | null;
   /** Schedules the sound with its origin at the given backend clock time. */
   schedule(origin: number): Promise<void>;
 }
@@ -162,6 +172,7 @@ export class SoundPlayer {
         fromBar: r.fromBar ?? null,
         slower: r.slower ?? false,
         attemptId: r.attemptId ?? null,
+        instrumentId: r.instrumentId ?? null,
         failed: false,
         startsAt: origin,
         endsAt: origin + r.durSec,

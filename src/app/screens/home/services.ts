@@ -4,7 +4,8 @@
  * stable value until something changes.
  */
 import type { StoreApi } from 'zustand/vanilla';
-import type { AppSettings, Configs, PlayerProfile, PracticeSettings } from '../../../core/types.ts';
+import type { AppSettings, Configs, LetterGrade, PlayerProfile, PracticeSettings } from '../../../core/types.ts';
+import type { CalStatus } from '../../compose/calibration-status.ts';
 import type { RankedAvailability, SessionView, SoundView } from '../../../session/index.ts';
 import type { MicBrowser } from '../states/mic.ts';
 
@@ -23,6 +24,30 @@ export interface TodayStats {
   takes: number;
   ranked: number;
   xp: number;
+  /** Tries started today that reached bar 1, graded or not (`compose/tries.ts`). Absent: read `takes`. */
+  tries?: number;
+}
+
+/** The newest try that reached bar 1 ("Last try: B 78, Title · All tries"). `grade` and `score` are null when not graded. */
+export interface LastTry {
+  id: string;
+  excerptId: string;
+  title: string;
+  grade: LetterGrade | null;
+  score: number | null;
+}
+
+export type PickerSoundState = { playing: string | null; index: number | null; failed: boolean };
+
+/** "Play my range" in the picker (round 2, 01-ux §2): notes in order in the instrument's sound. */
+export interface PickerSound {
+  /** Call from the click. Plays the concert MIDI notes in order; a second call replaces the first. */
+  play(instrumentId: string, midis: readonly number[]): Promise<void>;
+  stop(): void;
+  /** Start loading the instrument's samples (hover or focus). Never plays. */
+  prepare(instrumentId: string): void;
+  /** `playing` names the instrument whose range sounds, `index` the note in the list, `failed` a sound that did not start. */
+  state: Readable<PickerSoundState>;
 }
 
 /** Banner kinds in priority order, highest first (04 section 5.2). */
@@ -74,6 +99,13 @@ export interface HomeServices {
    * microphone. `block` names the visible reason: `mic` ("Turn on microphone") first, then `calibration`.
    */
   rankedAvailability?: Readable<RankedAvailability>;
+  /** One answer to "is this setup calibrated?" (round 2, 01-ux §4). Replaces the calibrate banner. */
+  calibrationStatus?: Readable<CalStatus>;
+  /** The last try, or null before the first one. */
+  lastTry?: Readable<LastTry | null>;
+  pickerSound?: PickerSound;
+  /** Opens "Match a note" (`#/match`). */
+  openMatch?(): void;
   /** "Turn on microphone": turns listening on and runs the permission request. Call from the click. */
   turnOnMic?(): Promise<{ ok: boolean }>;
 }
