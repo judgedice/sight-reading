@@ -31,7 +31,7 @@ import { classifyMicError, type MicBrowser } from '../screens/states/index.ts';
 import type { DiagnosticsServices } from '../screens/states/services.ts';
 import type { SettingsDiagnosticsServices } from '../screens/settings/services.ts';
 import { matchScreenOverrides, type MatchServices } from '../screens/match/index.ts';
-import { createCalibrationServices, type CalibrationBackendExtras } from './calibration-services.ts';
+import { adoptingLegacyCalibrations, createCalibrationServices, type CalibrationBackendExtras } from './calibration-services.ts';
 import { calibrationStatus as computeCalStatus, KV_CAL_LAST_FAILURE, type CalFailure, type CalStatus } from './calibration-status.ts';
 import { countTries, reachedBarOne } from './tries.ts';
 import { createValue, derived, fromStore, jsonEqual, type Value } from './values.ts';
@@ -119,8 +119,13 @@ export interface ComposedApp {
 const PRACTICE_PATHS = /^\/practice\//;
 
 export function composeApp(rt: AppRuntime): ComposedApp {
-  const { platform, configs: cfg, manifest } = rt;
-  const repos = platform.repos;
+  const { configs: cfg, manifest } = rt;
+  const repos = rt.platform.repos;
+  // A calibration stored under a route's pre-round-2 key is adopted before anything reads the route (R2-03, cause 5).
+  const platform: AppRuntime['platform'] = {
+    ...rt.platform,
+    audio: adoptingLegacyCalibrations(rt.platform.audio, repos, () => void refreshCalibrations().catch(() => undefined)),
+  };
   const kv: KeyValue = platform.kv;
 
   // ---- values ------------------------------------------------------------------------------------

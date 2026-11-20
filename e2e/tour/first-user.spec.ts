@@ -156,7 +156,8 @@ test('first-time user: three takes on three instruments, results, tips, history,
 
   // Settings: change the theme, export, then reload and import the export back.
   await page.evaluate(() => { window.location.hash = '#/settings/data'; });
-  const exportBtn = page.getByRole('button', { name: 'Export data' }).or(page.getByRole('button', { name: /^Export/ })).first();
+  // The data export, not round 2's "Export diagnostics" button above it.
+  const exportBtn = page.getByRole('button', { name: 'Export all data (JSON)', exact: true });
   await expect(exportBtn).toBeVisible({ timeout: 10_000 });
   await check('settings data');
   const [download] = await Promise.all([page.waitForEvent('download'), exportBtn.click()]);

@@ -29,6 +29,19 @@ async function openRow(page: Page, row: 'key' | 'time' | 'difficulty'): Promise<
   return page.getByTestId('screen-home');
 }
 
+/**
+ * The key radios. On desktop above eight keys they open from the Key button in a popover (round 2, 04-design
+ * section 1); everywhere else they are in the row (as e2e/setup/setup-key-meter.spec.ts).
+ */
+async function keyRadios(page: Page, row: Locator): Promise<Locator> {
+  const button = row.locator('[data-key-button]');
+  if ((await button.count()) === 0) return row;
+  if ((await page.locator('[data-key-popover]').count()) === 0) await button.click();
+  const pop = page.locator('[data-key-popover]');
+  await expect(pop).toBeVisible();
+  return pop;
+}
+
 async function closeRow(page: Page): Promise<void> {
   if (!isPhone(page)) return;
   await page.getByRole('dialog').getByRole('button', { name: 'Done', exact: true }).click();
@@ -93,10 +106,10 @@ test('owner review: baritone, ranked, key and time, tempo, starting pitch, liste
   await closeRow(page);
   // Key: G major.
   row = await openRow(page, 'key');
-  const gMajor = row.getByRole('radio', { name: /^G major/ });
-  await gMajor.click();
-  await expect(gMajor).toBeChecked();
+  await (await keyRadios(page, row)).getByRole('radio', { name: /^G major/ }).click();
+  await expect((await keyRadios(page, row)).getByRole('radio', { name: /^G major/ })).toBeChecked();
   await shot('home-key-chosen', !isPhone(page));
+  if (!isPhone(page)) await page.keyboard.press('Escape');
   await closeRow(page);
   // Time: the last meter offered, which is not "Any".
   row = await openRow(page, 'time');

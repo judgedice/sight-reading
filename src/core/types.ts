@@ -74,6 +74,11 @@ export interface AppliedProcessing {
 export interface AudioRouteInfo {
   /** hash(inputLabel | outputMode | sampleRate | uaFamily); calibrations are stored per key (01 §7.8). */
   routeKey: string;
+  /**
+   * Every key a calibration for this route may have been stored under, `routeKey` first (round 2: keys made before
+   * the input label was normalised). Absent where the backend has no older keys.
+   */
+  routeKeyAliases?: string[];
   inputKind: 'built-in' | 'wired' | 'bluetooth' | 'usb-interface' | 'unknown';
   /** Declared by the player. */
   outputMode: OutputMode;

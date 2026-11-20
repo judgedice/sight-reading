@@ -75,6 +75,39 @@ export async function adoptLegacyCalibrations(repos: Pick<StoreRepos, 'calibrati
   return adopted;
 }
 
+/**
+ * The backend as before, except that every route it reports (from `unlock()` or a route change) first adopts a
+ * calibration stored under one of the route's older keys (`AudioRouteInfo.routeKeyAliases`), so the Ranked gate and
+ * the calibration status, which read `calibrations.get(routeKey)`, find it. `unlock()` itself is still called
+ * synchronously (05 W1); only its promise waits for the adoption. A failed adoption is ignored. `onAdopted` runs
+ * after a calibration was copied.
+ */
+export function adoptingLegacyCalibrations<A extends AudioBackend>(audio: A, repos: Pick<StoreRepos, 'calibrations'>, onAdopted: () => void): A {
+  const adopt = async (r: Awaited<ReturnType<AudioBackend['unlock']>>): Promise<void> => {
+    const aliases = r.routeKeyAliases;
+    if (!aliases || aliases.length < 2) return;
+    try {
+      if (await adoptLegacyCalibrations(repos, aliases)) onAdopted();
+    } catch {
+      /* the route then reads as not calibrated */
+    }
+  };
+  const unlock: AudioBackend['unlock'] = () => audio.unlock().then(async (r) => (await adopt(r), r));
+  const onRouteChange: AudioBackend['onRouteChange'] = (cb) =>
+    audio.onRouteChange((r) => {
+      cb(r);
+      void adopt(r);
+    });
+  return new Proxy(audio, {
+    get(target, prop) {
+      if (prop === 'unlock') return unlock;
+      if (prop === 'onRouteChange') return onRouteChange;
+      const v: unknown = Reflect.get(target, prop, target);
+      return typeof v === 'function' ? (v as (...a: unknown[]) => unknown).bind(target) : v;
+    },
+  });
+}
+
 export function createCalibrationServices(d: CalibrationServicesDeps): CalibrationServices {
   const budget = d.configs.budget.calibration;
   const sleep = (ms: number): Promise<void> => new Promise((r) => d.timers.setTimeout(r, ms));

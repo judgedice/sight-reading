@@ -244,7 +244,10 @@
   margin-block-start: var(--space-6);
 }
 
-.mt-meter[data-dim='true'] {
+/* Dimmed while the note plays: the track and ticks only. The Low, In tune and High labels are text and keep full
+   contrast (WCAG 1.4.3). */
+.mt-meter[data-dim='true'] .mt-track,
+.mt-meter[data-dim='true'] .mt-ticks {
   opacity: 0.5;
 }
 

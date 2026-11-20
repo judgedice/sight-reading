@@ -3,8 +3,8 @@
 // Baritone, the key grid and time segments, "Show the music", the starting-pitch reference and its info, "Listen first"
 // in practice, the results, "One thing to try" when a take earns a tip, and Settings > Sound previews. One take is
 // played through Chromium's fake capture with one note 2 semitones sharp and one note late; the spec checks on screen
-// that the wrong note turns red with a ghost at the played pitch and that the late note turns red with a 'late' ghost
-// displaced to the right of its notehead.
+// that the wrong and the late note turn red live with no ghost (difficulty 1, PLAN ruling 61), and that the results
+// score draws the ghosts.
 // Run with -c e2e/tour/playwright.tour.config.ts.
 import { mkdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
@@ -190,15 +190,23 @@ test('screen tour: onboarding, home, scan, take with a wrong and a late note, re
   await expect(play).toHaveAttribute('data-state', 'performing', { timeout: LOOP_T0_SEC * 1000 + 10_000 });
   const wrongNote = play.locator(`[data-expected-idx="${wrongIdx}"]`).first();
   await expect(wrongNote).toHaveClass(/n-error/, { timeout: (plan.endSec + 5) * 1000 });
-  // The wrong-pitch ghost: drawn in the wrong note's bar, at a different height from the notehead.
-  const wrongGhost = play.locator(`.sr-note-marks[data-marks-for="${wrongIdx}"] ~ .sr-ghost, .sr-ghost`).first();
-  await expect(wrongGhost).toBeAttached();
+  // PLAN ruling 61 (01-ux §14): at difficulties 1 to 3 no ghost is drawn live; the ghosts wait for the results.
+  const served = await page.evaluate(() => (window as unknown as { __sr: { session: { prepared: { levelServed: number } | null } } }).__sr.session.prepared?.levelServed);
+  expect(served).toBeLessThanOrEqual(3);
+  await expect(play.locator('.sr-ghost')).toHaveCount(0);
   await shot('performing-wrong-note', false);
   const lateNote = play.locator(`[data-expected-idx="${lateIdx}"]`).first();
   await expect(lateNote).toHaveClass(/n-error/, { timeout: (plan.endSec + 5) * 1000 });
   await shot('performing-late-note', false);
 
-  // Geometry on screen: the wrong ghost sits off the notehead's line; the late ghost sits to the right of its note.
+  // Results.
+  const results = page.getByTestId('results-panel');
+  await expect(results).toBeVisible({ timeout: (plan.endSec + 30) * 1000 });
+  await expect(results).toHaveAttribute('data-state', 'graded');
+  // The wrong-pitch ghost is drawn on the results score.
+  await expect(page.locator('.sr-ghost').first()).toBeAttached();
+
+  // Geometry on the results score: the wrong ghost sits off the notehead's line; the late ghost sits to the right of its note.
   const geo = await page.evaluate(
     ({ wrongIdx: w, lateIdx: l }) => {
       const box = (el: Element | null) => (el ? el.getBoundingClientRect() : null);
@@ -210,11 +218,6 @@ test('screen tour: onboarding, home, scan, take with a wrong and a late note, re
   );
   info.annotations.push({ type: 'geometry', description: JSON.stringify(geo) });
   expect(geo.ghosts.length).toBeGreaterThanOrEqual(1);
-
-  // Results.
-  const results = page.getByTestId('results-panel');
-  await expect(results).toBeVisible({ timeout: (plan.endSec + 30) * 1000 });
-  await expect(results).toHaveAttribute('data-state', 'graded');
   await shot('results');
   const record = await page.evaluate(() => (window as unknown as { __sr: { session: { record: { score: { score: number; grade: string } | null; judgments: { expectedIdx: number; status: string; timing: string | null; pitch: string | null }[] } | null } } }).__sr.session.record);
   const wrong = record!.judgments.find((j) => j.expectedIdx === wrongIdx);

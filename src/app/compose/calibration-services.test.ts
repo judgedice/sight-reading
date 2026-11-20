@@ -11,7 +11,7 @@ import { FakeAudioBackend } from '../../testkit/fake-backend.ts';
 import { routeKeyAliasesOf, routeKeyOf } from '../../platform/web/audio/route.ts';
 import { appConfigs } from './configs.ts';
 import { calibrationStatus, KV_CAL_LAST_FAILURE, type CalFailure } from './calibration-status.ts';
-import { adoptLegacyCalibrations, createCalibrationServices, type CalibrationBackendExtras } from './calibration-services.ts';
+import { adoptLegacyCalibrations, adoptingLegacyCalibrations, createCalibrationServices, type CalibrationBackendExtras } from './calibration-services.ts';
 import { createValue } from './values.ts';
 
 const caps: PlatformCapabilities = { platform: 'web', outputLatencyReported: true, wakeLock: false, serviceWorker: false, persistentStorage: 'best-effort', osFamily: 'linux', displayMode: 'browser' };
@@ -175,5 +175,33 @@ describe('cause 5: old route keys stay readable', () => {
     await fresh.repos.calibrations.put({ ...makeCalibration(aliases[2] as string), roundTripMs: 90, measuredAt: '2026-02-01T00:00:00.000Z' });
     expect((await adoptLegacyCalibrations(fresh.repos, aliases))?.roundTripMs).toBe(90);
     expect(await adoptLegacyCalibrations(fresh.repos, [])).toBeNull();
+  });
+
+  it('wired: the backend wrapper adopts before unlock resolves, and again on a route change; other members pass through', async () => {
+    const { repos } = harness({ loopback: false });
+    await repos.calibrations.put(makeCalibration(oldKey as string));
+    const fb = new FakeAudioBackend({ sampleRate: 48000, route: { routeKey: aliases[0] as string, routeKeyAliases: aliases } });
+    let adoptedCalls = 0;
+    const audio = adoptingLegacyCalibrations(fb, repos, () => adoptedCalls++);
+    const route = await audio.unlock();
+    expect(route.routeKey).toBe(aliases[0]);
+    expect((await repos.calibrations.get(aliases[0] as string))?.roundTripMs).toBe(80);
+    expect(adoptedCalls).toBe(1);
+    expect(fb.log.unlocks).toBe(1);
+    expect(audio.now()).toBe(fb.now());
+
+    // A route change to another microphone whose calibration sits under its prefixed key.
+    const other = 'USB Audio Device';
+    const otherAliases = routeKeyAliasesOf(`Communications - ${other}`, 'speakers', 48000, 'macos');
+    const otherOld = routeKeyAliasesOf(`Communications - ${other}`, 'speakers', 48000, 'macos').at(-1) as string;
+    await repos.calibrations.put(makeCalibration(otherOld));
+    const seen: string[] = [];
+    audio.onRouteChange((r) => seen.push(r.routeKey));
+    fb.scriptRouteChange((fb.now() as number) + 0.01, { routeKey: otherAliases[0] as string, routeKeyAliases: otherAliases });
+    fb.advanceTo(((fb.now() as number) + 0.1) as never);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(seen).toEqual([otherAliases[0]]);
+    expect(await repos.calibrations.get(otherAliases[0] as string)).toBeDefined();
+    expect(adoptedCalls).toBe(2);
   });
 });

@@ -46,7 +46,7 @@ import { isSamplerContext, midiOfHz, Sampler, SAMPLE_GAIN, type Decoder, type Fe
 import { CALIBRATION_ACCENT_DB, Metronome } from './metronome.ts';
 import { fitClockWindow, median, type ClockFit, type ClockSample } from './clock-fit.ts';
 import { CAPTURE_PROCESSOR_NAME, FRAMES_PER_BLOCK, type FromWorklet, type ToWorklet } from './protocol.ts';
-import { appliedProcessingOf, inputKindOf, routeKeyOf } from './route.ts';
+import { appliedProcessingOf, inputKindOf, routeKeyAliasesOf, routeKeyOf } from './route.ts';
 
 export type InterruptionReason = 'interrupted' | 'hidden' | 'track-ended' | 'device-change';
 
@@ -528,6 +528,7 @@ export class WebAudioBackend implements AudioBackend {
     const settings = this.track?.getSettings() ?? {};
     const r: AudioRouteInfo = {
       routeKey: routeKeyOf(label, this.outputMode, ctx.sampleRate, this.capabilities.osFamily),
+      routeKeyAliases: routeKeyAliasesOf(label, this.outputMode, ctx.sampleRate, this.capabilities.osFamily),
       inputKind: inputKindOf(label),
       outputMode: this.outputMode,
       sampleRate: ctx.sampleRate,
