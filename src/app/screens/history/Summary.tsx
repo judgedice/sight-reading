@@ -10,6 +10,7 @@ import type { DiagnosticsServices } from '../states/services.ts';
 import { copy } from '../../../ui/copy/copy.ts';
 import { componentRows, countParts, creditLine, diagnosticLines, focusComponent, xpView } from '../results/model.ts';
 import { NotGradedResult, VoidCard } from '../states/index.ts';
+import { tryTitle } from '../scales/index.ts';
 
 export interface SummaryProps {
   record: AttemptRecord;
@@ -54,7 +55,7 @@ export function Summary({ record, configs, profile, onPlayAgain, diagnostics }: 
   if (!record.listening || !s) {
     return (
       <div className="hist-summary" data-testid="attempt-summary" data-state="not-graded">
-        <NotGradedResult credit={creditLine(record.credit)} />
+        <NotGradedResult credit={record.kind === 'scale' ? tryTitle(record) : creditLine(record.credit)} />
         {record.listening ? <Diagnostics record={record} diagnostics={diagnostics} /> : null}
         {again}
       </div>
@@ -66,7 +67,8 @@ export function Summary({ record, configs, profile, onPlayAgain, diagnostics }: 
   const focus = focusComponent(s);
   const counts = countParts(s);
   const notes = diagnosticLines(s);
-  const xp = xpView(record, configs, profile).headline;
+  // A scale try earned nothing: its line says so (PLAN ruling 68).
+  const xp = record.kind === 'scale' ? copy('results.scale.practice') : xpView(record, configs, profile).headline;
   const sure = sureFacts(record);
   return (
     <div className="hist-summary" data-testid="attempt-summary" data-state="graded">

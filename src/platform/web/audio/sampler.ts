@@ -10,6 +10,12 @@
  * 3. Rate: `(a4Hz / 440) * 2^((target - sample.midi - sample.tune / 100) / 12)`.
  * 4. Loop: sustained sets loop between the manifest points (buffer time, so the rate does not move them).
  * 5. Envelope: a linear rise over the attack, hold, a linear fall over the release; the source stops just after.
+ * 6. Onset alignment (Listen playback, round 2 owner report): the written time of a note is when it is heard, so each
+ *    sample's slow or breathy start is skipped (up to the point 15 dB under the level its attack rises to) and the
+ *    source starts early by the time the rest of its rise and the attack take to reach half that level (-6 dB). Without this, a
+ *    bowed cello sounded up to 150 ms and the formant voice 50 ms behind the clicks.
+ * 7. Release: in a run of notes (`playSampledNotes`), a note's release ends before the next note starts, so the old
+ *    pitch never sounds over the new one's start (a 250 ms voice release used to cover the next note's first 150 ms).
  *
  * Fetch and decode are injected, so the Vitest suite drives the same code against fakes and the e2e suite renders
  * it in an `OfflineAudioContext`. Loading never throws: a missing set, a failed fetch or a failed decode reports
@@ -23,6 +29,18 @@ export const ONSET_THRESHOLD = 0.03;
 export const STOP_PAD_SEC = 0.02;
 /** Fade used when a sounding note is cut short (`stopSounds`), seconds. */
 export const CUT_FADE_SEC = 0.015;
+/** Frame of the rise envelope measured at load, seconds. */
+export const RISE_FRAME_SEC = 0.005;
+/** How much of a sample's start the rise envelope covers, seconds. */
+export const RISE_SPAN_SEC = 0.6;
+/** A sample's start quieter than this under its attack's level is skipped, dB. */
+export const SKIP_BELOW_DB = -15;
+/** The most of a sample's start that is skipped, seconds. */
+export const MAX_SKIP_SEC = 0.25;
+/** A note starts at most this much before its written time, seconds (the player's scheduling lead is as long). */
+export const MAX_LEAD_SEC = 0.08;
+/** The shortest release a note in a run gets, seconds: short enough to clear before the next note, long enough not to click. */
+export const MIN_RELEASE_SEC = 0.03;
 /**
  * Linear gain of a sample at `peak` 1, before the Listen bus. The sets are levelled to -20 dBFS RMS with a -1 dBFS
  * peak ceiling; +12 dB brings them near the additive voice's loudness while the loudest peak stays under full scale
@@ -57,6 +75,82 @@ export function onsetSec(buf: DecodedBuffer): number {
 /** How much later the decoded sound starts than the manifest says (never negative), seconds. */
 export function onsetShift(measuredOnsetSec: number, manifestOnsetSec: number): number {
   return Math.max(0, measuredOnsetSec - manifestOnsetSec);
+}
+
+/** The span of a sample's start whose loudest frame is its reference level for onset alignment, seconds. */
+export const RISE_PEAK_SEC = 0.25;
+
+/**
+ * The sample's level from `fromSec` on: RMS over `RISE_FRAME_SEC` frames for `RISE_SPAN_SEC`, and its reference level
+ * (`steady`): the loudest frame in its first `RISE_PEAK_SEC`, the level its attack rises to. A note is heard when it
+ * reaches half of that (-6 dB), however its sustain swells or decays later.
+ */
+export function riseEnvelope(buf: DecodedBuffer, fromSec: number): { frames: Float32Array; steady: number } {
+  const x = buf.getChannelData(0);
+  const sr = buf.sampleRate;
+  const n = Math.max(1, Math.round(RISE_FRAME_SEC * sr));
+  const i0 = Math.max(0, Math.round(fromSec * sr));
+  const count = Math.max(1, Math.floor(Math.min(RISE_SPAN_SEC * sr, Math.max(0, x.length - i0)) / n));
+  const frames = new Float32Array(count);
+  for (let k = 0; k < count; k++) {
+    let s = 0;
+    for (let i = i0 + k * n, e = i + n; i < e; i++) s += (x[i] as number) ** 2;
+    frames[k] = Math.sqrt(s / n);
+  }
+  let steady = 0;
+  const upto = Math.min(count, Math.max(1, Math.round(RISE_PEAK_SEC / RISE_FRAME_SEC)));
+  for (let k = 0; k < upto; k++) steady = Math.max(steady, frames[k] as number);
+  return { frames, steady };
+}
+
+/** The rise envelope's level at `t` seconds (linear between frame centres). */
+function riseAt(frames: Float32Array, t: number): number {
+  const u = t / RISE_FRAME_SEC - 0.5;
+  if (u <= 0) return frames[0] ?? 0;
+  const k = Math.floor(u);
+  if (k >= frames.length - 1) return frames[frames.length - 1] ?? 0;
+  const f = u - k;
+  return (frames[k] as number) * (1 - f) + (frames[k + 1] as number) * f;
+}
+
+/**
+ * Where a note's sound should start so it is heard at its written time: `skipSec` into the sample (past its start
+ * quieter than `SKIP_BELOW_DB` under its attack's level, at most `MAX_SKIP_SEC`) and `leadSec` before the written time
+ * (the time the rest of the rise and an `attackSec` ramp take to reach -6 dB of the loudest the note gets in its first
+ * `spanSec` from its written time, at most `MAX_LEAD_SEC`). All are buffer seconds (at playback rate 1). One-shots skip
+ * nothing.
+ */
+export function onsetAlignment(rise: { frames: Float32Array; steady: number }, kind: SetDef['kind'], attackSec: number, spanSec: number = RISE_PEAK_SEC): { skipSec: number; leadSec: number } {
+  const { frames, steady } = rise;
+  if (!(steady > 0) || frames.length === 0) return { skipSec: 0, leadSec: 0 };
+  let skipSec = 0;
+  if (kind === 'sustain') {
+    const floor = steady * 10 ** (SKIP_BELOW_DB / 20);
+    let k = 0;
+    while (k < frames.length && (frames[k] as number) < floor) k++;
+    skipSec = Math.min(MAX_SKIP_SEC, k * RISE_FRAME_SEC);
+  }
+  // The level the note rises to: the loudest frame in its first `spanSec` as heard (from its written time, so from
+  // `lead` into the sound). Two passes settle it.
+  const step = 0.001;
+  let lead = 0;
+  for (let pass = 0; pass < 2; pass++) {
+    let ref = 0;
+    const k0 = Math.floor((skipSec + lead) / RISE_FRAME_SEC);
+    const k1 = Math.min(frames.length, Math.ceil((skipSec + lead + spanSec) / RISE_FRAME_SEC));
+    for (let k = k0; k < k1; k++) ref = Math.max(ref, frames[k] as number);
+    if (!(ref > 0)) break;
+    let next = MAX_LEAD_SEC;
+    for (let t = 0; t <= MAX_LEAD_SEC + 1e-9; t += step) {
+      const ramp = attackSec > 0 ? Math.min(1, t / attackSec) : 1;
+      if (riseAt(frames, skipSec + t) * ramp >= 0.5 * ref) {
+        next = t;
+        break;
+      }
+    }
+    lead = next;
+  }
+  return { skipSec, leadSec: Math.round(lead * 1e6) / 1e6 };
 }
 
 /** Nearest sample in semitones to `midi`; on a tie, the one above. `samples` must not be empty. */
@@ -176,6 +270,8 @@ export interface LoadedSample {
   buffer: DecodedBuffer;
   /** Onset correction, seconds. */
   shift: number;
+  /** The sample's level from its start (after `shift`) and its sustain level, for onset alignment. */
+  rise?: { frames: Float32Array; steady: number };
 }
 
 export interface LoadedSet {
@@ -208,6 +304,16 @@ export interface SampleNoteOptions {
   attackSec?: number;
   /** Tuning pitch the target is given against (default 440: the target is then an A440 MIDI value). */
   a4Hz?: number;
+  /** Overrides the set's release, seconds (`playSampledNotes` shortens it before the next note). */
+  releaseSec?: number;
+}
+
+/** One note of a run for `playSampledNotes`: a sounding (fractional) MIDI note, its written time and length. */
+export interface SampledNote {
+  midi: number;
+  /** Context seconds the note is heard (its -6 dB point). */
+  when: number;
+  durSec: number;
 }
 
 export class Sampler {
@@ -290,7 +396,8 @@ export class Sampler {
         if (!decoder) throw new Error('no decoder');
         // decodeAudioData detaches its argument; keep the fetched bytes for a later retry or another decoder.
         const buffer = await decoder.decodeAudioData(data.slice(0));
-        return { def: s, buffer, shift: onsetShift(onsetSec(buffer), s.onset) };
+        const shift = onsetShift(onsetSec(buffer), s.onset);
+        return { def: s, buffer, shift, rise: riseEnvelope(buffer, shift) };
       }),
     );
     return { id, def, samples };
@@ -318,34 +425,62 @@ export class Sampler {
   }
 }
 
-/** Schedules one sampled note (also used directly by the e2e render). */
-export function startSampleNote(ctx: SamplerContext, out: SamplerNode, set: LoadedSet, targetMidi: number, when: number, durSec: number, opts: SampleNoteOptions): SampleVoice {
+/** What `startSampleNote` decides for a note before it schedules it: the sample, its rate, and when it sounds. */
+export interface SampleNotePlan {
+  sample: LoadedSample;
+  rate: number;
+  /** Context time the source starts (at or before `when`). */
+  start: number;
+  /** Buffer offset the source starts from, seconds. */
+  offset: number;
+  attack: number;
+  release: number;
+  /** Context time the source stops. */
+  stopAt: number;
+}
+
+/** The pick, rate, onset alignment and envelope times of one note, without scheduling anything. */
+export function planSampleNote(set: LoadedSet, targetMidi: number, when: number, durSec: number, opts: Omit<SampleNoteOptions, 'gain'>, now = -Infinity): SampleNotePlan {
   const a4 = opts.a4Hz ?? 440;
   // Pick against the whole note asked for: a target given as an A440 value from a slightly sharp or flat tuning pitch
   // (438 to 442 Hz) rounds back to that note, so an exact tie still goes to the sample above.
   const nominal = Math.round(targetMidi);
   const pick = pickSample(set.samples.map((s) => ({ midi: s.def.midi, s })), nominal).s;
+  const rate = playbackRateFor(targetMidi, pick.def, a4);
+  const attack = Math.max(0, opts.attackSec ?? set.def.attack);
+  const release = Math.max(0, opts.releaseSec ?? set.def.release);
+  const align = pick.rise ? onsetAlignment(pick.rise, set.def.kind, attack * rate, RISE_PEAK_SEC * rate) : { skipSec: 0, leadSec: 0 };
+  // Buffer seconds play `rate` times faster than context seconds.
+  const wanted = when - align.leadSec / rate;
+  const start = Math.max(wanted, now);
+  const offset = pick.shift + align.skipSec + (start - wanted) * rate;
+  const holdEnd = Math.max(start + attack, when + durSec);
+  return { sample: pick, rate, start, offset, attack, release, stopAt: holdEnd + release + STOP_PAD_SEC };
+}
+
+/** Schedules one sampled note (also used directly by the e2e render). `when` is the time the note is heard. */
+export function startSampleNote(ctx: SamplerContext, out: SamplerNode, set: LoadedSet, targetMidi: number, when: number, durSec: number, opts: SampleNoteOptions): SampleVoice {
+  const plan = planSampleNote(set, targetMidi, when, durSec, opts, ctx.currentTime);
+  const pick = plan.sample;
   const src = ctx.createBufferSource();
   src.buffer = pick.buffer;
-  src.playbackRate.value = playbackRateFor(targetMidi, pick.def, a4);
+  src.playbackRate.value = plan.rate;
   const loop = loopPoints(set.def.kind, pick.def, pick.shift, pick.buffer.duration);
   if (loop) {
     src.loop = true;
     src.loopStart = loop.loopStart;
     src.loopEnd = loop.loopEnd;
   }
-  const attack = Math.max(0, opts.attackSec ?? set.def.attack);
-  const release = set.def.release;
+  const { start, attack, release } = plan;
   const g = ctx.createGain();
-  for (const p of envelopePoints(when, durSec, attack, release, opts.gain)) {
+  for (const p of envelopePoints(start, when + durSec - start, attack, release, opts.gain)) {
     if (p.ramp) g.gain.linearRampToValueAtTime(p.value, p.at);
     else g.gain.setValueAtTime(p.value, p.at);
   }
   src.connect(g);
   g.connect(out);
-  const stopAt = stopTimeFor(when, durSec, attack, release);
-  src.start(when, pick.shift);
-  src.stop(stopAt);
+  src.start(start, plan.offset);
+  src.stop(plan.stopAt);
   let done = false;
   const voice: SampleVoice = {
     onended: null,
@@ -354,7 +489,7 @@ export function startSampleNote(ctx: SamplerContext, out: SamplerNode, set: Load
       const now = ctx.currentTime;
       try {
         g.gain.cancelScheduledValues(now);
-        g.gain.setValueAtTime(now < when ? 0 : g.gain.value, now);
+        g.gain.setValueAtTime(now < start ? 0 : g.gain.value, now);
         g.gain.linearRampToValueAtTime(0, now + CUT_FADE_SEC);
         src.stop(now + CUT_FADE_SEC);
       } catch {
@@ -372,4 +507,29 @@ export function startSampleNote(ctx: SamplerContext, out: SamplerNode, set: Load
     voice.onended?.();
   };
   return voice;
+}
+
+/**
+ * A run of notes (Listen, Hear bars, the starting pitch, Play my range, Hear what we heard): each note heard at its
+ * time, and each release shortened so it ends before the next later note starts sounding (at least
+ * `MIN_RELEASE_SEC`, at most the set's release). Notes that start together (a chord) keep the set's release.
+ */
+export function playSampledNotes(ctx: SamplerContext, out: SamplerNode, set: LoadedSet, notes: readonly SampledNote[], opts: SampleNoteOptions): SampleVoice[] {
+  const order = notes.map((n, i) => ({ n, i })).sort((a, b) => a.n.when - b.n.when || a.i - b.i);
+  const plans = order.map(({ n }) => planSampleNote(set, n.midi, n.when, n.durSec, opts, ctx.currentTime));
+  const voices: SampleVoice[] = [];
+  order.forEach(({ n }, k) => {
+    let release = opts.releaseSec ?? set.def.release;
+    let j = k + 1;
+    while (j < order.length && (order[j] as { n: SampledNote }).n.when <= n.when + 1e-6) j++;
+    if (j < order.length) {
+      // The next later note (all of a chord: the one whose sound starts first).
+      const at = (order[j] as { n: SampledNote }).n.when;
+      let nextStart = Infinity;
+      for (let m = j; m < order.length && (order[m] as { n: SampledNote }).n.when <= at + 1e-6; m++) nextStart = Math.min(nextStart, (plans[m] as SampleNotePlan).start);
+      release = Math.min(release, Math.max(MIN_RELEASE_SEC, nextStart - (n.when + n.durSec)));
+    }
+    voices.push(startSampleNote(ctx, out, set, n.midi, n.when, n.durSec, { ...opts, releaseSec: release }));
+  });
+  return voices;
 }

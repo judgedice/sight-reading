@@ -152,7 +152,14 @@
 }
 
 @media (max-width: 40rem) {
-  /* Phones: the line alone (the label stays the accessible name), so the strip keeps its room for messages. */
+  /* Phones: the line alone (the label stays the accessible name), so the strip keeps its room for messages; the
+     button keeps a full tap target. */
+  .perform-beatline {
+    justify-content: center;
+    min-inline-size: 2.75rem;
+    min-block-size: 2.75rem;
+  }
+
   .perform-beatline > span {
     position: absolute;
     inline-size: 0.0625rem;

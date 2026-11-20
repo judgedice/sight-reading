@@ -22,9 +22,9 @@ export function formatClock(sec: number): string {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 }
 
-/** "Level 5 · E major · 6/8 · ♩. = 60 · 10 bars" */
+/** "Level 5 · E major · 6/8 · ♩. = 60 · 10 bars"; a scale reads "Scale · C major · 4/4 · ♩ = 66 · 3 bars" (PLAN ruling 68). */
 export function scanSummary(p: PreparedExcerpt): string {
-  return copy('scan.summary', {
+  return copy(p.scale ? 'scales.summary' : 'scan.summary', {
     level: p.levelServed,
     key: keyName(p.writtenKey),
     meter: meterString(p),

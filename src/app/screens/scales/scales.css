@@ -1,0 +1,114 @@
+/* The scale chooser (PLAN ruling 68): rows in the visual language of the "Match a note" entry. Tokens only. */
+.scl {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.scl-lead {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+}
+.scl-tempo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+}
+.scl-tempo-label {
+  font-size: var(--type-label-size);
+  font-weight: var(--type-label-weight);
+}
+.scl-tempo-note {
+  flex: 1 1 12rem;
+  color: var(--text-muted);
+  font-size: var(--type-small-size);
+  line-height: var(--type-small-line);
+}
+.scl-link {
+  min-height: var(--target-min);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 0.1875rem;
+  cursor: pointer;
+}
+.scl-link:focus-visible {
+  outline: 0.125rem solid var(--focus-ring);
+  outline-offset: 0.125rem;
+}
+.scl-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.scl-item {
+  margin: 0;
+}
+.scl-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  width: 100%;
+  min-height: var(--target-min);
+  margin: 0;
+  padding: var(--space-2) var(--space-4);
+  border: 0.0625rem solid var(--border-strong);
+  border-radius: var(--radius-l);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.scl-row:hover {
+  background: var(--surface-2-hover);
+}
+.scl-row:active {
+  background: var(--surface-2-pressed);
+}
+.scl-row:focus-visible {
+  outline: 0.125rem solid var(--focus-ring);
+  outline-offset: 0.125rem;
+}
+.scl-row-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 0;
+  min-width: 0;
+}
+.scl-row-title {
+  font-size: var(--type-body-size);
+  font-weight: 600;
+}
+.scl-row-detail {
+  color: var(--text-muted);
+  font-size: var(--type-small-size);
+  line-height: var(--type-small-line);
+}
+.scl-row-chevron {
+  flex: none;
+  color: var(--text-muted);
+}
+.scl-practice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--type-small-size);
+  line-height: var(--type-small-line);
+}
+.scl-practice-icon {
+  flex: none;
+  margin-top: 0.125rem;
+}

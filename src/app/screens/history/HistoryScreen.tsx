@@ -14,7 +14,9 @@ import { Link, useNavigate } from '../../router.tsx';
 import type { ScreenProps } from '../../route-types.ts';
 import { instrumentName } from '../../../ui/copy/instrument-names.ts';
 import { MetaLine } from './MetaLine.tsx';
-import { PAGE_SIZE, dayBounds, dayHeading, dayLabel, localDayOf, filterQuery, groupByDay, matchesFilter, parseFilter, rowDetail, servedMeter, timeLabel, type HistoryFilter, type RowDetail } from './model.ts';
+import { rowTitle } from '../scales/index.ts';
+import { isScaleExcerptId } from '../../../session/index.ts';
+import { PAGE_SIZE, dayBounds, dayHeading, dayLabel, localDayOf, filterQuery, groupByDay, matchesFilter, parseFilter, rowDetail, servedMeter, timeLabel, type HistoryFilter, type KindFilter, type RowDetail } from './model.ts';
 import type { HistoryServices } from './services.ts';
 import { text } from './text.ts';
 import './history.css';
@@ -67,9 +69,11 @@ interface PieceLine {
 function HistoryRow({ row, detail, instrumentLabel }: { row: AttemptSummary; detail: RowDetail | undefined; instrumentLabel: string }) {
   const score = row.score === null ? null : Math.round(row.score);
   const graded = row.grade !== null && score !== null;
+  const scale = row.kind === 'scale';
+  const title = rowTitle(row);
   return (
     <li className="hist-item">
-      <Link to={`/history/${encodeURIComponent(row.id)}`} className="hist-row" data-testid="history-row" data-graded={graded ? 'true' : 'false'}>
+      <Link to={`/history/${encodeURIComponent(row.id)}`} className="hist-row" data-testid="history-row" data-graded={graded ? 'true' : 'false'} data-kind={scale ? 'scale' : 'excerpt'}>
         <span className="hist-grade" data-testid="history-grade">
           {graded ? (
             <>
@@ -81,10 +85,10 @@ function HistoryRow({ row, detail, instrumentLabel }: { row: AttemptSummary; det
           )}
         </span>
         <span className="hist-main">
-          <span className="hist-line hist-title" title={row.composer ? `${row.title}, ${row.composer}` : row.title}>
-            {row.title}
+          <span className="hist-line hist-title" title={row.composer && !scale ? `${title}, ${row.composer}` : title}>
+            {title}
           </span>
-          {detail ? <MetaLine className="hist-line hist-meta" instrument={instrumentLabel} levelServed={row.levelServed} detail={detail} /> : null}
+          {detail ? <MetaLine className="hist-line hist-meta" instrument={instrumentLabel} levelServed={row.levelServed} detail={detail} scale={scale} /> : null}
         </span>
         <span className="hist-side">
           <time className="hist-time" dateTime={row.createdAt}>
@@ -119,6 +123,7 @@ export function HistoryScreen(_props: ScreenProps) {
       ...(instrumentId !== null ? { instrumentId } : {}),
       ...(rankedOnly ? { rankedOnly: true } : {}),
       ...(piece !== null ? { excerptId: piece } : {}),
+      ...(filter.kind === 'scale' || filter.kind === 'excerpt' ? { kind: filter.kind } : {}),
       limit: PAGE_SIZE,
       offset: pages * PAGE_SIZE,
     })
@@ -189,7 +194,7 @@ export function HistoryScreen(_props: ScreenProps) {
       .then(async ([all, maybe]) => {
         const at = maybe.filter((r) => r.excerptId === piece);
         const [total, n] = await Promise.all([triesIn(services, all), triesIn(services, at)]);
-        if (live) setPieceLine({ n, total, title: at[0]?.title ?? '' });
+        if (live) setPieceLine({ n, total, title: at[0] ? rowTitle(at[0]) : '' });
       })
       .catch(() => undefined);
     return () => {
@@ -209,7 +214,17 @@ export function HistoryScreen(_props: ScreenProps) {
     const inst = services.configs.instrumentById[id];
     return inst ? instrumentName(inst) : id;
   };
-  const filtered = filter.instrumentId !== null || filter.rankedOnly || piece !== null;
+  const kind: KindFilter = filter.kind ?? 'all';
+  const filtered = filter.instrumentId !== null || filter.rankedOnly || piece !== null || kind !== 'all';
+  const pieceIsScale = piece !== null && isScaleExcerptId(piece);
+  const kindOptions = useMemo(
+    () => [
+      { value: 'all', label: copy('history.filter.kind.all') },
+      { value: 'excerpt', label: copy('history.filter.kind.pieces') },
+      { value: 'scale', label: copy('history.filter.kind.scales') },
+    ],
+    [],
+  );
   const instrumentOptions = useMemo(
     () => [
       { value: '', label: text('history.filter.all') },
@@ -229,10 +244,17 @@ export function HistoryScreen(_props: ScreenProps) {
           ariaLabel={copy('history.filter.instrument')}
           onChange={(v) => update({ ...filter, instrumentId: v === '' ? null : v })}
         />
+        {/* Pieces or scales (PLAN ruling 68): scale tries are drill, kept apart from the music on request. */}
+        <Select
+          options={kindOptions}
+          value={kind}
+          ariaLabel={copy('history.filter.kind')}
+          onChange={(v) => update({ ...filter, kind: v === 'scale' || v === 'excerpt' ? v : 'all' })}
+        />
         <Toggle checked={filter.rankedOnly} label={copy('history.filter.rankedOnly')} onChange={(v) => update({ ...filter, rankedOnly: v })} />
         {piece !== null ? (
           <button type="button" className="hist-chip" data-testid="history-piece-chip" aria-pressed="true" onClick={allTries}>
-            <span>{copy('history.filter.piece')}</span>
+            <span>{copy(pieceIsScale ? 'history.filter.scale' : 'history.filter.piece')}</span>
             <Glyph id="x" size={14} />
             <span className="ui-visually-hidden">{text('history.filter.clear')}</span>
           </button>
@@ -257,7 +279,7 @@ export function HistoryScreen(_props: ScreenProps) {
             icon="info"
             title={copy('empty.historyFiltered.title')}
             body={copy('empty.historyFiltered.body')}
-            action={<Button label={text('history.filter.clear')} variant="tertiary" onClick={() => update({ instrumentId: null, rankedOnly: false, excerptId: null })} />}
+            action={<Button label={text('history.filter.clear')} variant="tertiary" onClick={() => update({ instrumentId: null, rankedOnly: false, excerptId: null, kind: 'all' })} />}
           />
         ) : (
           <EmptyState icon="mic" title={copy('empty.history.title')} body={copy('empty.history.body')} />
@@ -267,7 +289,7 @@ export function HistoryScreen(_props: ScreenProps) {
       {groups.map((g) => {
         const label = dayLabel(g.day, today);
         const count = dayCounts[g.day];
-        const heading = count ? dayHeading(label, count.tries, count.atPiece) : label;
+        const heading = count ? dayHeading(label, count.tries, count.atPiece, pieceIsScale) : label;
         return (
           <section key={g.day} className="hist-day" aria-label={heading}>
             <h2 className="hist-day-heading" data-testid="history-day-heading">

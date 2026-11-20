@@ -42,6 +42,8 @@ function matches(a: AttemptRecord, q: AttemptQuery): boolean {
   if (q.instrumentId !== undefined && a.instrumentId !== q.instrumentId) return false;
   if (q.excerptId !== undefined && a.excerptId !== q.excerptId) return false;
   if (q.rankedOnly && !(a.score?.ranked ?? false)) return false;
+  // An attempt without `kind` is an excerpt (stored before scales existed, PLAN ruling 68).
+  if (q.kind !== undefined && (a.kind ?? 'excerpt') !== q.kind) return false;
   if (q.from !== undefined && a.createdAt < q.from) return false;
   if (q.to !== undefined && a.createdAt > q.to) return false;
   return true;

@@ -232,8 +232,8 @@ describe('planClickBar and keyChordTones', () => {
     expect(keyChordTones({ fifths: 0, mode: 'minor' }, 64, 440).map((t) => t.midi)).toEqual([57, 60, 64]);
   });
 
-  it('peak is about −12 dBFS', () => {
-    expect(20 * Math.log10(LISTEN.peak)).toBeCloseTo(-12, 6);
+  it('asks for the whole Listen bus: the bus applies the −12 dBFS ceiling once (it used to be applied twice, −24 dBFS)', () => {
+    expect(LISTEN.peak).toBe(1);
   });
 });
 

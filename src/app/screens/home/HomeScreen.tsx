@@ -20,6 +20,8 @@ import { applySetupChange, effectiveLevel, localSuggestions, normalize, setupMod
 import { SETUP_ROWS, SetupForm, rowValueText, useFallbackNotes, type SetupRowId } from '../setup/SetupForm.tsx';
 import { InstrumentTile, SetupInstrumentPicker, SetupSheet, rangeDataFor } from '../setup/SetupSheet.tsx';
 import { BANNER_PRIORITY, type HomeBanner, type HomeServices, type LastTry } from './services.ts';
+import { ScalesChooser } from '../scales/index.ts';
+import { scaleSetFor } from '../../../session/index.ts';
 import { liveStreakDays, rankProgress, streakAtRisk } from './today.ts';
 import './home.css';
 
@@ -267,6 +269,25 @@ function MatchRow({ phone, voice, onOpen }: { phone: boolean; voice: boolean; on
   );
 }
 
+/**
+ * "Scales" (PLAN ruling 68): the entry under "Match a note", for an instrument with scales. Desktop: a card row with
+ * a line; phone: one line. It opens the scale chooser.
+ */
+function ScalesRow({ phone, onOpen }: { phone: boolean; onOpen: () => void }) {
+  return (
+    <button type="button" className={phone ? 'home-match home-match-phone home-scales' : 'home-match home-scales'} data-testid="scales-entry" aria-haspopup="dialog" onClick={onOpen}>
+      <span className="home-match-badge" aria-hidden="true">
+        <Glyph id="key-chord" size={20} />
+      </span>
+      <span className="home-match-text">
+        <span className="home-match-title">{copy(phone ? 'scales.entry.phone' : 'scales.entry')}</span>
+        {phone ? null : <span className="home-match-body">{copy('scales.entry.body')}</span>}
+      </span>
+      <Glyph id="chevron-right" size={20} className="home-match-chevron" />
+    </button>
+  );
+}
+
 // ---- Empty and error cards -------------------------------------------------------------------------------------
 
 function suggestionLabel(s: Partial<PracticeSettings>): string {
@@ -348,6 +369,8 @@ export function HomeScreen(_props: ScreenProps) {
   const [sheetRow, setSheetRow] = useState<SetupRowId | null>(null);
   const [picking, setPicking] = useState(false);
   const [micDenied, setMicDenied] = useState(false);
+  const [scalesOpen, setScalesOpen] = useState(false);
+  const [scaleBpm, setScaleBpm] = useState<number | null>(null);
   const chipRefs = useRef<Partial<Record<SetupRowId, HTMLButtonElement | null>>>({});
   const lastRow = useRef<SetupRowId | null>(null);
 
@@ -432,6 +455,27 @@ export function HomeScreen(_props: ScreenProps) {
   const calibrate = (): void => navigate('/calibrate');
   const openMatch = (): void => (services.openMatch ? services.openMatch() : navigate('/match'));
   const allTries = (): void => navigate('/history');
+  // Scales (PLAN ruling 68): only for an instrument whose set is in config/scales.json.
+  const scaleSet = services.scales && services.startScale ? scaleSetFor(services.scales, practice.instrumentId) : null;
+  const chooseScale = (scaleId: string, bpm: number | null): void => {
+    setScalesOpen(false);
+    services.settings.set({ ...services.settings.get(), practice });
+    services.startScale?.(scaleId, bpm);
+    navigate('/practice/scan');
+  };
+  const scalesChooser =
+    scaleSet && services.scales ? (
+      <ScalesChooser
+        open={scalesOpen}
+        config={services.scales}
+        set={scaleSet}
+        wide={wide}
+        bpm={scaleBpm}
+        onBpmChange={setScaleBpm}
+        onChoose={chooseScale}
+        onClose={() => setScalesOpen(false)}
+      />
+    ) : null;
 
   const fix = (b: RankedBlock): void => {
     if (b === 'calibration') {
@@ -584,7 +628,10 @@ export function HomeScreen(_props: ScreenProps) {
                 <RangePicture data={range} instrumentName={name} onHearNote={hearNote} soundingSlot={soundingSlot} />
               </div>
             ) : null}
-            <MatchRow phone={false} voice={voice} onOpen={openMatch} />
+            <div className={scaleSet ? 'home-warmups home-warmups-pair' : 'home-warmups'}>
+              <MatchRow phone={false} voice={voice} onOpen={openMatch} />
+              {scaleSet ? <ScalesRow phone={false} onOpen={() => setScalesOpen(true)} /> : null}
+            </div>
           </section>
           <section className="home-card home-setup" aria-label={copy('action.changeSetup')}>
             <SetupForm
@@ -608,6 +655,7 @@ export function HomeScreen(_props: ScreenProps) {
           </section>
         </div>
         <SetupInstrumentPicker open={picking} value={practice} ctx={ctx} onDone={pickInstrument} onCancel={() => setPicking(false)} onHearNote={hearNote} sound={pickerView} />
+        {scalesChooser}
       </section>
     );
   }
@@ -670,7 +718,11 @@ export function HomeScreen(_props: ScreenProps) {
         {startButton}
         {lastLine}
       </div>
-      <MatchRow phone voice={voice} onOpen={openMatch} />
+      <div className="home-warmups">
+        <MatchRow phone voice={voice} onOpen={openMatch} />
+        {scaleSet ? <ScalesRow phone onOpen={() => setScalesOpen(true)} /> : null}
+      </div>
+      {scalesChooser}
       <SetupSheet
         open={sheetRow !== null}
         row={sheetRow}

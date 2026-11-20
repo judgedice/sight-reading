@@ -1,7 +1,10 @@
 import type { ReactNode } from "react";
 
-/** Beat unit characters that copy templates and models produce: dotted quarter, quarter, eighth, half. */
-const UNIT = /(♩\.|♩|♪|\u{1D15E})/u;
+/**
+ * Beat unit characters that copy templates and models produce: dotted quarter, quarter, eighth, half. The half note
+ * comes precomposed (U+1D15E) or, as `beatUnit` writes it, decomposed (U+1D157 U+1D165, its canonical form).
+ */
+const UNIT = /(♩\.|♩|♪|\u{1D15E}|\u{1D157}\u{1D165})/u;
 
 /**
  * One beat-unit note drawn as inline SVG in the ink colour. The characters U+2669, U+266A and U+1D15E have no glyph in
@@ -11,7 +14,7 @@ const UNIT = /(♩\.|♩|♪|\u{1D15E})/u;
  */
 function BeatUnitIcon({ unit }: { unit: string }) {
   const dotted = unit === "♩.";
-  const half = unit === "\u{1D15E}";
+  const half = unit === "\u{1D15E}" || unit === "\u{1D157}\u{1D165}";
   const eighth = unit === "♪";
   return (
     <>

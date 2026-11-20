@@ -38,6 +38,7 @@ import { countdownCrossing } from './read-model.ts';
 import { useReadSounds, type ReadSounds } from './read-sounds.tsx';
 import { usePracticeFlowServices, type PracticeFlowServices } from './services.ts';
 import { PractiseWithoutListeningNotice } from '../states/States.tsx';
+import { scaleTitle } from '../scales/index.ts';
 import './scan.css';
 
 const NEVER: Readable<boolean> = { get: () => false, subscribe: () => () => undefined };
@@ -138,6 +139,8 @@ function SourceDetails({ prepared, onClose, mode }: { prepared: Prepared; onClos
 
 interface ToolbarProps {
   prepared: Prepared | null;
+  /** The overflow menu has items (a scale's read-through on desktop has none). */
+  menu: boolean;
   mode: 'ranked' | 'practice';
   scanning: boolean;
   remainingSec: number;
@@ -172,7 +175,7 @@ function ModeChip({ mode, scanning, remainingSec, totalSec }: { mode: 'ranked' |
   );
 }
 
-function Toolbar({ prepared, mode, scanning, remainingSec, totalSec, onHome, overflowOpen, setOverflowOpen, setOverflowAnchor }: ToolbarProps) {
+function Toolbar({ prepared, menu, mode, scanning, remainingSec, totalSec, onHome, overflowOpen, setOverflowOpen, setOverflowAnchor }: ToolbarProps) {
   return (
     <header className="scan-toolbar">
       <Button label={copy('nav.home')} variant="quiet" size="compact" icon="chevron-left" onClick={onHome} className="scan-home" />
@@ -184,7 +187,7 @@ function Toolbar({ prepared, mode, scanning, remainingSec, totalSec, onHome, ove
         <span className="scan-toolbar-gap" />
       )}
       {prepared ? <ModeChip mode={mode} scanning={scanning} remainingSec={remainingSec} totalSec={totalSec} /> : null}
-      {scanning && prepared ? (
+      {scanning && prepared && menu ? (
         <button type="button" className="scan-overflow" aria-label={OVERFLOW_LABEL} aria-haspopup="menu" aria-expanded={overflowOpen} ref={setOverflowAnchor} onClick={() => setOverflowOpen((o) => !o)}>
           <Glyph id="more" />
         </button>
@@ -376,7 +379,8 @@ export function ScanScreen(_props: ScreenProps) {
 
   const doSkip = useCallback(
     async (leave: boolean) => {
-      const source = svc.session.prepared?.source;
+      // A scale is not a piece: no "That was" credit after it (PLAN ruling 68).
+      const source = svc.session.prepared?.scale ? undefined : svc.session.prepared?.source;
       const revealed = svc.session.pending?.revealed === true;
       setDialog(null);
       try {
@@ -390,12 +394,14 @@ export function ScanScreen(_props: ScreenProps) {
     [svc.session, toast, navigate],
   );
 
+  const isScale = prepared?.scale !== undefined;
   const leave = useCallback(() => {
-    if (scanning) {
+    // A scale is free to leave: nothing is seen or burned, so there is no skip to confirm.
+    if (scanning && !isScale) {
       setLeaveAfterSkip(true);
       setDialog('skip');
     } else navigate('/');
-  }, [scanning, navigate]);
+  }, [scanning, isScale, navigate]);
 
   const shortcuts = settings.accessibility.keyboardShortcuts;
   const press = sounds.press;
@@ -478,8 +484,9 @@ export function ScanScreen(_props: ScreenProps) {
 
   const bpm = prepared?.selection.settings.bpm ?? 60;
   const requestedBars = settings.practice.bars;
-  const note = prepared ? servedBarsNote(prepared, requestedBars) : null;
-  const sLine = prepared ? sourceLine(prepared.source) : null;
+  const note = prepared && !prepared.scale ? servedBarsNote(prepared, requestedBars) : null;
+  const sLine = prepared && !prepared.scale ? sourceLine(prepared.source) : null;
+  const scaleChip = prepared?.scale ? copy('scales.scan.chip', { title: scaleTitle(prepared.scale) }) : null;
   // Practice has no reading timer: the same line for the whole read-through. Ranked says when the count-in is near.
   const soon = startingInSeconds(mode, remainingSec);
   const readHint = mode === 'practice' ? copy('scan.practice.readHint') : soon !== null ? copy('scan.ranked.soon', { seconds: soon }) : null;
@@ -493,6 +500,7 @@ export function ScanScreen(_props: ScreenProps) {
     <section className="scan" {...routeAttrs} data-state={state} data-mode={mode} data-layout={docked ? 'dock' : 'side'}>
       <Toolbar
         prepared={prepared}
+        menu={!isScale || (docked && calStatus !== null)}
         mode={mode}
         scanning={scanning}
         remainingSec={remainingSec}
@@ -522,29 +530,33 @@ export function ScanScreen(_props: ScreenProps) {
               <span className="scan-menu-cal-note">{`${calTexts(calStatus).action}. ${copy('calStatus.readthrough.note')}`}</span>
             </button>
           ) : null}
-          <button
-            type="button"
-            role="menuitem"
-            className="scan-menu-item"
-            onClick={() => {
-              setOverflowOpen(false);
-              setDialog('about');
-            }}
-          >
-            {copy('scan.overflow.aboutMusic')}
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            className="scan-menu-item"
-            onClick={() => {
-              setOverflowOpen(false);
-              setLeaveAfterSkip(false);
-              setDialog('skip');
-            }}
-          >
-            {copy('scan.overflow.skip')}
-          </button>
+          {isScale ? null : (
+            <>
+              <button
+                type="button"
+                role="menuitem"
+                className="scan-menu-item"
+                onClick={() => {
+                  setOverflowOpen(false);
+                  setDialog('about');
+                }}
+              >
+                {copy('scan.overflow.aboutMusic')}
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                className="scan-menu-item"
+                onClick={() => {
+                  setOverflowOpen(false);
+                  setLeaveAfterSkip(false);
+                  setDialog('skip');
+                }}
+              >
+                {copy('scan.overflow.skip')}
+              </button>
+            </>
+          )}
         </div>
       </Popover>
       {covered ? (
@@ -567,8 +579,13 @@ export function ScanScreen(_props: ScreenProps) {
               </p>
             ) : null}
             {docked && calibration ? <div className="scan-cal-phone">{calibration}</div> : null}
-            {note || sLine ? (
+            {note || sLine || scaleChip ? (
               <div className="scan-notes">
+                {scaleChip ? (
+                  <span className="scan-quiet-chip" data-testid="scan-scale-chip">
+                    {scaleChip}
+                  </span>
+                ) : null}
                 {note ? <span className="scan-quiet-chip">{note}</span> : null}
                 {sLine ? (
                   <button type="button" className="scan-source-line" onClick={() => setDialog('licence')}>
@@ -590,6 +607,7 @@ export function ScanScreen(_props: ScreenProps) {
                 highlightKey={sounds.highlight.key}
                 firstNoteName={sounds.highlight.firstNote}
                 highlightBar={sounds.highlight.bar}
+                sounding={sounds.sounding}
                 {...(svc.reducedMotion ? { reducedMotion: svc.reducedMotion } : {})}
                 {...(svc.highContrast ? { highContrast: svc.highContrast } : {})}
                 label={copy('score.summaryLabel', {

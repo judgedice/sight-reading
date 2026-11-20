@@ -15,6 +15,8 @@ export interface ResultsActions {
   next?(): boolean | void;
   /** Same excerpt, practice, cover skipped. Return true when handled; the default goes to the scan. */
   tryAgain?(): boolean | void;
+  /** "Next scale" after a scale try (PLAN ruling 68). Return true when handled; the default goes to the scan. */
+  nextScale?(): boolean | void;
   /** Accept a level-up offer. */
   moveUp(instrumentId: string, to: number): void;
   /** Decline an offer, or keep the level after a level-down suggestion. */

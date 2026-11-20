@@ -332,38 +332,32 @@ describe('modes', () => {
   });
 });
 
-describe('playhead, bar tint, fading the past', () => {
-  it('moves one playhead line across systems and tints the current bar only', () => {
+describe('playhead marker, no bar tint, fading the past', () => {
+  it('moves one invisible playhead marker across systems and draws no bar tint (round 2: the beat line replaced it)', () => {
     const { el, view, layout, p } = setup('mozart-sq35524196-violin1-mv2-mp16-28');
     expect(layout.systems.length).toBeGreaterThan(1);
     view.setPlayhead(1);
     const line = el.querySelector('.sr-playhead')!;
     expect(line.getAttribute('x1')).toBe(String(Math.round(layout.beatToPoint(1).x * 100) / 100));
     expect(el.querySelectorAll('.sr-playhead')).toHaveLength(1);
-    expect(el.querySelectorAll('.sr-bar-tint')).toHaveLength(1);
+    expect(el.querySelectorAll('.sr-bar-tint')).toHaveLength(0);
     const lastBeat: Beats = (p.measures.at(-1)!.startTick - p.pickupTicks) / p.meter.countUnitTicks + 0.5;
     view.setPlayhead(lastBeat);
     const sys = layout.beatToPoint(lastBeat).system;
     expect(line.closest('svg')!.getAttribute('data-system')).toBe(String(sys));
-    expect(el.querySelector('.sr-bar-tint')!.closest('svg')!.getAttribute('data-system')).toBe(String(sys));
     expect(el.querySelectorAll('.sr-playhead')).toHaveLength(1);
+    expect(el.querySelectorAll('.sr-bar-tint')).toHaveLength(0);
     view.setPlayhead(null);
     expect(line.getAttribute('visibility')).toBe('hidden');
-    expect(el.querySelector('.sr-bar-tint')!.getAttribute('visibility')).toBe('hidden');
   });
 
-  it('draws one wash and no next-bar marker (06 section 7)', () => {
-    const { el, view, p, layout } = setup();
+  it('draws no wash, no next-bar marker and no visible playhead line', () => {
+    const { el, view, p } = setup();
     const per = p.meter.countsPerBar;
     view.setPlayhead(per * 0.8);
     expect(el.querySelector('.sr-next-bar')).toBeNull();
-    const wash = el.querySelectorAll('.sr-bar-tint');
-    expect(wash).toHaveLength(1);
-    const sys = layout.systems[0]!;
-    const sp = sys.lineSpacing;
-    expect(Number(wash[0]!.getAttribute('y'))).toBeCloseTo(sys.staffTopY - 1.8 * sp, 1);
-    expect(Number(wash[0]!.getAttribute('rx'))).toBeCloseTo(0.5 * sp, 1);
-    // No visible playhead line.
+    expect(el.querySelectorAll('.sr-bar-tint')).toHaveLength(0);
+    expect(el.querySelector('rect[fill="var(--playhead-bar)"]')).toBeNull();
     expect(el.querySelector('.sr-playhead')!.getAttribute('visibility')).toBe('hidden');
   });
 

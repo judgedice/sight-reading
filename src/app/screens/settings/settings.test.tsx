@@ -538,6 +538,18 @@ describe('Settings round 2 additions', () => {
     expect(v.settings.value().practice.autoReference).toBe(false);
   });
 
+  it('Practice has the beat line switch for every instrument, on by default, and stores it', async () => {
+    const h = harness();
+    await render(h);
+    const sw = switchFor(copy('settings.practice.beatLine'));
+    expect(sw?.checked).toBe(true);
+    expect(sw!.closest('#practice, [id="practice"], section')).not.toBeNull();
+    click(sw!);
+    expect(h.settings.value().display.beatLine).toBe(false);
+    click(switchFor(copy('settings.practice.beatLine'))!);
+    expect(h.settings.value().display.beatLine).toBe(true);
+  });
+
   it('chooses how played notes show live and stores it', async () => {
     const h = harness();
     await render(h);

@@ -6,6 +6,7 @@ import { WebAudioBackend, type CaptureFault, type InterruptionReason, type WebAu
 import type { FakeGain, FakeSourceNode, FakeWorkletNode} from './testing/fake-web-audio.ts';
 import { FakeAudioWorld, flush, type WorldOptions } from './testing/fake-web-audio.ts';
 import { routeKeyOf } from './route.ts';
+import { MAX_LEAD_SEC } from './sampler.ts';
 
 const caps: PlatformCapabilities = {
   platform: 'web', outputLatencyReported: true, wakeLock: true, serviceWorker: true, persistentStorage: 'best-effort', osFamily: 'linux', displayMode: 'browser',
@@ -858,7 +859,9 @@ describe('sampled notes (round 2, 02-sounds.md)', () => {
     const src = world.ctx.bufferSources[1] as unknown as { playbackRate: { value: number }; loop: boolean; startedAt: number; outs: FakeGain[] };
     expect(1200 * Math.log2(src.playbackRate.value)).toBeCloseTo(300, 3); // C5 from A4
     expect(src.loop).toBe(true);
-    expect(src.startedAt).toBe(2);
+    // Heard at 2: the source starts early by its rise (onset alignment), never more than MAX_LEAD_SEC.
+    expect(src.startedAt).toBeLessThan(2);
+    expect(src.startedAt).toBeGreaterThanOrEqual(2 - MAX_LEAD_SEC - 1e-9);
     const env = src.outs[0] as FakeGain;
     expect(env.outs[0]).toBe(bus);
     expect(world.ctx.bufferSources).toHaveLength(2);

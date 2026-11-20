@@ -318,6 +318,55 @@
   padding: var(--space-2) var(--space-3);
 }
 
+/* "Match a note" and "Scales" (PLAN ruling 68) stack as the card's warm-ups. */
+.home-warmups {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/*
+ * Desktop with both warm-ups: two tiles side by side, so the card still ends above the fold at 1440 x 900. Each tile
+ * keeps the row's parts: badge, title and chevron on top, the line under them.
+ */
+.home-warmups-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+
+.home-warmups-pair .home-match {
+  display: grid;
+  grid-template-areas:
+    'badge title chevron'
+    'body body body';
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3);
+}
+
+.home-warmups-pair .home-match-text {
+  display: contents;
+}
+
+.home-warmups-pair .home-match-badge {
+  grid-area: badge;
+}
+
+.home-warmups-pair .home-match-title {
+  grid-area: title;
+  white-space: nowrap;
+}
+
+.home-warmups-pair .home-match-body {
+  grid-area: body;
+  align-self: start;
+}
+
+.home-warmups-pair .home-match-chevron {
+  grid-area: chevron;
+}
+
 /* ---- The setup form and its foot -------------------------------------------------------------------------------- */
 
 .home-setup {

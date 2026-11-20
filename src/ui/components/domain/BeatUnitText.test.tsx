@@ -22,4 +22,11 @@ describe('BeatUnitText', () => {
     expect(plain.container.querySelector('svg')).toBeNull();
     plain.unmount();
   });
+
+  it("draws the half note as setup's beatUnit writes it (decomposed, U+1D157 U+1D165) as an open notehead", () => {
+    const half = mount(<BeatUnitText text={`\u{1D157}\u{1D165} = 80`} />);
+    expect(half.container.querySelectorAll('svg.ui-beat-unit')).toHaveLength(1);
+    expect(half.container.querySelector('svg ellipse')?.getAttribute('fill')).toBe('none');
+    half.unmount();
+  });
 });

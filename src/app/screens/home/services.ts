@@ -4,7 +4,7 @@
  * stable value until something changes.
  */
 import type { StoreApi } from 'zustand/vanilla';
-import type { AppSettings, Configs, LetterGrade, PlayerProfile, PracticeSettings } from '../../../core/types.ts';
+import type { AppSettings, Configs, LetterGrade, PlayerProfile, PracticeSettings, ScalesConfig } from '../../../core/types.ts';
 import type { CalStatus } from '../../compose/calibration-status.ts';
 import type { RankedAvailability, SessionView, SoundView } from '../../../session/index.ts';
 import type { MicBrowser } from '../states/mic.ts';
@@ -106,6 +106,13 @@ export interface HomeServices {
   pickerSound?: PickerSound;
   /** Opens "Match a note" (`#/match`). */
   openMatch?(): void;
+  /** `config/scales.json` (PLAN ruling 68). Without it, or for an instrument with no set, there is no Scales entry. */
+  scales?: ScalesConfig | null;
+  /**
+   * Starts a scale try (PLAN ruling 68): prepares the scale at `bpm` (null: its usual tempo) and goes straight to the
+   * read-through, which Practice opens next. Call from the click.
+   */
+  startScale?(scaleId: string, bpm: number | null): void;
   /** "Turn on microphone": turns listening on and runs the permission request. Call from the click. */
   turnOnMic?(): Promise<{ ok: boolean }>;
 }

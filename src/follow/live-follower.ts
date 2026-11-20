@@ -14,6 +14,12 @@
  *     `octave` with no pitch credit (R20).
  *  6. Voice: targets carry `VoiceDriftReference.offsetCents()`, updated per finished note.
  *  7. On `note-off`: the note's judgment from the full steady median, with the duration verdict (02 §4.3).
+ *  8. Voice (`oneNote`, round 2 real voice): a note that starts where a matched note's piece ends, at a pitch change,
+ *     and that the final pass (`consolidate.ts`) would join to it (a scoop's settled pitch, a fragment, a glitch and
+ *     the pitch it returns to, the same pitch) is a continuation of that note: it is not matched, not drawn as an
+ *     extra and not in the displacement window. The matched note's judgment is finished when its last piece ends,
+ *     with the pitch of its longest piece (a glitch never gives the pitch). A wrong pitch is not shown while the note
+ *     is younger than a long scoop.
  * On each clock: pending notes go `missed` once onset + W + confirmDelay has passed; after 1 bar of silence not
  * covered by rests, `come-in-at` the next downbeat at least `comeInMinLeadBeats` ahead.
  *
@@ -54,6 +60,7 @@ import {
 import { classifyAgainst, LIVE_SKIP_COST, matchCost, pitchCost, scoreSecondsOf } from './cost.ts';
 import { DISPLACEMENT_WINDOW_NOTES, DisplacementDetector, type WindowNote } from './displacement.ts';
 import { ghostPitch } from './ghost-spelling.ts';
+import { chainsOn, continuesChain, glitchOf, wrongHeldWhileYoung, type NoteChain } from './continuation.ts';
 import { absorbedBy, extraMinMs, holdWrongAtConfirm, ignoredNote } from './own-playback.ts';
 
 /** Analysis hop, samples (01 §5.6). */
@@ -69,6 +76,8 @@ const MS = 1000;
 const EPS = 1e-9;
 /** Offsets closer than this are the same displacement, beats. */
 const SAME_DELTA_BEATS = 0.5;
+/** A chain's judgment is finished once the clock is this far past its last piece's end with no piece after it, s. */
+const CHAIN_WAIT_SEC = 0.012;
 
 const r6 = (x: number): number => Math.round(x * 1e6) / 1e6;
 
@@ -91,6 +100,8 @@ interface DetState {
   live: LiveIntonation;
   last: LiveJudgment | null;
   sounding: boolean;
+  /** A continuation of this matched note (voice, `continuation.ts`), or null. */
+  contOf: DetState | null;
 }
 
 export class LiveFollower implements LiveFollowerInstance {
@@ -101,6 +112,8 @@ export class LiveFollower implements LiveFollowerInstance {
   private readonly det = new Map<number, DetState>();
   /** The last matched note (for `absorbedBy`). */
   private lastMatched: DetState | null = null;
+  /** The matched note whose judgment waits for its last piece to end (voice, `continuation.ts`), or null. */
+  private chain: (NoteChain & { head: DetState }) | null = null;
   /** Detected notes that are not the player's (`own-playback.ts`): no events at all. */
   private readonly ignored = new Set<number>();
   /** Unmatched notes still sounding (for the extra ghost on the clock). */
@@ -269,6 +282,19 @@ export class LiveFollower implements LiveFollowerInstance {
     }
     const s = this.s(d.onset);
     this.soundingCount++;
+    const ch = this.chain;
+    if (ch && !ch.sounding) {
+      if (continuesChain(this.c, ch, ch.head.idx as number, d, s)) {
+        // The same sung note goes on (a scoop settling, a fragment, a glitch): no match, no extra, no window note.
+        const cont: DetState = { note: d, s, idx: null, displaced: false, deltaMs: 0, ghost: null, extraGhosted: false, extraMinMs: Infinity, live: 'none', last: null, sounding: true, contOf: ch.head };
+        this.det.set(d.id, cont);
+        ch.sounding = true;
+        ch.last = d;
+        out.push({ type: 'note-start', detectedId: d.id, scoreBeat: this.beats(s), provisionalConcertMidi: d.provisionalMidi, matchedExpected: null, displaced: false });
+        return;
+      }
+      this.finishChain(out);
+    }
     const wn: WindowNote = { s, midi: d.provisionalMidi, clarity: d.clarity, altOctaveClarity: d.altOctaveClarity };
     this.window.push(wn);
     this.windowIds.push(d.id);
@@ -279,7 +305,7 @@ export class LiveFollower implements LiveFollowerInstance {
     const offset = this.offsetCents();
     const best = this.greedy(s, d, offset);
     const absorbed = absorbedBy(this.c, d, this.lastMatched?.note ?? null);
-    const st: DetState = { note: d, s, idx: null, displaced: false, deltaMs: 0, ghost: null, extraGhosted: false, extraMinMs: extraMinMs(this.c, d, absorbed), live: 'none', last: null, sounding: true };
+    const st: DetState = { note: d, s, idx: null, displaced: false, deltaMs: 0, ghost: null, extraGhosted: false, extraMinMs: extraMinMs(this.c, d, absorbed), live: 'none', last: null, sounding: true, contOf: null };
     this.det.set(d.id, st);
 
     if (this.delta !== null) {
@@ -374,18 +400,29 @@ export class LiveFollower implements LiveFollowerInstance {
     const st = this.det.get(d.id);
     if (!st || !st.sounding) return;
     st.note = d;
+    if (st.contOf) {
+      this.onContinuationUpdate(out, st, d);
+      return;
+    }
     if (st.idx === null) {
       this.maybeExtraGhost(out, st, d.steadyMs + this.attackMs);
       return;
     }
-    const tol = this.tol(st.idx);
+    this.livePitch(out, st, d, (d.steadyMs + this.attackMs) / MS);
+  }
+
+  /** The live pitch state of matched note `st`, sung as `d` (its own note, or the piece of it that gives the pitch). */
+  private livePitch(out: FollowerEvent[], st: DetState, d: DetectedNote, ageSec: number): void {
+    const tol = this.tol(st.idx as number);
     if (d.steadyMs < tol.liveProvisionalMs) return;
-    const e = this.exp(st.idx);
+    const e = this.exp(st.idx as number);
     const { midi, c } = classifyAgainst(e, d, this.offsetCents(), this.c.instrument, this.c.cfg);
     const eligible = liveIntonationEligible(e, tol);
     st.live = c.kind === 'correct' ? liveIntonationStep(st.live, c.devCents, d.steadyMs, eligible, tol) : 'none';
     const intonation = c.kind === 'correct' ? liveIntonationAsVerdict(st.live, eligible) : 'not-graded';
     const v = noteVerdict({ deltaMs: st.deltaMs, pitch: c, intonation }, tol);
+    // Voice: a scoop is not a wrong note; the wrong pitch waits until the note is older than a long scoop.
+    if (v.pitch === 'wrong-pitch' && wrongHeldWhileYoung(this.c, ageSec)) return;
     const prev = st.last as LiveJudgment;
     if (prev.pitch !== v.pitch || prev.marginal !== v.marginal || prev.octaveDisplaced !== c.octaveDisplaced) {
       this.emitJudgment(out, st, { ...prev, pitch: v.pitch, playedConcertMidi: r6(midi), centsError: r6(c.devCents), octaveDisplaced: c.octaveDisplaced, marginal: v.marginal, provisional: true });
@@ -414,9 +451,61 @@ export class LiveFollower implements LiveFollowerInstance {
     const durSec = (d.offset ?? d.onset) - d.onset;
     this.silenceFrom = Math.max(this.silenceFrom, st.s + durSec);
     this.comeInShown = false;
-    if (st.idx !== null) this.finishMatched(out, st, durSec);
+    if (st.contOf && this.chain && this.chain.head === st.contOf) {
+      // A piece of the chain ended: the judgment waits for the next piece or for the clock.
+      this.chain.sounding = false;
+      this.chain.last = d;
+      this.takePitchFrom(d);
+    } else if (st.idx !== null && chainsOn(this.c)) {
+      if (this.chain) this.finishChain(out);
+      this.chain = { head: st, onset: d.onset as number, last: d, src: d, sounding: false };
+    } else if (st.idx !== null) this.finishMatched(out, st, durSec);
     else this.maybeExtraGhost(out, st, durSec * MS);
     out.push({ type: 'note-end', detectedId: d.id, durationBeats: this.beats(durSec) });
+  }
+
+  /** A continuation sounding: it may become the piece that gives the pitch, or turn out to be a note of its own. */
+  private onContinuationUpdate(out: FollowerEvent[], st: DetState, d: DetectedNote): void {
+    const ch = this.chain;
+    if (!ch || ch.head !== st.contOf) return;
+    ch.last = d;
+    const soundedSec = (d.steadyMs + this.attackMs) / MS;
+    if (glitchOf(this.c, ch, d) === 'not-a-glitch') {
+      // Far from the note and too long for a glitch: a note of its own after all (unmatched; drawn as usual).
+      this.finishChain(out);
+      st.contOf = null;
+      st.extraMinMs = extraMinMs(this.c, d, false);
+      this.soundingUnmatched.add(d.id);
+      this.maybeExtraGhost(out, st, soundedSec * MS);
+      return;
+    }
+    if (this.takePitchFrom(d)) this.livePitch(out, ch.head, this.chainNote(ch), this.s(d.onset) + soundedSec - ch.head.s);
+  }
+
+  /** `d` gives the chain's pitch when it has sounded longer than the piece that does now and is no glitch. */
+  private takePitchFrom(d: DetectedNote): boolean {
+    const ch = this.chain;
+    if (!ch || glitchOf(this.c, ch, d) !== 'no') return false;
+    const len = (x: DetectedNote): number => (x.offset ?? x.onset + (x.steadyMs + this.attackMs) / MS) - x.onset;
+    if (d.id !== ch.src.id && len(d) <= len(ch.src)) return false;
+    ch.src = d;
+    return true;
+  }
+
+  /** The chain as one note: the head's id and onset, the pitch of its longest piece, the end of its last piece. */
+  private chainNote(ch: NoteChain & { head: DetState }): DetectedNote {
+    return { ...ch.src, id: ch.head.note.id, onset: ch.head.note.onset, offset: ch.sounding ? null : ch.last.offset, onsetCause: ch.head.note.onsetCause };
+  }
+
+  /** Finishes the open chain's matched note (`finishMatched` on the chain as one note). */
+  private finishChain(out: FollowerEvent[]): void {
+    const ch = this.chain;
+    if (!ch) return;
+    this.chain = null;
+    const head = ch.head;
+    const d = this.chainNote({ ...ch, sounding: false });
+    head.note = d;
+    this.finishMatched(out, head, (d.offset ?? d.onset) - d.onset);
   }
 
   private finishMatched(out: FollowerEvent[], st: DetState, durSec: number): void {
@@ -465,6 +554,9 @@ export class LiveFollower implements LiveFollowerInstance {
       out.push({ type: 'clock', scoreBeat: this.beats(now) });
     }
     this.fireMissed(out, now);
+    // A chain whose last piece ended and that no piece followed at once is finished (a split's next note-on arrives
+    // with its note-off, before the clock).
+    if (this.chain && !this.chain.sounding && now > this.s(this.chain.last.offset ?? this.chain.last.onset) + CHAIN_WAIT_SEC) this.finishChain(out);
     for (const id of this.soundingUnmatched) {
       const st = this.det.get(id) as DetState;
       this.maybeExtraGhost(out, st, (now - st.s) * MS);
@@ -509,6 +601,7 @@ export class LiveFollower implements LiveFollowerInstance {
   end(inputT: ClockSeconds, reason: EndReason): FollowerEvent[] {
     if (this.ended) return [];
     const out: FollowerEvent[] = [];
+    this.finishChain(out);
     this.fireMissed(out, this.s(inputT));
     this.ended = true;
     out.push(reason.reason === 'void' ? { type: 'end', reason: 'void', voidReason: reason.voidReason } : { type: 'end', reason: reason.reason });

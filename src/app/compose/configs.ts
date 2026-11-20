@@ -1,6 +1,8 @@
 /** The app's configs, parsed once from config/ (01 §5.3: one resolver for the follower, renderer and grader). */
-import type { Configs, RawConfigs } from '../../core/types.ts';
+import type { Configs, RawConfigs, ScalesConfig } from '../../core/types.ts';
 import { loadConfigs } from '../../rules/index.ts';
+import { loadScales } from '../../corpus/index.ts';
+import scalesJson from '../../../config/scales.json';
 import gradingJson from '../../../config/grading-config.json';
 import instrumentsJson from '../../../config/instruments.json';
 import levelsJson from '../../../config/levels.json';
@@ -22,4 +24,12 @@ export function appConfigs(): Configs {
     trumpetValves: valvesJson,
   } as unknown as RawConfigs);
   return cached;
+}
+
+let scalesCached: ScalesConfig | null = null;
+
+/** `config/scales.json`, checked against the configs (PLAN ruling 68: generated scales, never excerpts). */
+export function appScales(cfg: Configs = appConfigs()): ScalesConfig {
+  scalesCached ??= loadScales(scalesJson, cfg);
+  return scalesCached;
 }

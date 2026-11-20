@@ -113,6 +113,12 @@ Specs are in `docs/redesign/round2/`. They override earlier documents for what t
 66. Size limits: 150 KB initial and 560 KB total of JavaScript and CSS (gzip). Sound files load per instrument on demand and are outside this limit, at most 150 KB per instrument.
 67. Match a note is a warm-up, not a difficulty, and it sits outside the 1 to 10 scale. Difficulty stays 1 to 10 and means how hard the music is. Match a note has no score, XP, rank, streak or History entry. It is the route `#/match`, a permanent entry on Practice, and a step in onboarding after calibration.
 
+## Scales (R68)
+
+The owner asked for scales to practise at difficulty 1. Ruling 67 was already taken by Match a note, so this is ruling 68.
+
+68. Scales are generated drill material, not sight-reading excerpts. They are written in code from `config/scales.json` (schema `schemas/scales.schema.json`), labelled as scales everywhere the player sees them, never mixed into the excerpt pool and never shown with a composer or a source. Ruling 25 still holds for excerpts: no composed or memory-encoded melodies. A scale try runs through the same pipeline as an excerpt (starting pitch, count-in, live marks, grading with the same tolerances at difficulty 1, results, Listen, History, diagnostics) and gets a score and a grade, but it is always practice: no XP, rank, streak or level-window entry, never ranked, and it never changes the difficulty. Its attempt record carries `kind: 'scale'` and the scale itself (`scale`); both are optional, an attempt without them is an excerpt, and no store or export migration is needed. Scales are offered per instrument by listing a set in the config; the first set is the baritone's, inside A2 to D4.
+
 ## What the owner should know
 
 - Early, late, and wrong-note marks appear within about 150 ms of the note. Sharp and flat marks appear about 260 to 350 ms after the note starts, because pitch needs roughly 100 ms of steady tone after the attack before it can be measured to the cent.

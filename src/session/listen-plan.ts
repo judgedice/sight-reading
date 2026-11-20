@@ -19,8 +19,12 @@ export const LISTEN = {
   articulation: 0.9,
   /** "Slower" plays at this fraction of the tempo. */
   slower: 0.75,
-  /** Peak level of the Listen voice, about −12 dBFS. */
-  peak: 10 ** (-12 / 20),
+  /**
+   * The `playNotes` peak of Listen and every note the app plays: the whole Listen bus, whose ceiling is about −12 dBFS
+   * (05 §9.2). The bus applies the −12 dB; this used to apply it a second time, so Listen played at −24 dBFS peak,
+   * 23 dB under the clicks it plays with and 12 dB under the starting pitch.
+   */
+  peak: 1,
   /** A range-picture note sounds for this long, seconds. */
   noteSec: 1,
   /** Sound previews in Settings and calibration: one bar at this tempo. */
@@ -42,12 +46,17 @@ export interface ListenOptions {
 export interface ListenNote {
   /** Index of the expected note it plays. */
   idx: number;
+  /** Its event ids in the score (the sounding-note highlight); empty when the source has none. */
+  eventIds: readonly string[];
   /** Displayed bar of the note. */
   bar: number;
   concertMidi: number;
   hz: number;
   startSec: number;
+  /** Seconds it sounds (the written length less the articulation gap). */
   durSec: number;
+  /** Its written length, seconds (the sounding-note highlight lasts this long). */
+  writtenSec: number;
 }
 
 export interface ListenClick {
@@ -82,7 +91,7 @@ export interface ListenPlan {
 
 /** What a plan needs from an excerpt. `listenSourceOf` builds it from a prepared excerpt. */
 export interface ListenSource {
-  expected: readonly Pick<ExpectedNote, 'idx' | 'bar' | 'onsetBeat' | 'durBeats' | 'concertMidi'>[];
+  expected: readonly (Pick<ExpectedNote, 'idx' | 'bar' | 'onsetBeat' | 'durBeats' | 'concertMidi'> & Partial<Pick<ExpectedNote, 'eventIds'>>)[];
   beatsPerBar: number;
   /** Length of the pickup, metronome beats (0 without one). */
   pickupBeats: number;
@@ -150,11 +159,13 @@ export function planListen(src: ListenSource, f: ListenFacts, o: ListenOptions =
     .filter((e) => e.onsetBeat >= fromBeat - EPS)
     .map((e) => ({
       idx: e.idx,
+      eventIds: e.eventIds ?? [],
       bar: e.bar,
       concertMidi: e.concertMidi,
       hz: midiToFreq(e.concertMidi, f.a4Hz),
       startSec: at(e.onsetBeat),
       durSec: e.durBeats * beatSec * LISTEN.articulation,
+      writtenSec: e.durBeats * beatSec,
     }));
 
   const bars: ListenBar[] = [];
@@ -190,7 +201,7 @@ export function planBars(src: ListenSource, f: ListenFacts, from: number, to: nu
       const off = (e.onsetBeat - startBeat) * beatSec;
       // A note tied over the segment's end stops at the end, so the repeat starts clean.
       const written = Math.min(e.durBeats * beatSec, segSec - off);
-      notes.push({ idx: e.idx, bar: e.bar, concertMidi: e.concertMidi, hz: midiToFreq(e.concertMidi, f.a4Hz), startSec: origin + off, durSec: written * LISTEN.articulation });
+      notes.push({ idx: e.idx, eventIds: e.eventIds ?? [], bar: e.bar, concertMidi: e.concertMidi, hz: midiToFreq(e.concertMidi, f.a4Hz), startSec: origin + off, durSec: written * LISTEN.articulation, writtenSec: written });
     }
     for (let k = a; k <= b; k++) bars.push({ bar: k, startSec: origin + (barStartBeat(src, k) - startBeat) * beatSec, endSec: origin + (barEndBeat(src, k) - startBeat) * beatSec });
   }

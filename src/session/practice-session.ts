@@ -333,6 +333,9 @@ const REFERENCE_RELEASE_SEC = 0.3;
 const REFERENCE_PEAK = 1;
 /** `scheduleTake` needs at least this long from the call to the first click (01 §7.1), seconds. */
 const MIN_LEAD_SEC = 0.5;
+/** The longest a sound control waits for its instrument's samples before it plays the fallback tone, ms. */
+const SOUND_READY_WAIT_MS = 3000;
+
 /** A metronome click as an own sound (its burst and the first room reflections), seconds. */
 const CLICK_SOUND_SEC = 0.04;
 
@@ -401,6 +404,8 @@ export class PracticeSession implements PracticeSessionInstance {
   diagnosticsError: unknown = null;
   /** The "Hear it" store: what is sounding, its caption and bar (05 §8.8, §9.3). */
   readonly sounds: StoreApi<SoundView>;
+  /** Bumped by every sound control and by Stop: a sound still waiting for its samples starts only if it is the last. */
+  private soundTicket = 0;
   /** Prepared excerpts of stored attempts (history Listen), by attempt id. */
   private readonly recordPrepared = new Map<string, Promise<PreparedExcerpt | null>>();
   private readonly rng: Rng;
@@ -455,6 +460,8 @@ export class PracticeSession implements PracticeSessionInstance {
     if (typeof this.audio.onCaptureFault === 'function') {
       this.unsubs.push(this.audio.onCaptureFault((f) => this.voidTake(f.kind === 'backlog' ? 'backlog' : 'capture-gap')));
     }
+    // An excerpt on screen loads its instrument's sound at once, so the first Listen plays it (not the fallback tone).
+    this.unsubs.push(this.events.on((e) => (e.type === 'prepared' ? this.warmSound(e.excerpt.instrumentId) : undefined)));
   }
 
   get state(): SessionState {
@@ -567,10 +574,12 @@ export class PracticeSession implements PracticeSessionInstance {
     try {
       const scales = this.opts.scales;
       if (!scales) throw new SessionError('unknown', 'no scales are configured');
-      await this.loadProfile(s.instrumentId);
+      // Everything up to the read-through happens at once, so the caller can open audio in the same gesture
+      // (`ensureAudio` right after this call, as "Show the music" does for an excerpt).
       const prepared = prepareScale(scales, this.cfg, s.instrumentId, scaleId, bpm);
       const plan = planTake(prepared, this.cfg);
-      const settings: PracticeSettings = { ...s, mode: 'practice' };
+      // The record says what was sung: the scale's key, meter, tempo and difficulty, always practice.
+      const settings: PracticeSettings = { ...s, mode: 'practice', level: prepared.levelServed, writtenKey: prepared.writtenKey, meter: `${prepared.meter.beats}/${prepared.meter.beatType}`, bpm: plan.bpm };
       const c: Current = {
         settings,
         mode: 'practice',
@@ -598,6 +607,7 @@ export class PracticeSession implements PracticeSessionInstance {
       // Straight to the read-through (no cover): the scale is shown at once.
       this.reveal(c);
       this.startScan(c);
+      await this.loadProfile(s.instrumentId);
       return prepared;
     } catch (e) {
       throw this.fail(e instanceof RangeError ? new SessionError('unknown', e.message, { cause: e }) : e);
@@ -929,6 +939,8 @@ export class PracticeSession implements PracticeSessionInstance {
    */
   private async playReference(c: Current): Promise<{ end: number; sounds: OwnSound[] }> {
     const { tones, request, notes, sound } = this.referenceSound(c, 60 / c.plan.bpm);
+    // Loaded when the excerpt was prepared; a slow network waits a little rather than play the fallback tone.
+    await this.whenSoundReady(sound);
     const at = (this.audio.now() as number) + VOICE_REFERENCE_LEAD_SEC;
     this.player.follow(request, at);
     await this.audio.playNotes(notes, { at: at as ClockSeconds, peak: REFERENCE_PEAK, ...(sound ? { sound } : {}) });
@@ -970,7 +982,7 @@ export class PracticeSession implements PracticeSessionInstance {
     if (refused) return refused;
     const unlocked = this.unlockForSound();
     const { tones, request, notes, sound } = this.referenceSound(c);
-    return unlocked.then(() =>
+    return this.whenUnlockedAndLoaded(unlocked, sound, () =>
       this.player.play({
         ...request,
         schedule: async (at) => {
@@ -979,6 +991,44 @@ export class PracticeSession implements PracticeSessionInstance {
         },
       }),
     );
+  }
+
+  /**
+   * Starts loading an instrument's sample set (an excerpt was prepared, a picker row was hovered). Never rejects.
+   */
+  private warmSound(instrumentId: string): void {
+    void this.prepareSound(instrumentId).catch(() => undefined);
+  }
+
+  /**
+   * Resolves once the set is loaded (or failed, or `SOUND_READY_WAIT_MS` passed), so the first press of a sound plays
+   * the instrument's own sound instead of the fallback tone. Never rejects.
+   */
+  private whenSoundReady(sound: SoundSetId | undefined): Promise<void> {
+    if (sound === undefined) return Promise.resolve();
+    let loading: Promise<unknown>;
+    try {
+      loading = this.audio.prepareSound(sound);
+    } catch {
+      return Promise.resolve();
+    }
+    return new Promise<void>((resolve) => {
+      const h = this.timers.setTimeout(resolve, SOUND_READY_WAIT_MS);
+      const done = (): void => {
+        this.timers.clearTimeout(h);
+        resolve();
+      };
+      loading.then(done, done);
+    });
+  }
+
+  /**
+   * A sound control's start: unlock (already called in the gesture), wait for the instrument's sound, then `start`,
+   * unless Stop or another sound came first while it loaded.
+   */
+  private whenUnlockedAndLoaded(unlocked: Promise<unknown>, sound: SoundSetId | undefined, start: () => Promise<void>): Promise<void> {
+    const ticket = ++this.soundTicket;
+    return unlocked.then(() => this.whenSoundReady(sound)).then(() => (ticket === this.soundTicket ? start() : undefined));
   }
 
   // ---- "Hear it" (05 §9) ----------------------------------------------------------------------------
@@ -1062,7 +1112,7 @@ export class PracticeSession implements PracticeSessionInstance {
     if (refused) return refused;
     const unlocked = this.unlockForSound();
     const tones = keyChordTones(c.prepared.concertKey, (c.plan.expected[0] as { concertMidi: number }).concertMidi, this.prefs().a4Hz);
-    return unlocked.then(() =>
+    return this.whenUnlockedAndLoaded(unlocked, soundOf(c.plan.inst.id), () =>
       this.player.play({
         kind: 'key',
         durSec: chordLengthSec(tones),
@@ -1090,11 +1140,13 @@ export class PracticeSession implements PracticeSessionInstance {
     const unlocked = this.unlockForSound();
     const prefs = this.prefs();
     const source = record ? this.preparedForRecord(record) : Promise.resolve((c as Current).prepared);
-    return Promise.all([unlocked, source]).then(([, prepared]) => {
+    const notesSound = soundOf(record ? record.instrumentId : (c as Current).plan.inst.id);
+    return this.whenUnlockedAndLoaded(Promise.all([unlocked, source]), notesSound, async () => {
+      const prepared = await source;
       if (!prepared) throw new SessionError('corpus-load', `the excerpt of attempt ${record?.id ?? ''} is not available`);
       const bpm = record ? record.bpm : (c as Current).plan.bpm;
       const plan = planListen(listenSourceOf(prepared, this.cfg), { bpm, a4Hz: prefs.a4Hz, accent: prefs.accent }, o);
-      return this.playPlan('listen', plan, prefs.sound, soundOf(record ? record.instrumentId : (c as Current).plan.inst.id), { fromBar: plan.startBar, slower: !!o.slower, attemptId: record?.id ?? null });
+      return this.playPlan('listen', plan, prefs.sound, notesSound, { fromBar: plan.startBar, slower: !!o.slower, attemptId: record?.id ?? null });
     });
   }
 
@@ -1124,11 +1176,13 @@ export class PracticeSession implements PracticeSessionInstance {
     const unlocked = this.unlockForSound();
     const prefs = this.prefs();
     const source = record ? this.preparedForRecord(record) : Promise.resolve((c as Current).prepared);
-    return Promise.all([unlocked, source]).then(([, prepared]) => {
+    const notesSound = soundOf(record ? record.instrumentId : (c as Current).plan.inst.id);
+    return this.whenUnlockedAndLoaded(Promise.all([unlocked, source]), notesSound, async () => {
+      const prepared = await source;
       if (!prepared) throw new SessionError('corpus-load', `the excerpt of attempt ${record?.id ?? ''} is not available`);
       const bpm = record ? record.bpm : (c as Current).plan.bpm;
       const plan = planBars(listenSourceOf(prepared, this.cfg), { bpm, a4Hz: prefs.a4Hz, accent: prefs.accent }, from, to, o);
-      return this.playPlan('bar', plan, prefs.sound, soundOf(record ? record.instrumentId : (c as Current).plan.inst.id), { fromBar: plan.startBar, slower: !!o.slower, attemptId: record?.id ?? null });
+      return this.playPlan('bar', plan, prefs.sound, notesSound, { fromBar: plan.startBar, slower: !!o.slower, attemptId: record?.id ?? null });
     });
   }
 
@@ -1142,7 +1196,7 @@ export class PracticeSession implements PracticeSessionInstance {
     const unlocked = this.unlockForSound();
     const hz = midiToFreq(concertMidi, this.prefs().a4Hz);
     const inst = instrumentId ?? this.current?.plan.inst.id;
-    return unlocked.then(() =>
+    return this.whenUnlockedAndLoaded(unlocked, soundOf(inst), () =>
       this.player.play({
         kind: 'note',
         durSec: LISTEN.noteSec,
@@ -1165,7 +1219,7 @@ export class PracticeSession implements PracticeSessionInstance {
     const unlocked = this.unlockForSound();
     const range = planRange(concertMidis, this.prefs().a4Hz, o);
     const sound = soundOf(instrumentId);
-    return unlocked.then(() =>
+    return this.whenUnlockedAndLoaded(unlocked, sound, () =>
       this.player.play({
         kind: 'range',
         durSec: range.endSec,
@@ -1220,20 +1274,26 @@ export class PracticeSession implements PracticeSessionInstance {
     if (zero === null) throw new SessionError('unknown', 'no-notes');
     const plan = planHeard({ detected: record.detected, scoreZeroClock: zero, bpm: record.bpm, beatsPerBar: src.beatsPerBar, pickupBeats: src.pickupBeats, totalBars: src.totalBars, a4Hz: this.prefs().a4Hz });
     if (plan.notes.length === 0) throw new SessionError('unknown', 'no-notes');
-    await unlocked;
     const segments: SoundSegment[] = plan.bars.map((b) => ({ atSec: Math.max(0, b.startSec), caption: { kind: 'heard-bar', bar: b.bar, of: plan.totalBars }, bar: b.bar }));
     const sound = soundOf(record.instrumentId);
-    return this.player.play({
+    // A heard note glows on the written note it was matched to; an extra glows on nothing.
+    const matched = new Map(record.judgments.filter((j) => j.detectedId !== null).map((j) => [j.detectedId as number, j.expectedIdx]));
+    const notes = plan.notes.flatMap((n) => {
+      const idx = n.id === undefined ? undefined : matched.get(n.id);
+      return idx === undefined ? [] : [{ idx, eventIds: expected[idx]?.eventIds ?? [], atSec: n.startSec, untilSec: n.startSec + n.durSec }];
+    });
+    return this.whenUnlockedAndLoaded(unlocked, sound, () => this.player.play({
       kind: 'heard',
       durSec: plan.endSec,
       segments,
       attemptId,
+      notes,
       schedule: (at) =>
         this.audio.playNotes(
           plan.notes.map((n) => ({ hz: n.hz, startSec: n.startSec, durSec: n.durSec })),
           notesAt(at, LISTEN.peak, sound),
         ),
-    });
+    }));
   }
 
   /** "Play a bar of Classic" (05 §11.2) and calibration's "Hear the click": one bar at ♩ = 90, accented if on. */
@@ -1270,6 +1330,7 @@ export class PracticeSession implements PracticeSessionInstance {
   /** Stops every sound at once (Stop, leaving a screen). A running take is never touched. */
   stopSounds(): void {
     if (this.inTake()) return;
+    this.soundTicket++;
     this.player.stop();
   }
 
@@ -1293,6 +1354,8 @@ export class PracticeSession implements PracticeSessionInstance {
       kind,
       durSec: plan.endSec,
       segments,
+      // Each note glows from its start to its written end (a rest after it shows nothing).
+      notes: plan.notes.map((n) => ({ idx: n.idx, eventIds: n.eventIds, atSec: n.startSec, untilSec: n.startSec + n.writtenSec })),
       ...extra,
       schedule: async (at) => {
         await Promise.all([
@@ -1815,6 +1878,8 @@ export class PracticeSession implements PracticeSessionInstance {
         recentPrimaries: profile.instruments[plan.inst.id]?.recentPrimaryPatterns ?? [],
         catalog: cfg.tips,
       });
+      // A scale try gets the tips its mistakes call for, but not the clean-read tip: it points at the next difficulty.
+      if (c.scale) tips = tips.filter((x) => x.patternId !== cfg.tips.selection.cleanReadPatternId);
       score = { ...score, tipsShown: tips.map((x) => x.id), ...(c.listenedFirst ? { rankedReasons: listenedFirstReasons(score.rankedReasons) } : {}) };
       // PLAN ruling 68: a scale try is scored and graded like any try, but earns nothing.
       if (c.scale) score = { ...score, xp: { total: 0, base: 0, factors: [] } };

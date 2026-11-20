@@ -1200,8 +1200,8 @@
         40,
         65
       ],
-      "attack": 0.07,
-      "release": 0.25,
+      "attack": 0.02,
+      "release": 0.2,
       "vowel": "ah",
       "samples": [
         {
@@ -1210,8 +1210,8 @@
           "tune": 0.0,
           "onset": 0.004,
           "loopStart": 0.9,
-          "loopEnd": 1.62728,
-          "duration": 1.687
+          "loopEnd": 1.6281,
+          "duration": 1.688
         },
         {
           "file": "Gs2.mp3",
@@ -1219,8 +1219,8 @@
           "tune": 0.0,
           "onset": 0.004,
           "loopStart": 0.9,
-          "loopEnd": 1.62728,
-          "duration": 1.687
+          "loopEnd": 1.632,
+          "duration": 1.692
         },
         {
           "file": "C3.mp3",
@@ -1228,8 +1228,8 @@
           "tune": 0.0,
           "onset": 0.004,
           "loopStart": 0.9,
-          "loopEnd": 1.62728,
-          "duration": 1.687
+          "loopEnd": 1.62624,
+          "duration": 1.686
         },
         {
           "file": "E3.mp3",
@@ -1237,8 +1237,8 @@
           "tune": 0.0,
           "onset": 0.004,
           "loopStart": 0.9,
-          "loopEnd": 1.62728,
-          "duration": 1.687
+          "loopEnd": 1.6281,
+          "duration": 1.688
         },
         {
           "file": "Gs3.mp3",
@@ -1246,8 +1246,8 @@
           "tune": 0.0,
           "onset": 0.004,
           "loopStart": 0.9,
-          "loopEnd": 1.62728,
-          "duration": 1.687
+          "loopEnd": 1.632,
+          "duration": 1.692
         },
         {
           "file": "C4.mp3",
@@ -1255,8 +1255,8 @@
           "tune": 0.0,
           "onset": 0.004,
           "loopStart": 0.9,
-          "loopEnd": 1.62728,
-          "duration": 1.687
+          "loopEnd": 1.63005,
+          "duration": 1.69
         },
         {
           "file": "E4.mp3",
@@ -1264,8 +1264,8 @@
           "tune": 0.0,
           "onset": 0.004,
           "loopStart": 0.9,
-          "loopEnd": 1.62728,
-          "duration": 1.687
+          "loopEnd": 1.63113,
+          "duration": 1.691
         }
       ],
       "bytes": 73997
@@ -1277,8 +1277,8 @@
         43,
         67
       ],
-      "attack": 0.07,
-      "release": 0.25,
+      "attack": 0.02,
+      "release": 0.2,
       "vowel": "ah",
       "samples": [
         {
@@ -1287,8 +1287,8 @@
           "tune": 0.0,
           "onset": 0.004,
           "loopStart": 0.9,
-          "loopEnd": 1.62728,
-          "duration": 1.687
+          "loopEnd": 1.63469,
+          "duration": 1.695
         },
         {
           "file": "B2.mp3",
@@ -1296,8 +1296,8 @@
           "tune": 0.0,
           "onset": 0.004,
           "loopStart": 0.9,
-          "loopEnd": 1.62728,
-          "duration": 1.687
+          "loopEnd": 1.62891,
+          "duration": 1.689
         },
         {
           "file": "Ds3.mp3",
@@ -1305,8 +1305,8 @@
           "tune": 0.0,
           "onset": 0.004,
           "loopStart": 0.9,
-          "loopEnd": 1.62728,
-          "duration": 1.687
+          "loopEnd": 1.63281,
+          "duration": 1.693
         },
         {
           "file": "G3.mp3",
@@ -1314,8 +1314,8 @@
           "tune": 0.0,
           "onset": 0.004,
           "loopStart": 0.9,
-          "loopEnd": 1.62728,
-          "duration": 1.687
+          "loopEnd": 1.62959,
+          "duration": 1.69
         },
         {
           "file": "B3.mp3",
@@ -1323,8 +1323,8 @@
           "tune": 0.0,
           "onset": 0.004,
           "loopStart": 0.9,
-          "loopEnd": 1.62728,
-          "duration": 1.687
+          "loopEnd": 1.62891,
+          "duration": 1.689
         },
         {
           "file": "Ds4.mp3",
@@ -1332,8 +1332,8 @@
           "tune": 0.0,
           "onset": 0.004,
           "loopStart": 0.9,
-          "loopEnd": 1.62728,
-          "duration": 1.687
+          "loopEnd": 1.62959,
+          "duration": 1.69
         },
         {
           "file": "G4.mp3",
@@ -1341,8 +1341,8 @@
           "tune": 0.0,
           "onset": 0.004,
           "loopStart": 0.9,
-          "loopEnd": 1.62728,
-          "duration": 1.687
+          "loopEnd": 1.62959,
+          "duration": 1.69
         }
       ],
       "bytes": 73997
@@ -1354,8 +1354,8 @@
         45,
         69
       ],
-      "attack": 0.07,
-      "release": 0.25,
+      "attack": 0.02,
+      "release": 0.2,
       "vowel": "ah",
       "samples": [
         {
@@ -1373,8 +1373,8 @@
           "tune": 0.0,
           "onset": 0.004,
           "loopStart": 0.9,
-          "loopEnd": 1.62728,
-          "duration": 1.687
+          "loopEnd": 1.62875,
+          "duration": 1.689
         },
         {
           "file": "F3.mp3",
@@ -1382,7 +1382,7 @@
           "tune": 0.0,
           "onset": 0.004,
           "loopStart": 0.9,
-          "loopEnd": 1.62728,
+          "loopEnd": 1.62732,
           "duration": 1.687
         },
         {
@@ -1391,8 +1391,8 @@
           "tune": 0.0,
           "onset": 0.004,
           "loopStart": 0.9,
-          "loopEnd": 1.62728,
-          "duration": 1.687
+          "loopEnd": 1.63181,
+          "duration": 1.692
         },
         {
           "file": "Cs4.mp3",
@@ -1400,8 +1400,8 @@
           "tune": 0.0,
           "onset": 0.004,
           "loopStart": 0.9,
-          "loopEnd": 1.62728,
-          "duration": 1.687
+          "loopEnd": 1.62875,
+          "duration": 1.689
         },
         {
           "file": "F4.mp3",
@@ -1409,8 +1409,8 @@
           "tune": 0.0,
           "onset": 0.004,
           "loopStart": 0.9,
-          "loopEnd": 1.62728,
-          "duration": 1.687
+          "loopEnd": 1.63018,
+          "duration": 1.69
         },
         {
           "file": "A4.mp3",
@@ -1418,8 +1418,8 @@
           "tune": 0.0,
           "onset": 0.004,
           "loopStart": 0.9,
-          "loopEnd": 1.62728,
-          "duration": 1.687
+          "loopEnd": 1.62955,
+          "duration": 1.69
         }
       ],
       "bytes": 73997
@@ -1431,8 +1431,8 @@
         52,
         77
       ],
-      "attack": 0.07,
-      "release": 0.25,
+      "attack": 0.02,
+      "release": 0.2,
       "vowel": "ah",
       "samples": [
         {
@@ -1441,8 +1441,8 @@
           "tune": 0.0,
           "onset": 0.004,
           "loopStart": 0.9,
-          "loopEnd": 1.62728,
-          "duration": 1.687
+          "loopEnd": 1.6281,
+          "duration": 1.688
         },
         {
           "file": "Gs3.mp3",
@@ -1450,8 +1450,8 @@
           "tune": 0.0,
           "onset": 0.004,
           "loopStart": 0.9,
-          "loopEnd": 1.62728,
-          "duration": 1.687
+          "loopEnd": 1.632,
+          "duration": 1.692
         },
         {
           "file": "C4.mp3",
@@ -1459,8 +1459,8 @@
           "tune": 0.0,
           "onset": 0.004,
           "loopStart": 0.9,
-          "loopEnd": 1.62728,
-          "duration": 1.687
+          "loopEnd": 1.63005,
+          "duration": 1.69
         },
         {
           "file": "E4.mp3",
@@ -1468,8 +1468,8 @@
           "tune": 0.0,
           "onset": 0.004,
           "loopStart": 0.9,
-          "loopEnd": 1.62728,
-          "duration": 1.687
+          "loopEnd": 1.63113,
+          "duration": 1.691
         },
         {
           "file": "Gs4.mp3",
@@ -1477,8 +1477,8 @@
           "tune": 0.0,
           "onset": 0.004,
           "loopStart": 0.9,
-          "loopEnd": 1.62728,
-          "duration": 1.687
+          "loopEnd": 1.62959,
+          "duration": 1.69
         },
         {
           "file": "C5.mp3",
@@ -1486,8 +1486,8 @@
           "tune": 0.0,
           "onset": 0.004,
           "loopStart": 0.9,
-          "loopEnd": 1.62728,
-          "duration": 1.687
+          "loopEnd": 1.63005,
+          "duration": 1.69
         },
         {
           "file": "E5.mp3",
@@ -1495,8 +1495,8 @@
           "tune": 0.0,
           "onset": 0.004,
           "loopStart": 0.9,
-          "loopEnd": 1.62728,
-          "duration": 1.687
+          "loopEnd": 1.62961,
+          "duration": 1.69
         }
       ],
       "bytes": 73997
@@ -1508,8 +1508,8 @@
         55,
         81
       ],
-      "attack": 0.07,
-      "release": 0.25,
+      "attack": 0.02,
+      "release": 0.2,
       "vowel": "ah",
       "samples": [
         {
@@ -1518,8 +1518,8 @@
           "tune": 0.0,
           "onset": 0.004,
           "loopStart": 0.9,
-          "loopEnd": 1.62728,
-          "duration": 1.687
+          "loopEnd": 1.62959,
+          "duration": 1.69
         },
         {
           "file": "B3.mp3",
@@ -1527,8 +1527,8 @@
           "tune": 0.0,
           "onset": 0.004,
           "loopStart": 0.9,
-          "loopEnd": 1.62728,
-          "duration": 1.687
+          "loopEnd": 1.62891,
+          "duration": 1.689
         },
         {
           "file": "Ds4.mp3",
@@ -1536,8 +1536,8 @@
           "tune": 0.0,
           "onset": 0.004,
           "loopStart": 0.9,
-          "loopEnd": 1.62728,
-          "duration": 1.687
+          "loopEnd": 1.62959,
+          "duration": 1.69
         },
         {
           "file": "G4.mp3",
@@ -1545,8 +1545,8 @@
           "tune": 0.0,
           "onset": 0.004,
           "loopStart": 0.9,
-          "loopEnd": 1.62728,
-          "duration": 1.687
+          "loopEnd": 1.62959,
+          "duration": 1.69
         },
         {
           "file": "B4.mp3",
@@ -1554,8 +1554,8 @@
           "tune": 0.0,
           "onset": 0.004,
           "loopStart": 0.9,
-          "loopEnd": 1.62728,
-          "duration": 1.687
+          "loopEnd": 1.63093,
+          "duration": 1.691
         },
         {
           "file": "Ds5.mp3",
@@ -1563,8 +1563,8 @@
           "tune": 0.0,
           "onset": 0.004,
           "loopStart": 0.9,
-          "loopEnd": 1.62728,
-          "duration": 1.687
+          "loopEnd": 1.62959,
+          "duration": 1.69
         },
         {
           "file": "G5.mp3",
@@ -1572,8 +1572,8 @@
           "tune": 0.0,
           "onset": 0.004,
           "loopStart": 0.9,
-          "loopEnd": 1.62728,
-          "duration": 1.687
+          "loopEnd": 1.62959,
+          "duration": 1.69
         }
       ],
       "bytes": 73997
@@ -1585,8 +1585,8 @@
         57,
         84
       ],
-      "attack": 0.07,
-      "release": 0.25,
+      "attack": 0.02,
+      "release": 0.2,
       "vowel": "ah",
       "samples": [
         {
@@ -1595,8 +1595,8 @@
           "tune": 0.0,
           "onset": 0.004,
           "loopStart": 0.9,
-          "loopEnd": 1.62728,
-          "duration": 1.687
+          "loopEnd": 1.63181,
+          "duration": 1.692
         },
         {
           "file": "Cs4.mp3",
@@ -1604,8 +1604,8 @@
           "tune": 0.0,
           "onset": 0.004,
           "loopStart": 0.9,
-          "loopEnd": 1.62728,
-          "duration": 1.687
+          "loopEnd": 1.62875,
+          "duration": 1.689
         },
         {
           "file": "F4.mp3",
@@ -1613,8 +1613,8 @@
           "tune": 0.0,
           "onset": 0.004,
           "loopStart": 0.9,
-          "loopEnd": 1.62728,
-          "duration": 1.687
+          "loopEnd": 1.63018,
+          "duration": 1.69
         },
         {
           "file": "A4.mp3",
@@ -1622,8 +1622,8 @@
           "tune": 0.0,
           "onset": 0.004,
           "loopStart": 0.9,
-          "loopEnd": 1.62728,
-          "duration": 1.687
+          "loopEnd": 1.62955,
+          "duration": 1.69
         },
         {
           "file": "Cs5.mp3",
@@ -1631,8 +1631,8 @@
           "tune": 0.0,
           "onset": 0.004,
           "loopStart": 0.9,
-          "loopEnd": 1.62728,
-          "duration": 1.687
+          "loopEnd": 1.63057,
+          "duration": 1.691
         },
         {
           "file": "F5.mp3",
@@ -1640,8 +1640,8 @@
           "tune": 0.0,
           "onset": 0.004,
           "loopStart": 0.9,
-          "loopEnd": 1.62728,
-          "duration": 1.687
+          "loopEnd": 1.63018,
+          "duration": 1.69
         },
         {
           "file": "A5.mp3",
@@ -1649,8 +1649,8 @@
           "tune": 0.0,
           "onset": 0.004,
           "loopStart": 0.9,
-          "loopEnd": 1.62728,
-          "duration": 1.687
+          "loopEnd": 1.62955,
+          "duration": 1.69
         },
         {
           "file": "C6.mp3",
@@ -1658,8 +1658,8 @@
           "tune": 0.0,
           "onset": 0.004,
           "loopStart": 0.9,
-          "loopEnd": 1.62728,
-          "duration": 1.687
+          "loopEnd": 1.63005,
+          "duration": 1.69
         }
       ],
       "bytes": 84568

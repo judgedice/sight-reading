@@ -5,8 +5,8 @@
  */
 import { createElement, lazy, Suspense, type ComponentType, type ReactNode } from 'react';
 import type { AudioBackend, KeyValue, PlatformCapabilities, PlatformServices, WorkerLike, MessagePortLike } from '../../core/platform.ts';
-import type { AppSettings, AttemptRecord, AttributionsFile, Calibration, Configs, CorpusManifest, PlayerProfile, PracticeSettings, PreparedExcerpt, Rng } from '../../core/types.ts';
-import { attemptTitle, MatchNoteService, PracticeSession, type PracticeSessionOptions, type RankedAvailability, type SoundPrefs } from '../../session/index.ts';
+import type { AppSettings, AttemptRecord, AttributionsFile, Calibration, Configs, CorpusManifest, PlayerProfile, PracticeSettings, PreparedExcerpt, Rng, ScalesConfig } from '../../core/types.ts';
+import { MatchNoteService, PracticeSession, type PracticeSessionOptions, type RankedAvailability, type SoundPrefs } from '../../session/index.ts';
 import { metronomeSoundOf } from '../../core/click-sounds.ts';
 import { countEligible, prefetchNeighbours } from '../../corpus/index.ts';
 import { createProfile, postRevealSkipAllowed, respondToLevelOffer, setInstrumentLevel, startPlacement } from '../../grade/index.ts';
@@ -31,6 +31,7 @@ import { classifyMicError, type MicBrowser } from '../screens/states/index.ts';
 import type { DiagnosticsServices } from '../screens/states/services.ts';
 import type { SettingsDiagnosticsServices } from '../screens/settings/services.ts';
 import { matchScreenOverrides, type MatchServices } from '../screens/match/index.ts';
+import { tryTitle } from '../screens/scales/index.ts';
 import { adoptingLegacyCalibrations, createCalibrationServices, type CalibrationBackendExtras } from './calibration-services.ts';
 import { calibrationStatus as computeCalStatus, KV_CAL_LAST_FAILURE, type CalFailure, type CalStatus } from './calibration-status.ts';
 import { countTries, reachedBarOne } from './tries.ts';
@@ -48,6 +49,8 @@ export interface AppRuntime {
   platform: PlatformServices & { audio: AppBackend };
   capabilities: PlatformCapabilities;
   configs: Configs;
+  /** `config/scales.json`, validated (PLAN ruling 68). Absent or null: no Scales entry. */
+  scales?: ScalesConfig | null;
   manifest: CorpusManifest;
   workerFactory: () => WorkerLike;
   createCaptureChannel?: () => { port1: MessagePortLike; port2: unknown };
@@ -148,8 +151,10 @@ export function composeApp(rt: AppRuntime): ComposedApp {
     const p = settings.get().practice;
     return { sound: metronomeSoundOf(p.clickTimbre), accent: p.accentFirstBeat ?? true, a4Hz: p.a4Hz, listening: p.listening };
   };
+  const scales = rt.scales ?? null;
   const sessionOptions: PracticeSessionOptions = {
     soundPrefs,
+    scales,
     appVersion: rt.versions.app,
     coreVersion: rt.versions.core,
     appBuild: rt.versions.build,
@@ -174,7 +179,7 @@ export function composeApp(rt: AppRuntime): ComposedApp {
     // The newest try that reached bar 1 (newest first by time, whatever order the store answers in).
     const newest = [...recent].filter(reachedBarOne).sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
     const next: LastTry | null = newest
-      ? { id: newest.id, excerptId: newest.excerptId, title: attemptTitle(newest), grade: newest.score?.grade ?? null, score: newest.score?.score ?? null }
+      ? { id: newest.id, excerptId: newest.excerptId, title: tryTitle(newest), grade: newest.score?.grade ?? null, score: newest.score?.score ?? null }
       : null;
     if (!jsonEqual(next, lastTry.get())) lastTry.replace(next);
   };
@@ -237,7 +242,8 @@ export function composeApp(rt: AppRuntime): ComposedApp {
   unsubs.push(
     session.events.on((e) => {
       if (e.type === 'record') {
-        sessionAttempts.push(e.record);
+        // The every-10 session summary counts excerpt tries; scales are drill outside it (PLAN ruling 68).
+        if (e.record.kind !== 'scale') sessionAttempts.push(e.record);
         const p = session.currentProfile;
         if (p) profile.replace(p);
         void refreshToday().catch(() => undefined);
@@ -281,7 +287,9 @@ export function composeApp(rt: AppRuntime): ComposedApp {
   };
   const reducedMotion = (): boolean => {
     const m = settings.get().accessibility.reduceMotion;
-    return m === 'on' ? true : m === 'off' ? false : document.documentElement.getAttribute('data-motion') === 'reduced';
+    if (m === 'on' || m === 'off') return m === 'on';
+    // "Use the system setting": the operating system's preference (the beat line steps, page turns do not fade).
+    return document.documentElement.getAttribute('data-motion') === 'reduced' || (typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
   };
   const highContrast = (): boolean => settings.get().accessibility.highContrast;
 
@@ -434,6 +442,14 @@ export function composeApp(rt: AppRuntime): ComposedApp {
     lastTry,
     pickerSound,
     openMatch,
+    scales,
+    startScale(scaleId, bpm) {
+      session.stopSounds();
+      session.prepareScale(scaleId, settings.get().practice, bpm ?? undefined).catch(() => undefined);
+      // The chooser's click is the gesture that shows the music (no cover), so audio opens here, as "Show the music"
+      // opens it for an excerpt (05 W1). The scale is already on screen: prepareScale is synchronous up to the scan.
+      session.ensureAudio().catch(() => undefined);
+    },
     turnOnMic() {
       // Inside the click: the permission request must start in the gesture (05 W1).
       const p = requestMic();
@@ -556,6 +572,11 @@ export function composeApp(rt: AppRuntime): ComposedApp {
         } catch {
           return false;
         }
+        return false;
+      },
+      // "Next scale" (PLAN ruling 68): the next scale in the set, at the same tempo.
+      nextScale() {
+        session.nextScale().catch(() => undefined);
         return false;
       },
       moveUp: (id, to) => home.moveUp(id, to),

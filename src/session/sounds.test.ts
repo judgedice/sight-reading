@@ -3,7 +3,7 @@
 import { describe, expect, it } from 'vitest';
 import { SOUND_FAILED_MS, SOUND_LEAD_SEC, SoundPlayer } from './sounds.ts';
 
-function setup() {
+function setup(o: { lagSec?: number } = {}) {
   let now = 10;
   let stops = 0;
   const pending: { at: number; fn: () => void; id: number }[] = [];
@@ -35,7 +35,8 @@ function setup() {
     now += (end - wall) / 1000;
     wall = end;
   };
-  const player = new SoundPlayer({ now: () => now as never, stopSounds: () => void stops++ }, timers);
+  const audible = o.lagSec === undefined ? {} : { audibleNow: () => (now - (o.lagSec as number)) as never };
+  const player = new SoundPlayer({ now: () => now as never, stopSounds: () => void stops++, ...audible }, timers);
   return { player, advance, stops: () => stops, now: () => now };
 }
 
@@ -126,5 +127,65 @@ describe('round 2 sounds', () => {
     expect(t.player.view.getState().caption).toEqual({ kind: 'range-note', index: 1, midi: 60 });
     t.advance(1);
     expect(t.player.view.getState()).toMatchObject({ playing: null, instrumentId: null, caption: null });
+  });
+});
+
+describe('Listen playback review: captions as heard and the notes for the sounding-note highlight', () => {
+  it('a caption changes when its clock time comes out of the speakers (the output latency later), not when it is scheduled', async () => {
+    const t = setup({ lagSec: 0.2 });
+    await t.player.play({
+      kind: 'reference',
+      durSec: 2,
+      segments: [
+        { atSec: 0, caption: { kind: 'note', midi: 48 } },
+        { atSec: 1, caption: { kind: 'note', midi: 55 } },
+      ],
+      schedule: () => Promise.resolve(),
+    });
+    // Origin at now + 80 ms; the second segment is scheduled at +1.08 s and heard at +1.28 s.
+    t.advance(1.27);
+    expect(t.player.view.getState().caption).toEqual({ kind: 'note', midi: 48 });
+    t.advance(0.02);
+    expect(t.player.view.getState().caption).toEqual({ kind: 'note', midi: 55 });
+    t.advance(0.9);
+    expect(t.player.view.getState().playing).toBe('reference');
+    t.advance(0.2);
+    expect(t.player.view.getState().playing).toBeNull();
+  });
+
+  it('a heard clock ahead of the scheduling clock, or far behind it, is not trusted', () => {
+    const ahead = new SoundPlayer({ now: () => 5 as never, stopSounds: () => undefined, audibleNow: () => 5.5 as never }, { setTimeout: () => 0, clearTimeout: () => undefined });
+    expect(ahead.heardNow()).toBe(5);
+    const stale = new SoundPlayer({ now: () => 5 as never, stopSounds: () => undefined, audibleNow: () => 2 as never }, { setTimeout: () => 0, clearTimeout: () => undefined });
+    expect(stale.heardNow()).toBe(5);
+    const ok = new SoundPlayer({ now: () => 5 as never, stopSounds: () => undefined, audibleNow: () => 4.95 as never }, { setTimeout: () => 0, clearTimeout: () => undefined });
+    expect(ok.heardNow()).toBe(4.95);
+  });
+
+  it('the notes are set once, in clock time and start order, with the heard clock; idle and Stop clear them', async () => {
+    const t = setup({ lagSec: 0.05 });
+    let origin = 0;
+    await t.player.play({
+      kind: 'listen',
+      durSec: 3,
+      segments: [{ atSec: 0, caption: { kind: 'lead-in', bpm: 120 } }],
+      notes: [
+        { idx: 1, eventIds: ['e2'], atSec: 2, untilSec: 2.5 },
+        { idx: 0, eventIds: ['e1', 'e1b'], atSec: 1, untilSec: 2 },
+      ],
+      schedule: async (o) => {
+        origin = o;
+      },
+    });
+    const notes = t.player.view.getState().notes;
+    expect(notes?.spans).toEqual([
+      { idx: 0, eventIds: ['e1', 'e1b'], startsAt: origin + 1, endsAt: origin + 2 },
+      { idx: 1, eventIds: ['e2'], startsAt: origin + 2, endsAt: origin + 2.5 },
+    ]);
+    expect(notes?.clock()).toBeCloseTo(t.now() - 0.05, 9);
+    t.player.stop();
+    expect(t.player.view.getState().notes).toBeNull();
+    await t.player.play({ kind: 'tempo', durSec: 1, segments: [{ atSec: 0, caption: { kind: 'tempo', bpm: 60 } }], schedule: () => Promise.resolve() });
+    expect(t.player.view.getState().notes).toBeNull();
   });
 });

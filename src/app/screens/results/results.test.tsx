@@ -33,6 +33,8 @@ import type { ResultsSetupServices } from './ResultsScreen.tsx';
 import { reviewFixture } from './review/test-fixture.ts';
 import type { ReviewExtras } from './review/SessionReview.tsx';
 import { attemptFrom, cfg, makeProfile, sessionStore, tipsFor } from './test-data.ts';
+import { loadScales, scaleRefOf } from '../../../corpus/index.ts';
+import scalesJson from '../../../../config/scales.json';
 
 let m: Mounted | null = null;
 afterEach(() => {
@@ -1029,5 +1031,57 @@ describe('Change setup (05 sections 3.2 and 4.4)', () => {
     renderScreen(f);
     click(button(copy('action.changeSetup')));
     expect(f.hash.value).toBe('#/');
+  });
+});
+
+describe('a scale try on results (PLAN ruling 68)', () => {
+  const scales = loadScales(scalesJson, cfg);
+  const def = scales.sets[0]!.scales.find((x) => x.id === 'five-note-bb')!;
+  const scaleRecord = (): AttemptRecord => {
+    const r = attemptFrom('case01-perfect-flute-l4', { instrumentId: 'voice-baritone', excerptId: 'scale:voice-baritone:five-note-bb', kind: 'scale', scale: scaleRefOf(scales, def), writtenKey: { fifths: -2, mode: 'major' }, bpm: 66 });
+    return { ...r, credit: { ...r.credit, composer: '', work: 'five-note-bb', corpus: 'generated', license: 'PD' }, score: { ...r.score!, ranked: false, rankedReasons: ['practice-mode'], xp: { total: 0, base: 0, factors: [] } } };
+  };
+
+  const r0 = (f: Fx): AttemptRecord => f.store.getState().record!;
+
+  it('labels the scale, says in one line that it is practice, and shows no XP, rank, composer or Change setup', () => {
+    const f = fixture({ record: scaleRecord() });
+    renderScreen(f);
+    // The scale's own meter and length, whatever the setup asked for (8 bars here).
+    expect(r0(f).settingsResolved.bars).toBe(8);
+    expect($('[data-testid="res-summary"]').textContent).toBe('Scale · B♭ major · 4/4 · ♩ = 66 · 3 bars');
+    expect($('[data-testid="res-scale-title"]').textContent).toBe('Five-note scale in B♭ major');
+    expect($('[data-testid="res-scale-practice"]').textContent).toBe(copy('results.scale.practice'));
+    expect(q('[data-testid="res-rank"]')).toBeNull();
+    expect(document.body.textContent).not.toMatch(/\+\d+ XP/);
+    expect(q('.res-credit-button')).toBeNull();
+    expect([...document.querySelectorAll('button')].some((b) => b.textContent === copy('action.changeSetup'))).toBe(false);
+    expect($('[data-testid="results-panel"]').getAttribute('data-state')).toBe('graded');
+  });
+
+  it('Next scale and Same scale again', () => {
+    const f = fixture({ record: scaleRecord() });
+    const done: string[] = [];
+    f.services.actions.next = () => void done.push('next');
+    f.services.actions.nextScale = () => void done.push('nextScale');
+    f.services.actions.tryAgain = () => void done.push('again');
+    renderScreen(f);
+    expect(q('[data-testid="res-actions-head"]')?.textContent).not.toContain(copy('action.nextExcerpt'));
+    click(button(copy('action.nextScale')));
+    expect(done).toEqual(['nextScale']);
+    expect(f.hash.value).toBe('#/practice/scan');
+    f.hash.value = '#/practice/results';
+    act(() => f.loc.navigate('/practice/results', false));
+    click(button(copy('action.sameScaleAgain')));
+    expect(done).toEqual(['nextScale', 'again']);
+  });
+
+  it('never opens the session summary after a scale', () => {
+    const rec = attemptFrom('case05-key-signature-f-sharp');
+    const f = fixture({ record: scaleRecord() });
+    f.services.sessionAttempts = () => Array.from({ length: 10 }, (_, k) => ({ ...rec, id: `s${k}` }));
+    renderScreen(f);
+    click(button(copy('action.nextScale')));
+    expect(q('[data-testid="session-summary"]')).toBeNull();
   });
 });

@@ -70,3 +70,17 @@ export function writeTourWav(path: string, plan: PagePlan, offsetSec: number, la
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, encodeWav({ sampleRate: LOOP_WAV_RATE, channels: [samples] }));
 }
+
+/**
+ * A sung take (the testkit's sung "ah"), every note as written: a scale try (PLAN ruling 68). Silence, then bar 1
+ * beat 1 at `offsetSec`, then a second and a half of silence.
+ */
+export function writeSungWav(path: string, plan: PagePlan, offsetSec: number): void {
+  const notes: SynthNoteSpec[] = perform(plan.expected, plan.beatsPerBar, plan.bpm, { mods: {} }).map((p, k) => {
+    const midi = Math.round(p.midi);
+    return { midi, cents: Math.round((p.midi - midi) * 100 * 1000) / 1000, onsetSec: offsetSec + p.onset, durSec: Math.max(0.02, p.dur), slur: p.legato, ref: k };
+  });
+  const samples = renderPerformance({ timbre: 'voice', notes, sampleRate: LOOP_WAV_RATE, durationSec: offsetSec + plan.endSec + 1.5, seed: 17 }).samples;
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, encodeWav({ sampleRate: LOOP_WAV_RATE, channels: [samples] }));
+}

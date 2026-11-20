@@ -13,6 +13,7 @@ import type {
   VerdictCounts,
 } from '../../../core/types.ts';
 import { copy } from '../../../ui/copy/copy.ts';
+import { scaleRhythm } from '../../../session/index.ts';
 import { beatUnit } from '../setup/model.ts';
 import { keyName } from '../setup/key-names.ts';
 import { servedMeter } from '../history/model.ts';
@@ -490,9 +491,11 @@ export function hearSpans(bars: readonly number[], max = 3): HearSpan[] {
 export function recordSummary(record: AttemptRecord, prepared?: { meter: { beats: number; beatType: number }; measures: readonly { isPickup?: boolean }[] } | null): string {
   const meter = servedMeter(record, prepared);
   const asked = record.settingsResolved.bars;
-  const bars = typeof asked === 'number' ? asked : prepared ? prepared.measures.filter((m) => !m.isPickup).length : null;
+  // A scale's length is its own, whatever length the setup asked for (PLAN ruling 68).
+  const bars = record.scale ? scaleRhythm(record.scale.degrees.length, record.scale).bars : typeof asked === 'number' ? asked : prepared ? prepared.measures.filter((m) => !m.isPickup).length : null;
   const parts = [
-    copy('progress.instrumentLevel', { level: record.levelServed }),
+    // A scale try names itself a scale, never a difficulty (PLAN ruling 68).
+    record.kind === 'scale' ? copy('scales.label') : copy('progress.instrumentLevel', { level: record.levelServed }),
     keyName(record.writtenKey),
     ...(meter ? [meter] : []),
     copy('tempo.marking', { unit: beatUnit(meter ?? '4/4'), bpm: record.bpm }),

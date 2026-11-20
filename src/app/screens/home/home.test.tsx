@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createStore, type StoreApi } from 'zustand/vanilla';
 import { loadConfigs } from '../../../rules/index.ts';
+import { loadScales } from '../../../corpus/index.ts';
 import { countEligible } from '../../../corpus/select/index.ts';
 import { shippedManifest } from '../../../corpus/select/testing/shipped.ts';
 import { defaultAppSettings } from '../../../store/defaults.ts';
@@ -778,5 +779,81 @@ describe('setup model', () => {
     const c: SetupContext = { ...ctx, eligible: (_i, l, meter) => (meter !== null ? 0 : l === 2 || l === 3 || l === 4 ? 20 : 0) };
     const s = localSuggestions({ ...base, level: 3, meter: '4/4' }, c);
     expect(s).toEqual([{ meter: 'random' }, { level: 2 }]);
+  });
+});
+
+describe('Scales on Practice (PLAN ruling 68)', () => {
+  const scalesConfig = loadScales(read('config/scales.json'), cfg);
+  function withScales(f: Fixture): { started: [string, number | null][] } {
+    const started: [string, number | null][] = [];
+    f.services.scales = scalesConfig;
+    f.services.startScale = (id, bpm) => void started.push([id, bpm]);
+    return { started };
+  }
+
+  it('the baritone gets a Scales row under Match a note; it opens the chooser, and a scale goes straight to the read-through', () => {
+    const f = fixture({ practice: { instrumentId: 'voice-baritone' } });
+    const { started } = withScales(f);
+    render(f);
+    const rows = $$('.home-inst .home-warmups > button').map((b) => b.getAttribute('data-testid'));
+    expect(rows).toEqual(['match-entry', 'scales-entry']);
+    const entry = $('.home-inst [data-testid="scales-entry"]');
+    expect(entry.textContent).toBe(`${copy('scales.entry')}${copy('scales.entry.body')}`);
+    expect(entry.getAttribute('aria-haspopup')).toBe('dialog');
+    expect(document.querySelector('[data-testid="scales-chooser"]')).toBeNull();
+    click(entry);
+    const dialog = $('[role="dialog"]');
+    expect(dialog.querySelector('h2')!.textContent).toBe(copy('scales.chooser.title'));
+    const chooser = $('[data-testid="scales-chooser"]', dialog);
+    const scaleRows = $$('[data-testid="scale-row"]', chooser);
+    expect(scaleRows.map((r) => r.getAttribute('data-scale-id'))).toEqual(['five-note-c', 'five-note-d', 'five-note-bb', 'octave-c', 'octave-bb', 'arpeggio-c', 'octave-a-minor']);
+    expect(scaleRows[2]!.textContent).toContain('Five-note scale in B♭ major');
+    expect(scaleRows[2]!.textContent).toContain(copy('scales.row.detail', { pattern: copy('scales.pattern.five-note'), low: 'B♭2', high: 'F3', tempo: '♩ = 66' }));
+    expect(chooser.textContent).toContain(copy('scales.chooser.practice'));
+    click(scaleRows[1]!);
+    expect(started).toEqual([['five-note-d', null]]);
+    expect(f.location.hash).toBe('#/practice/scan');
+    expect(document.querySelector('[data-testid="scales-chooser"]')).toBeNull();
+  });
+
+  it('the tempo set in the chooser goes to every scale, and Usual tempos puts each back', () => {
+    const f = fixture({ practice: { instrumentId: 'voice-baritone' } });
+    const { started } = withScales(f);
+    render(f);
+    click($('[data-testid="scales-entry"]'));
+    const tempo = $('[data-testid="scales-tempo"]');
+    expect(tempo.textContent).toContain(copy('scales.chooser.tempo.own'));
+    click(button(copy('stepper.increase', { label: copy('scales.chooser.tempo') }), tempo));
+    expect(tempo.textContent).toContain(copy('scales.chooser.tempo.set', { tempo: '♩ = 67' }));
+    expect($$('[data-testid="scale-row"]').every((r) => r.textContent?.includes('♩ = 67'))).toBe(true);
+    click(button(copy('scales.chooser.tempo.reset'), tempo));
+    expect($('[data-testid="scale-row"][data-scale-id="arpeggio-c"]').textContent).toContain('♩ = 60');
+    click(button(copy('stepper.decrease', { label: copy('scales.chooser.tempo') }), tempo));
+    click($('[data-testid="scale-row"][data-scale-id="octave-c"]'));
+    expect(started).toEqual([['octave-c', 65]]);
+  });
+
+  it('is hidden for an instrument with no scales, and without the scales config', () => {
+    const flute = fixture({ practice: { instrumentId: 'flute' } });
+    withScales(flute);
+    render(flute);
+    expect(document.querySelector('[data-testid="scales-entry"]')).toBeNull();
+    expect(document.querySelector('[data-testid="match-entry"]')).not.toBeNull();
+    m?.unmount();
+    m = null;
+    render(fixture({ practice: { instrumentId: 'voice-baritone' } }));
+    expect(document.querySelector('[data-testid="scales-entry"]')).toBeNull();
+  });
+
+  it('phone: a "Warm up: sing a scale" row under the match row, and the chooser is a sheet', () => {
+    narrow = true;
+    const f = fixture({ practice: { instrumentId: 'voice-baritone' } });
+    withScales(f);
+    render(f);
+    const entry = $('[data-testid="scales-entry"]');
+    expect(entry.textContent).toBe(copy('scales.entry.phone'));
+    expect(entry.previousElementSibling?.getAttribute('data-testid')).toBe('match-entry');
+    click(entry);
+    expect($('.ui-sheet [data-testid="scales-chooser"]')).toBeTruthy();
   });
 });

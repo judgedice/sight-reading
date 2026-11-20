@@ -65,7 +65,11 @@ export const timeOfBeat = (t: TakeTiming, beat: number): number => t.t0 + beat *
  * During the count-in the line waits at the first note (or the pickup); after the end of the try it is hidden.
  */
 export function visualAt(t: TakeTiming, m: MusicFacts, audible: number, reducedMotion: boolean): VisualBeat {
-  const beat = beatAt(t, audible);
+  // A click's own time lands on its beat exactly, whatever the float noise of the clock arithmetic: the layout jumps
+  // across the barline at a bar's first beat, so a hair before it would draw the line at the old bar's end.
+  const raw = beatAt(t, audible);
+  const near = Math.round(raw);
+  const beat = Math.abs(raw - near) < EPS ? near : raw;
   const sinceFirstClick = beat + t.countInBeats;
   const click = sinceFirstClick < -EPS ? 0 : Math.min(t.countInBeats, Math.floor(sinceFirstClick + EPS) + 1);
   const music = beat >= Math.min(0, m.firstNoteBeat) - EPS;

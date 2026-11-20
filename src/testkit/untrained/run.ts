@@ -82,7 +82,7 @@ export function planUntrained(index: number, seed = UNTRAINED_SEED): UntrainedPl
   const base = buildBase(doc, instrumentId, bpm, cfg);
   if (!base || base.expected.length < 4) return null;
   const timeline = timelineFor(base);
-  const take = planUntrainedVoice(base.expected, timeline.t0Sec, bpm, rng.int(1, 0x7fffffff));
+  const take = planUntrainedVoice(base.expected, timeline.t0Sec, bpm, rng.int(1, 0x7fffffff), base.inst.detection.minHz);
   return { id: `untrained:${index}:${base.excerptId}:${instrumentId}@${bpm}:L${base.level}`, index, base, timeline, take };
 }
 

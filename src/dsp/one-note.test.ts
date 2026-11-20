@@ -31,7 +31,9 @@ const withOneNote = (c: DspConfig, level = 1): DspConfig => ({ ...c, oneNote: re
 
 const sung = (p: Partial<SungNote> & Pick<SungNote, 'midi' | 'onsetSec' | 'endSec'>): SungNote => ({
   ref: 0, offsetCents: 0, joined: false, dipDb: 0, scoopCents: 0, scoopSec: 0, releaseCents: 0, releaseSec: 0, vibHz: 5.5, vibCents: 0,
-  vibJitter: 0, driftCents: 0, breathSec: 0, breathDb: -12, consonantSec: 0, creakSec: 0, gainDb: 0, attackSec: 0.05, ...p,
+  vibJitter: 0, driftCents: 0, breathSec: 0, breathDb: -12, consonantSec: 0, creakSec: 0, gainDb: 0, attackSec: 0.05,
+  scoopWobbleCents: 0, overshootCents: 0, overshootSec: 0, glitchAt: 0, glitchSec: 0, glitchKind: 'subharmonic', glitchSemitones: 0, dipUnderCents: 0,
+  dipUnderSec: 0, releaseDropDb: 25, ...p,
 });
 const take = (notes: SungNote[]): UntrainedVoiceTake => ({ notes, levelDb: -30, micHighPassHz: 220, noiseDbfs: -62, seed: 5 });
 const noteOns = (t: UntrainedVoiceTake, c: DspConfig): number => {

@@ -112,8 +112,8 @@ The CC0 VSCO edits were already MP3 (96 kbit/s), so those sets are encoded twice
 No real solo-voice vowel samples were found under an acceptable licence that could be fetched from here. The free General MIDI voice patches are choirs ("choir aahs") or synthetic "voice oohs". So the six voices are **synthesised**, using a source-filter model in `render_voice()`, and rendered offline to the same kind of sample files as the instruments. The app has one playback path.
 
 - **Source.** A glottal flow pulse in the Rosenberg/LF style. Its open quotient is 0.55 below 200 Hz, 0.62 below 400 Hz, and 0.7 above. The model differentiates the pulse to add lip radiation and renders at 4× oversampling, then decimates with a 255-tap windowed-sinc filter.
-- **Pitch.** Vibrato is 5.5 Hz. Its depth ramps from 0 to ±25 cents between 0.25 and 0.7 s. This is lighter than an opera vibrato, so the reference pitch stays clear. There is also a 20-cent scoop into the note in the first 80 ms, slow drift of ±3 cents, and small jitter.
-- **Breath.** Aspiration noise is gated by the open phase, at about −29 dB.
+- **Pitch.** (Revised after the Listen playback review; the first version scooped 20 cents into every note and swung ±25 cents.) The note starts on its pitch, with no scoop. Vibrato is ±8 cents at about 5.5 Hz, ramping in between 0.4 and 0.85 s. A tiny flutter (±0.4 cents) keeps it from sounding machine-steady. Every modulation repeats exactly over the loop.
+- **Breath.** Aspiration noise is gated by the open phase, at about −38 dB (was −29 dB). The onset is a 20 ms raised-cosine rise (was 70 ms). The set's attack is 20 ms and its release 0.2 s.
 - **Filter.** A cascade (Klatt-style, all-pole) of five resonators for /a/ ("ah"). It has unity gain at 0 Hz, so low notes keep a strong fundamental. A parallel bank was tried first and lost the fundamental, so pitch trackers heard an octave too high. The values in Hz:
 
   | Voice | F1–F5 | Bandwidths |
@@ -126,7 +126,7 @@ No real solo-voice vowel samples were found under an acceptable licence that cou
   | Soprano | 800 1150 2900 3900 4950 | 80 90 120 130 140 |
 
   The bass, tenor, alto and soprano values are the standard sung-vowel table in the Csound manual. Baritone and mezzo are interpolated. The close F3 to F5 of the male voices give the singer's formant. When f0 nears F1 (high soprano and mezzo notes), F1 is raised to 1.1 × f0, as trained sopranos do.
-- **Loop.** The loop is exactly 4 vibrato cycles from 0.9 s, with a 150 ms baked crossfade.
+- **Loop.** The loop starts at 0.9 s and is a whole number of glottal periods (about 0.73 s) and exactly 4 vibrato cycles, with a 150 ms baked crossfade, so the crossfade joins two copies of the same waveform. `build.py voices <repo>` rebuilds only the voices.
 
 How real it sounds: it is clearly a sung "ah" in the right register, with the darker male and brighter female colour. It will not pass for a recorded singer. The comparison row on the demo page plays the Fluid "choir aahs" set. If the owner prefers it, voices can switch to `choir-aah`; the manifest has it under `alternates.voice`. An "oo" vowel only needs a second formant table (bass /u/ ≈ 350 600 2400 2675 2950) and another 70 KB per voice.
 

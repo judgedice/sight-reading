@@ -11,7 +11,7 @@ import { sureLevel } from '../../../../ui/components/diagnostics/sure.ts';
 import { SegmentedControl, Toggle } from '../../../../ui/components/form/index.ts';
 import type { Insets } from '../../../../ui/layout-table.ts';
 import { Glyph, openOverlayCount, Popover } from '../../../../ui/primitives/index.ts';
-import { ScoreFrame, type Box, type FrameLayoutInfo, type FrameNotation, type ScoreFrameController } from '../../../../ui/score-frame/index.ts';
+import { ScoreFrame, type Box, type FrameLayoutInfo, type FrameNotation, type ScoreFrameController, type SoundingSource } from '../../../../ui/score-frame/index.ts';
 import type { ReviewBus } from './bus.ts';
 import { clearExtras, decorateNotes, drawExtras, drawSelection, ghostGroup, noteGroup, setTabStop, systemSvgs } from './dom.ts';
 import { buildReview, hasTrack, heardTrace, inspectorFor, sameTarget, slipsFor, stepSlip, type GhostSpeller, type HeardTraceSource, type ReviewModel, type SlipFilter, type SlipTarget } from './model.ts';
@@ -50,6 +50,8 @@ export interface ReviewProps {
   highlightBar?: number | null;
   /** A tap on a bar away from a note or mark (0-based measure index), e.g. to start Listen there. */
   onBarTap?: (barIndex: number) => void;
+  /** The playback's notes and clock: the note sounding glows behind its mark (Listen, Hear bars, Hear what we heard). */
+  sounding?: SoundingSource | null;
   /** The right end of the score toolbar: the live caption, Slower and Listen (results owns them). */
   toolbarEnd?: ReactNode;
   /**
@@ -427,6 +429,7 @@ export function Review(props: ReviewProps) {
           purpose="review"
           clean={clean}
           highlightBar={props.highlightBar ?? null}
+          sounding={props.sounding ?? null}
           {...(props.onBarTap ? { onBarTap: props.onBarTap } : {})}
           label={rtext('review.label')}
           {...(props.viewport ? { viewport: props.viewport } : {})}

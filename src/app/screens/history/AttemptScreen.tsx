@@ -20,8 +20,9 @@ import type { HeardTraceSource, ReviewExtras } from '../results/review/index.ts'
 import { reachedBarOne } from '../../compose/tries.ts';
 import { Summary } from './Summary.tsx';
 import { ListenControls, SoundCaptionLine, isHearing, isListening, soundAnnouncement, useAttemptSound } from './ListenControls.tsx';
+import { patternLine, tryTitle } from '../scales/index.ts';
 import { MetaLine } from './MetaLine.tsx';
-import { attemptTitle, dayLabel, localDayOf, rowDetail, timeLabel, tryPosition, type TryPosition } from './model.ts';
+import { dayLabel, localDayOf, rowDetail, timeLabel, tryPosition, type TryPosition } from './model.ts';
 import { listOf } from './HistoryScreen.tsx';
 import type { HistoryServices } from './services.ts';
 import { text } from './text.ts';
@@ -239,6 +240,8 @@ export function AttemptScreen({ route }: ScreenProps) {
       ? services.renderReview(record, {
           highlightBar: highlight,
           onBarTap,
+          // The note sounding glows during Listen, Hear bars and Hear what we heard of this try.
+          sounding: sound.notes ?? null,
           ...(controls ? { toolbarEnd: controls } : {}),
           ...(caption ? { caption } : {}),
           reserveCaption: true,
@@ -250,6 +253,7 @@ export function AttemptScreen({ route }: ScreenProps) {
   const when = `${dayLabel(day, services.localDay())}, ${timeLabel(record.createdAt)}`;
   const status = record.score === null ? 'not-graded' : record.score.ranked ? 'ranked' : 'practice';
   const playAgain = services.playAgain;
+  const scale = record.kind === 'scale';
   const credit = creditLine(record.credit);
   const measured = record.calibration.method === 'loopback' || record.calibration.method === 'play-along';
   const go = (to: string | null): void => {
@@ -267,11 +271,14 @@ export function AttemptScreen({ route }: ScreenProps) {
       <div className="hist-attempt-top">
       <div className="hist-attempt-titles">
         <h1 className="hist-attempt-title" data-testid="attempt-title">
-          {attemptTitle(record)}
+          {tryTitle(record)}
         </h1>
-        <p className="hist-attempt-composer">{record.credit.composerDates ? `${record.credit.composer} (${record.credit.composerDates})` : record.credit.composer}</p>
+        {/* A scale has no composer: its pattern stands there ("Do re mi fa sol, and back down", PLAN ruling 68). */}
+        <p className="hist-attempt-composer">
+          {scale ? (patternLine(record.scale?.pattern ?? '') ?? '') : record.credit.composerDates ? `${record.credit.composer} (${record.credit.composerDates})` : record.credit.composer}
+        </p>
         <p className="hist-attempt-meta">
-          <MetaLine instrument={inst ? instrumentName(inst) : record.instrumentId} levelServed={record.levelServed} detail={detail} />
+          <MetaLine instrument={inst ? instrumentName(inst) : record.instrumentId} levelServed={record.levelServed} detail={detail} scale={scale} />
         </p>
         <p className="hist-attempt-when">
           <GradeBadge kind={status} />
@@ -331,10 +338,14 @@ export function AttemptScreen({ route }: ScreenProps) {
         {...(playAgain ? { onPlayAgain: () => playAgain(record) } : {})}
       />
 
-      <button type="button" className="hist-credit" aria-label={`${credit}. ${aboutText('source.open')}`} onClick={() => setSheetOpen(true)}>
-        {credit}
-      </button>
-      <SourceSheet open={sheetOpen} record={record} configs={services.configs} attributions={attributions} onClose={() => setSheetOpen(false)} />
+      {scale ? null : (
+        <>
+          <button type="button" className="hist-credit" aria-label={`${credit}. ${aboutText('source.open')}`} onClick={() => setSheetOpen(true)}>
+            {credit}
+          </button>
+          <SourceSheet open={sheetOpen} record={record} configs={services.configs} attributions={attributions} onClose={() => setSheetOpen(false)} />
+        </>
+      )}
     </Shell>
   );
 }

@@ -30,7 +30,7 @@ import { acknowledgeStorageLoss, checkStorage } from '../store/storage-loss.ts';
 import { App } from './App.tsx';
 import { appearanceFromSettings } from './appearance.tsx';
 import { composeApp, type AppRuntime } from './compose/app-services.ts';
-import { appConfigs } from './compose/configs.ts';
+import { appConfigs, appScales } from './compose/configs.ts';
 import { createValue } from './compose/values.ts';
 import { testClockRequested } from './dev/slice-url.ts';
 import type { RouteDef } from './routes.tsx';
@@ -172,6 +172,7 @@ export async function boot(root: Root): Promise<void> {
       platform,
       capabilities,
       configs,
+      scales: appScales(configs),
       manifest: corpus.manifest,
       workerFactory: (): WorkerLike => createDspWorker(),
       settings: { ...defaultAppSettings(), ...savedSettings },

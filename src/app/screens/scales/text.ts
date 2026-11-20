@@ -3,7 +3,7 @@
  * pattern and key ("Five-note scale in B♭ major"), never by a composer or a work.
  */
 import type { AttemptRecord, AttemptSummary, ScaleRef, ScaleSet, ScalesConfig, SpelledPitch } from '../../../core/types.ts';
-import { scaleKey, scalePitches, scaleRefOf, scaleRhythm } from '../../../session/index.ts';
+import { scaleKey, scalePitches, scaleRefOf } from '../../../session/index.ts';
 import { copy, isCopyKey } from '../../../ui/copy/copy.ts';
 import { keyName } from '../setup/key-names.ts';
 
@@ -49,7 +49,6 @@ export interface ScaleRow {
   pattern: string | null;
   low: string;
   high: string;
-  bars: number;
   bpm: number;
 }
 
@@ -57,7 +56,7 @@ export interface ScaleRow {
 export function scaleRows(config: ScalesConfig, set: ScaleSet): ScaleRow[] {
   return set.scales.map((def) => {
     const ref = scaleRefOf(config, def);
-    return { id: def.id, title: scaleTitle(ref), pattern: patternLine(ref.pattern), ...scaleSpan(ref), bars: scaleRhythm(ref.degrees.length, ref).bars, bpm: def.bpm };
+    return { id: def.id, title: scaleTitle(ref), pattern: patternLine(ref.pattern), ...scaleSpan(ref), bpm: def.bpm };
   });
 }
 

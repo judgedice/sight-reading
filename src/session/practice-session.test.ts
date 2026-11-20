@@ -1315,3 +1315,62 @@ describe('round 2: sampled sounds, the starting pitch, what we heard, start erro
     expect(all.file.tries.map((t) => t.attemptId)).toEqual([lastRecord(h).id]);
   }, 60_000);
 });
+
+describe('Listen playback review: the instrument sound is ready for the first press, and the notes it plays are on the view', () => {
+  it('an excerpt loads its instrument\'s set when it is prepared, before any sound is pressed', async () => {
+    const h = await harness({ shippedCorpus: true });
+    await h.session.prepare(settings({ instrumentId: 'voice-baritone', mode: 'practice', level: 1 }));
+    expect(h.be.log.soundPrepares).toContain('voice-baritone');
+    expect(h.be.log.unlocks).toBe(0);
+  });
+
+  it('Listen waits for a set still loading, then plays it (not the fallback); Stop while it loads plays nothing', async () => {
+    const h = await harness({ shippedCorpus: true });
+    await h.session.prepare(settings({ instrumentId: 'voice-baritone', mode: 'practice', level: 1 }));
+    let release: (v: 'ready') => void = () => undefined;
+    const real = h.be.prepareSound.bind(h.be);
+    h.be.prepareSound = (id) => new Promise<'ready' | 'fallback'>((res) => { release = res as (v: 'ready') => void; void real(id); });
+    const listening = h.session.listen();
+    for (let i = 0; i < 10; i++) await flush();
+    expect(h.be.log.notePlays).toHaveLength(0);
+    release('ready');
+    await listening;
+    expect(h.be.log.notePlays).toHaveLength(1);
+    expect(h.be.log.noteSounds).toEqual(['voice-baritone']);
+
+    const again = h.session.listen();
+    for (let i = 0; i < 10; i++) await flush();
+    h.session.stopSounds();
+    release('ready');
+    await again;
+    expect(h.be.log.notePlays).toHaveLength(1);
+    expect(h.session.sounds.getState().playing).toBeNull();
+  });
+
+  it('Listen plays at the whole Listen bus (peak 1) and puts each written note on the view, from its start to its written end', async () => {
+    const h = await harness({ shippedCorpus: true });
+    const prepared = await h.session.prepare(settings({ instrumentId: 'voice-baritone', mode: 'practice', level: 1 }));
+    await h.session.listen();
+    const p = h.be.log.notePlays[0]!;
+    expect(p.opts.peak).toBe(1);
+    const view = h.session.sounds.getState();
+    const spans = view.notes!.spans;
+    const expected = buildExpectedNotes(prepared, h.session.plan!.bpm, cfg);
+    expect(spans.map((s) => s.idx)).toEqual(expected.map((e) => e.idx));
+    expect(spans.map((s) => s.eventIds)).toEqual(expected.map((e) => e.eventIds));
+    const beat = 60 / h.session.plan!.bpm;
+    spans.forEach((s, k) => {
+      // The span starts with its note's sound and lasts its written length.
+      expect(s.startsAt).toBeCloseTo((p.opts.at as number) + p.notes[k]!.startSec, 9);
+      expect(s.endsAt - s.startsAt).toBeCloseTo(expected[k]!.durBeats * beat, 9);
+      // A rest after a note leaves a gap with nothing lit; otherwise the next note starts as this one ends.
+      const next = spans[k + 1];
+      if (next && expected[k]!.followedByRest) expect(next.startsAt).toBeGreaterThan(s.endsAt + 1e-6);
+      else if (next) expect(next.startsAt).toBeCloseTo(s.endsAt, 6);
+    });
+    // The clock it carries is the backend's as heard (20 ms of reported output latency here).
+    expect(view.notes!.clock()).toBeCloseTo((h.be.now() as number) - 0.02, 9);
+    h.session.stopSounds();
+    expect(h.session.sounds.getState().notes).toBeNull();
+  });
+});

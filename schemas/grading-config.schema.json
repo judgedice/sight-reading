@@ -909,6 +909,16 @@
         "mergeCents": {
           "type": "number",
           "description": "Two notes that meet at a pitch change and lie within this of each other are one note, cents."
+        },
+        "fragmentIoiFrac": {
+          "type": "number",
+          "description": "The written rhythm caps those lengths: a fragment is shorter than `fragmentIoiFrac`, a glitch than `glitchIoiFrac` and a scoop than `scoopIoiFrac` times the shortest inter-onset interval around the nearest written note, so a fast written note is never taken for one."
+        },
+        "glitchIoiFrac": {
+          "type": "number"
+        },
+        "scoopIoiFrac": {
+          "type": "number"
         }
       },
       "required": [
@@ -927,7 +937,10 @@
         "fragmentMs",
         "longScoopMs",
         "scoopMaxCents",
-        "mergeCents"
+        "mergeCents",
+        "fragmentIoiFrac",
+        "glitchIoiFrac",
+        "scoopIoiFrac"
       ],
       "additionalProperties": false,
       "description": "`grading.detection.oneNote` row: how far one note may wander before it counts as two (round 2 detection)."

@@ -276,7 +276,7 @@ describe('Performance screen', () => {
     expect($('.perform-tempo').textContent).toContain('♩ = 100');
   });
 
-  it('the bar wash follows the bar the strip names (no look-ahead), and a restarted count-in clears it', async () => {
+  it('without the audible clock the strip follows the follower clock, and no bar is ever washed (round 2: beat line)', async () => {
     const h = harness();
     await render(h);
     act(() => h.session.emitState('performing'));
@@ -284,11 +284,15 @@ describe('Performance screen', () => {
       follower(h, { type: 'clock', scoreBeat: beat });
       const n = Math.floor(beat / 4) + 1;
       expect($('.perform-centre-text').textContent).toBe(copy('play.status.bar', { n, total: 8 }));
-      expect($('.sr-bar-tint').getAttribute('data-bar')).toBe(String(n));
+      expect(document.querySelector('.sr-bar-tint')).toBeNull();
+      expect(document.querySelector('.sf-hl-bar')).toBeNull();
     }
+    // No audible clock, no beat line and no switch for it.
+    expect(document.querySelector('.sf-beat-line')).toBeNull();
+    expect(document.querySelector('.perform-beatline')).toBeNull();
     act(() => h.session.emitState('count-in'));
     act(() => h.session.events.emit({ type: 'count-in-restart', reason: 'stop-before-first-note' }));
-    expect($('.sr-bar-tint').getAttribute('visibility')).toBe('hidden');
+    expect($('.sr-playhead').getAttribute('visibility')).toBe('hidden');
   });
 
   it('status messages: no-signal beats lost-place beats come-in-at', async () => {
@@ -479,5 +483,137 @@ describe('Performance screen', () => {
     h.view.setState({ prepared: e }, false);
     await render(h);
     expect($('.perform-source').textContent).toContain(copy('credit.source', { encoder: 'A. Encoder', corpus: 'openscore-lieder' }));
+  });
+});
+
+// Beat line (round 2): the try screen on an audible clock. The test drives the animation frames by hand.
+describe('Performance screen on the audible clock', () => {
+  const BPM = 100; // the harness excerpt's tempo, 4/4
+  const BEAT = 60 / BPM;
+  const T0 = 50;
+  interface Clocked {
+    h: Harness;
+    setAudible(t: number): void;
+    frame(): void;
+  }
+  function clocked(over: Parameters<typeof harness>[0] = {}): Clocked {
+    const h = harness(over);
+    let audible = 0;
+    h.services.audibleNow = () => audible;
+    (h.session as unknown as { takeClock: unknown }).takeClock = { t0: T0, bpm: BPM, countInBeats: 8 };
+    h.services.setBeatLine = (on) => {
+      const s = h.settings.get();
+      h.settings.set({ ...s, display: { ...s.display, beatLine: on } });
+    };
+    const frames: (() => void)[] = [];
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => (frames.push(() => cb(0)), frames.length));
+    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => undefined);
+    return {
+      h,
+      setAudible: (t) => (audible = t),
+      frame: () => act(() => frames.splice(0).forEach((f) => f())),
+    };
+  }
+  const at = (c: Clocked, beat: number): void => {
+    c.setAudible(T0 + beat * BEAT);
+    c.frame();
+  };
+  const line = (): Element | null => {
+    const el = document.querySelector('line.sf-beat-line');
+    return el && el.getAttribute('visibility') === 'visible' ? el : null;
+  };
+  const lineX = (): number => Number(/translate\(([-\d.]+) 0\)/.exec(line()!.getAttribute('transform') ?? '')![1]);
+  afterEach(() => vi.restoreAllMocks());
+
+  it('the count-in track follows the audible clock, not the session events; the line waits at the first note', async () => {
+    const c = clocked();
+    await render(c.h);
+    at(c, -8.01);
+    expect(document.querySelectorAll('.sf-count-cell[data-state="current"]')).toHaveLength(0);
+    expect(line()).toBeNull();
+    // A session event says click 3 already (the context clock is ahead of the speakers): the track waits for the sound.
+    act(() => c.h.session.events.emit({ type: 'count-in', beat: 3, of: 8, t: (T0 - 6 * BEAT) as never }));
+    expect(document.querySelectorAll('.sf-count-cell[data-state="current"]')).toHaveLength(0);
+    at(c, -8);
+    expect([...document.querySelectorAll('.sf-count-cell')].findIndex((e) => e.getAttribute('data-state') === 'current')).toBe(0);
+    const wait = lineX();
+    at(c, -5);
+    expect([...document.querySelectorAll('.sf-count-cell')].findIndex((e) => e.getAttribute('data-state') === 'current')).toBe(3);
+    at(c, -0.5);
+    expect(lineX()).toBe(wait);
+    expect(document.querySelector('.sf-hl-name')?.textContent).toBe(copy('countIn.entry.instrument'));
+    // The session reaches the music first; the track stays until the downbeat is heard.
+    act(() => c.h.session.emitState('performing'));
+    expect(document.querySelector('.sf-count')).not.toBeNull();
+    at(c, 0);
+    expect(document.querySelector('.sf-count')).toBeNull();
+    expect($('.perform-centre-text').textContent).toBe(copy('play.status.bar', { n: 1, total: 8 }));
+    expect(lineX()).toBe(wait);
+  });
+
+  it('moves the line every frame with no React render, and the strip once per beat and bar', async () => {
+    const c = clocked();
+    let commits = 0;
+    await render(c.h, 'ranked', () => commits++);
+    act(() => c.h.session.emitState('performing'));
+    at(c, 0);
+    at(c, 0.1);
+    const before = commits;
+    const xs: number[] = [];
+    for (let i = 1; i <= 8; i++) {
+      at(c, 0.1 + i * 0.1);
+      xs.push(lineX());
+    }
+    expect(commits).toBe(before);
+    for (let i = 1; i < xs.length; i++) expect(xs[i]!).toBeGreaterThan(xs[i - 1]!);
+    at(c, 1);
+    expect(commits).toBe(before + 1);
+    expect(document.querySelector('.dom-beat-dot[data-beat="2"]')?.getAttribute('data-state')).toMatch(/steady|pulse/);
+    at(c, 9);
+    expect($('.perform-centre-text').textContent).toBe(copy('play.status.bar', { n: 3, total: 8 }));
+    // The follower's clock (a round trip late) no longer moves the strip.
+    follower(c.h, { type: 'clock', scoreBeat: 2 });
+    expect($('.perform-centre-text').textContent).toBe(copy('play.status.bar', { n: 3, total: 8 }));
+  });
+
+  it('the switch turns the line off and on and remembers it; Settings off means nothing moves on the staff', async () => {
+    const c = clocked();
+    await render(c.h);
+    act(() => c.h.session.emitState('performing'));
+    at(c, 0.5);
+    expect(line()).not.toBeNull();
+    const sw = button(copy('play.beatLine'));
+    expect(sw.getAttribute('aria-pressed')).toBe('true');
+    click(sw);
+    expect(c.h.settings.get().display.beatLine).toBe(false);
+    at(c, 0.6);
+    expect(line()).toBeNull();
+    expect(button(copy('play.beatLine')).getAttribute('aria-pressed')).toBe('false');
+    click(button(copy('play.beatLine')));
+    at(c, 0.7);
+    expect(line()).not.toBeNull();
+
+    m?.unmount();
+    const s = defaultAppSettings();
+    const off = clocked({ settings: { ...s, display: { ...s.display, beatLine: false } } });
+    await render(off.h);
+    act(() => off.h.session.emitState('performing'));
+    for (const b of [-3, 0, 2.5, 7]) {
+      at(off, b);
+      expect(line()).toBeNull();
+    }
+  });
+
+  it('under reduced motion the line steps on the beat', async () => {
+    const c = clocked();
+    c.h.services.reducedMotion = () => true;
+    await render(c.h);
+    act(() => c.h.session.emitState('performing'));
+    at(c, 2);
+    const x2 = lineX();
+    at(c, 2.6);
+    expect(lineX()).toBe(x2);
+    at(c, 3);
+    expect(lineX()).toBeGreaterThan(x2);
   });
 });

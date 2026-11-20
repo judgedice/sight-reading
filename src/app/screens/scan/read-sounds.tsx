@@ -6,7 +6,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import type { StoreApi } from 'zustand/vanilla';
 import type { PreparedExcerpt } from '../../../core/types.ts';
-import { idleSoundView, type SoundView } from '../../../session/index.ts';
+import { idleSoundView, type SoundNotes, type SoundView } from '../../../session/index.ts';
 import { takesTuningNote } from '../../../session/take-plan.ts';
 import { PlayingTempo, type SoundId, type SoundsModel } from '../../../ui/components/sounds/index.ts';
 import { copy } from '../../../ui/copy/copy.ts';
@@ -33,6 +33,8 @@ export interface ReadSounds {
   caption: ReactNode;
   captionFailed: boolean;
   highlight: ScoreHighlight;
+  /** The notes of the Listen playing now and its clock: the score's sounding-note highlight. Null when none plays. */
+  sounding: SoundNotes | null;
   confirmOpen: boolean;
   keepRanked: () => void;
   listenMakePractice: () => void;
@@ -55,6 +57,7 @@ export function useReadSounds({ svc, prepared, mode, active, announce }: ReadSou
   const soundCaption = useStoreSlice(store, (s) => s.caption);
   const soundBar = useStoreSlice(store, (s) => s.bar);
   const failed = useStoreSlice(store, (s) => s.failed);
+  const soundNotes = useStoreSlice(store, (s) => s.notes ?? null);
   const listening = useReadable(svc.settings).practice.listening;
   const [tuning, setTuning] = useState(false);
   const [notice, setNotice] = useState<Notice>(null);
@@ -191,5 +194,6 @@ export function useReadSounds({ svc, prepared, mode, active, announce }: ReadSou
   }
 
   const highlight = prepared && active ? highlightFor(prepared, failed ? null : soundCaption, soundBar) : { key: false, firstNote: null, bar: null };
-  return { model, press, caption, captionFailed, highlight, confirmOpen, keepRanked, listenMakePractice, stopAll };
+  const sounding = prepared && active && !failed ? soundNotes : null;
+  return { model, press, caption, captionFailed, highlight, sounding, confirmOpen, keepRanked, listenMakePractice, stopAll };
 }

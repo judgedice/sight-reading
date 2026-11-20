@@ -7,7 +7,7 @@ import { useCallback, useMemo, useSyncExternalStore, type ReactNode } from 'reac
 import type { StoreApi } from 'zustand/vanilla';
 import type { AppSettings, AttemptRecord, Configs, PreparedExcerpt } from '../../../../core/types.ts';
 import { planTake, type SessionView, type TakePlan } from '../../../../session/index.ts';
-import type { FrameNotation } from '../../../../ui/score-frame/index.ts';
+import type { FrameNotation, SoundingSource } from '../../../../ui/score-frame/index.ts';
 import type { Readable } from '../../home/services.ts';
 import type { ReviewBus } from './bus.ts';
 import type { GhostSpeller, HeardTraceSource } from './model.ts';
@@ -50,6 +50,8 @@ export interface ReviewExtras {
   caption?: ReactNode;
   /** Keep the caption line's height when it is empty, so starting a sound moves nothing. */
   reserveCaption?: boolean;
+  /** The playback's notes and clock: the note sounding glows (Listen, Hear bars, Hear what we heard). */
+  sounding?: SoundingSource | null;
 }
 
 export function SessionReview({ record, deps, extras = {} }: { record: AttemptRecord; deps: ReviewDeps; extras?: ReviewExtras }) {
@@ -85,6 +87,7 @@ export function SessionReview({ record, deps, extras = {} }: { record: AttemptRe
       showHeardDefault={settings.display.showHeard === true}
       {...(extras.caption !== undefined ? { caption: extras.caption } : {})}
       {...(extras.reserveCaption ? { reserveCaption: true } : {})}
+      sounding={extras.sounding ?? null}
     />
   );
 }

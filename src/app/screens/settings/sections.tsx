@@ -126,6 +126,13 @@ export function PracticeSection() {
           />
         </Row>
       ) : null}
+      <Row label={copy('settings.practice.beatLine')} hint={copy('settings.practice.beatLine.hint')} inline>
+        <Toggle
+          label={copy('settings.practice.beatLine')}
+          checked={settings.display.beatLine !== false}
+          onChange={(v) => s.settings.set(patchSection(settings, 'display', { beatLine: v }))}
+        />
+      </Row>
       <Row label={copy('settings.practice.stars')} inline>
         <Toggle
           label={copy('settings.practice.stars')}

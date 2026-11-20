@@ -22,6 +22,8 @@ import { text } from './text.ts';
 import type { ReactElement } from 'react';
 import { historyScreenOverrides } from './index.ts';
 import { PlaceholderScreen } from '../Placeholder.tsx';
+import { loadScales, scaleRefOf } from '../../../corpus/index.ts';
+import scalesJson from '../../../../config/scales.json';
 
 const read = (rel: string): unknown => JSON.parse(readFileSync(join(process.cwd(), rel), 'utf8')) as unknown;
 const cfg: Configs = loadConfigs({
@@ -489,5 +491,60 @@ describe('round 2: try detail', () => {
     await open(idOf(1), { diagnostics });
     expect(document.querySelector('[data-testid="attempt-sure"]')).not.toBeNull();
     expect(document.querySelector('[data-testid="attempt-diagnostics"]')?.textContent).toContain(copy('diagnostics.prompt'));
+  });
+});
+
+describe('scale tries in History (PLAN ruling 68)', () => {
+  const scales = loadScales(scalesJson, cfg);
+  const ref = scaleRefOf(scales, scales.sets[0]!.scales.find((x) => x.id === 'octave-a-minor')!);
+  const scaleTry = (): Partial<AttemptRecord> => ({
+    instrumentId: 'voice-baritone',
+    excerptId: 'scale:voice-baritone:octave-a-minor',
+    kind: 'scale',
+    scale: ref,
+    writtenKey: { fifths: 0, mode: 'minor' },
+    score: makeScore(84, false),
+  });
+
+  it('labels a scale try by its name with "Scale" in place of the difficulty, and filters pieces from scales', async () => {
+    const repos = await seed(5, (i) => (i % 2 === 0 ? scaleTry() : { instrumentId: 'voice-baritone' }));
+    const services: HistoryServices = { configs: cfg, repos, localDay: () => '2026-02-01' };
+    const src = await renderAt('#/history', services);
+    const rows = [...document.querySelectorAll('[data-testid="history-row"]')];
+    expect(rows).toHaveLength(5);
+    const scaleRows = rows.filter((r) => r.getAttribute('data-kind') === 'scale');
+    expect(scaleRows).toHaveLength(3);
+    for (const r of scaleRows) {
+      expect(r.querySelector('.hist-title')?.textContent).toBe('A minor scale (natural)');
+      expect(r.querySelector('[data-testid="meta-line"]')?.textContent).toContain(`${copy('scales.label')} · A minor · 4/4`);
+      expect(r.textContent).not.toContain(copy('progress.instrumentLevel', { level: 1 }));
+    }
+    const kind = document.querySelectorAll<HTMLSelectElement>('select')[1]!;
+    expect(kind.getAttribute('aria-label')).toBe(copy('history.filter.kind'));
+    setNativeValue(kind, 'scale', 'change');
+    await flush();
+    expect(src.navigated).toContain('/history?kind=scale');
+    expect(document.querySelectorAll('[data-testid="history-row"]')).toHaveLength(3);
+    setNativeValue(document.querySelectorAll<HTMLSelectElement>('select')[1]!, 'excerpt', 'change');
+    await flush();
+    expect(src.navigated).toContain('/history?kind=excerpt');
+    const left = [...document.querySelectorAll('[data-testid="history-row"]')];
+    expect(left).toHaveLength(2);
+    expect(left.every((r) => r.getAttribute('data-kind') === 'excerpt')).toBe(true);
+  });
+
+  it('opens a scale try from the URL filter, and its detail names the scale and its pattern, with no composer or source', async () => {
+    const repos = await seed(3, (i) => (i === 0 ? scaleTry() : {}));
+    const services: HistoryServices = { configs: cfg, repos, localDay: () => '2026-02-01' };
+    window.location.hash = '#/history?kind=scale';
+    await renderAt('#/history?kind=scale', services);
+    expect(document.querySelectorAll('[data-testid="history-row"]')).toHaveLength(1);
+    m?.unmount();
+    const id = (await repos.attempts.all()).find((a) => a.kind === 'scale')!.id;
+    await renderAt(`#/history/${id}`, services);
+    expect(document.querySelector('[data-testid="attempt-title"]')?.textContent).toBe('A minor scale (natural)');
+    expect(document.querySelector('.hist-attempt-composer')?.textContent).toBe(copy('scales.pattern.octave'));
+    expect(document.querySelector('.hist-credit')).toBeNull();
+    expect(document.querySelector('[data-testid="attempt-summary"]')?.textContent).toContain(copy('results.scale.practice'));
   });
 });

@@ -378,7 +378,7 @@ export class ScoreFrameController implements Omit<ScoreView<HTMLElement>, 'rende
       b.x = NaN;
     }
     if (b.el.getAttribute('visibility') !== 'visible') b.el.setAttribute('visibility', 'visible');
-    if (Math.abs(x - b.x) >= 0.01) {
+    if (!(Math.abs(x - b.x) < 0.01)) {
       b.el.setAttribute('transform', `translate(${num2(x)} 0)`);
       b.x = x;
     }

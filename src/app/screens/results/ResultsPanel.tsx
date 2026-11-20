@@ -242,7 +242,7 @@ function TriesLine({ record, triesAtPiece, onSee }: { record: AttemptRecord; tri
       {others > 0 ? (
         <>
           <button type="button" className="res-tries-link" onClick={onSee}>
-            {text('results.tries.atPiece', { n: others })}
+            {text(record.kind === 'scale' ? 'results.tries.atScale' : 'results.tries.atPiece', { n: others })}
           </button>
           <span aria-hidden="true">{'\u00b7'}</span>
         </>
@@ -254,10 +254,10 @@ function TriesLine({ record, triesAtPiece, onSee }: { record: AttemptRecord; tri
   );
 }
 
-function NextButton({ onClick, testId }: { onClick: () => void; testId?: string }) {
+function NextButton({ onClick, testId, scale = false }: { onClick: () => void; testId?: string; scale?: boolean }) {
   return (
     <button type="button" className="ui-button ui-button-primary ui-button-default res-next" onClick={onClick} data-autofocus="" {...(testId ? { 'data-testid': testId } : {})}>
-      <span>{text('action.nextExcerpt')}</span>
+      <span>{text(scale ? 'action.nextScale' : 'action.nextExcerpt')}</span>
       <Glyph id="arrow-right" size={16} />
     </button>
   );
@@ -282,10 +282,12 @@ function Actions({ state, record, h, where, barHasNext = false }: { state: Heade
     );
   }
   if (!h.onNext && !h.onTryAgain && !h.onChangeSetup) return null;
+  const scale = record.kind === 'scale';
   return (
     <div className={cls} data-testid={`res-actions-${where}`}>
-      {h.onNext && !barHasNext ? <NextButton onClick={h.onNext} /> : null}
-      {h.onTryAgain ? (
+      {h.onNext && !barHasNext ? <NextButton onClick={h.onNext} scale={scale} /> : null}
+      {h.onTryAgain && scale ? <Button label={text('action.sameScaleAgain')} onClick={h.onTryAgain} /> : null}
+      {h.onTryAgain && !scale ? (
         <span title={text('results.practice.tooltip')} className="res-try-again">
           <Button label={text('action.tryAgainPractice')} onClick={h.onTryAgain} />
         </span>
@@ -308,9 +310,11 @@ export function ResultsPanel(props: ResultsPanelProps) {
   const state = headerState(record, configs);
   const graded = s !== null && record.listening && state.kind !== 'void';
   const dataState = state.kind === 'void' ? 'void' : graded ? 'graded' : 'not-graded';
+  // A scale try earns nothing and moves nothing: one plain line says so, in place of XP and rank (PLAN ruling 68).
+  const scale = record.kind === 'scale';
   const xp = xpView(record, configs, profile);
-  const xpText = graded ? xp.headline : state.kind === 'void' ? text('xp.headline', { xp: 0 }) : null;
-  const rank = profile ? rankLine(configs, profile) : null;
+  const xpText = scale ? text('results.scale.practice') : graded ? xp.headline : state.kind === 'void' ? text('xp.headline', { xp: 0 }) : null;
+  const rank = profile && !scale ? rankLine(configs, profile) : null;
   const best = graded ? personalBest(progress, record.instrumentId) : null;
   const cards = levelCards(progress, record.instrumentId, configs);
   const calibrateNow = props.onCalibrateNow ?? props.onRecalibrate;
@@ -344,7 +348,9 @@ export function ResultsPanel(props: ResultsPanelProps) {
     </h1>
   );
 
-  const reasonLine = state.reason ? (
+  // A scale try's reasons (practice, not calibrated) are about XP and ranking, which a scale never has: its one line
+  // says so instead, and the score card keeps the timing note (PLAN ruling 68).
+  const reasonLine = state.reason && (!scale || state.kind === 'void') ? (
     <p className="res-reason" data-testid={state.kind === 'void' && record.voidReason ? `void-${record.voidReason}` : 'res-reason'}>
       <span>{state.reason}</span>
       {state.calibrateNow && calibrateNow ? <Button label={text('action.calibrateNow')} variant="quiet" size="compact" onClick={calibrateNow} /> : null}
@@ -369,7 +375,11 @@ export function ResultsPanel(props: ResultsPanelProps) {
           {state.badge || xpText || rank ? (
             <div className="res-xp-line" data-testid="res-xp">
               {state.badge ? <GradeBadge kind={state.badge} /> : null}
-              {xpText ? <span className="res-xp">{xpText}</span> : null}
+              {xpText ? (
+                <span className="res-xp" {...(scale ? { 'data-testid': 'res-scale-practice' } : {})}>
+                  {xpText}
+                </span>
+              ) : null}
               {rank ? (
                 <>
                   <span className="res-rank-line" data-testid="res-rank">
@@ -424,8 +434,8 @@ export function ResultsPanel(props: ResultsPanelProps) {
 
       {pinned ? (
         <div className="res-pinned" data-testid="res-pinned">
-          {props.onNext ? <NextButton onClick={props.onNext} /> : null}
-          {props.onTryAgain ? <Button label={text('action.tryAgain')} onClick={props.onTryAgain} /> : null}
+          {props.onNext ? <NextButton onClick={props.onNext} scale={scale} /> : null}
+          {props.onTryAgain ? <Button label={text(scale ? 'action.sameScaleAgain' : 'action.tryAgain')} onClick={props.onTryAgain} /> : null}
         </div>
       ) : null}
     </div>

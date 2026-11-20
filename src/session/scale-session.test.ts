@@ -141,7 +141,10 @@ const lastRecord = (h: H): AttemptRecord => {
 describe('a scale try on the fake backend (PLAN ruling 68)', () => {
   it('goes straight to the read-through, sings to a graded, persisted, unranked result labelled as the scale', async () => {
     const h = await harness();
-    const prepared = await h.session.prepareScale('five-note-c', settings(), 72);
+    const pending = h.session.prepareScale('five-note-c', settings(), 72);
+    // Synchronous up to the read-through, so the chooser's click can open audio in the same gesture.
+    expect(h.session.state).toBe('scanning');
+    const prepared = await pending;
     // The new player's profile, as the read-through left it.
     const before = await h.repos.profile.get();
     expect(before).toBeDefined();

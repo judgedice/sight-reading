@@ -3,8 +3,13 @@
  * `SoundView` store; the session calls `play` and `stop`. Starting a sound stops the one playing; `stop` cancels
  * everything the backend scheduled through `playNotes`, `playClicks` and `playTone` (never a take's metronome).
  *
- * Captions follow the backend's clock: each segment is set by a timer at its clock time, and the store goes back to
- * idle when the sound ends. A sound that fails to start shows `failed` for six seconds (05 §8.8 states).
+ * Captions follow the backend's clock as heard: each segment is set by a timer at the moment its clock time comes out
+ * of the speakers (`audibleNow`, so the output latency is taken off), and the store goes back to idle when the sound
+ * ends. A sound that fails to start shows `failed` for six seconds (05 §8.8 states).
+ *
+ * The notes a sound plays (Listen, Hear bars, Hear what we heard) are in `notes`, set once when it starts: each written
+ * note's index and the clock times it sounds from and to, with the clock to read them against. The score's
+ * sounding-note highlight follows them frame by frame without a store update per note.
  */
 import { createStore, type StoreApi } from 'zustand/vanilla';
 import type { AudioBackend } from '../core/platform.ts';
@@ -36,6 +41,23 @@ export type SoundCaption =
   /** A metronome sound preview. */
   | { kind: 'preview'; sound: MetronomeSound };
 
+/** One written note of a sound: its expected-note index and the backend clock times it sounds from and to. */
+export interface SoundNoteSpan {
+  idx: number;
+  /** The note's event ids in the score (a tie chain has several). */
+  eventIds: readonly string[];
+  startsAt: number;
+  endsAt: number;
+}
+
+/** The notes of the sound playing now and the clock to read them against (the backend's clock as heard). */
+export interface SoundNotes {
+  /** In start order. A note heard twice (Hear bars) appears twice. */
+  spans: readonly SoundNoteSpan[];
+  /** Backend clock seconds of what comes out of the speakers now. */
+  clock: () => number;
+}
+
 export interface SoundView {
   playing: SoundKind | null;
   caption: SoundCaption | null;
@@ -54,6 +76,8 @@ export interface SoundView {
   /** Backend clock times of the sound playing now. */
   startsAt: number | null;
   endsAt: number | null;
+  /** The written notes it plays, for the sounding-note highlight (Listen, Hear bars, Hear what we heard); else null. */
+  notes?: SoundNotes | null;
 }
 
 export const idleSoundView = (): SoundView => ({
@@ -67,6 +91,7 @@ export const idleSoundView = (): SoundView => ({
   failed: false,
   startsAt: null,
   endsAt: null,
+  notes: null,
 });
 
 /** One caption change, seconds after the sound's origin. */
@@ -85,6 +110,8 @@ export interface SoundRequest {
   slower?: boolean;
   attemptId?: string | null;
   instrumentId?: string | null;
+  /** The written notes the sound plays: expected-note index and seconds from the origin it sounds from and to. */
+  notes?: readonly { idx: number; eventIds: readonly string[]; atSec: number; untilSec: number }[];
   /** Schedules the sound with its origin at the given backend clock time. */
   schedule(origin: number): Promise<void>;
 }
@@ -106,9 +133,21 @@ export class SoundPlayer {
   private failHandle: unknown = null;
 
   constructor(
-    private readonly audio: Pick<AudioBackend, 'now' | 'stopSounds'>,
+    private readonly audio: Pick<AudioBackend, 'now' | 'stopSounds'> & Partial<Pick<AudioBackend, 'audibleNow'>>,
     private readonly timers: Timers,
   ) {}
+
+  /**
+   * Backend clock seconds of the sound coming out of the speakers now: `audibleNow` when the backend has one (never
+   * ahead of `now`, never more than a second behind it), else `now`.
+   */
+  heardNow(): number {
+    const now = this.audio.now() as number;
+    const heard = typeof this.audio.audibleNow === 'function' ? (this.audio.audibleNow() as number) : now;
+    return Number.isFinite(heard) && heard <= now && heard > now - 1 ? heard : now;
+  }
+
+  private readonly clock = (): number => this.heardNow();
 
   get playing(): SoundKind | null {
     return this.view.getState().playing;
@@ -176,10 +215,12 @@ export class SoundPlayer {
         failed: false,
         startsAt: origin,
         endsAt: origin + r.durSec,
+        notes: r.notes && r.notes.length > 0 ? { spans: r.notes.map((n) => ({ idx: n.idx, eventIds: n.eventIds, startsAt: origin + n.atSec, endsAt: origin + n.untilSec })).sort((a, b) => a.startsAt - b.startsAt), clock: this.clock } : null,
       },
       true,
     );
-    const at = (sec: number): number => Math.max(0, (origin + sec - (this.audio.now() as number)) * 1000);
+    // Timers fire when the clock time is heard, not when it is scheduled (the output latency, calibration's rule).
+    const at = (sec: number): number => Math.max(0, (origin + sec - this.heardNow()) * 1000);
     for (const s of segs) {
       if (s === initial || (initial && s.atSec < initial.atSec)) continue;
       this.handles.push(

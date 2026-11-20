@@ -17,6 +17,7 @@ import { RankUpCard } from '../sheets/RankUpCard.tsx';
 import { SessionSummary } from '../sheets/SessionSummary.tsx';
 import { summarizeSession, summaryDue } from '../sheets/summary.ts';
 import { creditLine, rankUpEvent, recordSummary, type HearSpan } from './model.ts';
+import { tryTitle } from '../scales/index.ts';
 import { ResultsListen, isListening, useResultsSound } from './ResultsListen.tsx';
 import { ResultsPanel } from './ResultsPanel.tsx';
 import type { ResultsServices } from './services.ts';
@@ -131,7 +132,7 @@ export function ResultsScreen(_props: ScreenProps) {
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [summaryShownFor, setSummaryShownFor] = useState<string | null>(null);
   const attemptsNow = services.sessionAttempts?.() ?? null;
-  const summaryNow = record !== null && attemptsNow !== null && summaryShownFor !== record.id && summaryDue(attemptsNow.length, cfg);
+  const summaryNow = record !== null && record.kind !== 'scale' && attemptsNow !== null && summaryShownFor !== record.id && summaryDue(attemptsNow.length, cfg);
 
   // A new take starts Listen from bar 1 at full speed.
   const recordId = record?.id ?? null;
@@ -146,7 +147,9 @@ export function ResultsScreen(_props: ScreenProps) {
 
   const proceed = (): void => {
     services.stopSounds?.();
-    if (actions.next?.() === true) return;
+    // After a scale try, Next is "Next scale" (PLAN ruling 68).
+    const handled = record?.kind === 'scale' ? actions.nextScale?.() : actions.next?.();
+    if (handled === true) return;
     navigate('/practice/scan');
   };
   const next = (): void => {
@@ -327,10 +330,17 @@ export function ResultsScreen(_props: ScreenProps) {
   ) : null;
   const renderReview = services.renderReview;
   const highlight = indexOfBar(playing ? sound.bar : startBar);
-  const review = renderReview ? renderReview(record, { highlightBar: highlight, onBarTap, ...(controls ? { toolbarEnd: controls } : {}) }) : null;
+  // The note sounding glows while Listen or Hear bars plays (set once per playback; the frame follows the clock).
+  const review = renderReview ? renderReview(record, { highlightBar: highlight, onBarTap, sounding: sound.notes ?? null, ...(controls ? { toolbarEnd: controls } : {}) }) : null;
 
-  const credit = creditLine(record.credit);
-  const creditNode = actions.openSource ? (
+  // A scale has no composer or source: its name stands where the credit would (PLAN ruling 68).
+  const scale = record.kind === 'scale';
+  const credit = scale ? tryTitle(record) : creditLine(record.credit);
+  const creditNode = scale ? (
+    <p className="res-credit" data-testid="res-scale-title">
+      {credit}
+    </p>
+  ) : actions.openSource ? (
     <button type="button" className="res-credit-button" onClick={() => actions.openSource?.(record)}>
       {credit}
     </button>
@@ -365,7 +375,7 @@ export function ResultsScreen(_props: ScreenProps) {
         onSeeTries={() => navigate(`/history?piece=${encodeURIComponent(record.excerptId)}`)}
         onNext={next}
         onTryAgain={tryAgain}
-        {...(voided ? {} : { onChangeSetup: openSetup })}
+        {...(voided || scale ? {} : { onChangeSetup: openSetup })}
         onMoveUp={actions.moveUp}
         onStayAt={actions.stayAt}
         onUndoLevelUp={actions.undoLevelUp}

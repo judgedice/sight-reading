@@ -1,7 +1,7 @@
 // <ScoreFrame>: the paper surface that owns the system SVGs and the ScoreView (04 §7.5). Loads notation lazily
 // through `loadNotation` (ui/ cannot import notation/, 01 §4.2; PLAN ruling 39 keeps it a lazy chunk), lays the
 // excerpt out at reveal, re-lays out on resize until it is frozen, then only scales (04 §4.4).
-import { useEffect, useImperativeHandle, useRef, useState, type ReactNode, type Ref } from 'react';
+import { useEffect, useImperativeHandle, useLayoutEffect, useRef, useState, type ReactNode, type Ref } from 'react';
 import { createPortal } from 'react-dom';
 import type { PreparedExcerpt } from '../../core/types.ts';
 import type { Insets } from '../layout-table.ts';
@@ -18,6 +18,7 @@ import {
   type SlotBars,
 } from './controller.ts';
 import { documentAppearance, type FrameNotation, type FrameViewOptions } from './notation-binding.ts';
+import { SoundingNoteDriver, SoundingNoteLayer, type SoundingSource } from './sounding-note.ts';
 import './score-frame.css';
 
 export interface ScoreFrameProps {
@@ -63,6 +64,11 @@ export interface ScoreFrameProps {
   clean?: boolean;
   /** A tap or click on a bar that is not on a note's mark (review): the 0-based measure index. */
   onBarTap?: (barIndex: number) => void;
+  /**
+   * The notes of a playback (Listen, Hear bars, Hear what we heard) and the clock as heard: the note sounding glows
+   * (sounding-note.ts). Set once per playback; the frame follows the clock itself. Null or omitted for none.
+   */
+  sounding?: SoundingSource | null;
 }
 
 const loads = new WeakMap<() => Promise<FrameNotation>, Promise<FrameNotation>>();
@@ -92,7 +98,7 @@ const sameArgs = (a: FrameLayoutArgs, b: FrameLayoutArgs): boolean =>
 
 export function ScoreFrame(props: ScoreFrameProps) {
   const { loadNotation, excerpt, bpm, arrangement = 'slots', frozen = false, viewport, insets, label, className, ref, purpose } = props;
-  const { band, dim = false, highlightBar = null, highlightKey = false, firstNoteName = null, clean = false } = props;
+  const { band, dim = false, highlightBar = null, highlightKey = false, firstNoteName = null, clean = false, sounding = null } = props;
   const [bandSlot, setBandSlot] = useState<HTMLElement | null>(null);
   const [laidOut, setLaidOut] = useState(0);
   const hostRef = useRef<HTMLDivElement | null>(null);
@@ -244,7 +250,9 @@ export function ScoreFrame(props: ScoreFrameProps) {
   useEffect(() => {
     frame?.setClean(clean);
   }, [frame, clean]);
-  useEffect(() => {
+  // Layout effects: the dimming and the first note's ring change in the same commit as the count-in track, so no
+  // frame shows the new track over the old ink (the track can re-render from an animation frame, not only an event).
+  useLayoutEffect(() => {
     frame?.dim(dim);
   }, [frame, dim]);
   useEffect(() => {
@@ -253,9 +261,26 @@ export function ScoreFrame(props: ScoreFrameProps) {
   useEffect(() => {
     frame?.highlightKeySignature(highlightKey);
   }, [frame, highlightKey, laidOut]);
-  useEffect(() => {
+  useLayoutEffect(() => {
     frame?.highlightFirstNote(firstNoteName);
   }, [frame, firstNoteName, laidOut]);
+  // The sounding note: its own layer and animation-frame loop, rebuilt after each layout (the systems are new SVGs).
+  useEffect(() => {
+    const host = hostRef.current;
+    const win = host?.ownerDocument.defaultView;
+    if (!frame || !host || !win || !sounding || sounding.spans.length === 0 || typeof win.requestAnimationFrame !== 'function') return;
+    const layer = new SoundingNoteLayer(frame, host);
+    const reduced = (): boolean => live.current.reducedMotion?.() ?? documentAppearance(host.ownerDocument).reducedMotion();
+    const driver = new SoundingNoteDriver(sounding, win, (i) => {
+      const span = i >= 0 ? sounding.spans[i] : undefined;
+      layer.show(span ?? null, { animate: !reduced(), follow: true });
+    });
+    driver.start();
+    return () => {
+      driver.stop();
+      layer.clear();
+    };
+  }, [frame, sounding, laidOut]);
   const hasBand = band !== undefined && band !== null && band !== false;
   useEffect(() => {
     if (!frame) return;

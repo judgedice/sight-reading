@@ -1,6 +1,7 @@
 // ScoreFrame (D3): slots, page turns, freeze and scale, system numbers (04 §4.3, §4.4, §7.5).
 export { ScoreFrame, type ScoreFrameProps } from './ScoreFrame.tsx';
 export { CountInBand, type CountInBandProps } from './CountInBand.tsx';
+export { SoundingNoteDriver, SoundingNoteLayer, spanAt, type SoundingSource, type SoundingSpan } from './sounding-note.ts';
 export {
   ScoreFrameController,
   GUTTER_PX,

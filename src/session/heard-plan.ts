@@ -24,7 +24,7 @@ export const HEARD = {
 } as const;
 
 /** What the plan needs from a detected note. */
-export type HeardNoteIn = Pick<DetectedNote, 'onset' | 'offset' | 'midi' | 'steadyMs'>;
+export type HeardNoteIn = Pick<DetectedNote, 'onset' | 'offset' | 'midi' | 'steadyMs'> & Partial<Pick<DetectedNote, 'id'>>;
 
 export interface HeardFacts {
   detected: readonly HeardNoteIn[];
@@ -41,6 +41,8 @@ export interface HeardFacts {
 }
 
 export interface HeardNote {
+  /** The detected note's id, when the input had one (the sounding-note highlight finds its written note by it). */
+  id?: number;
   /** Fractional concert MIDI as detected. */
   midi: number;
   hz: number;
@@ -85,7 +87,7 @@ export function planHeard(f: HeardFacts): HeardPlan {
   const barOf = (beat: number): number => Math.min(hi, Math.max(lo, barOfBeat(beat, bpb, hasPickup)));
   const originBeat = first.beat;
   const at = (beat: number): number => (beat - originBeat) * beatSec;
-  const notes: HeardNote[] = kept.map(({ d, beat }) => ({ midi: d.midi, hz: midiToFreq(d.midi, f.a4Hz), bar: barOf(beat), startSec: at(beat), durSec: heardDurSec(d) }));
+  const notes: HeardNote[] = kept.map(({ d, beat }) => ({ ...(d.id !== undefined ? { id: d.id } : {}), midi: d.midi, hz: midiToFreq(d.midi, f.a4Hz), bar: barOf(beat), startSec: at(beat), durSec: heardDurSec(d) }));
   const startBeat = (bar: number): number => (bar <= 0 ? -f.pickupBeats : (bar - 1) * bpb);
   const endBeat = (bar: number): number => (bar <= 0 ? 0 : bar * bpb);
   const firstBar = (notes[0] as HeardNote).bar;

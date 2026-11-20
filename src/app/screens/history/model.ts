@@ -10,9 +10,14 @@ import { beatUnit } from '../setup/model.ts';
 /** Rows loaded per page. Beyond it the list grows by "Show more" (not virtualised; see the package report). */
 export const PAGE_SIZE = 100;
 
+/** History's "Show" filter (PLAN ruling 68): every try, only pieces, or only scales. */
+export type KindFilter = 'all' | 'excerpt' | 'scale';
+
 export interface HistoryFilter {
   instrumentId: string | null;
   rankedOnly: boolean;
+  /** Absent or `all`: every try. */
+  kind?: KindFilter;
   /** "This piece" (opened from results): only the tries at this excerpt. */
   excerptId?: string | null;
 }
@@ -25,7 +30,13 @@ export function parseFilter(source: string): HistoryFilter {
   const p = new URLSearchParams(q);
   const instrument = p.get('instrument');
   const piece = p.get('piece');
-  return { instrumentId: instrument ? instrument : null, rankedOnly: p.get('ranked') === '1', excerptId: piece ? piece : null };
+  const kind = p.get('kind');
+  return {
+    instrumentId: instrument ? instrument : null,
+    rankedOnly: p.get('ranked') === '1',
+    excerptId: piece ? piece : null,
+    ...(kind === 'scale' || kind === 'excerpt' ? { kind } : {}),
+  };
 }
 
 /** The query string for a filter: "" when nothing is set, else "?instrument=flute&ranked=1&piece=ex-1". */
@@ -34,12 +45,15 @@ export function filterQuery(f: HistoryFilter): string {
   if (f.instrumentId) p.set('instrument', f.instrumentId);
   if (f.rankedOnly) p.set('ranked', '1');
   if (f.excerptId) p.set('piece', f.excerptId);
+  if (f.kind && f.kind !== 'all') p.set('kind', f.kind);
   const s = p.toString();
   return s ? `?${s}` : '';
 }
 
-export function matchesFilter(row: Pick<AttemptSummary, 'instrumentId' | 'ranked'> & Partial<Pick<AttemptSummary, 'excerptId'>>, f: HistoryFilter): boolean {
+export function matchesFilter(row: Pick<AttemptSummary, 'instrumentId' | 'ranked'> & Partial<Pick<AttemptSummary, 'excerptId' | 'kind'>>, f: HistoryFilter): boolean {
   if (f.instrumentId !== null && row.instrumentId !== f.instrumentId) return false;
+  if (f.kind === 'scale' && row.kind !== 'scale') return false;
+  if (f.kind === 'excerpt' && row.kind === 'scale') return false;
   if (f.excerptId && row.excerptId !== undefined && row.excerptId !== f.excerptId) return false;
   return !f.rankedOnly || row.ranked;
 }
@@ -53,8 +67,9 @@ export function dayBounds(day: string): { from: string; to: string } {
 }
 
 /** "Today · 3 tries", or filtered to a piece "Today · 3 tries, 2 at this piece" (04-design §9). */
-export function dayHeading(label: string, tries: number, atPiece: number | null): string {
-  return atPiece === null ? copy('history.day', { day: label, n: tries }) : copy('history.day.piece', { day: label, n: tries, m: atPiece });
+export function dayHeading(label: string, tries: number, atPiece: number | null, scale = false): string {
+  if (atPiece === null) return copy('history.day', { day: label, n: tries });
+  return copy(scale ? 'history.day.scale' : 'history.day.piece', { day: label, n: tries, m: atPiece });
 }
 
 /** Where a try sits among the tries at its piece, oldest first: "Try 2 of 3", with its neighbours' ids. */
@@ -138,7 +153,8 @@ export function meterString(m: { beats: number; beatType: number }): string {
  * The meter the take was served in (05 section 8.12: never "random"). The record keeps the settings as requested, so a
  * random meter is told from the prepared excerpt; null when neither is known.
  */
-export function servedMeter(record: Pick<AttemptRecord, 'settingsResolved'>, prepared?: { meter: { beats: number; beatType: number } } | null): string | null {
+export function servedMeter(record: Pick<AttemptRecord, 'settingsResolved'> & Partial<Pick<AttemptRecord, 'scale'>>, prepared?: { meter: { beats: number; beatType: number } } | null): string | null {
+  if (record.scale) return record.scale.meter;
   const asked = record.settingsResolved.meter;
   if (typeof asked === 'string' && asked !== 'random' && /^\d+\/\d+$/.test(asked)) return asked;
   return prepared ? meterString(prepared.meter) : null;
@@ -155,8 +171,10 @@ export function rowDetail(record: AttemptRecord, prepared?: { meter: { beats: nu
 }
 
 /** The pieces of "Baritone voice · Difficulty 2 · C major · 4/4 · ♩ = 71", in order; a meter that is not known is left out. */
-export function metaParts(instrument: string, levelServed: number, detail: RowDetail): string[] {
-  return [instrument, copy('progress.instrumentLevel', { level: levelServed }), detail.writtenKey, ...(detail.meter ? [detail.meter] : []), detail.tempo];
+export function metaParts(instrument: string, levelServed: number, detail: RowDetail, scale = false): string[] {
+  // A scale try is named a scale, never a difficulty (PLAN ruling 68).
+  const level = scale ? copy('scales.label') : copy('progress.instrumentLevel', { level: levelServed });
+  return [instrument, level, detail.writtenKey, ...(detail.meter ? [detail.meter] : []), detail.tempo];
 }
 
 /** The whole meta line as text. */

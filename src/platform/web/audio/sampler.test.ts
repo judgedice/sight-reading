@@ -5,6 +5,12 @@ import { parseSoundManifest, type SampleDef, type SoundManifest } from './sample
 import {
   envelopePoints,
   isSamplerContext,
+  MAX_LEAD_SEC,
+  MAX_SKIP_SEC,
+  MIN_RELEASE_SEC,
+  onsetAlignment,
+  playSampledNotes,
+  riseEnvelope,
   loopPoints,
   midiOfHz,
   onsetSec,
@@ -299,16 +305,20 @@ describe('Sampler loading', () => {
     s.play(ctx, out, loaded, 72, 2, 1.5, { gain: 0.5 });
     const src = ctx.sources[0] as FakeSrc;
     const g = ctx.gains[0] as FakeGainNode;
-    expect(cents(src.playbackRate.value)).toBeCloseTo(299.9, 6);
+    const rate = src.playbackRate.value;
+    expect(cents(rate)).toBeCloseTo(299.9, 6);
     expect(src.loop).toBe(true);
     expect(src.loopStart).toBeCloseTo(0.925, 9);
     expect(src.loopEnd).toBeCloseTo(1.84995 + 0.025, 9);
-    expect(src.started?.when).toBe(2);
+    // Onset alignment: the fake sample is at full level from its onset, so the 30 ms ramp (35.7 ms of buffer at this
+    // rate) reaches -6 dB 18 ms of buffer in; the source starts that much early, so the note is heard at 2.
+    const lead = 0.018 / rate;
+    expect(src.started?.when).toBeCloseTo(2 - lead, 9);
     expect(src.started?.offset).toBeCloseTo(0.025, 9);
     expect(src.stops[0]).toBeCloseTo(2 + 1.5 + 0.2 + 0.02, 9);
     expect(g.gain.events.map((e) => [e.kind, e.v, +e.t.toFixed(6)])).toEqual([
-      ['set', 0, 2],
-      ['ramp', 0.5, 2.03],
+      ['set', 0, +(2 - lead).toFixed(6)],
+      ['ramp', 0.5, +(2 - lead + 0.03).toFixed(6)],
       ['set', 0.5, 3.5],
       ['ramp', 0, 3.7],
     ]);
@@ -324,7 +334,12 @@ describe('Sampler loading', () => {
     const src = ctx.sources[0] as FakeSrc;
     const g = ctx.gains[0] as FakeGainNode;
     expect(src.loop).toBe(false);
-    expect(g.gain.events[1]).toEqual({ kind: 'ramp', v: 1, t: 1.08 });
+    // The 80 ms attack reaches -6 dB 40 ms in: the source starts that early and the ramp ends 80 ms later.
+    const start = src.started?.when as number;
+    expect(Math.abs(start - (1 - 0.04))).toBeLessThan(0.0015); // to the 1 ms grid of the search
+    expect(g.gain.events[1]?.kind).toBe('ramp');
+    expect(g.gain.events[1]?.v).toBe(1);
+    expect(g.gain.events[1]?.t).toBeCloseTo(start + 0.08, 9);
     ctx.currentTime = 1.2;
     let ended = 0;
     v.onended = () => ended++;
@@ -343,5 +358,102 @@ describe('Sampler loading', () => {
     expect(isSamplerContext(new FakeCtx())).toBe(true);
     expect(isSamplerContext({ createGain() {}, createBufferSource() {} })).toBe(false);
     expect(isSamplerContext(null)).toBe(false);
+  });
+});
+
+// ---- onset alignment and runs of notes (Listen playback review) ----------------------------------------------------
+
+/** A mono buffer at 1 kHz from a level function of seconds (a square wave at that level, so RMS = level). */
+function levelBuffer(level: (t: number) => number, sec = 1.2): DecodedBuffer {
+  const sr = 1000;
+  const x = new Float32Array(Math.round(sec * sr));
+  for (let i = 0; i < x.length; i++) x[i] = level(i / sr) * (i % 2 ? 1 : -1);
+  return { sampleRate: sr, length: x.length, duration: x.length / sr, getChannelData: () => x };
+}
+
+describe('onset alignment', () => {
+  it('a sample at full level at once: no skip, the lead is half the attack (the ramp reaches -6 dB there)', () => {
+    const rise = riseEnvelope(levelBuffer(() => 0.5), 0);
+    expect(rise.steady).toBeCloseTo(0.5, 6);
+    const a = onsetAlignment(rise, 'sustain', 0.04);
+    expect(a.skipSec).toBe(0);
+    expect(a.leadSec).toBeCloseTo(0.02, 3);
+    expect(onsetAlignment(rise, 'sustain', 0).leadSec).toBe(0);
+  });
+
+  it('a slow 200 ms linear rise: the start under -15 dB is skipped and the source leads by the rest of the rise to -6 dB', () => {
+    const rise = riseEnvelope(levelBuffer((t) => Math.min(1, t / 0.2)), 0);
+    const a = onsetAlignment(rise, 'sustain', 0.02);
+    // -15 dB of the attack's level is 0.178: 36 ms into the rise (to the 5 ms frame); -6 dB is 0.5, at 100 ms.
+    expect(a.skipSec).toBeGreaterThan(0.03);
+    expect(a.skipSec).toBeLessThan(0.045);
+    expect(a.skipSec + a.leadSec).toBeGreaterThan(0.095);
+    expect(a.skipSec + a.leadSec).toBeLessThan(0.106);
+  });
+
+  it('never skips more than MAX_SKIP_SEC nor leads by more than MAX_LEAD_SEC; a one-shot skips nothing', () => {
+    const slow = riseEnvelope(levelBuffer((t) => Math.min(1, (t / 0.9) ** 3)), 0);
+    const a = onsetAlignment(slow, 'sustain', 0.03);
+    expect(a.skipSec).toBeLessThanOrEqual(MAX_SKIP_SEC);
+    expect(a.leadSec).toBeLessThanOrEqual(MAX_LEAD_SEC);
+    expect(onsetAlignment(slow, 'decay', 0.03).skipSec).toBe(0);
+    expect(onsetAlignment({ frames: new Float32Array(0), steady: 0 }, 'sustain', 0.03)).toEqual({ skipSec: 0, leadSec: 0 });
+  });
+});
+
+describe('playSampledNotes (a run of notes)', () => {
+  async function loaded(id: string) {
+    const ctx = new FakeCtx();
+    const s = new Sampler({ base: 'sounds/', fetch: fakeFetch(), decoder: () => ctx });
+    await s.prepare(id);
+    return { ctx, set: s.ready(id)! };
+  }
+
+  it('each release ends before the next note starts sounding; the last keeps the set release; a chord keeps its own', async () => {
+    const { ctx, set } = await loaded('flute');
+    ctx.currentTime = 0;
+    // 1 s notes with 0.1 s gaps, then a two-note chord, then nothing.
+    const notes = [
+      { midi: 72, when: 1, durSec: 0.9 },
+      { midi: 74, when: 2, durSec: 0.9 },
+      { midi: 76, when: 3, durSec: 0.5 },
+      { midi: 79, when: 3, durSec: 0.5 },
+    ];
+    playSampledNotes(ctx, new FakeNode(), set, notes, { gain: 1 });
+    const starts = ctx.sources.map((x) => (x as FakeSrc).started!.when);
+    const stops = ctx.sources.map((x) => (x as FakeSrc).stops[0]!);
+    // The first note's release fades out by the time the second note's source starts (its lead included).
+    const releaseEnd = (k: number) => {
+      const ev = (ctx.gains[k] as FakeGainNode).gain.events;
+      return ev[ev.length - 1]!.t;
+    };
+    expect(releaseEnd(0)).toBeLessThanOrEqual(starts[1]! + 1e-9);
+    expect(releaseEnd(0) - 1.9).toBeGreaterThanOrEqual(MIN_RELEASE_SEC - 1e-9);
+    expect(releaseEnd(1)).toBeLessThanOrEqual(Math.min(starts[2]!, starts[3]!) + 1e-9);
+    // The chord's notes (the last ones) keep the set's 0.2 s release.
+    expect(releaseEnd(2)).toBeCloseTo(3.5 + 0.2, 9);
+    expect(releaseEnd(3)).toBeCloseTo(3.5 + 0.2, 9);
+    // Every source stops just after its release: nothing piles up.
+    stops.forEach((t, k) => expect(t).toBeCloseTo(releaseEnd(k) + 0.02, 9));
+    // Each note is brought forward by its rise, at most MAX_LEAD_SEC, so it is heard at its written time.
+    notes.forEach((n, k) => {
+      expect(starts[k]!).toBeLessThanOrEqual(n.when);
+      expect(n.when - starts[k]!).toBeLessThanOrEqual(MAX_LEAD_SEC + 1e-9);
+    });
+  });
+
+  it('notes written closer than the shortest release still get MIN_RELEASE_SEC, and a note asked for in the past starts now', async () => {
+    const { ctx, set } = await loaded('flute');
+    ctx.currentTime = 5;
+    playSampledNotes(ctx, new FakeNode(), set, [
+      { midi: 72, when: 5, durSec: 0.2 },
+      { midi: 74, when: 5.2, durSec: 0.2 },
+    ], { gain: 1 });
+    const first = ctx.sources[0] as FakeSrc;
+    expect(first.started!.when).toBe(5);
+    // Started late by its lead: the buffer offset moves on by the same amount, so the note still lands on time.
+    expect(first.started!.offset!).toBeGreaterThan(0);
+    const ev = (ctx.gains[0] as FakeGainNode).gain.events;
+    expect(ev[ev.length - 1]!.t - 5.2).toBeCloseTo(MIN_RELEASE_SEC, 9);
   });
 });

@@ -207,7 +207,10 @@
         "fragmentMs": 150,
         "longScoopMs": 350,
         "scoopMaxCents": 300,
-        "mergeCents": 100
+        "mergeCents": 80,
+        "fragmentIoiFrac": 0.3,
+        "glitchIoiFrac": 0.75,
+        "scoopIoiFrac": 0.75
       },
       {
         "profile": "voice",
@@ -228,7 +231,10 @@
         "fragmentMs": 120,
         "longScoopMs": 300,
         "scoopMaxCents": 300,
-        "mergeCents": 100
+        "mergeCents": 80,
+        "fragmentIoiFrac": 0.3,
+        "glitchIoiFrac": 0.75,
+        "scoopIoiFrac": 0.75
       },
       {
         "profile": "voice",
@@ -249,7 +255,10 @@
         "fragmentMs": 90,
         "longScoopMs": 250,
         "scoopMaxCents": 300,
-        "mergeCents": 100
+        "mergeCents": 80,
+        "fragmentIoiFrac": 0.3,
+        "glitchIoiFrac": 0.75,
+        "scoopIoiFrac": 0.75
       }
     ]
   },

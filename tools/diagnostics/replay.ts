@@ -20,7 +20,7 @@ import { pathToFileURL } from 'node:url';
 import type { CaptureBlock, WorkerMessage, WorkerReply } from '../../src/core/platform.ts';
 import type { ClockSeconds, DetectedNote, DspConfig, FinalAlignment, FollowConfig, NoteJudgment } from '../../src/core/types.ts';
 import { configs } from '../../fixtures/follow/gen/io.ts';
-import { LiveFollower, alignFinal, ignoredNote, liveOutcomeOf } from '../../src/follow/index.ts';
+import { LiveFollower, alignFinal, ignoredNote, liveOutcomeOf, playerNotes } from '../../src/follow/index.ts';
 import { resolveOneNote } from '../../src/rules/index.ts';
 import { DspWorkerCore } from '../../src/platform/web/audio/dsp-worker-core.ts';
 import { decodePcm16, type DiagnosticsFile, type TryTrace } from '../../src/session/diagnostics.ts';
@@ -32,7 +32,10 @@ const BLOCK = 128;
 export interface ReplayResult {
   source: 'audio' | 'trace';
   follow: FollowConfig;
+  /** Every detected note, as the segmenter reported it (the app's own sounds and notes before the music included). */
   detected: DetectedNote[];
+  /** The player's notes as the final alignment used them (`playerNotes`: one sung note joined into one). */
+  notes: DetectedNote[];
   alignment: FinalAlignment;
 }
 
@@ -87,7 +90,7 @@ export function replayAudio(t: TryTrace, follow: FollowConfig): ReplayResult {
   for (const fn of timers.splice(0)) fn();
   const r = done as Extract<WorkerReply, { type: 'done' }> | null;
   if (!r || !core.alignment) throw new Error('the DSP worker did not finish');
-  return { source: 'audio', follow, detected: r.trace?.detected ?? r.detected, alignment: core.alignment };
+  return { source: 'audio', follow, detected: r.trace?.detected ?? r.detected, notes: r.detected, alignment: core.alignment };
 }
 
 /** Re-runs the live follower and the final alignment on the traced detected notes. */
@@ -108,7 +111,7 @@ export function replayTrace(t: TryTrace, follow: FollowConfig): ReplayResult {
   }
   const end = (timeline.at(-1)?.t ?? 0) + 1;
   for (const e of lf.end(end as ClockSeconds, { reason: 'complete' })) events.push(e);
-  return { source: 'trace', follow, detected, alignment: alignFinal(follow, detected, liveOutcomeOf(events)) };
+  return { source: 'trace', follow, detected, notes: playerNotes(follow, detected), alignment: alignFinal(follow, detected, liveOutcomeOf(events)) };
 }
 
 const verdict = (j: NoteJudgment | undefined): string =>
@@ -120,17 +123,20 @@ export function table(t: TryTrace, r: ReplayResult): string {
   const lines: string[] = [];
   const beat = 60 / f.bpm;
   lines.push(`try ${t.attemptId} ${t.excerpt.instrumentId} L${t.excerpt.level} ${t.excerpt.bpm} bpm, end ${t.endReason}; replayed from the ${r.source}`);
-  lines.push(`detected ${r.detected.length} notes (${r.detected.filter((d) => ignoredNote(f, d)).length} ignored), ${f.expected.length} written`);
+  const ignored = r.detected.filter((d) => ignoredNote(f, d)).length;
+  lines.push(
+    `detected ${r.detected.length} notes (${ignored} ignored), ${r.detected.length - ignored} the player's, ${r.notes.length} after joining the pieces of one sung note; ${f.expected.length} written`,
+  );
   lines.push('');
-  lines.push(['#', 'beat', 'written', 'stored', 'replayed', 'Δt ms', 'cents', 'detected near it (score s, pitch, length)'].join('\t'));
+  lines.push(['#', 'beat', 'written', 'stored', 'replayed', 'Δt ms', 'cents', 'played near it (score s, pitch, length)'].join('\t'));
   const s = (d: DetectedNote): number => d.onset - f.t0 - f.latencyCompensationSec;
   for (const e of f.expected) {
     const was = t.verdicts.judgments[e.idx];
     const now = r.alignment.judgments[e.idx];
     const w = f.tolerances[e.idx]?.matchWindowSec ?? 0.25;
-    const near = r.detected
+    const near = r.notes
       .filter((d) => Math.abs(s(d) - e.onsetSec) <= w)
-      .map((d) => `${d.id}@${s(d).toFixed(2)} ${noteName(d.midi)}${d.stableMedianCents >= 0 ? '+' : ''}${d.stableMedianCents.toFixed(0)} ${(((d.offset ?? d.onset) - d.onset) * 1000).toFixed(0)}ms${ignoredNote(f, d) ? ' ignored' : ''}`);
+      .map((d) => `${d.id}@${s(d).toFixed(2)} ${noteName(d.midi)}${d.stableMedianCents >= 0 ? '+' : ''}${d.stableMedianCents.toFixed(0)} ${(((d.offset ?? d.onset) - d.onset) * 1000).toFixed(0)}ms`);
     const changed = verdict(was) !== verdict(now) ? ' ≠' : '';
     lines.push(
       [

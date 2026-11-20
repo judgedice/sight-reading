@@ -42,7 +42,7 @@ import budgetJson from '../../../../config/measurement-budget.json';
 import { browserAudioDeps, type AudioContextLike, type GainNodeLike, type TrackLike, type WebAudioDeps, type WorkletNodeLike, type MediaStreamLike, type AudioNodeLike } from './deps.ts';
 import type { ClickBuffer } from './metronome.ts';
 import { ListenVoiceCache, LISTEN_BUS_GAIN } from './listen-voice.ts';
-import { isSamplerContext, midiOfHz, Sampler, SAMPLE_GAIN, type Decoder, type FetchLike, type SamplerNode } from './sampler.ts';
+import { isSamplerContext, midiOfHz, playSampledNotes, Sampler, SAMPLE_GAIN, type Decoder, type FetchLike, type SamplerNode } from './sampler.ts';
 import { CALIBRATION_ACCENT_DB, Metronome } from './metronome.ts';
 import { fitClockWindow, median, type ClockFit, type ClockSample } from './clock-fit.ts';
 import { CAPTURE_PROCESSOR_NAME, FRAMES_PER_BLOCK, type FromWorklet, type ToWorklet } from './protocol.ts';
@@ -631,7 +631,9 @@ export class WebAudioBackend implements AudioBackend {
   /**
    * Listen (05 §9.2) and every other note the app plays, on the Listen bus. With `opts.sound` and the set loaded, the
    * notes are sampled (round 2, 02-sounds.md); otherwise they are the pre-rendered additive tone, and a set that is
-   * not loaded yet starts loading for the next call. `opts.peak` scales the bus's -12 dBFS ceiling (0..1).
+   * not loaded yet starts loading for the next call. `opts.peak` scales the bus's -12 dBFS ceiling (0..1): 1 is the
+   * Listen level (a sample's sustain at about -20 dBFS RMS, its loudest peak under full scale). Sampled notes are heard
+   * at `startSec` (each source starts early by its own rise) and each release ends before the next note sounds.
    */
   async playNotes(notes: readonly PlayNote[], opts: PlayNotesOptions): Promise<void> {
     const ctx = this.requireContext();
@@ -641,12 +643,12 @@ export class WebAudioBackend implements AudioBackend {
     const set = opts.sound !== undefined ? this.sampler.ready(opts.sound) : null;
     if (opts.sound !== undefined && !set) void this.sampler.prepare(opts.sound);
     if (set && isSamplerContext(ctx)) {
-      for (const n of notes) {
-        if (!(n.hz > 0) || !(n.durSec > 0)) continue;
-        const voice = this.sampler.play(ctx, this.listenBus as unknown as SamplerNode, set, midiOfHz(n.hz), origin + n.startSec, n.durSec, {
-          gain: peak * SAMPLE_GAIN,
-          ...(opts.attackSec !== undefined ? { attackSec: opts.attackSec } : {}),
-        });
+      const run = notes.filter((n) => n.hz > 0 && n.durSec > 0).map((n) => ({ midi: midiOfHz(n.hz), when: origin + n.startSec, durSec: n.durSec }));
+      const voices = playSampledNotes(ctx, this.listenBus as unknown as SamplerNode, set, run, {
+        gain: peak * SAMPLE_GAIN,
+        ...(opts.attackSec !== undefined ? { attackSec: opts.attackSec } : {}),
+      });
+      for (const voice of voices) {
         this.liveTones.add(voice);
         voice.onended = () => this.liveTones.delete(voice);
       }

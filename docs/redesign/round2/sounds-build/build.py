@@ -4,6 +4,7 @@
 Usage:
   python3 -I build.py fetch  CACHE_DIR       # download the source files into CACHE_DIR (curl, through the proxy)
   python3 -I build.py build  CACHE_DIR REPO  # trim, tune-check, loop, level and encode into REPO/public/sounds/
+  python3 -I build.py voices REPO            # rebuild only the six formant voices (no download needed)
   python3 -I build.py check  REPO            # decode what was written and check pitch, loop and level
 
 Needs ffmpeg (libmp3lame) and numpy. Run it from outside the cache directory.
@@ -215,24 +216,46 @@ def lowpass_fir(cut: float, fs: float, taps: int = 255) -> np.ndarray:
     return h / h.sum()
 
 
-def render_voice(midi: int, spec: dict, dur: float = 2.6, seed: int = 0) -> np.ndarray:
-    """Source-filter sung /a/: LF-like glottal pulse with vibrato and jitter, aspiration noise,
-    parallel formant bank applied in the frequency domain, radiation, soft onset."""
+# The steadier voice (round 2, Listen playback review): the first version scooped 20 cents into every note and swung
+# +-25 cents of vibrato, with a 70 ms breathy rise and -29 dB of aspiration, so a note's pitch was unclear for its
+# first 100 ms and wobbled after that. This one starts on its pitch, rises in 20 ms, has +-8 cents of vibrato from
+# 0.4 s and a quieter breath. Every pitch modulation repeats exactly over the loop, so the loop is a whole number of
+# glottal periods and of vibrato cycles and the baked crossfade joins two copies of the same waveform.
+VOICE_STYLE = dict(vib_cents=8.0, vib_from=0.4, vib_full=0.85, vib_cycles=4, loop_target=0.73, flutter_cents=0.4,
+                   breath=0.012, rise=0.02, loop_start=0.9)
+
+
+def voice_loop(midi: int) -> tuple[float, float]:
+    """Loop length (a whole number of periods near the target length) and the vibrato rate that fits it exactly."""
+    f0 = midi_hz(midi)
+    periods = max(1, round(VOICE_STYLE["loop_target"] * f0))
+    length = periods / f0
+    return length, VOICE_STYLE["vib_cycles"] / length
+
+
+def render_voice(midi: int, spec: dict, dur: float = 2.6, seed: int = 0) -> tuple[np.ndarray, np.ndarray]:
+    """Source-filter sung /a/: LF-like glottal pulse with light vibrato, aspiration noise, a cascade formant filter
+    applied in the frequency domain, radiation, and a short onset. Returns the signal and its glottal phase (cycles,
+    unwrapped) at SR, for placing the loop on whole periods."""
     rng = np.random.default_rng(seed + midi)
+    st = VOICE_STYLE
     os_ = 4
     fs = SR * os_
     n = int(dur * fs)
     t = np.arange(n) / fs
     f0 = midi_hz(midi)
-    # vibrato: 5.5 Hz, depth ramps to +-25 cents from 0.25 s to 0.7 s; slow drift +-3 cents
-    vib_depth = 25 * np.clip((t - 0.25) / 0.45, 0, 1)
-    drift = 3 * np.interp(t, np.linspace(0, dur, 8), rng.uniform(-1, 1, 8))
-    jitter = np.interp(t, np.linspace(0, dur, int(dur * 40)), rng.normal(0, 1.5, int(dur * 40)))
-    # slight scoop into the note in the first 80 ms (-20 cents), as singers do
-    scoop = -20 * np.clip(1 - t / 0.08, 0, 1)
-    c = vib_depth * np.sin(2 * np.pi * 5.5 * t) + drift + jitter + scoop
+    length, vib_rate = voice_loop(midi)
+    # vibrato: depth ramps in from vib_from to vib_full, then repeats exactly every loop length
+    vib_depth = st["vib_cents"] * np.clip((t - st["vib_from"]) / (st["vib_full"] - st["vib_from"]), 0, 1)
+    # flutter: a few slow partials of the loop rate, tiny, so the pitch is not machine-steady but still periodic
+    flutter = np.zeros(n)
+    for k, a in zip((3, 5, 7), rng.uniform(-1, 1, 3)):
+        flutter += a * np.sin(2 * np.pi * k / length * t + rng.uniform(0, 2 * np.pi))
+    flutter *= st["flutter_cents"] / 3
+    c = vib_depth * np.sin(2 * np.pi * vib_rate * t) + flutter
     f = f0 * 2 ** (c / 1200)
-    phase = np.cumsum(f / fs) % 1.0
+    cyc = np.cumsum(f / fs)
+    phase = cyc % 1.0
     # open quotient: higher voices more open (softer source)
     oq = 0.55 if f0 < 200 else (0.62 if f0 < 400 else 0.7)
     tp, tn = oq * 0.72, oq * 0.28
@@ -240,13 +263,12 @@ def render_voice(midi: int, spec: dict, dur: float = 2.6, seed: int = 0) -> np.n
                  np.where(phase < tp + tn, np.cos(0.5 * np.pi * (phase - tp) / tn), 0.0))
     dg = np.diff(g, prepend=0.0) * fs / (2 * np.pi * f0)  # glottal flow derivative (includes lip radiation)
     # aspiration: noise gated by the open phase
-    noise = rng.normal(0, 1, n) * (0.25 + 0.75 * g) * 0.035
+    noise = rng.normal(0, 1, n) * (0.25 + 0.75 * g) * st["breath"]
     src = dg + noise
     # decimate to SR
     h = lowpass_fir(0.45 * SR, fs)
     src = np.convolve(src, h, mode="same")[::os_]
     m = len(src)
-    # formant bank (parallel resonators), applied as a magnitude response with zero phase over the whole note
     nfft = 1 << int(math.ceil(math.log2(m + SR)))
     freqs = np.fft.rfftfreq(nfft, 1 / SR)
     H = np.ones_like(freqs, dtype=complex)
@@ -263,10 +285,57 @@ def render_voice(midi: int, spec: dict, dur: float = 2.6, seed: int = 0) -> np.n
     # gentle high-frequency roll-off above 5 kHz so the bank does not ring at the top
     H *= 1 / (1 + (freqs / 6000) ** 4)
     y = np.fft.irfft(np.fft.rfft(src, nfft) * H, nfft)[:m]
-    # onset envelope: 70 ms rise, breathy start
-    env = np.clip(np.arange(m) / (0.07 * SR), 0, 1) ** 1.5
+    # onset: a raised-cosine rise, on pitch from the first period
+    rise = int(st["rise"] * SR)
+    env = np.ones(m)
+    env[:rise] = 0.5 - 0.5 * np.cos(np.pi * np.arange(rise) / rise)
     y *= env
-    return y
+    return y, cyc[::os_][:m]
+
+
+def build_voice_set(vid: str, v: dict, out_root: str) -> dict:
+    """Render, loop, level and encode one voice set; returns its manifest entry."""
+    lo, hi = v["range"]
+    notes = list(range(lo, hi + 1, VOICE_STEP))
+    if hi - notes[-1] > VOICE_STEP // 2:
+        notes.append(hi)
+    samples = []
+    for m in notes:
+        x, cyc = render_voice(m, v)
+        i0 = onset_index(x)
+        x, cyc = x[i0:], cyc[i0:]
+        # the loop: from loop_start, ending where the glottal phase has advanced by exactly the loop's whole periods
+        length, _ = voice_loop(m)
+        periods = round(length * midi_hz(m))
+        ls = int(VOICE_STYLE["loop_start"] * SR)
+        le = ls + int(np.argmin(np.abs(cyc[ls:ls + int(1.2 * length * SR)] - cyc[ls] - periods)))
+        y = bake_loop(x, ls, le, int(0.15 * SR))[:le + int(0.06 * SR)]
+        y[-int(0.06 * SR):] *= np.linspace(1, 0, int(0.06 * SR))
+        y, _ = level(y, "sustain")
+        fn = f"{note_name(m, NAMES_SHARP_S)}.mp3"
+        encode(y, os.path.join(out_root, vid, fn))
+        samples.append({"file": fn, "midi": m, "tune": 0.0, "onset": 0.004, "loopStart": round(ls / SR, 5),
+                        "loopEnd": round(le / SR, 5), "duration": round(len(y) / SR, 3)})
+    return dict(source="formant", kind="sustain", range=v["range"], attack=0.02, release=0.2, vowel="ah",
+                samples=samples)
+
+
+def build_voices(repo: str) -> None:
+    """Rebuild only the six formant voices in REPO/public/sounds and their manifest entries (no source download)."""
+    out_root = os.path.join(repo, "public", "sounds")
+    path = os.path.join(out_root, "index.json")
+    manifest = json.load(open(path))
+    for vid, v in VOICES.items():
+        entry = build_voice_set(vid, v, out_root)
+        d = os.path.join(out_root, vid)
+        entry["bytes"] = sum(os.path.getsize(os.path.join(d, f)) for f in os.listdir(d))
+        manifest["sets"][vid] = entry
+        print(vid, "ok", [s["midi"] for s in entry["samples"]], entry["bytes"], "bytes")
+    manifest["totalBytes"] = sum(st.get("bytes", 0) for st in manifest["sets"].values())
+    with open(path, "w") as fh:
+        json.dump(manifest, fh, indent=2)
+        fh.write("\n")
+    print("total bytes", manifest["totalBytes"])
 
 
 # ---------------------------------------------------------------- build
@@ -378,27 +447,8 @@ def build(cache: str, repo: str) -> None:
                                      release=s["release"], samples=samples)
         print(sid, "ok", [(r[1], r[2]) for r in report if r[0] == sid])
     for vid, v in VOICES.items():
-        lo, hi = v["range"]
-        notes = list(range(lo, hi + 1, VOICE_STEP))
-        if hi - notes[-1] > VOICE_STEP // 2:
-            notes.append(hi)
-        samples = []
-        for m in notes:
-            x = render_voice(m, v)
-            x = x[onset_index(x):]
-            # loop on whole vibrato cycles: 4 cycles of 5.5 Hz starting at 0.9 s
-            ls = int(0.9 * SR)
-            le = ls + int(round(4 / 5.5 * SR))
-            y = bake_loop(x, ls, le, int(0.15 * SR))[:le + int(0.06 * SR)]
-            y[-int(0.06 * SR):] *= np.linspace(1, 0, int(0.06 * SR))
-            y, _ = level(y, "sustain")
-            fn = f"{note_name(m, NAMES_SHARP_S)}.mp3"
-            encode(y, os.path.join(out_root, vid, fn))
-            samples.append({"file": fn, "midi": m, "tune": 0.0, "onset": 0.004, "loopStart": round(ls / SR, 5),
-                            "loopEnd": round(le / SR, 5), "duration": round(len(y) / SR, 3)})
-        manifest["sets"][vid] = dict(source="formant", kind="sustain", range=v["range"], attack=0.07, release=0.25,
-                                     vowel="ah", samples=samples)
-        print(vid, "ok", notes)
+        manifest["sets"][vid] = build_voice_set(vid, v, out_root)
+        print(vid, "ok", [smp["midi"] for smp in manifest["sets"][vid]["samples"]])
     for iid, sid in INSTRUMENT_MAP.items():
         e = {"set": sid}
         if iid in SUBSTITUTES:
@@ -500,6 +550,8 @@ if __name__ == "__main__":
         fetch(sys.argv[2])
     elif cmd == "build":
         build(sys.argv[2], sys.argv[3])
+    elif cmd == "voices":
+        build_voices(sys.argv[2])
     elif cmd == "check":
         check(sys.argv[2])
     else:

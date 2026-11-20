@@ -1853,6 +1853,14 @@ export interface OneNoteBand {
   scoopMaxCents: number;
   /** Two notes that meet at a pitch change and lie within this of each other are one note, cents. */
   mergeCents: number;
+  /**
+   * The written rhythm caps those lengths: a fragment is shorter than `fragmentIoiFrac`, a glitch than `glitchIoiFrac`
+   * and a scoop than `scoopIoiFrac` times the shortest inter-onset interval around the nearest written note, so a fast
+   * written note is never taken for one.
+   */
+  fragmentIoiFrac: number;
+  glitchIoiFrac: number;
+  scoopIoiFrac: number;
 }
 
 /** A resolved `OneNoteBand` for one take (instrument profile and difficulty). */
