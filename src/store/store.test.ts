@@ -3,8 +3,35 @@ import v0 from './fixtures/export-v0.json';
 import { exportAll, importAll, parseExportFile, StoreImportError, NOT_A_BACKUP_MESSAGE } from './export-import.ts';
 import { migrateExport } from './migrations.ts';
 import { acknowledgeStorageLoss, checkStorage, type InstallMirror, type StorageLossDeps } from './storage-loss.ts';
+import { defaultAppSettings } from './defaults.ts';
+import { normaliseSettings } from './settings-read.ts';
 import { KV_INSTALL } from './keys.ts';
 import { MemoryKv, makeAttempt, makeCalibration, makeProfile, memoryRepos } from './test-data.ts';
+
+describe('settings read (round 2 defaults)', () => {
+  it('fills autoReference, ghostsLive and showHeard on an older record', () => {
+    const old = defaultAppSettings();
+    delete old.practice.autoReference;
+    delete old.display.ghostsLive;
+    delete old.display.showHeard;
+    const read = normaliseSettings(old);
+    expect(read.practice.autoReference).toBe(true);
+    expect(read.display.ghostsLive).toBe('from4');
+    expect(read.display.showHeard).toBe(false);
+  });
+  it('keeps stored values and returns the same object when complete', () => {
+    const s = defaultAppSettings();
+    s.practice.autoReference = false;
+    s.display.ghostsLive = 'never';
+    s.display.showHeard = true;
+    expect(normaliseSettings(s)).toBe(s);
+  });
+  it('rejects an unknown ghostsLive value', () => {
+    const s = defaultAppSettings();
+    (s.display as { ghostsLive?: string }).ghostsLive = 'sometimes';
+    expect(normaliseSettings(s).display.ghostsLive).toBe('from4');
+  });
+});
 
 describe('migrations', () => {
   it('upgrades the committed v0 fixture to a valid v1 file', () => {

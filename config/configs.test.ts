@@ -47,7 +47,7 @@ function sourcedBlocks(value: unknown, path: string, out: { path: string; source
 describe('every block cites its spec section', () => {
   const cites = (s: unknown): boolean => typeof s === 'string' && /0[1-5] §/.test(s);
   it.each([
-    ['grading-config', grading, ['timing', 'matchWindow', 'intonation', 'live', 'credit', 'components', 'grades', 'gates', 'stops', 'displacement', 'ranked', 'voice', 'tuning', 'endOfTake']],
+    ['grading-config', grading, ['timing', 'matchWindow', 'intonation', 'live', 'credit', 'components', 'grades', 'gates', 'stops', 'displacement', 'ranked', 'ui', 'voice', 'tuning', 'endOfTake']],
     ['progression', progression, ['xp', 'ranks', 'levelWindow', 'placement', 'skip']],
     ['measurement-budget', budget, ['onsetError', 'timingFloors', 'ioiFloors', 'cents', 'live', 'fundamentals', 'capture', 'calibration']],
     ['tips selection', { selection: tips.selection }, ['selection']],
@@ -78,6 +78,13 @@ describe('loadConfigs on the seeded files', () => {
     expect(cfg.levelByNumber[10]?.level).toBe(10);
     expect(cfg.instrumentById['trumpet-bb']?.family).toBe('high-brass');
     expect(cfg.configVersion).toContain('grading-2.1.0');
+  });
+});
+
+describe('grading-config.json ui (round 2)', () => {
+  it('has the sure thresholds and the calm live limit', () => {
+    expect(grading.ui.sure).toEqual({ clearAgree: 0.9, clearMaxChanged: 2, mostlyAgree: 0.75, mostlyMaxChanged: 5 });
+    expect(grading.ui.calmLiveUpTo).toBe(3);
   });
 });
 
