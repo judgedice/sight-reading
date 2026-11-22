@@ -164,6 +164,19 @@ export const spellGhost: TheoryApi['spellGhost'] = (playedWrittenMidi, target, k
   return candidates.find((c) => diatonicPos(c) !== targetPos) ?? (candidates[0] as SpelledPitch);
 };
 
+/**
+ * The key's own spelling of a pitch, or null when the pitch is not in the key's scale (PLAN R71). A heard note in the
+ * key is drawn on its own letter (E3 sung as F3 in C major shows F3, a step above E3), so the player sees how far off
+ * they were; `spellGhost` would spell it on the written letter (E♯3) because it is within a semitone of it.
+ */
+export function spellInKey(midi: number, key: { fifths: number }): SpelledPitch | null {
+  const pc = mod(midi, 12);
+  for (const step of STEPS) {
+    if (mod(NATURAL_PC[stepIndex(step)]! + keySigAlter(step, key.fifths), 12) === pc) return spellOn(midi, step);
+  }
+  return null;
+}
+
 /** Fractional MIDI number of a frequency at the given A4 (Hz). */
 export const freqToMidi: TheoryApi['freqToMidi'] = (hz, a4) => 69 + 12 * Math.log2(hz / a4);
 

@@ -89,8 +89,11 @@ describe('performance model', () => {
     expect(countInTitle(b1, 4)).not.toBe(countInTitle(b2, 4));
     expect(countInBarText(b1)).toBe('Count-in bar 1 of 2');
     expect(countInBarText(b2)).toBe('Count-in bar 2 of 2');
+    // PLAN R70: the one-bar count-in is a plain count; only a pickup's count-in says when to come in.
     expect(countInPosition(1, 3, 1)).toEqual({ bar: 1, bars: 1, beat: 1, last: true });
-    expect(countInTitle(countInPosition(1, 3, 1), 3)).toBe('Come in after 3');
+    expect(countInTitle(countInPosition(1, 3, 1), 3)).toBe(copy('countIn.listen'));
+    expect(countInTitle(countInPosition(1, 4, 1), 3, 4)).toBe('Come in after 3');
+    expect(countInTitle(countInPosition(4, 4, 1), 4, 4)).not.toMatch(/sing|play/i);
   });
 
   it('starting-pitch steps, and "Count-in next" for the beat after the first note', () => {

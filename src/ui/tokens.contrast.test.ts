@@ -167,28 +167,106 @@ describe('contrast pairs under high contrast (take and results)', () => {
   }
 });
 
-/**
- * Note colours and grey marks (PLAN R69). Each letter's notehead colour and the greyed head of a wrong note are at
- * least 3:1 on the paper in light and dark and 4.5:1 under high contrast (the pairs above), and the heard-note marks
- * are a neutral grey in every theme: no hue a letter could be mistaken for, and nothing violet left.
- */
-describe('note colours and grey marks (PLAN R69)', () => {
-  const HEADS = ['head-c', 'head-d', 'head-e', 'head-f', 'head-g', 'head-a', 'head-b', 'head-greyed'];
+/** CIELAB (D65) of an opaque colour, for colour distances. */
+function lab(rgb: Rgb): [number, number, number] {
+  const lin = (v: number): number => {
+    const c = v / 255;
+    return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+  };
+  const [r, g, b] = rgb.map(lin) as Rgb;
+  const x = (0.4124 * r + 0.3576 * g + 0.1805 * b) / 0.95047;
+  const y = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  const z = (0.0193 * r + 0.1192 * g + 0.9505 * b) / 1.08883;
+  const f = (t: number): number => (t > 0.008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116);
+  return [116 * f(y) - 16, 500 * (f(x) - f(y)), 200 * (f(y) - f(z))];
+}
 
-  it('has a paper pair for every notehead colour, in normal and high contrast', () => {
-    for (const h of HEADS) {
+/** CIE76 colour distance (Delta E) between two tokens' colours. */
+function deltaE(a: string, b: string): number {
+  const la = lab(parseColour(a).rgb);
+  const lb = lab(parseColour(b).rgb);
+  return Math.hypot(la[0] - lb[0], la[1] - lb[1], la[2] - lb[2]);
+}
+
+/**
+ * Note colours and grey marks (PLAN R69, R72, R73). Since R73 the seven letter colours are bold fills that need not
+ * reach 3:1 on the paper by themselves (yellow cannot on light paper): every coloured head has an ink outline
+ * (`head-outline`), and that outline carries the contrast, 3:1 on the paper and 4.5:1 under high contrast. The seven
+ * fills must be far apart from one another, and from the right-note glow, the error red, brass and the greys, so a
+ * coloured head never reads as a mark. The greyed head of a wrong note keeps its own paper pair.
+ */
+describe('note colours and grey marks (PLAN R69, R72, R73)', () => {
+  const LETTERS = ['head-c', 'head-d', 'head-e', 'head-f', 'head-g', 'head-a', 'head-b'];
+  const HEADS = [...LETTERS, 'head-greyed'];
+  /** Distinct to the eye at a notehead's size: well past the just-noticeable 2.3 and past same-hue neighbours. */
+  const MIN_LETTER_DE = 35;
+  const MIN_MARK_DE = 25;
+
+  it('has a paper pair for the outline and the greyed head, in normal and high contrast', () => {
+    for (const h of ['head-outline', 'head-greyed']) {
       expect(source.contrast.pairs.some((p) => p.fg === h && p.bg === 'paper' && p.min >= 3 && p.high !== true), h).toBe(true);
       expect(source.contrast.pairs.some((p) => p.fg === h && p.bg === 'paper' && p.min >= 4.5 && p.high === true), `${h} high contrast`).toBe(true);
     }
   });
 
-  it('gives the seven letters seven different colours in each theme', () => {
+  it('outlines every coloured head in ink, at 3:1 on the paper (4.5:1 high contrast), and the CSS draws it', () => {
     for (const theme of themes) {
       for (const high of [false, true]) {
-        const values = HEADS.slice(0, 7).map((h) => token(h, theme, high).toUpperCase());
-        expect(new Set(values).size, `${theme}${high ? ' high contrast' : ''}`).toBe(7);
+        expect(token('head-outline', theme, high).toUpperCase()).toBe(token('ink', theme, high).toUpperCase());
+        const r = contrastRatio(parseColour(token('head-outline', theme, high)).rgb, parseColour(token('paper', theme, high)).rgb);
+        expect(r, `outline ${theme}${high ? ' high contrast' : ''}`).toBeGreaterThanOrEqual(high ? 4.5 : 3);
+        // The outline also stands apart from every fill it surrounds (it is what separates a pale head from the paper).
+        for (const h of LETTERS) expect(deltaE(token('head-outline', theme, high), token(h, theme, high)), `${h} vs outline ${theme}`).toBeGreaterThanOrEqual(MIN_MARK_DE);
       }
     }
+    const css = readFileSync(join(root, 'src/ui/note-colours.css'), 'utf8');
+    expect(css).toMatch(/\.vf-notehead > text:first-child \{[^}]*stroke: var\(--head-outline\);[^}]*paint-order: stroke fill;/);
+    const settingsCss = readFileSync(join(root, 'src/app/screens/settings/settings.css'), 'utf8');
+    expect(settingsCss).toMatch(/\.set-note-key-head \{[^}]*stroke: var\(--head-outline\);/);
+  });
+
+  it('gives the seven letters seven clearly different, saturated colours in each theme', () => {
+    for (const theme of themes) {
+      for (const high of [false, true]) {
+        const values = LETTERS.map((h) => token(h, theme, high).toUpperCase());
+        expect(new Set(values).size, `${theme}${high ? ' high contrast' : ''}`).toBe(7);
+        for (let i = 0; i < 7; i++) {
+          for (let j = i + 1; j < 7; j++) {
+            const d = deltaE(values[i]!, values[j]!);
+            expect(d, `${LETTERS[i]} vs ${LETTERS[j]} ${theme}: dE ${d.toFixed(1)}`).toBeGreaterThanOrEqual(MIN_LETTER_DE);
+          }
+          // Bold: each fill has at least one channel at full strength or near it, and is not a pastel (lowest channel low).
+          const { rgb } = parseColour(values[i]!);
+          expect(Math.max(...rgb), `${LETTERS[i]} is bold`).toBeGreaterThanOrEqual(0xaa);
+          expect(Math.min(...rgb), `${LETTERS[i]} is not pastel`).toBeLessThanOrEqual(0x20);
+        }
+      }
+    }
+  });
+
+  it('keeps every letter colour apart from the right-note glow, the error red, brass and the greys', () => {
+    for (const theme of themes) {
+      for (const high of [false, true]) {
+        for (const h of LETTERS) {
+          for (const mark of ['glow', 'glow-edge', 'correct', 'error', 'brass', 'metro-active', 'head-greyed', 'ghost']) {
+            const d = deltaE(token(h, theme, high), token(mark, theme, high));
+            expect(d, `${h} vs ${mark} ${theme}${high ? ' high contrast' : ''}: dE ${d.toFixed(1)}`).toBeGreaterThanOrEqual(MIN_MARK_DE);
+          }
+        }
+      }
+    }
+  });
+
+  it('gives the glow a dark (light theme) or pale (dark theme) edge that reads on the paper, and the dot its hue', () => {
+    for (const theme of themes) {
+      for (const high of [false, true]) {
+        const paper = parseColour(token('paper', theme, high)).rgb;
+        expect(contrastRatio(parseColour(token('glow-edge', theme, high)).rgb, paper)).toBeGreaterThanOrEqual(3);
+        expect(contrastRatio(parseColour(token('correct', theme, high)).rgb, paper)).toBeGreaterThanOrEqual(high ? 4.5 : 3);
+        expect(deltaE(token('glow', theme, high), token('correct', theme, high))).toBeLessThan(60);
+      }
+    }
+    expect(HEADS).toHaveLength(8);
   });
 
   it('draws the heard note, its replay and a greyed head in neutral greys, distinct from ink', () => {

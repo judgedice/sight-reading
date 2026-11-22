@@ -48,6 +48,12 @@ const button = (label: string): HTMLButtonElement => {
   if (!b) throw new Error(`no button ${label}`);
   return b;
 };
+/** A switch (role="switch") by its visible label. */
+const switchFor = (label: string): HTMLInputElement => {
+  const sw = [...document.querySelectorAll<HTMLInputElement>('input[role="switch"]')].find((x) => x.closest('label')?.textContent === label);
+  if (!sw) throw new Error(`no switch ${label}`);
+  return sw;
+};
 const dialogButton = (label: string): HTMLButtonElement => {
   const b = [...document.querySelectorAll('[role="dialog"] button')].find((x) => x.textContent === label);
   if (!b) throw new Error(`no dialog button ${label}`);
@@ -87,43 +93,37 @@ describe('Performance screen', () => {
     expect(document.querySelector('.perform-marks-start')).toBeNull();
     expect(document.querySelector('.perform-mic')).toBeTruthy();
     expect($('.sf-host').getAttribute('data-purpose')).toBe('take');
-    expect($('[role="status"].ui-visually-hidden').textContent).toBe(copy('a11y.countIn.announce.bars', { total: 2, beats: 4 }));
+    expect($('[role="status"].ui-visually-hidden').textContent).toBe(copy('a11y.countIn.announce.bars', { total: 1, beats: 4 }));
   });
 
-  it('count-in track: one cell per beat, bar 1 grey "listen", the last bar brass "Come in after 4", then the word', async () => {
+  it('count-in track (PLAN R70): one bar, a plain 1 2 3 4, nothing says "Play" or marks the first note before bar 1', async () => {
     const h = harness();
     await render(h);
     expect($('.sf-host').hasAttribute('data-band')).toBe(true);
-    expect(document.querySelectorAll('.sf-count-cell')).toHaveLength(8);
-    expect([...document.querySelectorAll('.sf-count-group')].map((g) => g.getAttribute('data-tone'))).toEqual(['listen', 'last']);
-    expect($('.sf-count-word').textContent).toBe(copy('countIn.entry.instrument'));
+    expect(document.querySelectorAll('.sf-count-cell')).toHaveLength(4);
+    expect([...document.querySelectorAll('.sf-count-group')].map((g) => g.getAttribute('data-tone'))).toEqual(['listen']);
     // No second set of beat dots in the strip during the count-in.
     expect(document.querySelector('.perform-toolbar .dom-beat-dot')).toBeNull();
-    const titles: string[] = [];
-    for (let k = 1; k <= 8; k++) {
-      act(() => h.session.events.emit({ type: 'count-in', beat: k, of: 8, t: 0 as never }));
+    for (let k = 1; k <= 4; k++) {
+      act(() => h.session.events.emit({ type: 'count-in', beat: k, of: 4, t: 0 as never }));
       const cur = [...document.querySelectorAll('.sf-count-cell')].findIndex((c) => c.getAttribute('data-state') === 'current');
       expect(cur).toBe(k - 1);
       expect(document.querySelectorAll('.sf-count-cell[data-state="past"]')).toHaveLength(k - 1);
-      expect($('.sf-count-cell[data-state="current"]').textContent).toBe(String(((k - 1) % 4) + 1));
-      const bar = k <= 4 ? 1 : 2;
-      expect($('.sf-count-detail').textContent).toContain(copy('countIn.barOf', { n: bar, total: 2 }));
-      titles.push($('.sf-count-title').textContent ?? '');
-      expect($('.sf-count-entry').hasAttribute('data-on')).toBe(k === 8);
-      // The first note gets its ring and the entry word from the last bar's first click.
-      expect(document.querySelector('.sf-hl-name')?.textContent ?? null).toBe(k >= 5 ? copy('countIn.entry.instrument') : null);
+      expect($('.sf-count-cell[data-state="current"]').textContent).toBe(String(k));
+      expect($('.sf-count-title').textContent).toBe(copy('countIn.listen'));
+      expect($('.sf-count-detail').textContent).not.toContain('Count-in bar');
+      // No entry word in the track, and nothing on the first note.
+      expect(document.querySelector('.sf-count-entry')).toBeNull();
+      expect(document.querySelector('.sf-hl-name, .sf-hl-disc, .sf-hl-pulse, [data-brass]')).toBeNull();
+      expect($('.perform').textContent).not.toMatch(/\b(Sing|Play)\b/);
     }
-    expect(titles.slice(0, 4).every((t) => t === copy('countIn.listen'))).toBe(true);
-    expect(titles.slice(4).every((t) => t === copy('countIn.last', { beats: 4 }))).toBe(true);
-    expect(titles[0]).not.toBe(titles[4]);
-    expect(titles[7]).toBe('Come in after 4');
     act(() => h.session.emitState('performing'));
     expect($('.sf-host').hasAttribute('data-band')).toBe(false);
-    expect(document.querySelector('.sf-hl-name')).toBeNull();
+    expect(document.querySelector('.sf-hl-name, .sf-hl-disc, .sf-hl-pulse, [data-brass]')).toBeNull();
+    // During the try nothing in the strip moves with the beat: no beat dots (PLAN R70, only the line moves).
     follower(h, { type: 'clock', scoreBeat: 0.02 });
-    expect($('.dom-beat-dot[data-state="pulse"]').getAttribute('data-beat')).toBe('1');
     follower(h, { type: 'clock', scoreBeat: 2.4 });
-    expect($('.dom-beat-dot[data-state="pulse"]').getAttribute('data-beat')).toBe('3');
+    expect(document.querySelector('.dom-beat-dot')).toBeNull();
   });
 
   it('the count-in track is not a control: aria-hidden, no button role, nothing focusable', async () => {
@@ -145,13 +145,36 @@ describe('Performance screen', () => {
     expect($('.sf-count')).toBeTruthy();
   });
 
-  it('a 1-bar count-in is the last bar from its first click', async () => {
+  it('a 1-bar count-in says "Count-in" and the tempo, not "Come in after 4" or "bar 1 of 1" (PLAN R70)', async () => {
     const h = harness();
     await render(h);
     act(() => h.session.events.emit({ type: 'count-in', beat: 1, of: 4, t: 0 as never }));
     expect(document.querySelectorAll('.sf-count-cell')).toHaveLength(4);
-    expect($('.sf-count-title').textContent).toBe(copy('countIn.last', { beats: 4 }));
-    expect($('.sf-count-detail').textContent).toContain(copy('countIn.barOf', { n: 1, total: 1 }));
+    expect($('.sf-count-title').textContent).toBe(copy('countIn.listen'));
+    expect($('.sf-count-detail').textContent).not.toContain(copy('countIn.barOf', { n: 1, total: 1 }));
+    expect($('.sf-count-detail').textContent).toContain('♩ = 100');
+  });
+
+  it('a session sending a 2-bar count-in still draws both bars, the last one brass', async () => {
+    const h = harness();
+    await render(h);
+    act(() => h.session.events.emit({ type: 'count-in', beat: 5, of: 8, t: 0 as never }));
+    expect(document.querySelectorAll('.sf-count-cell')).toHaveLength(8);
+    expect([...document.querySelectorAll('.sf-count-group')].map((g) => g.getAttribute('data-tone'))).toEqual(['listen', 'last']);
+    expect($('.sf-count-title').textContent).toBe('Come in after 4');
+    expect(document.querySelector('.sf-count-entry')).toBeNull();
+  });
+
+  it('"Restarting the count-in" shows until the new count-in\'s second click, then the strip says "Count-in" (PLAN R70)', async () => {
+    const h = harness();
+    await render(h);
+    act(() => h.session.events.emit({ type: 'count-in', beat: 4, of: 4, t: 0 as never }));
+    act(() => h.session.events.emit({ type: 'count-in-restart', reason: 'first-click-missing' }));
+    expect($('.perform-centre-text').textContent).toBe(copy('play.status.restartCountIn'));
+    act(() => h.session.events.emit({ type: 'count-in', beat: 1, of: 4, t: 0 as never }));
+    expect($('.perform-centre-text').textContent).toBe(copy('play.status.restartCountIn'));
+    act(() => h.session.events.emit({ type: 'count-in', beat: 2, of: 4, t: 0 as never }));
+    expect($('.perform-centre-text').textContent).toBe(copy('play.status.countIn'));
   });
 
   it('restarting the count-in empties the track', async () => {
@@ -177,6 +200,16 @@ describe('Performance screen', () => {
     const slot = $('.sr-slot[data-system="0"]');
     const stage = frame.querySelector<HTMLElement>('.sf-stage')!;
     expect(bandBottom).toBeLessThanOrEqual(stage.offsetTop + slot.offsetTop + slot.offsetHeight);
+  });
+
+  it('voice: while the starting pitch is scheduled but not yet heard, its steps are pending and nothing marks the first note', async () => {
+    const h = harness({ prepared: testExcerpt({ instrumentId: 'voice-baritone' }) });
+    await render(h);
+    act(() => h.sounds.setState({ ...idleSoundView(), playing: 'reference', caption: null }));
+    const steps = [...document.querySelectorAll('.perform-pitch-step')].map((x) => x.getAttribute('data-step'));
+    expect(steps).toEqual(['pending', 'pending']);
+    expect(document.querySelector('.perform-pitch-next')).toBeNull();
+    expect(document.querySelector('.sf-hl-disc')).toBeNull();
   });
 
   it('voice: the starting-pitch card in the cue zone, its steps live from the session sounds, then the track', async () => {
@@ -208,9 +241,12 @@ describe('Performance screen', () => {
     expect(document.querySelector('.sf-hl-name')).toBeNull();
     // The first click: the card goes, the track takes the cue zone, the score is at full ink.
     act(() => h.sounds.setState(idleSoundView()));
-    act(() => h.session.events.emit({ type: 'count-in', beat: 1, of: 8, t: 0 as never }));
+    act(() => h.session.events.emit({ type: 'count-in', beat: 1, of: 4, t: 0 as never }));
     expect(document.querySelector('.perform-pitch')).toBeNull();
-    expect($('.sf-count-word').textContent).toBe(copy('countIn.entry.voice'));
+    // The starting pitch's first-note mark goes with the card (PLAN R70: nothing on the first note in the count-in).
+    expect(document.querySelector('.sf-hl-disc, .sf-hl-name, [data-brass]')).toBeNull();
+    expect(document.querySelector('.sf-count-entry')).toBeNull();
+    expect(document.querySelector('.sf-count')!.textContent).not.toContain(copy('countIn.entry.voice'));
     expect($('.perform-centre-text').textContent).toBe(copy('play.status.countIn'));
     expect(document.querySelector('.perform-marks-start')).toBeNull();
     expect(document.querySelector('.perform-mic')).toBeTruthy();
@@ -438,9 +474,22 @@ describe('Performance screen', () => {
     return { ghosts: $('.sf-host').querySelectorAll('.sr-ghost').length };
   };
 
-  it('difficulty 1 with "from difficulty 4": no ghost or extra reaches the overlay during the try', async () => {
+  it('difficulty 1 with "from difficulty 4": the heard note of a wrong pitch draws live (PLAN R71), extras wait', async () => {
     const r = await tryWithGhosts(1);
-    expect(r.ghosts).toBe(0);
+    expect(r.ghosts).toBe(1);
+    expect($('.sf-host .sr-ghost').getAttribute('data-kind')).toBe('wrong-pitch');
+  });
+
+  it('difficulty 1: a sharp heard note draws live with its up arrow, a flat one with its down arrow (PLAN R71)', async () => {
+    const h = harness({ prepared: testExcerpt({ levelServed: 1 }) });
+    await render(h);
+    act(() => h.session.emitState('performing'));
+    follower(h, { type: 'clock', scoreBeat: 0.5 });
+    follower(h, { type: 'ghost', ghost: { ...ghostOf(1, 'sharp'), centsError: 45 } });
+    follower(h, { type: 'ghost', ghost: { ...ghostOf(2, 'flat'), targetExpectedIdx: 2, centsError: -40 } });
+    const ghosts = [...$('.sf-host').querySelectorAll('.sr-ghost')];
+    expect(ghosts.map((g) => g.getAttribute('data-direction'))).toEqual(['up', 'down']);
+    expect(ghosts.map((g) => g.querySelector('.sr-ghost-arrow')?.getAttribute('data-arrow'))).toEqual(['up', 'down']);
   });
 
   it('difficulty 4 with "from difficulty 4": ghosts and extras draw live, but never before bar 1', async () => {
@@ -453,7 +502,8 @@ describe('Performance screen', () => {
     m?.unmount();
     m = null;
     document.body.innerHTML = '';
-    expect((await tryWithGhosts(6, 'never')).ghosts).toBe(0);
+    // "Never" hides extras and timing ghosts; the heard note of a wrong pitch is always drawn (PLAN R71).
+    expect((await tryWithGhosts(6, 'never')).ghosts).toBe(1);
   });
 
   it('after-the-take mode draws no marks during the take', async () => {
@@ -541,14 +591,22 @@ describe('Performance screen on the audible clock', () => {
     expect([...document.querySelectorAll('.sf-count-cell')].findIndex((e) => e.getAttribute('data-state') === 'current')).toBe(3);
     at(c, -0.5);
     expect(lineX()).toBe(wait);
-    expect(document.querySelector('.sf-hl-name')?.textContent).toBe(copy('countIn.entry.instrument'));
+    // PLAN R70: nothing on the first note and no entry word before the music is heard.
+    expect(document.querySelector('.sf-hl-name, .sf-hl-disc, [data-brass]')).toBeNull();
+    expect(document.querySelector('.sf-count-entry')).toBeNull();
     // The session reaches the music first; the track stays until the downbeat is heard.
     act(() => c.h.session.emitState('performing'));
     expect(document.querySelector('.sf-count')).not.toBeNull();
+    expect(document.querySelector('.sf-count-entry')).toBeNull();
+    // The downbeat: the go word, for the first beat only, and still nothing on the first note.
     at(c, 0);
-    expect(document.querySelector('.sf-count')).toBeNull();
+    expect($('.sf-count-entry').getAttribute('data-on')).toBe('true');
+    expect($('.sf-count-entry .sf-count-word').textContent).toBe(copy('countIn.entry.instrument'));
+    expect(document.querySelector('.sf-hl-name, .sf-hl-disc, .sf-hl-pulse, [data-brass]')).toBeNull();
     expect($('.perform-centre-text').textContent).toBe(copy('play.status.bar', { n: 1, total: 8 }));
     expect(lineX()).toBe(wait);
+    at(c, 1);
+    expect(document.querySelector('.sf-count')).toBeNull();
   });
 
   it('moves the line every frame with no React render, and the strip once per beat and bar', async () => {
@@ -566,9 +624,14 @@ describe('Performance screen on the audible clock', () => {
     }
     expect(commits).toBe(before);
     for (let i = 1; i < xs.length; i++) expect(xs[i]!).toBeGreaterThan(xs[i - 1]!);
+    // Beat 2: the go word and the track go (a commit or two), then one commit per beat.
     at(c, 1);
-    expect(commits).toBe(before + 1);
-    expect(document.querySelector('.dom-beat-dot[data-beat="2"]')?.getAttribute('data-state')).toMatch(/steady|pulse/);
+    const afterGo = commits;
+    expect(afterGo - before).toBeGreaterThanOrEqual(1);
+    expect(afterGo - before).toBeLessThanOrEqual(3);
+    at(c, 2);
+    expect(commits).toBe(afterGo + 1);
+    expect(document.querySelector('.dom-beat-dot')).toBeNull();
     at(c, 9);
     expect($('.perform-centre-text').textContent).toBe(copy('play.status.bar', { n: 3, total: 8 }));
     // The follower's clock (a round trip late) no longer moves the strip.
@@ -582,14 +645,14 @@ describe('Performance screen on the audible clock', () => {
     act(() => c.h.session.emitState('performing'));
     at(c, 0.5);
     expect(line()).not.toBeNull();
-    const sw = button(copy('play.beatLine'));
-    expect(sw.getAttribute('aria-pressed')).toBe('true');
+    const sw = switchFor(copy('play.beatLine'));
+    expect(sw.checked).toBe(true);
     click(sw);
     expect(c.h.settings.get().display.beatLine).toBe(false);
     at(c, 0.6);
     expect(line()).toBeNull();
-    expect(button(copy('play.beatLine')).getAttribute('aria-pressed')).toBe('false');
-    click(button(copy('play.beatLine')));
+    expect(switchFor(copy('play.beatLine')).checked).toBe(false);
+    click(switchFor(copy('play.beatLine')));
     at(c, 0.7);
     expect(line()).not.toBeNull();
 

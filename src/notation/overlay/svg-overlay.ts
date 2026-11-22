@@ -3,6 +3,7 @@
 // "Beat line": the score frame draws a beat line instead). No React, no VexFlow: every call is a
 // handful of attribute writes, idempotent, and skipped when nothing changed.
 
+import { heardOnItsLetter } from '../heard-spelling.ts';
 import { TPQ, type Beats, type Clef, type GhostNote, type NoteBox, type NoteVisualState, type OverlayMode, type PreparedNoteEvt, type ScoreLayout } from '../../core/types.ts';
 import type { NotationOverlay, OverlayHost, OverlaySystem, PitchTrace } from '../overlay-seam.ts';
 import {
@@ -25,6 +26,7 @@ import {
   CUE_SCALE,
   GHOST_FILL,
   GHOST_STROKE,
+  GLOW,
   GLYPH_COLOUR,
   HEAD_PATH,
   HEAD_UNITS_W,
@@ -38,6 +40,7 @@ import {
   REVIEW_STEM_OPACITY,
   RING,
   SHARP_FLAT_OFFSET,
+  SHARP_FLAT_RISE_SP,
   SMUFL_ACCIDENTAL,
   WRONG_NEAR_OFFSET,
   accidentalSp,
@@ -51,6 +54,7 @@ import {
 } from './geometry.ts';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
+
 /** Free area of the `plus-n` glyph (24-unit viewBox) where the overflow count goes (ui/glyph-ids.ts PLUS_N_SLOT). */
 const PLUS_N_SLOT = { x: 14.5, y: 6, w: 9, h: 12 } as const;
 const NOTE_CLASSES = ['n-ink', 'n-correct', 'n-error', 'n-error-hollow'] as const;
@@ -74,6 +78,8 @@ const REDUCED_GHOST_FADE_MS = 100;
 const STYLE_TEXT = `
 .sr-overlay .sr-ghost-fade{animation-name:sr-ghost-in;animation-timing-function:linear;animation-fill-mode:backwards}
 @keyframes sr-ghost-in{from{opacity:0}}
+.sr-glow-pop{animation:sr-glow-in 260ms cubic-bezier(.2,.8,.3,1.2) backwards;transform-box:fill-box;transform-origin:center}
+@keyframes sr-glow-in{from{opacity:0;transform:scale(.4)}}
 `;
 
 export interface OverlayOptions {
@@ -101,6 +107,8 @@ interface BarGroup {
 interface NoteMarks {
   g: SVGGElement;
   sig: string;
+  /** The right-note glow behind the head (PLAN R72), in the system's underlay. */
+  glow?: SVGGElement | null;
 }
 
 interface GhostNode {
@@ -216,7 +224,10 @@ export class SvgOverlay implements NotationOverlay {
     if (host) {
       for (const idx of this.states.keys()) this.resetNote(idx);
     }
-    for (const m of this.marks.values()) m.g.remove();
+    for (const m of this.marks.values()) {
+      m.g.remove();
+      m.glow?.remove();
+    }
     for (const n of this.ghostNodes.values()) n.g.remove();
     for (const o of this.overflowNodes.values()) o.remove();
     this.marks.clear();
@@ -367,6 +378,7 @@ export class SvgOverlay implements NotationOverlay {
     if (v.ring === 'none' && v.laneGlyphs.length === 0 && !missed) {
       if (existing) {
         existing.g.remove();
+        existing.glow?.remove();
         this.marks.delete(idx);
       }
       return;
@@ -384,9 +396,13 @@ export class SvgOverlay implements NotationOverlay {
     const size = this.glyphSize(sp);
 
     existing?.g.remove();
+    existing?.glow?.remove();
     const g = el(doc, 'g', { class: 'sr-note-marks', 'data-marks-for': idx });
     const cx = box.x + box.w / 2;
     const cy = box.y + box.h / 2;
+    // A right note glows (PLAN R72): a halo in the glow colour behind its head, with a thin dark edge, live and in
+    // review. The dot stays in the lane as the shape cue. Reduced motion: no pop, the halo is simply there.
+    const glow = v.laneGlyphs.includes('dot') ? this.drawGlow(idx, box.system, cx, cy, box.w, box.h, sp) : null;
     if (missed) {
       // A missed note keeps its written head; the ring marks it (06 section 7).
       g.appendChild(
@@ -420,7 +436,37 @@ export class SvgOverlay implements NotationOverlay {
     const laneTop = this.laneTop(sys, size);
     v.laneGlyphs.forEach((id, k) => g.appendChild(this.glyph(id, cx - size / 2, laneTop + k * size, size, sp)));
     this.insertOrdered(parent, g);
-    this.marks.set(idx, { g, sig: '' });
+    this.marks.set(idx, { g, sig: '', glow });
+  }
+
+  /** The right-note halo behind a head, in its system's underlay, so the head stays on top in its own colour. */
+  private drawGlow(idx: number, system: number, cx: number, cy: number, w: number, h: number, sp: number): SVGGElement | null {
+    const doc = this.doc!;
+    const under = this.sysByIndex.get(system)?.underlay;
+    if (!under) return null;
+    const rx = w / 2 + GLOW.padSp * sp;
+    const ry = h / 2 + GLOW.padSp * sp;
+    const g = el(doc, 'g', { class: 'sr-glow', 'data-glow-for': idx, 'pointer-events': 'none' });
+    if (!this.reducedMotion()) g.classList.add('sr-glow-pop');
+    g.appendChild(el(doc, 'ellipse', { class: 'sr-glow-fill', cx: num(cx), cy: num(cy), rx: num(rx), ry: num(ry), fill: 'var(--glow)', 'fill-opacity': GLOW.fillOpacity, stroke: 'none' }));
+    g.appendChild(
+      el(doc, 'ellipse', { class: 'sr-glow-ring', cx: num(cx), cy: num(cy), rx: num(rx), ry: num(ry), fill: 'none', stroke: 'var(--glow)', 'stroke-width': num(GLOW.ringSp * sp) }),
+    );
+    const edge = (GLOW.ringSp / 2 + GLOW.edgeSp / 2) * sp;
+    g.appendChild(
+      el(doc, 'ellipse', {
+        class: 'sr-glow-edge',
+        cx: num(cx),
+        cy: num(cy),
+        rx: num(rx + edge),
+        ry: num(ry + edge),
+        fill: 'none',
+        stroke: 'var(--glow-edge)',
+        'stroke-width': num(Math.max(1, GLOW.edgeSp * sp)),
+      }),
+    );
+    under.appendChild(g);
+    return g;
   }
 
   /** Keep a bar group's children in a canonical order (marks by note, then ghosts by id, then the overflow), so the DOM does not depend on arrival order. */
@@ -495,7 +541,7 @@ export class SvgOverlay implements NotationOverlay {
   showGhost(g: GhostNote): void {
     const host = this.host;
     if (!host || !this.table) return;
-    this.ghosts.set(g.detectedId, { ...g });
+    this.ghosts.set(g.detectedId, heardOnItsLetter(g, host.excerpt.writtenKey));
     const bar = this.table.bars[barIndexOfBeat(this.table, g.scoreBeat)];
     if (bar === undefined) return;
     const old = this.ghostBar.get(g.detectedId);
@@ -606,6 +652,9 @@ export class SvgOverlay implements NotationOverlay {
     const lp = ledgerPlan(g.writtenPitch, clef);
     let cy = layout.staffY(pt.system, g.writtenPitch, clef);
     if (lp.clamped) cy = lp.side === 'above' ? sys.staffTopY - 4 * sp : sys.staffTopY + 8 * sp;
+    // Sharp or flat on the right letter (PLAN R71): the heard head sits a little above (sharp) or below (flat) the
+    // written note's line or space, with its arrow, so the direction reads at a glance.
+    if (!lp.clamped && (g.kind === 'sharp' || g.kind === 'flat')) cy += (g.kind === 'sharp' ? -1 : 1) * SHARP_FLAT_RISE_SP * sp;
     const steps = stepsBelowTopLine(g.writtenPitch, clef);
     let x = pt.x;
     if (v.offsetRight) x += SHARP_FLAT_OFFSET * fullHeadW;
@@ -670,6 +719,7 @@ export class SvgOverlay implements NotationOverlay {
       'data-detected-id': g.detectedId,
       'data-kind': g.kind,
       'data-style': v.style,
+      ...(g.kind === 'sharp' || g.kind === 'flat' ? { 'data-direction': g.kind === 'sharp' ? 'up' : 'down' } : {}),
       'data-bar': bar,
     });
     if (cue) grp.setAttribute('data-cue', 'true');

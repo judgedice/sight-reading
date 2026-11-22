@@ -147,7 +147,18 @@ export class SoundPlayer {
     return Number.isFinite(heard) && heard <= now && heard > now - 1 ? heard : now;
   }
 
-  private readonly clock = (): number => this.heardNow();
+  /**
+   * The player's beat line timing (PLAN R70, `display.beatLineOffsetMs`), seconds: positive draws what is heard later,
+   * negative earlier. Visual only: it moves the sounding note and the captions, never a sound.
+   */
+  visualOffsetSec = 0;
+
+  /** The heard clock as the screen draws it: `heardNow` less the player's visual offset. */
+  visualNow(): number {
+    return this.heardNow() - this.visualOffsetSec;
+  }
+
+  private readonly clock = (): number => this.visualNow();
 
   get playing(): SoundKind | null {
     return this.view.getState().playing;
@@ -220,7 +231,7 @@ export class SoundPlayer {
       true,
     );
     // Timers fire when the clock time is heard, not when it is scheduled (the output latency, calibration's rule).
-    const at = (sec: number): number => Math.max(0, (origin + sec - this.heardNow()) * 1000);
+    const at = (sec: number): number => Math.max(0, (origin + sec - this.visualNow()) * 1000);
     for (const s of segs) {
       if (s === initial || (initial && s.atSec < initial.atSec)) continue;
       this.handles.push(

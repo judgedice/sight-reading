@@ -12,8 +12,8 @@ import { visualStateFromJudgment } from '../../../notation/visual-states.ts';
 import { copy } from '../../../ui/copy/copy.ts';
 import { countInBarsFor, idleSoundView, type SoundCaption, type SoundView } from '../../../session/index.ts';
 import { createStore } from 'zustand/vanilla';
-import { BeatDots, BeatUnitText, meterZone } from '../../../ui/components/domain/index.ts';
-import { Button } from '../../../ui/components/form/index.ts';
+import { BeatUnitText, meterZone } from '../../../ui/components/domain/index.ts';
+import { Button, Toggle } from '../../../ui/components/form/index.ts';
 import { Glyph, Modal, openOverlayCount } from '../../../ui/primitives/index.ts';
 import { CountInBand, ScoreFrame, type ScoreFrameController } from '../../../ui/score-frame/index.ts';
 import { useNavigate } from '../../router.tsx';
@@ -25,8 +25,6 @@ import { firstNoteLabel, firstNoteOf, highlightFor, tempoOf } from '../scan/read
 import { keyName } from '../setup/key-names.ts';
 import {
   MIC_BARS,
-  beatGrouping,
-  beatInBar,
   countInBarText,
   countInPosition,
   countInTitle,
@@ -57,29 +55,6 @@ function useSessionEvents(svc: PracticeFlowServices, on: (e: SessionEvent) => vo
   const latest = useRef(on);
   latest.current = on;
   useEffect(() => svc.session.events.on((e) => latest.current(e)), [svc.session]);
-}
-
-/**
- * The strip's beat dots during the try: re-render once per beat. The count-in has its track instead (04-design §5).
- * With `beat` (the audible clock's beat in the bar) the dots show it; without, they follow the follower's clock.
- */
-function BeatIndicator({ svc, beatsPerBar, grouping, bpm, beat: driven }: { svc: PracticeFlowServices; beatsPerBar: number; grouping: number[] | undefined; bpm: number; beat?: number | null }) {
-  const [heard, setBeat] = useState<number | null>(null);
-  const last = useRef<number | null>(null);
-  const beat = driven === undefined ? heard : driven;
-  useSessionEvents(svc, (e) => {
-    if (driven !== undefined) return;
-    // Set state only when what the dots draw changes: a clock tick inside a beat costs nothing.
-    const set = (next: number | null): void => {
-      if (last.current === next) return;
-      last.current = next;
-      setBeat(next);
-    };
-    if (e.type === 'follower' && e.event.type === 'clock') {
-      if (e.event.scoreBeat >= 0) set(beatInBar(e.event.scoreBeat, beatsPerBar));
-    }
-  });
-  return <BeatDots beatsPerBar={beatsPerBar} currentBeat={beat} bpm={bpm} {...(grouping ? { grouping } : {})} />;
 }
 
 /** The label of the strip's meter. */
@@ -239,11 +214,7 @@ export function PerformScreen(_props: ScreenProps) {
     else if (e.event.type !== 'clock' && e.event.type !== 'level') queue.current.push(e.event);
   });
 
-  // The downbeat (04-design §5, M1): the track goes and the first note's ring pulses once, when the player hears it.
-  const musicHeard = state === 'performing' && (!driven || beatView?.music === true);
-  useEffect(() => {
-    if (musicHeard && frozen) frameRef.current?.pulseFirstNote();
-  }, [musicHeard, frozen]);
+  // The downbeat (PLAN R70): no first-note ring and no pulse; the beat line alone carries the music from bar 1.
 
   // The frame loop: from the layout to the end of the try, every frame reads the audible clock and moves the beat
   // line and the playhead in the frame; React hears only when the click, the beat or the bar changes.
@@ -332,11 +303,15 @@ export function PerformScreen(_props: ScreenProps) {
   const referenceFirst = voice && settings.practice.autoReference !== false;
   const pitchPhase = counting && referenceFirst && !clicked && status?.kind !== 'restarting-count-in';
   const refCaption = referencing && caption && REFERENCE_CAPTIONS.has(caption.kind) ? caption : null;
-  const steps = referenceSteps(refCaption ? (refCaption.kind as 'key-chord' | 'first-note' | 'count-in-next') : null, heardReference);
+  // While the starting pitch is still to be heard (scheduled, no caption yet) its steps are pending: "done" only
+  // once it has played (a first frame used to flash "Count-in next" and the ring before the key chord, PLAN R70).
+  const steps = referenceSteps(refCaption ? (refCaption.kind as 'key-chord' | 'first-note' | 'count-in-next') : null, heardReference && !referencing);
 
   // The count-in track (01-ux §11): bars from the session's clicks once they start, from the level before.
   const ciBars = countIn && countIn.of > 0 ? Math.max(1, Math.round(countIn.of / bpb)) : countInBarsFor(svc.configs, prepared.levelServed, bpm);
   const pos = countInPosition(heardClick, bpb, ciBars);
+  // The "go" beat (PLAN R70): the track stays for the music's first beat with the entry word lit, then goes.
+  const go = driven && state === 'performing' && beatView?.go === true;
   const entry = copy(voice ? 'countIn.entry.voice' : 'countIn.entry.instrument');
   const entryAfter = entryCount(prepared);
 
@@ -346,8 +321,9 @@ export function PerformScreen(_props: ScreenProps) {
   // Brass marks only before bar 1: the key-signature band during the chord, the ring and the note's name during the
   // first note, the ring alone in the beat after, then the ring with the entry word from the last bar's first click.
   const refHighlight = highlightFor(prepared, pitchPhase ? refCaption : null, null);
-  const firstNoteName = pitchPhase ? (refHighlight.firstNote ?? (steps.next ? '' : null)) : counting && clicked && pos.last && heardClick > 0 ? entry : null;
-  const band = !counting ? null : pitchPhase ? (
+  // The first note is marked only while the starting pitch plays it (PLAN R70): nothing on it in the count-in or the try.
+  const firstNoteName = pitchPhase ? (refHighlight.firstNote ?? (steps.next ? '' : null)) : null;
+  const band = !counting && !go ? null : pitchPhase ? (
     <StartingPitchCard
       chord={copy('reference.playing.chord', { key: keyName(prepared.writtenKey) })}
       note={copy('reference.playing.first', { note: first ? firstNoteLabel(first.written, first.concertMidi) : '' })}
@@ -355,13 +331,14 @@ export function PerformScreen(_props: ScreenProps) {
     />
   ) : (
     <CountInBand
-      click={heardClick}
+      click={go ? ciBars * bpb : heardClick}
       beatsPerBar={bpb}
       bars={ciBars}
-      title={countInTitle(pos, entryAfter)}
-      detail={<BeatUnitText text={`${countInBarText(pos)} · ${tempoText}`} />}
+      title={countInTitle(pos, entryAfter, bpb)}
+      detail={<BeatUnitText text={ciBars > 1 ? `${countInBarText(pos)} · ${tempoText}` : tempoText} />}
       entry={entry}
       entryAfter={entryAfter}
+      go={go}
     />
   );
   // The strip says "Marks start at bar 1" during the starting pitch, in place of the mic meter (05 D7; 04-design §5 R0).
@@ -375,23 +352,15 @@ export function PerformScreen(_props: ScreenProps) {
           <Button label={copy('play.stop')} variant="secondary" size="compact" icon="stop" onClick={() => setConfirm(true)} disabled={finishing} aria-describedby={finishing ? 'perform-centre-text' : undefined} />
         </div>
         <div className="perform-centre">
-          {counting ? null : (
-            <BeatIndicator svc={svc} beatsPerBar={bpb} grouping={beatGrouping(prepared.meter.beats, prepared.meter.beatType, bpb)} bpm={bpm} {...(driven ? { beat: beatView?.beatInBar ?? null } : {})} />
-          )}
           <span id="perform-centre-text" className="perform-centre-text">{centreText}</span>
           <span className="perform-tempo"><BeatUnitText text={copy('tempo.marking', { unit: tempo.unit, bpm })} /></span>
           {finishing ? <span className="perform-indeterminate" aria-hidden="true" /> : null}
         </div>
         <div className="perform-right">
           {driven && svc.setBeatLine ? (
-            <Button
-              label={copy('play.beatLine')}
-              variant="quiet"
-              size="compact"
-              className="perform-beatline"
-              aria-pressed={beatLineOn}
-              onClick={() => svc.setBeatLine?.(!beatLineOn)}
-            />
+            <span className="perform-beatline" data-on={beatLineOn ? 'true' : undefined}>
+              <Toggle label={copy('play.beatLine')} checked={beatLineOn} onChange={(v) => svc.setBeatLine?.(v)} />
+            </span>
           ) : null}
           {bars ? <span className="perform-lines">{copy('score.bars', { from: bars.first, to: bars.last, total: bars.total })}</span> : null}
           {marksStart ? <span className="perform-marks-start">{copy('countIn.marksStart')}</span> : listening ? <MicMeter svc={svc} /> : null}

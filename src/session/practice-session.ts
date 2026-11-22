@@ -1605,6 +1605,14 @@ export class PracticeSession implements PracticeSessionInstance {
     }
   }
 
+  /**
+   * The player's beat line timing, ms (PLAN R70): the sounding note and the sound captions are drawn this much later
+   * (negative: earlier) than the heard clock. Visual only.
+   */
+  setVisualOffsetMs(ms: number): void {
+    this.player.visualOffsetSec = Number.isFinite(ms) ? ms / 1000 : 0;
+  }
+
   /** 04 §4.4: a rotation during the count-in cancels and restarts it. Ignored outside the count-in. */
   restartCountIn(reason: 'rotation'): void {
     if (this._state === 'count-in' && this.take && !this.take.performing) this.restartTakeCountIn(reason);

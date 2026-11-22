@@ -8,6 +8,16 @@ import { metronomeSoundOf } from '../core/click-sounds.ts';
 import { defaultAppSettings } from './defaults.ts';
 import type { AppSettings, MetronomeSound } from '../core/types.ts';
 
+/** Beat line timing limits, ms (PLAN R70). */
+export const BEAT_LINE_OFFSET_MS = { min: -150, max: 150, step: 10 } as const;
+
+/** A stored beat line timing as a valid one: a number clamped to the range and rounded to the step, else 0. */
+export function readBeatLineOffset(v: unknown): number {
+  if (typeof v !== 'number' || !Number.isFinite(v)) return 0;
+  const { min, max, step } = BEAT_LINE_OFFSET_MS;
+  return Math.min(max, Math.max(min, Math.round(v / step) * step)) || 0;
+}
+
 /** The stored sound as the player's sound: `tick` reads as `classic`, `wood` as `woodblock`, default `classic`. */
 export function readMetronomeSound(stored: unknown): MetronomeSound {
   return metronomeSoundOf(typeof stored === 'string' ? stored : null);
@@ -15,7 +25,7 @@ export function readMetronomeSound(stored: unknown): MetronomeSound {
 
 /**
  * Settings as read: `practice.clickTimbre` mapped to a player's sound, and the round-2 settings
- * (`practice.autoReference`, `display.ghostsLive`, `display.showHeard`, `display.beatLine`, `display.noteColours`) filled with their defaults when a
+ * (`practice.autoReference`, `display.ghostsLive`, `display.showHeard`, `display.beatLine`, `display.beatLineOffsetMs`, `display.noteColours`) filled with their defaults when a
  * stored record predates them. Returns the same object when nothing changed.
  */
 export function normaliseSettings(s: AppSettings): AppSettings {
@@ -25,6 +35,7 @@ export function normaliseSettings(s: AppSettings): AppSettings {
   const ghostsLive = g === 'from4' || g === 'always' || g === 'never' ? g : d.display.ghostsLive;
   const showHeard = typeof s.display.showHeard === 'boolean' ? s.display.showHeard : d.display.showHeard;
   const beatLine = typeof s.display.beatLine === 'boolean' ? s.display.beatLine : d.display.beatLine;
+  const beatLineOffsetMs = readBeatLineOffset(s.display.beatLineOffsetMs);
   const noteColours = typeof s.display.noteColours === 'boolean' ? s.display.noteColours : d.display.noteColours;
   const autoReference = typeof s.practice.autoReference === 'boolean' ? s.practice.autoReference : d.practice.autoReference;
   if (
@@ -33,6 +44,7 @@ export function normaliseSettings(s: AppSettings): AppSettings {
     s.display.ghostsLive === ghostsLive &&
     s.display.showHeard === showHeard &&
     s.display.beatLine === beatLine &&
+    s.display.beatLineOffsetMs === beatLineOffsetMs &&
     s.display.noteColours === noteColours
   ) {
     return s;
@@ -45,6 +57,7 @@ export function normaliseSettings(s: AppSettings): AppSettings {
       ...(ghostsLive === undefined ? {} : { ghostsLive }),
       ...(showHeard === undefined ? {} : { showHeard }),
       ...(beatLine === undefined ? {} : { beatLine }),
+      beatLineOffsetMs,
       ...(noteColours === undefined ? {} : { noteColours }),
     },
   };

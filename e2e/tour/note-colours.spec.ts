@@ -74,7 +74,9 @@ test('note colours: settings row, read-through, a try with a wrong note, the mar
   await page.evaluate(() => (location.hash = '#/settings/display'));
   const sw = page.getByRole('switch', { name: 'Note colours' });
   await expect(sw).not.toBeChecked();
-  await sw.setChecked(true, { force: true });
+  // The fixed tab bar can cover the switch on a phone, so a forced tap would land on it: click the input itself.
+  await sw.evaluate((e) => (e as HTMLInputElement).click());
+  await expect(sw).toBeChecked();
   await expect(page.locator('html')).toHaveAttribute('data-note-colours', 'on');
   await page.getByRole('radio', { name: 'Always' }).check({ force: true });
   await sw.scrollIntoViewIfNeeded();

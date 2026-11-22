@@ -75,8 +75,8 @@ export function writeTourWav(path: string, plan: PagePlan, offsetSec: number, la
  * A sung take (the testkit's sung "ah"), every note as written: a scale try (PLAN ruling 68). Silence, then bar 1
  * beat 1 at `offsetSec`, then a second and a half of silence.
  */
-export function writeSungWav(path: string, plan: PagePlan, offsetSec: number): void {
-  const notes: SynthNoteSpec[] = perform(plan.expected, plan.beatsPerBar, plan.bpm, { mods: {} }).map((p, k) => {
+export function writeSungWav(path: string, plan: PagePlan, offsetSec: number, mods: PerformSpec['mods'] = {}): void {
+  const notes: SynthNoteSpec[] = perform(plan.expected, plan.beatsPerBar, plan.bpm, { mods }).map((p, k) => {
     const midi = Math.round(p.midi);
     return { midi, cents: Math.round((p.midi - midi) * 100 * 1000) / 1000, onsetSec: offsetSec + p.onset, durSec: Math.max(0.02, p.dur), slur: p.legato, ref: k };
   });

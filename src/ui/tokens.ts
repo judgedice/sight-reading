@@ -176,8 +176,16 @@ export const tokens = {
         "dark": "#8E8981"
       },
       "correct": {
-        "light": "#1F7A5C",
-        "dark": "#5CC9A7"
+        "light": "#00707C",
+        "dark": "#4FE3F2"
+      },
+      "glow": {
+        "light": "#00E5FF",
+        "dark": "#00E5FF"
+      },
+      "glow-edge": {
+        "light": "#00707C",
+        "dark": "#B8F7FF"
       },
       "error": {
         "light": "#C23A12",
@@ -208,32 +216,36 @@ export const tokens = {
         "dark": "#D8A548"
       },
       "head-c": {
-        "light": "#C5193D",
-        "dark": "#D96272"
+        "light": "#FF0000",
+        "dark": "#FF0000"
       },
       "head-d": {
-        "light": "#C96805",
-        "dark": "#FABC86"
+        "light": "#FF8000",
+        "dark": "#FF8000"
       },
       "head-e": {
-        "light": "#A08600",
-        "dark": "#FBEB75"
+        "light": "#FFD500",
+        "dark": "#FFD500"
       },
       "head-f": {
-        "light": "#528918",
-        "dark": "#96D35F"
+        "light": "#00AA00",
+        "dark": "#00AA00"
       },
       "head-g": {
-        "light": "#0470A5",
-        "dark": "#71BAE9"
+        "light": "#0066FF",
+        "dark": "#0066FF"
       },
       "head-a": {
-        "light": "#9A389F",
-        "dark": "#B46CB2"
+        "light": "#8800CC",
+        "dark": "#8800CC"
       },
       "head-b": {
-        "light": "#C8507C",
-        "dark": "#FBC2D6"
+        "light": "#FF1493",
+        "dark": "#FF1493"
+      },
+      "head-outline": {
+        "light": "#1A1917",
+        "dark": "#EEE9DF"
       },
       "head-greyed": {
         "light": "#8C877D",
@@ -257,8 +269,8 @@ export const tokens = {
           "dark": "#FF9A78"
         },
         "correct": {
-          "light": "#005A52",
-          "dark": "#6FE0D0"
+          "light": "#005A63",
+          "dark": "#8FF0FA"
         },
         "ghost": {
           "light": "#4A4743",
@@ -267,34 +279,6 @@ export const tokens = {
         "staff-line": {
           "light": "#4F4C46",
           "dark": "#B3AEA6"
-        },
-        "head-c": {
-          "light": "#A8102F",
-          "dark": "#E8808E"
-        },
-        "head-d": {
-          "light": "#A35300",
-          "dark": "#FABC86"
-        },
-        "head-e": {
-          "light": "#766A00",
-          "dark": "#FBEB75"
-        },
-        "head-f": {
-          "light": "#3F6E0F",
-          "dark": "#96D35F"
-        },
-        "head-g": {
-          "light": "#04608F",
-          "dark": "#71BAE9"
-        },
-        "head-a": {
-          "light": "#86308B",
-          "dark": "#C78AC5"
-        },
-        "head-b": {
-          "light": "#A83F66",
-          "dark": "#FBC2D6"
         },
         "head-greyed": {
           "light": "#6B6863",
@@ -674,8 +658,18 @@ export const tokens = {
         "bg": "paper",
         "min": 3,
         "claimed": {
-          "light": 5.17,
-          "dark": 7.83
+          "light": 5.72,
+          "dark": 10.28
+        }
+      },
+      {
+        "id": "glow-edge-on-paper",
+        "fg": "glow-edge",
+        "bg": "paper",
+        "min": 3,
+        "claimed": {
+          "light": 5.72,
+          "dark": 13.44
         }
       },
       {
@@ -811,44 +805,8 @@ export const tokens = {
         "high": true
       },
       {
-        "id": "head-c-on-paper",
-        "fg": "head-c",
-        "bg": "paper",
-        "min": 3
-      },
-      {
-        "id": "head-d-on-paper",
-        "fg": "head-d",
-        "bg": "paper",
-        "min": 3
-      },
-      {
-        "id": "head-e-on-paper",
-        "fg": "head-e",
-        "bg": "paper",
-        "min": 3
-      },
-      {
-        "id": "head-f-on-paper",
-        "fg": "head-f",
-        "bg": "paper",
-        "min": 3
-      },
-      {
-        "id": "head-g-on-paper",
-        "fg": "head-g",
-        "bg": "paper",
-        "min": 3
-      },
-      {
-        "id": "head-a-on-paper",
-        "fg": "head-a",
-        "bg": "paper",
-        "min": 3
-      },
-      {
-        "id": "head-b-on-paper",
-        "fg": "head-b",
+        "id": "head-outline-on-paper",
+        "fg": "head-outline",
         "bg": "paper",
         "min": 3
       },
@@ -859,50 +817,8 @@ export const tokens = {
         "min": 3
       },
       {
-        "id": "head-c-on-paper-high-contrast",
-        "fg": "head-c",
-        "bg": "paper",
-        "min": 4.5,
-        "high": true
-      },
-      {
-        "id": "head-d-on-paper-high-contrast",
-        "fg": "head-d",
-        "bg": "paper",
-        "min": 4.5,
-        "high": true
-      },
-      {
-        "id": "head-e-on-paper-high-contrast",
-        "fg": "head-e",
-        "bg": "paper",
-        "min": 4.5,
-        "high": true
-      },
-      {
-        "id": "head-f-on-paper-high-contrast",
-        "fg": "head-f",
-        "bg": "paper",
-        "min": 4.5,
-        "high": true
-      },
-      {
-        "id": "head-g-on-paper-high-contrast",
-        "fg": "head-g",
-        "bg": "paper",
-        "min": 4.5,
-        "high": true
-      },
-      {
-        "id": "head-a-on-paper-high-contrast",
-        "fg": "head-a",
-        "bg": "paper",
-        "min": 4.5,
-        "high": true
-      },
-      {
-        "id": "head-b-on-paper-high-contrast",
-        "fg": "head-b",
+        "id": "head-outline-on-paper-high-contrast",
+        "fg": "head-outline",
         "bg": "paper",
         "min": 4.5,
         "high": true

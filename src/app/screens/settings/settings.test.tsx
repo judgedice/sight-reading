@@ -550,6 +550,29 @@ describe('Settings round 2 additions', () => {
     expect(h.settings.value().display.beatLine).toBe(true);
   });
 
+  it('Practice has "Beat line timing", -150 to 150 ms in 10 ms steps, 0 by default, worded earlier and later (PLAN R70)', async () => {
+    const h = harness();
+    await render(h);
+    const r = q<HTMLInputElement>('#set-beat-line-timing');
+    expect(r.closest('section')?.getAttribute('data-section')).toBe('practice');
+    expect([r.min, r.max, r.step, r.value]).toEqual(['-150', '150', '10', '0']);
+    const out = q<HTMLElement>('[data-testid="beat-line-timing"] output');
+    expect(out.textContent).toBe(copy('settings.practice.beatLineTiming.zero'));
+    expect(q<HTMLElement>('[data-testid="beat-line-timing"]').textContent).toContain(copy('settings.practice.beatLineTiming.earlier'));
+    expect(q<HTMLElement>('[data-testid="beat-line-timing"]').textContent).toContain(copy('settings.practice.beatLineTiming.later'));
+    setNativeValue(r, '-40', 'input');
+    expect(h.settings.value().display.beatLineOffsetMs).toBe(-40);
+    expect(q<HTMLElement>('[data-testid="beat-line-timing"] output').textContent).toBe('40 ms earlier');
+    expect(q<HTMLInputElement>('#set-beat-line-timing').getAttribute('aria-valuetext')).toBe('40 ms earlier');
+    setNativeValue(q<HTMLInputElement>('#set-beat-line-timing'), '120', 'input');
+    expect(h.settings.value().display.beatLineOffsetMs).toBe(120);
+    expect(q<HTMLElement>('[data-testid="beat-line-timing"] output').textContent).toBe('120 ms later');
+    // Reset back to the device's own figure.
+    const reset = [...document.querySelectorAll<HTMLButtonElement>('[data-testid="beat-line-timing"] button')].find((b) => b.textContent === copy('settings.practice.beatLineTiming.reset'))!;
+    click(reset);
+    expect(h.settings.value().display.beatLineOffsetMs).toBe(0);
+  });
+
   it('Display has the note colours switch, off by default, with a colour key, and stores it (PLAN R69)', async () => {
     const h = harness();
     await render(h);

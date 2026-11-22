@@ -37,7 +37,7 @@ test('the beat line crosses each note when its click is heard', async ({ page },
   await page.getByRole('button', { name: 'Start playing' }).click();
   const play = page.getByTestId('screen-practice.play');
   await expect(play).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByRole('button', { name: 'Beat line' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByTestId('screen-practice.play').getByRole('switch', { name: 'Beat line' })).toBeChecked();
   await expect(play.locator('.sf-host[data-frozen="true"] svg.sr-system').first()).toBeVisible({ timeout: 15_000 });
   await page.evaluate(() => document.fonts.ready.then(() => undefined));
 
@@ -164,8 +164,9 @@ test('the beat line crosses each note when its click is heard', async ({ page },
   expect(problems).toEqual([]);
 
   // The switch turns it off: nothing on the staff moves.
-  await page.getByRole('button', { name: 'Beat line' }).click();
-  await expect(page.getByRole('button', { name: 'Beat line' })).toHaveAttribute('aria-pressed', 'false');
+  const sw = page.getByTestId('screen-practice.play').getByRole('switch', { name: 'Beat line' });
+  await sw.evaluate((e) => (e as HTMLInputElement).click());
+  await expect(sw).not.toBeChecked();
   await expect(page.locator('line.sf-beat-line')).toHaveAttribute('visibility', 'hidden');
   expect(errors).toEqual([]);
 });

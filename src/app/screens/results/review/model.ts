@@ -19,6 +19,7 @@ import type {
   Step,
 } from '../../../../core/types.ts';
 import type { PitchTrace } from '../../../../notation/overlay-seam.ts';
+import { heardOnItsLetter } from '../../../../notation/heard-spelling.ts';
 import { heatLevel, type HeatLevel } from '../../../../ui/components/domain/HeatStrip.tsx';
 import { rtext, sentence, type ReviewTextKey } from './text.ts';
 
@@ -431,15 +432,20 @@ export function buildReview(input: ReviewInput): ReviewModel {
       const sameSpot = !(j.pitch === 'wrong-pitch' || j.pitch === 'octave');
       played = sameSpot || j.playedConcertMidi === null ? { ...e.writtenPitch } : spell(j.playedConcertMidi, e, key, instrument);
       if (kind !== null && j.detectedId !== null) {
-        ghost = {
-          detectedId: j.detectedId,
-          scoreBeat,
-          writtenPitch: { ...played },
-          kind,
-          centsError: kind === 'sharp' || kind === 'flat' ? j.centsError : null,
-          targetExpectedIdx: e.idx,
-          displaced: false,
-        };
+        // PLAN R71: a wrong note is drawn on its own letter when the key has it (E3 sung as F3 shows F3).
+        ghost = heardOnItsLetter(
+          {
+            detectedId: j.detectedId,
+            scoreBeat,
+            writtenPitch: { ...played },
+            kind,
+            centsError: kind === 'sharp' || kind === 'flat' ? j.centsError : null,
+            targetExpectedIdx: e.idx,
+            displaced: false,
+          },
+          key,
+        );
+        played = { ...ghost.writtenPitch };
         ghosts.push(ghost);
         const d = det.get(j.detectedId);
         if (d && d.offset !== null) tails.push({ detectedId: d.id, beat: scoreBeat, durBeats: beatsOfSec(d.offset - d.onset, bpm), pitch: ghost.writtenPitch, replay: false });

@@ -150,8 +150,8 @@ export function ghostVisual(g: GhostNote, mode: OverlayMode, braked: boolean): G
   else if (g.kind === 'extra') laneGlyph = 'extra';
   return {
     style: g.displaced ? 'ghost-replay' : 'ghost',
-    // Ghost arrows are dropped under the brake; offset and accidentals stay.
-    arrow: offset && !brake ? (g.kind === 'sharp' ? 'up' : 'down') : null,
+    // The arrow says sharp or flat, so it stays under the brake too (PLAN R71: the direction is always visible).
+    arrow: offset ? (g.kind === 'sharp' ? 'up' : 'down') : null,
     offsetRight: offset,
     stem: review,
     dashedLedgers: true,

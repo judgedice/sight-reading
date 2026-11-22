@@ -172,7 +172,7 @@
     "settings.display.ghostsLive.from4": "From difficulty 4",
     "settings.display.ghostsLive.always": "Always",
     "settings.display.ghostsLive.never": "Never",
-    "settings.display.ghostsLive.hint": "Played notes are the grey notes and plus signs. At low difficulties they wait for the results, so the music stays calm while you sing.",
+    "settings.display.ghostsLive.hint": "A wrong note always shows the note you sang, in grey. This is for extra notes (plus signs) and early or late notes, which at low difficulties wait for the results.",
     "settings.display.showHeard": "Show what the app hears",
     "settings.display.showHeard.hint": "Draws the pitch we heard as a thin line on the results. For troubleshooting.",
     "sure.clear": "We heard you clearly. {steady} of {total} notes were steady and clear.",

@@ -99,9 +99,13 @@ export function entryCount(p: Pick<PreparedExcerpt, 'measures' | 'pickupTicks' |
   return beat >= 0 ? bpb : Math.max(1, Math.min(bpb, Math.floor(bpb + beat + 1e-9)));
 }
 
-/** The count-in line: grey "Count-in: listen to the beat", then brass "Come in after 4" in the last bar. */
-export function countInTitle(pos: CountInPosition, entry: number): string {
-  return pos.last ? copy('countIn.last', { beats: entry }) : copy('countIn.listen');
+/**
+ * The count-in line (PLAN R70): "Count-in" for a plain 1 2 3 4. A pickup comes in before the bar ends, so its last
+ * count-in bar says when: "Come in after 3". With more than one bar (not shipped since R70), the last bar says it too.
+ */
+export function countInTitle(pos: CountInPosition, entry: number, beatsPerBar = entry): string {
+  if (pos.last && (entry < beatsPerBar || pos.bars > 1)) return copy('countIn.last', { beats: entry });
+  return copy('countIn.listen');
 }
 
 /** "Count-in bar 1 of 2". The tempo follows it. */
@@ -127,9 +131,16 @@ export interface LiveFilter {
   beforeMusic: boolean;
 }
 
-/** True when a follower event may change the overlay under the filter. Clock and level always pass. */
+/** The heard note of a note sung at the wrong pitch: drawn live at every difficulty (PLAN R71, amends R61). */
+const PITCH_GHOSTS = new Set(['wrong-pitch', 'sharp', 'flat', 'octave']);
+
+/**
+ * True when a follower event may change the overlay under the filter. Clock and level always pass. The heard note of
+ * a wrong-pitch, sharp, flat or wrong-octave note always draws once the music has started (PLAN R71); extras and
+ * timing ghosts follow `display.ghostsLive`.
+ */
 export function liveEventAllowed(ev: FollowerEvent, f: LiveFilter): boolean {
-  if (ev.type === 'ghost') return f.ghosts && !f.beforeMusic;
+  if (ev.type === 'ghost') return !f.beforeMusic && (f.ghosts || (PITCH_GHOSTS.has(ev.ghost.kind) && !ev.ghost.displaced));
   if (ev.type === 'judgment') return !(f.calm && ev.judgment.provisional);
   return true;
 }

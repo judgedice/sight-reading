@@ -5,7 +5,6 @@ export { SoundingNoteDriver, SoundingNoteLayer, spanAt, type SoundingSource, typ
 export {
   ScoreFrameController,
   GUTTER_PX,
-  FIRST_NOTE_PULSE_MS,
   purposeGeometry,
   purposePlan,
   contentBox,

@@ -40,6 +40,7 @@
 }
 
 .sf-count-track {
+  position: relative;
   display: flex;
   align-items: center;
   gap: var(--space-2);
@@ -111,6 +112,11 @@
 
 /* The entry word: not a control (no glyph, no border, no fill). On the last beat it gets a brass underline. */
 .sf-count-entry {
+  /* Beside the cells, out of the flow (PLAN R70): the count stays centred, and the word appearing on the go beat
+     moves nothing. */
+  position: absolute;
+  inset-inline-start: 100%;
+  white-space: nowrap;
   display: flex;
   align-items: center;
   gap: var(--space-2);
@@ -136,6 +142,8 @@
 .sf-count-entry[data-on] .sf-count-word {
   text-decoration-color: var(--brass);
 }
+
+
 
 @keyframes sf-count-in {
   from {

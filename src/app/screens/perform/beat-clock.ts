@@ -42,6 +42,8 @@ export interface VisualBeat {
   bar: number | null;
   /** Where the beat line is drawn (score beat), or null when it is not drawn. */
   line: number | null;
+  /** The first beat of the music (the "go" beat, PLAN R70): the count-in track shows the entry word only now. */
+  go: boolean;
 }
 
 /** Tolerance for float noise at beat boundaries (a click at exactly t counts as heard). */
@@ -81,7 +83,8 @@ export function visualAt(t: TakeTiming, m: MusicFacts, audible: number, reducedM
     const moving = reducedMotion ? whole : beat;
     line = Math.max(m.waitBeat, moving);
   }
-  return { beat, click, music, beatInBar, bar, line };
+  const go = music && beat < Math.min(0, m.firstNoteBeat) + 1 - EPS;
+  return { beat, click, music, beatInBar, bar, line, go };
 }
 
 /** The timing from the session's `takeClock`, or null. */

@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { PlatformServices, WorkerLike } from '../../core/platform.ts';
-import type { CorpusManifest } from '../../core/types.ts';
+import type { AppSettings, CorpusManifest } from '../../core/types.ts';
 import { createRng } from '../../core/rng.ts';
 import { createEmitter } from '../../core/events.ts';
 import { loadManifest } from '../../corpus/index.ts';
@@ -99,6 +99,27 @@ describe('composeApp round 2', () => {
     await flush();
     expect(app.services.home.banners.get().some((b) => b.kind === 'calibrate')).toBe(false);
     expect(app.services.home.calibrationStatus?.get().state).toBe('ok');
+    app.dispose();
+  });
+
+  it('Beat line timing (PLAN R70) shifts the heard clock the try draws on, and the sound captions, never the audio', async () => {
+    const rt = await runtime();
+    const audio = rt.platform.audio as FakeAudioBackend;
+    const app = composeApp(rt);
+    const flow = app.services.flow;
+    const heard = audio.audibleNow() as number;
+    expect(flow.audibleNow!()).toBeCloseTo(heard, 9);
+    const settings = flow.settings as unknown as { get(): AppSettings; set(v: AppSettings): void };
+    const s = settings.get();
+    settings.set({ ...s, display: { ...s.display, beatLineOffsetMs: 80 } });
+    // 80 ms later: what the screen draws now is what was heard 80 ms ago.
+    expect(flow.audibleNow!()).toBeCloseTo((audio.audibleNow() as number) - 0.08, 9);
+    expect((app.services.flow.session as unknown as { player: { visualOffsetSec: number } }).player.visualOffsetSec).toBeCloseTo(0.08, 9);
+    settings.set({ ...s, display: { ...s.display, beatLineOffsetMs: -150 } });
+    expect(flow.audibleNow!()).toBeCloseTo((audio.audibleNow() as number) + 0.15, 9);
+    // The beat line switch stores the setting.
+    flow.setBeatLine!(false);
+    expect(flow.settings.get().display.beatLine).toBe(false);
     app.dispose();
   });
 

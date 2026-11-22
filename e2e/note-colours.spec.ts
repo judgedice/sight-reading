@@ -4,20 +4,22 @@
 import { expect, test, type Page } from '@playwright/test';
 import { onboard, setupAndStart, watchErrors } from './loop/flow.ts';
 
-/** Light-paper values from design/tokens.json (`head-*`), as computed rgb(). */
+/** The bold values from design/tokens.json (`head-*`, PLAN R73, the same in every theme), as computed rgb(). */
 const LIGHT: Record<string, string> = {
-  c: 'rgb(197, 25, 61)',
-  d: 'rgb(201, 104, 5)',
-  e: 'rgb(160, 134, 0)',
-  f: 'rgb(82, 137, 24)',
-  g: 'rgb(4, 112, 165)',
-  a: 'rgb(154, 56, 159)',
-  b: 'rgb(200, 80, 124)',
+  c: 'rgb(255, 0, 0)',
+  d: 'rgb(255, 128, 0)',
+  e: 'rgb(255, 213, 0)',
+  f: 'rgb(0, 170, 0)',
+  g: 'rgb(0, 102, 255)',
+  a: 'rgb(136, 0, 204)',
+  b: 'rgb(255, 20, 147)',
 };
 
 interface Head {
   letter: string;
   fill: string;
+  /** The head's outline (PLAN R73: ink when coloured, none when not). */
+  stroke: string;
   stem: string | null;
 }
 
@@ -29,12 +31,12 @@ function heads(page: Page): Promise<{ ink: string; heads: Head[] }> {
     document.querySelector('.sf-score')!.appendChild(probe);
     const ink = getComputedStyle(probe).color;
     probe.remove();
-    const out: { letter: string; fill: string; stem: string | null }[] = [];
+    const out: { letter: string; fill: string; stroke: string; stem: string | null }[] = [];
     for (const g of Array.from(document.querySelectorAll('.sf-score .sr-note[data-letter]'))) {
       const head = g.querySelector('.vf-notehead > text:first-child');
       if (!head) continue;
       const stem = g.querySelector('.vf-stem path, .vf-stem');
-      out.push({ letter: g.getAttribute('data-letter')!, fill: getComputedStyle(head).fill, stem: stem ? getComputedStyle(stem).stroke : null });
+      out.push({ letter: g.getAttribute('data-letter')!, fill: getComputedStyle(head).fill, stroke: getComputedStyle(head).stroke, stem: stem ? getComputedStyle(stem).stroke : null });
     }
     return { ink, heads: out };
   });
@@ -86,6 +88,7 @@ test('note colours: heads coloured by letter on the read-through when on, none w
   const letters = new Set<string>();
   for (const h of on.heads) {
     expect(h.fill, `on: ${h.letter}`).toBe(LIGHT[h.letter]);
+    expect(h.stroke, `outline of ${h.letter}`).toBe(on.ink);
     if (h.stem !== null) expect(h.stem, `stem of ${h.letter}`).toBe(on.ink);
     letters.add(h.letter);
   }

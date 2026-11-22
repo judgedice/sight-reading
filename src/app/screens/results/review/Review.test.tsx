@@ -273,6 +273,10 @@ describe('<Review> redesign (06 sections 6.15, 7)', () => {
     }
     expect(root.querySelector('[data-glyph="check"]')).toBeNull();
     expect(noteEl(root, LATE).classList.contains('n-error')).toBe(true);
+    // PLAN R72: each right note also glows in "My marks", and only right notes do.
+    for (const n of correct) expect(root.querySelector(`.sr-glow[data-glow-for="${n.idx}"]`), `glow ${n.idx}`).not.toBeNull();
+    expect(root.querySelectorAll('.sr-glow')).toHaveLength(correct.length);
+    expect(root.querySelector(`.sr-glow[data-glow-for="${LATE}"]`)).toBeNull();
   });
 
   it('draws the review at the review staff space with the paper toolbar order', async () => {

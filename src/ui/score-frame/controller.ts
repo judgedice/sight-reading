@@ -7,6 +7,7 @@ import type { ScoreView } from '../../core/api.ts';
 import type { Beats, GhostNote, NoteVisualState, OverlayMode, PreparedExcerpt, ScoreLayout } from '../../core/types.ts';
 import { balanceSystems, CROSSFADE_MS, LANE_PX, MAX_SLOTS, MIN_BAR_WIDTH_SP, ONE_SYSTEM_NOTE_SP, planLayout, planSwaps, systemHeightPx, type Insets, type LayoutPlan, type PagePlan } from '../layout-table.ts';
 import { breakpoints, score, tokens } from '../tokens.ts';
+import { buildLinePath, linePointAt, type LineAnchor, type LinePath } from './beat-line-path.ts';
 import { documentAppearance, type FrameNotation, type FrameScoreView, type FrameViewOptions } from './notation-binding.ts';
 import {
   frozenScale,
@@ -23,8 +24,6 @@ import {
 
 /** Width of the system-number gutter while page turns are active (12 px caption, 04 §4.3 rule 5). */
 export const GUTTER_PX = 24;
-/** The first note's ring pulse at the downbeat, ms (04-design §5, M1: about 300 ms; the slow motion token). */
-export const FIRST_NOTE_PULSE_MS = tokens.motion.dur.slow;
 
 /** The beat line reaches this many staff spaces past the outer staff lines. */
 export const BEAT_LINE_OVERHANG_SP = 1;
@@ -33,43 +32,32 @@ export const BEAT_LINE_WIDTH_SP = 0.14;
 
 const num2 = (v: number): string => String(Math.round(v * 100) / 100);
 
-/** Each event's onset beat and half its notehead (or rest) width, px, in beat order. */
-interface HeadHalves {
-  beats: number[];
-  half: number[];
-}
-
-function headHalves(p: PreparedExcerpt, layout: ScoreLayout): HeadHalves {
-  const out: HeadHalves = { beats: [], half: [] };
+/**
+ * The beat line's path (PLAN R70): the centre of each event's head (note or rest) at its onset beat, and the end of
+ * each system's staff at that system's last beat. See beat-line-path.ts.
+ */
+function linePath(p: PreparedExcerpt, layout: ScoreLayout, spans: readonly SystemSpan[]): LinePath {
   const unit = p.meter.countUnitTicks;
+  const heads: LineAnchor[] = [];
   for (const m of p.measures) {
     for (const e of m.events) {
       const box = layout.noteBoxes.get(e.id);
       if (!box || !(box.w > 0)) continue;
+      // The layout's onset x is the head's left edge as drawn (as the e2e measures it); the line goes through the centre.
       const beat = (e.tick - p.pickupTicks) / unit;
-      if (out.beats.length && beat <= out.beats[out.beats.length - 1]!) continue;
-      out.beats.push(beat);
-      out.half.push(box.w / 2);
+      const at = layout.beatToPoint(beat);
+      heads.push({ beat, system: at.system, x: at.x + box.w / 2 });
     }
   }
-  return out;
-}
-
-/** Half width at a beat: exact on an onset, linear between onsets, held before the first and after the last. */
-function headHalfAt(h: HeadHalves, beat: number): number {
-  const n = h.beats.length;
-  if (n === 0) return 0;
-  if (beat <= h.beats[0]!) return h.half[0]!;
-  if (beat >= h.beats[n - 1]!) return h.half[n - 1]!;
-  let lo = 0;
-  let hi = n - 1;
-  while (hi - lo > 1) {
-    const mid = (lo + hi) >> 1;
-    if (h.beats[mid]! <= beat) lo = mid;
-    else hi = mid;
-  }
-  const f = (beat - h.beats[lo]!) / (h.beats[hi]! - h.beats[lo]!);
-  return h.half[lo]! + f * (h.half[hi]! - h.half[lo]!);
+  const ends: LineAnchor[] = [];
+  spans.forEach((sp, i) => {
+    const sys = layout.systems[i];
+    if (!sys) return;
+    const end = sp.startBeat + sp.beats;
+    const pt = layout.beatToPoint(end - 1e-6);
+    ends.push({ beat: end, system: sys.index, x: pt.system === sys.index ? pt.x : layout.beatToPoint(sp.startBeat).x });
+  });
+  return buildLinePath(heads, ends);
 }
 
 /** 'slots': the take's fixed slots with page turns. 'all': every system in reading order (scan and review on phones). */
@@ -316,7 +304,7 @@ export class ScoreFrameController implements Omit<ScoreView<HTMLElement>, 'rende
     this.playhead = null;
     this.slotsKey = '';
     this.beatLine = null;
-    this.heads = headHalves(p, layout);
+    this.path = linePath(p, layout, spans);
     this.setScale(1);
 
     const sp = plan.spPx;
@@ -394,8 +382,9 @@ export class ScoreFrameController implements Omit<ScoreView<HTMLElement>, 'rende
       this.beatLine?.el.setAttribute('visibility', 'hidden');
       return;
     }
-    const pt = l.info.layout.beatToPoint(scoreBeat);
-    const x = pt.x + headHalfAt(this.heads, scoreBeat);
+    const pt = linePointAt(this.path, scoreBeat);
+    if (!pt) return;
+    const x = pt.x;
     let b = this.beatLine;
     const u = b && b.system === pt.system && b.el.parentNode ? (b.el.parentNode as SVGGElement) : this.underlay(pt.system);
     if (!u) return;
@@ -424,10 +413,7 @@ export class ScoreFrameController implements Omit<ScoreView<HTMLElement>, 'rende
 
   /** Where the beat line sits for a score beat: its system and x in that system's SVG (tests and tools). */
   beatLineAt(scoreBeat: Beats): { system: number; x: number } | null {
-    const l = this.laid;
-    if (!l) return null;
-    const pt = l.info.layout.beatToPoint(scoreBeat);
-    return { system: pt.system, x: pt.x + headHalfAt(this.heads, scoreBeat) };
+    return this.laid ? linePointAt(this.path, scoreBeat) : null;
   }
 
   setNoteState(expectedIdx: number, s: NoteVisualState): void {
@@ -532,37 +518,6 @@ export class ScoreFrameController implements Omit<ScoreView<HTMLElement>, 'rende
   }
 
   /**
-   * The downbeat (01-ux §11): the first note's brass ring pulses once and fades, then goes. Clears any first-note
-   * highlight first. The ring is not part of the redrawn decor, so a turn or a scale never brings it back.
-   */
-  pulseFirstNote(ms: number = FIRST_NOTE_PULSE_MS): void {
-    this.highlightFirstNote(null);
-    for (const e of Array.from(this.score.querySelectorAll('.sf-hl-pulse'))) e.remove();
-    const l = this.laid;
-    if (!l) return;
-    const first = l.excerpt.measures.flatMap((m) => m.events).find((e) => e.kind === 'note');
-    const box = first ? l.info.layout.noteBoxes.get(first.id) : undefined;
-    const sys = box ? l.info.layout.systems.find((s) => s.index === box.system) : undefined;
-    const u = box ? this.underlay(box.system) : null;
-    if (!box || !sys || !u) return;
-    const sp = sys.lineSpacing;
-    const n = (v: number): string => String(Math.round(v * 100) / 100);
-    const ring = this.svgEl('circle', {
-      class: 'sf-hl-pulse',
-      cx: n(box.x + box.w / 2),
-      cy: n(box.y + box.h / 2),
-      r: n(1.6 * sp),
-      fill: 'var(--brass-wash)',
-      stroke: 'var(--brass)',
-      'stroke-width': n(0.14 * sp),
-      'pointer-events': 'none',
-    });
-    u.appendChild(ring);
-    const win = this.host.ownerDocument.defaultView;
-    win?.setTimeout(() => ring.remove(), ms);
-  }
-
-  /**
    * The starting pitch (01-ux §10): the score steps back (first system 55%, later systems 30%) while the card speaks.
    * Off from the first click: the count-in and the try are at full ink.
    */
@@ -643,8 +598,8 @@ export class ScoreFrameController implements Omit<ScoreView<HTMLElement>, 'rende
   private recoloured: SVGElement[] = [];
   private bandEl: HTMLElement | null = null;
   private beatLine: { el: SVGLineElement; system: number; x: number } | null = null;
-  /** Half of each event's notehead (or rest) width by beat: the line goes through its centre, the layout's x is its left edge. */
-  private heads: HeadHalves = { beats: [], half: [] };
+  /** The beat line's path: head to head, across barlines (PLAN R70). */
+  private path: LinePath = [];
   /** The slots and current system last applied (setPlayhead runs every frame; nothing is written when unchanged). */
   private slotsKey = '';
 

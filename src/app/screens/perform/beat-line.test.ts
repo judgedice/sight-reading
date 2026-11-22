@@ -225,3 +225,62 @@ describe('the screen does not run ahead of the sound', () => {
     expect(lineOf(host)).toBeNull();
   });
 });
+
+// PLAN R70 ("Scale try experience"): the line goes head to head across barlines, so it never stops short of a barline
+// in a bar's last beat and then jumps; inside a system it moves forward every step, never faster than the widest gap
+// between two heads allows. The go beat is the music's first beat only.
+describe('the beat line runs steadily across barlines (PLAN R70)', () => {
+  it('moves forward at most the widest head gap a beat, with no jump inside a system', () => {
+    const p = preparedFromDoc(fixtureDoc('holmes-lc5855050-voice-m1-8'), 'treble');
+    const { c } = laidOut(p);
+    const heads = [...onsetCentres(c, p).entries()].sort((a, b) => a[0] - b[0]);
+    let widest = 0;
+    for (let i = 1; i < heads.length; i++) {
+      const [b0, h0] = heads[i - 1]!;
+      const [b1, h1] = heads[i]!;
+      if (h0.system === h1.system) widest = Math.max(widest, (h1.x - h0.x) / (b1 - b0));
+    }
+    const end = heads.at(-1)![0];
+    const step = 0.01;
+    let prev = c.beatLineAt(0)!;
+    for (let b = step; b <= end; b += step) {
+      const cur = c.beatLineAt(b)!;
+      if (cur.system === prev.system) {
+        expect(cur.x, `beat ${b.toFixed(2)}`).toBeGreaterThanOrEqual(prev.x - 1e-6);
+        expect(cur.x - prev.x, `beat ${b.toFixed(2)}`).toBeLessThanOrEqual(widest * step + 0.01);
+      }
+      prev = cur;
+    }
+  });
+
+  it('in each bar\'s last beat it travels from that head to the next bar\'s first head', () => {
+    const p = preparedFromDoc(fixtureDoc('holmes-lc5855050-voice-m1-8'), 'treble');
+    const { c } = laidOut(p);
+    const heads = onsetCentres(c, p);
+    const bpb = p.meter.countsPerBar;
+    let checked = 0;
+    for (let bar = 1; bar < 8; bar++) {
+      const down = bar * bpb;
+      const next = heads.get(down);
+      const before = [...heads.entries()].filter(([b]) => b < down).sort((a, b) => b[0] - a[0])[0];
+      if (!next || !before || before[1].system !== next.system) continue;
+      const mid = (before[0] + down) / 2;
+      expect(c.beatLineAt(mid)!.x).toBeCloseTo((before[1].x + next.x) / 2, 1);
+      checked++;
+    }
+    expect(checked).toBeGreaterThan(2);
+  });
+
+  it('the go beat is the first beat of the music, at bar 1 or at a pickup note', () => {
+    const t = { t0: 10, beatSec: 1, countInBeats: 4 };
+    const facts = { firstNoteBeat: 0, waitBeat: 0, beatsPerBar: 4, hasPickup: false, endBeat: 12 };
+    expect(visualAt(t, facts, 9.99, false).go).toBe(false);
+    expect(visualAt(t, facts, 10, false).go).toBe(true);
+    expect(visualAt(t, facts, 10.99, false).go).toBe(true);
+    expect(visualAt(t, facts, 11, false).go).toBe(false);
+    const pickup = { ...facts, firstNoteBeat: -1, waitBeat: -1, hasPickup: true };
+    expect(visualAt(t, pickup, 8.99, false).go).toBe(false);
+    expect(visualAt(t, pickup, 9, false).go).toBe(true);
+    expect(visualAt(t, pickup, 10, false).go).toBe(false);
+  });
+});

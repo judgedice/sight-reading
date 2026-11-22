@@ -191,6 +191,22 @@ describe('Cover', () => {
     expect(h.session.startTake).toHaveBeenCalledTimes(1);
   });
 
+  it('the read-through has the Beat line switch before the try starts, the same setting as the try (PLAN R70)', async () => {
+    const h = harness();
+    h.services.setBeatLine = (on) => {
+      const s = h.settings.get();
+      h.settings.set({ ...s, display: { ...s.display, beatLine: on } });
+    };
+    render(h);
+    await reveal(h);
+    const sw = $<HTMLInputElement>('[data-testid="scan-beat-line"] input[role="switch"]');
+    expect(sw.closest('label')?.textContent).toBe(copy('play.beatLine'));
+    expect(sw.checked).toBe(true);
+    click(sw);
+    expect(h.settings.get().display.beatLine).toBe(false);
+    expect($<HTMLInputElement>('[data-testid="scan-beat-line"] input[role="switch"]').checked).toBe(false);
+  });
+
   it('Show the music is the first gesture: unlocks audio and reveals; Space does the same', async () => {
     const h = harness();
     render(h);

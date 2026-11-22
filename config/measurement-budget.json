@@ -280,7 +280,7 @@
       "maxRtlMs": 400
     },
     "recheck": {
-      "minClicks": 4,
+      "minClicks": 3,
       "maxMadMs": 3,
       "useFreshAboveMs": 5,
       "staleAboveMs": 10

@@ -18,12 +18,19 @@ export const LANE_GLYPH_SP = { live: 1.25, review: 1.25, highContrast: 1.5 } as 
 export const LANE_OFFSET_SP = 2.2;
 /** Radius of the live correct dot, staff spaces. */
 export const CORRECT_DOT_SP = 0.2;
+/**
+ * The right-note halo (PLAN R72): padding around the head, the ring's stroke and the dark edge outside it, staff
+ * spaces; the fill's opacity. Colours `--glow` and `--glow-edge`.
+ */
+export const GLOW = { padSp: 0.42, ringSp: 0.22, edgeSp: 0.08, fillOpacity: 0.45 } as const;
 export const GHOST_STROKE = { live: 1.5, highContrast: 2.25 } as const;
 export const GHOST_FILL = { live: 0.4, review: 0.55, highContrast: 0.55 } as const;
 export const REPLAY_DASH = '3 2';
 /** Every slip mark of a system drops to this once the playhead has left it; ink never fades (06 D6). */
 export const PAST_OPACITY = { systemLeft: 0.7 } as const;
 export const SHARP_FLAT_OFFSET = 1.1;
+/** A sharp (flat) heard note on the written letter sits this many staff spaces above (below) it (PLAN R71). */
+export const SHARP_FLAT_RISE_SP = 0.25;
 /** A wrong-pitch ghost within one staff step of its written note sits this many notehead widths right. */
 export const WRONG_NEAR_OFFSET = 0.85;
 export const COLLISION_OFFSET = { preferred: 0.8, minimum: 0.5 } as const;

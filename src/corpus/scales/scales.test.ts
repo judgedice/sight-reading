@@ -121,12 +121,12 @@ describe('every baritone scale', () => {
     expect(isScaleExcerptId(p.excerptId)).toBe(true);
   });
 
-  it('every scale goes through the take plan: count-in of two bars at difficulty 1, tolerances for every note', () => {
+  it('every scale goes through the take plan: count-in of one bar at difficulty 1 (PLAN R70), tolerances for every note', () => {
     for (const id of Object.keys(BARITONE)) {
       const p = prepareScale(scales, cfg, 'voice-baritone', id);
       const plan = planTake(p, cfg);
       expect(plan.inst.id).toBe('voice-baritone');
-      expect(plan.countInBeats).toBe(8);
+      expect(plan.countInBeats).toBe(4);
       expect(plan.tolerances).toHaveLength(plan.expected.length);
       expect(plan.bpm).toBe(p.selection.settings.bpm);
     }

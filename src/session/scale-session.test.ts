@@ -154,7 +154,7 @@ describe('a scale try on the fake backend (PLAN ruling 68)', () => {
     expect(h.session.scale).toEqual({ scaleId: 'five-note-c', bpm: 72 });
     expect(prepared.excerptId).toBe(scaleExcerptId('voice-baritone', 'five-note-c'));
     expect(h.session.plan!.bpm).toBe(72);
-    expect(h.session.plan!.countInBeats).toBe(8);
+    expect(h.session.plan!.countInBeats).toBe(4); // one bar (PLAN R70)
 
     await h.session.ensureAudio();
     await h.session.startTake();

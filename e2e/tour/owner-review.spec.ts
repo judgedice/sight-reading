@@ -12,8 +12,8 @@
 //    8  time signature                          the row and chip say "Time signature"
 //    9  clock-rate error                        a forced clock-rate error still reaches the count-in; no "wrong speed"
 //   10  tone and played-note marks                   the starting-pitch card and "Marks start at bar 1"; no ghost before bar 1
-//   11  when the count-in ends                  the two count-in bars read differently; the last says "Come in after N"
-//                                               (or after 3, 2 or 1 when the piece starts on a pickup)
+//   11  when the count-in ends                  one bar of count-in (PLAN R70, supersedes R65): a plain count, "Come in
+//                                               after N" only before a pickup, no "Sing" or "Play" before bar 1
 //   12  "Reading time's up"                     40 s on the read-through in Practice: no such text
 //   13  no coach mark                           no [data-coach]
 //   14  "Before you play" ticks                 "Look before you play", no checkbox
@@ -348,7 +348,8 @@ test('owner review: baritone at difficulty 1, the fifteen points, then a graded 
     const look = page.getByText('Look before you play').filter({ visible: true }).first();
     await expect(look).toBeVisible();
     await expect(page.getByText('Five things to spot before you start.').filter({ visible: true }).first()).toBeVisible();
-    await expect(page.locator('input[type="checkbox"]:visible, [role="checkbox"]:visible')).toHaveCount(0);
+    // The "Beat line" switch (PLAN R70) is a switch, not a tick box: only checkboxes count here.
+    await expect(page.locator('input[type="checkbox"]:not([role="switch"]):visible, [role="checkbox"]:visible')).toHaveCount(0);
     expect(await page.evaluate(() => document.body.innerText)).not.toMatch(/Before you play\b(?!\s*,)|Optional\. Tick|Tick as you check|\d of 5/);
     await shot('read-through-look', false);
     if (isPhone(page)) await page.keyboard.press('Escape');
@@ -364,12 +365,12 @@ test('owner review: baritone at difficulty 1, the fifteen points, then a graded 
     await shot('read-through-40s', false);
   });
 
-  // The count-in, with the real clock: starting pitch, then two bars of clicks. Stopped before the first note.
+  // The count-in, with the real clock: starting pitch, then one bar of clicks (PLAN R70). Stopped before the first note.
   await page.getByRole('button', { name: 'Start playing' }).click();
   const play = page.getByTestId('screen-practice.play');
   await expect(play).toBeVisible({ timeout: 15_000 });
-  await expect.poll(async () => (await seenTexts(page))['detail']?.some((d) => /bar 2 of 2/.test(d)) ?? false, { timeout: 60_000 }).toBe(true);
-  await expect.poll(async () => (await seenTexts(page))['title']?.some((t) => /^Come in after \d$/.test(t)) ?? false, { timeout: 15_000 }).toBe(true);
+  await expect(play.locator('.sf-count-cell[data-state="current"]')).toBeVisible({ timeout: 60_000 });
+  await expect.poll(async () => (await seenTexts(page))['title']?.some((t) => /^(Count-in: listen to the beat|Come in after \d)$/.test(t)) ?? false, { timeout: 15_000 }).toBe(true);
   await shot('count-in-last-bar', false);
   const seen = await seenTexts(page);
   notes.push(`count-in seen: ${JSON.stringify(seen)}`);
@@ -380,16 +381,15 @@ test('owner review: baritone at difficulty 1, the fifteen points, then a graded 
     expect(await liveMarks(page, false), 'ghost or unsure marks on the page before bar 1').toEqual([]);
   });
 
-  await point(11, 'the count-in bars read differently and the last one says "Come in after N"', async () => {
-    const details = (seen['detail'] ?? []).filter((d) => /Count-in bar/.test(d));
-    expect(details.some((d) => /Count-in bar 1 of 2/.test(d))).toBe(true);
-    expect(details.some((d) => /Count-in bar 2 of 2/.test(d))).toBe(true);
+  await point(11, 'one bar of count-in, a plain count, and nothing says "Sing" before bar 1 (PLAN R70)', async () => {
+    const details = seen['detail'] ?? [];
+    // One bar: no "Count-in bar n of 2" any more.
+    expect(details.some((d) => /Count-in bar/.test(d))).toBe(false);
+    expect(await play.locator('.sf-count-cell').count()).toBeLessThanOrEqual(4);
     const titles = seen['title'] ?? [];
-    expect(titles).toContain('Count-in: listen to the beat');
-    // "Come in after 4": the last count before the entry, or an earlier one when the piece starts on a pickup.
-    const last = titles.find((t) => /^Come in after \d$/.test(t));
-    expect(last, 'the last count-in bar names the count to come in after').toBeDefined();
-    expect(titles.indexOf('Count-in: listen to the beat')).toBeLessThan(titles.indexOf(last!));
+    // "Count-in: listen to the beat", or "Come in after N" when the piece starts on a pickup.
+    expect(titles.every((t) => /^(Count-in: listen to the beat|Come in after \d)$/.test(t))).toBe(true);
+    if ((await seenTexts(page))['title']?.length) expect((await play.locator('.sf-band').allInnerTexts()).join(' ')).not.toMatch(/\b(Sing|Play)\b/);
     // Bar 1 of the music is not a count-in bar: the old "Bar 1" label never appears while counting.
     expect(details.every((d) => !/^Bar 1\b/.test(d))).toBe(true);
     await expect(page.locator('[data-testid="screen-practice.play"] .sf-count-track button, [data-testid="screen-practice.play"] .sf-count-track [tabindex]')).toHaveCount(0);

@@ -118,7 +118,9 @@ describe('levels.json (02 §2.3)', () => {
     expect(levels.levels.map((l) => l.tempo.minBpm)).toEqual([60, 60, 66, 66, 72, 72, 80, 80, 88, 92]);
     expect(levels.levels.map((l) => l.tempo.maxBpm)).toEqual([76, 84, 92, 100, 112, 120, 132, 144, 160, 176]);
     expect(levels.levels.map((l) => l.scanSec)).toEqual([30, 30, 30, 30, 45, 45, 45, 60, 60, 60]);
-    expect(levels.levels.map((l) => l.countInBars)).toEqual([2, 2, 2, 1, 1, 1, 1, 1, 1, 1]);
+    // PLAN R70 (supersedes R65): one bar of count-in at every difficulty, at any tempo.
+    expect(levels.levels.map((l) => l.countInBars)).toEqual([1, 1, 1, 1, 1, 1, 1, 1, 1, 1]);
+    expect(levels.countIn.slowBars).toBe(1);
     expect(levels.levels.map((l) => l.tier)).toEqual(['A', 'A', 'B', 'B', 'C', 'C', 'D', 'D', 'E', 'E']);
     expect(levels.levels.map((l) => l.npsCap['512'])).toEqual([2, 3, 3.5, 4.5, 5, 6, 6.5, 7, 8, 8]);
     expect(levels.levels.map((l) => l.writtenKeys.maxAccidentals)).toEqual([1, 1, 2, 3, 4, 5, 6, 7, 7, 7]);

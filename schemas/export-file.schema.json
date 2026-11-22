@@ -83,6 +83,10 @@
               "type": "boolean",
               "description": "The try's beat line: a thin line that moves through the staff with the beat (default true)."
             },
+            "beatLineOffsetMs": {
+              "type": "number",
+              "description": "Beat line timing, ms (PLAN R70): moves the beat line and the other visuals on the heard clock (count-in track, sounding note, captions) earlier (negative) or later (positive) than the reported output latency places them.\n-150 to 150 in steps of 10, default 0. Visual only: audio judging is unchanged."
+            },
             "noteColours": {
               "type": "boolean",
               "description": "Note colours: each notehead filled in its letter name's colour on every score (default false, PLAN R69)."

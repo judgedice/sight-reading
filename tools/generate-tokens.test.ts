@@ -71,8 +71,8 @@ describe('generateTokens', () => {
     expect(css).toContain('  --error: #A32100;');
     expect(css).toContain('  --brass: #E9C27A;');
     expect(css).toContain('  --error: #FF9A78;');
-    expect(css).toContain('  --correct: #005A52;');
-    expect(css).toContain('  --correct: #6FE0D0;');
+    expect(css).toContain('  --correct: #005A63;');
+    expect(css).toContain('  --correct: #8FF0FA;');
   });
 
   it('emits forced-colour mappings verbatim', () => {

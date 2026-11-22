@@ -10,6 +10,8 @@ export interface BeatView {
   music: boolean;
   beatInBar: number | null;
   bar: number | null;
+  /** The first beat of the music: the count-in track says the entry word ("Sing", "Play") during it only. */
+  go: boolean;
 }
 
 /** The part of the score frame the loop moves. */
@@ -34,7 +36,7 @@ export interface BeatDriverDeps {
 }
 
 const sameView = (a: BeatView | null, b: BeatView): boolean =>
-  a !== null && a.click === b.click && a.music === b.music && a.beatInBar === b.beatInBar && a.bar === b.bar;
+  a !== null && a.click === b.click && a.music === b.music && a.beatInBar === b.beatInBar && a.bar === b.bar && a.go === b.go;
 
 export class BeatDriver {
   private handle: number | null = null;
@@ -66,7 +68,7 @@ export class BeatDriver {
     if (!t) {
       this.d.frame.setBeatLine(null);
       this.playhead(null);
-      this.emit({ click: 0, music: false, beatInBar: null, bar: null }, true);
+      this.emit({ click: 0, music: false, beatInBar: null, bar: null, go: false }, true);
       this.lastT0 = null;
       return null;
     }
@@ -76,7 +78,7 @@ export class BeatDriver {
     const v = visualAt(t, this.d.facts, this.d.audibleNow(), this.d.reducedMotion());
     this.d.frame.setBeatLine(this.d.lineOn() ? v.line : null);
     this.playhead(v.music ? v.beat : null);
-    this.emit({ click: v.click, music: v.music, beatInBar: v.beatInBar, bar: v.bar }, false);
+    this.emit({ click: v.click, music: v.music, beatInBar: v.beatInBar, bar: v.bar, go: v.go }, false);
     return v;
   }
 

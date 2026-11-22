@@ -7,7 +7,7 @@ import { ScoreFrame } from '../../../ui/score-frame/index.ts';
 import { copy, type CopyKey } from '../../../ui/copy/copy.ts';
 import type { SessionErrorCode } from '../../../core/types.ts';
 import { CalStatusPill, calTexts } from '../../../ui/components/calibration-status/index.ts';
-import { Button } from '../../../ui/components/form/index.ts';
+import { Button, Toggle } from '../../../ui/components/form/index.ts';
 import { BeatUnitText, ChecklistItem, ScanTimer } from '../../../ui/components/domain/index.ts';
 import { DOCK_QUERY, ListenConfirm, SoundButton, SoundsDock, SoundsGroup, useMediaQuery, type SoundsModel } from '../../../ui/components/sounds/index.ts';
 import { Glyph, Modal, Popover, Sheet, openOverlayCount, useToast } from '../../../ui/primitives/index.ts';
@@ -243,19 +243,31 @@ function Cover({ prepared, mode, totalSec, listening, onShow, onSkip, onPractice
 interface SideProps {
   sounds: ReadSounds;
   onStart: () => void;
+  /** The beat line switch (PLAN R70): the same setting as the try's strip and Settings > Practice. */
+  beatLine: ReactNode;
 }
 
-function DesktopSide({ sounds, onStart, startLine, calibration }: SideProps & { startLine: string; calibration: ReactNode }) {
+/** "Beat line" before the try (PLAN R70), so the player chooses it before the count-in starts. */
+function BeatLineSwitch({ on, set }: { on: boolean; set: (on: boolean) => void }) {
+  return (
+    <div className="scan-beatline" data-testid="scan-beat-line">
+      <Toggle label={copy('play.beatLine')} checked={on} onChange={set} />
+    </div>
+  );
+}
+
+function DesktopSide({ sounds, onStart, startLine, calibration, beatLine }: SideProps & { startLine: string; calibration: ReactNode }) {
   return (
     <aside className="scan-side" aria-label={copy('scan.sounds.title')}>
       <Button data-start-playing className="scan-start" label={copy('action.startPlaying')} variant="primary" size="hero" kbd={copy('shortcuts.spaceKey')} onClick={onStart} />
+      {beatLine}
       {calibration}
       <SoundsGroup model={sounds.model} onPress={sounds.press} caption={sounds.caption} captionFailed={sounds.captionFailed} lead={startLine} />
     </aside>
   );
 }
 
-function PhoneDock({ sounds, onStart, peek, onPeek }: SideProps & { peek: string; onPeek: () => void }) {
+function PhoneDock({ sounds, onStart, peek, onPeek, beatLine }: SideProps & { peek: string; onPeek: () => void }) {
   return (
     <div className="scan-dock" data-testid="scan-dock">
       <button type="button" className="scan-peek" aria-haspopup="dialog" onClick={onPeek}>
@@ -264,6 +276,7 @@ function PhoneDock({ sounds, onStart, peek, onPeek }: SideProps & { peek: string
       </button>
       <div className="scan-dock-inner">
         <SoundsDock model={sounds.model} onPress={sounds.press} caption={sounds.caption} captionFailed={sounds.captionFailed} />
+        {beatLine}
         <Button data-start-playing className="scan-start" label={copy('action.startPlaying')} variant="primary" size="hero" onClick={onStart} />
       </div>
     </div>
@@ -301,6 +314,7 @@ export function ScanScreen(_props: ScreenProps) {
   const error = useStoreSlice(svc.view, (v) => v.error);
   const viewMode = useStoreSlice(svc.view, (v) => v.mode);
   const settings = useReadable(svc.settings);
+  const beatLineSwitch = svc.setBeatLine ? <BeatLineSwitch on={settings.display.beatLine !== false} set={(on) => svc.setBeatLine?.(on)} /> : null;
   const wakeLockFailed = useReadable(svc.wakeLockFailed ?? NEVER);
   const docked = useMediaQuery(DOCK_QUERY);
 
@@ -628,9 +642,9 @@ export function ScanScreen(_props: ScreenProps) {
             {!docked && look ? <section className="scan-stars-card">{look}</section> : null}
           </div>
           {docked ? (
-            <PhoneDock sounds={sounds} onStart={startPlaying} peek={copy('scan.peek')} onPeek={() => setStarsOpen(true)} />
+            <PhoneDock sounds={sounds} onStart={startPlaying} peek={copy('scan.peek')} onPeek={() => setStarsOpen(true)} beatLine={beatLineSwitch} />
           ) : (
-            <DesktopSide sounds={sounds} onStart={startPlaying} startLine={startLine} calibration={calibration} />
+            <DesktopSide sounds={sounds} onStart={startPlaying} startLine={startLine} calibration={calibration} beatLine={beatLineSwitch} />
           )}
         </div>
       ) : null}

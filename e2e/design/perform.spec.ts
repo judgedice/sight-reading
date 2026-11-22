@@ -117,33 +117,29 @@ test('before the music: the starting-pitch card, then a count-in track that says
   await expect(card.locator('.perform-pitch-step[data-step="live"]')).toHaveCount(1, { timeout: 5_000 });
   await page.screenshot({ path: `test-results/design-e2e/perform-reference-${info.project.name}.png` });
 
-  // The count-in: the last bar, then its last beat.
-  await expect(page.locator('.sf-count[data-last]')).toBeVisible({ timeout: 30_000 });
+  // The count-in: one bar (PLAN R70), a plain count; the entry word only on the music's first beat.
+  await expect(page.locator('.sf-count-cell[data-state="current"]')).toBeVisible({ timeout: 30_000 });
   await expect(page.locator('.sf-host')).not.toHaveAttribute('data-dim', '');
   // From the first click the strip says "Count-in" with the mic meter; "Marks start at bar 1" was the card's.
   await expect(page.locator('.perform-marks-start')).toHaveCount(0);
   await page.screenshot({ path: `test-results/design-e2e/perform-countin-last-${info.project.name}.png` });
-  await expect(page.locator('.sf-count-entry[data-on]')).toBeVisible({ timeout: 30_000 });
-  await page.screenshot({ path: `test-results/design-e2e/perform-countin-entry-${info.project.name}.png` });
   await expect(play).toHaveAttribute('data-state', 'performing', { timeout: 30_000 });
-  await expect(page.locator('.sf-count')).toHaveCount(0);
+  // The track stays for the go beat (with the entry word), then goes.
+  await expect(page.locator('.sf-count')).toHaveCount(0, { timeout: 10_000 });
   await page.waitForTimeout(150);
   await page.screenshot({ path: `test-results/design-e2e/perform-music-${info.project.name}.png` });
 
   const samples = (await page.evaluate(() => (window as unknown as { __countIn: unknown[] }).__countIn)) as CountInSample[];
   const bars = [...new Set(samples.map((s) => s.bar))];
-  expect(bars).toEqual([1, 2]);
-  const b1 = samples.filter((s) => s.bar === 1);
-  const b2 = samples.filter((s) => s.bar === 2);
-  // The labels differ between the bars; the last bar says when to come in.
-  expect(new Set(b1.map((s) => s.title))).toEqual(new Set(['Count-in: listen to the beat']));
-  // "Come in after 4" in 4/4; a piece that starts with a pickup comes in earlier (the try starts at its first note).
-  expect(new Set(b2.map((s) => s.title)).size).toBe(1);
-  expect(b2[0]!.title).toMatch(/^Come in after \d+$/);
-  expect(b2[0]!.title).not.toBe(b1[0]!.title);
-  expect(b1[0]!.detail).toContain('Count-in bar 1 of 2');
-  expect(b2[0]!.detail).toContain('Count-in bar 2 of 2');
-  expect(samples.at(-1)!.entryOn).toBe(true);
+  expect(bars).toEqual([1]);
+  // One plain bar; a piece that starts with a pickup says when to come in ("Come in after 3").
+  expect(new Set(samples.map((s) => s.title)).size).toBe(1);
+  expect(samples[0]!.title).toMatch(/^(Count-in: listen to the beat|Come in after \d+)$/);
+  expect(samples[0]!.detail).not.toContain('Count-in bar');
+  // The entry word shows only once the music starts (the go beat: the track then shows every count as counted).
+  const max = Math.max(...samples.map((s) => s.click));
+  for (const s of samples) if (s.entryOn) expect(s.click, 'entry word before the go beat').toBe(max);
+  expect(samples.filter((s) => s.click < max).some((s) => s.entryOn)).toBe(false);
   // Never a control, and every system at full ink from the first click.
   for (const s of samples) {
     expect(s.focusable).toBe(0);

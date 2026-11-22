@@ -11,7 +11,7 @@ import { VexScoreView, expectedChains, tickablesPerBar } from '../index.ts';
 import { fixtureDoc, fixtureDocs } from '../testing/corpus-node.ts';
 import { preparedFromDoc } from '../testing/prepared.ts';
 import { capUnmatchedGhosts, ghostVisual, isBrakedBar, isErrorState, noteVisual, visualStateFromJudgment } from '../visual-states.ts';
-import { spellGhost, toMidi } from '../../theory/index.ts';
+import { spellGhost, spellInKey, toMidi } from '../../theory/index.ts';
 import { SvgOverlay } from './index.ts';
 
 const VP = { width: 1280, height: 800 };
@@ -133,7 +133,7 @@ describe('ghosts', () => {
     view.removeGhost(7);
   });
 
-  it('R50: a whole-tone wrong note draws its ghost on another staff position than the target; a semitone keeps it', () => {
+  it('R50/R71: a whole-tone wrong note draws on another staff position; a semitone moves to its own letter when the key has it', () => {
     const { el, view, p, layout } = setup();
     const pt = layout.beatToPoint(0.5);
     const sp = layout.systems.find((s) => s.index === pt.system)!.lineSpacing;
@@ -156,7 +156,11 @@ describe('ghosts', () => {
         const g = spellGhost(toMidi(t) + d, t, p.writtenKey);
         if (Math.abs(g.alter) > 2 || g.step !== t.step) continue;
         view.showGhost(ghost(p, ++id, { kind: 'wrong-pitch', writtenPitch: g }));
-        expect(Math.abs(headY(id) - targetY)).toBeLessThan(0.01);
+        // PLAN R71: a pitch of the key is drawn on its own letter (a step from the target, so the player sees the
+        // direction); a chromatic one keeps the target's letter with its accidental (R50).
+        const own = spellInKey(toMidi(g), p.writtenKey);
+        if (own && own.step !== t.step) expect(Math.abs(headY(id) - targetY)).toBeGreaterThanOrEqual(sp / 2 - 0.01);
+        else expect(Math.abs(headY(id) - targetY)).toBeLessThan(0.01);
       }
     }
   });
@@ -241,7 +245,7 @@ describe('ghosts', () => {
 });
 
 describe('density brake (6.4 rule 9)', () => {
-  it('more than 4 errors in a bar: one glyph per note, ghost arrows dropped, ghosts at 70%, all red notes kept', () => {
+  it('more than 4 errors in a bar: one glyph per note, ghost arrows kept (PLAN R71), ghosts at 70%, all red notes kept', () => {
     const dense = fixtureDocs().find((d) => {
       const c = new Map<number, number>();
       for (const [i, m] of d.measures.entries()) c.set(i, m.events.filter((e) => e.kind === 'note').length);
@@ -263,7 +267,8 @@ describe('density brake (6.4 rule 9)', () => {
     view.setNoteState(idxs[4]!, err);
     expect(glyphIds(el).filter((g) => g !== 'dot').length).toBe(5);
     expect(glyphIds(el).every((g) => g === 'sharp')).toBe(true);
-    expect(el.querySelector('.sr-ghost-arrow')).toBeNull();
+    // PLAN R71: the arrow is the sharp-or-flat cue, so it stays under the brake.
+    expect(el.querySelector('.sr-ghost-arrow')).not.toBeNull();
     expect(ghostsIn(el)[0]!.getAttribute('opacity')).toBe('0.7');
     for (const i of idxs.slice(0, 5)) expect(groups(el, i)[0]!.classList.contains('n-error')).toBe(true);
     expect(ghostsIn(el)).toHaveLength(1);
@@ -600,4 +605,68 @@ describe('06 section 7 drawing', () => {
       }
     }
   }, 60_000);
+});
+
+// PLAN R72: a right note glows (a halo behind its head, in --glow with a --glow-edge edge), live and in review, with
+// the dot kept as the shape cue; under reduced motion the halo does not pop in. PLAN R71: a sharp or flat heard note
+// sits a little above or below the written note with its arrow; a wrong note in the key is drawn on its own letter.
+describe('right-note glow (PLAN R72) and heard notes (PLAN R71)', () => {
+  const glowFor = (el: HTMLElement, idx: number): SVGGElement | null => el.querySelector<SVGGElement>(`.sr-glow[data-glow-for="${idx}"]`);
+
+  it('glows a right note behind its head, live and in review, and keeps the dot', () => {
+    for (const mode of ['live', 'review'] as const) {
+      const { el, view } = setup();
+      view.setMode(mode);
+      view.setNoteState(0, { phase: 'judged', timing: 'on-time', pitch: 'in-tune' });
+      const g = glowFor(el, 0);
+      expect(g, mode).not.toBeNull();
+      // Behind the ink: in the system's underlay, not over the head.
+      expect(g!.closest('.sr-underlay'), mode).not.toBeNull();
+      expect(g!.querySelector('.sr-glow-fill')!.getAttribute('fill')).toBe('var(--glow)');
+      expect(g!.querySelector('.sr-glow-edge')!.getAttribute('stroke')).toBe('var(--glow-edge)');
+      expect(glyphIds(el)).toContain('dot');
+      expect(g!.classList.contains('sr-glow-pop')).toBe(true);
+      el.remove();
+    }
+  });
+
+  it('no glow for a slip, a missed note or a pending one; the glow goes when the verdict changes and on clear', () => {
+    const { el, view } = setup();
+    view.setNoteState(0, { phase: 'judged', timing: 'late' });
+    view.setNoteState(1, { phase: 'missed' });
+    view.setNoteState(2, { phase: 'pending' });
+    expect(el.querySelectorAll('.sr-glow')).toHaveLength(0);
+    view.setNoteState(0, { phase: 'judged', timing: 'on-time' });
+    expect(glowFor(el, 0)).not.toBeNull();
+    view.setNoteState(0, { phase: 'judged', pitch: 'wrong-pitch' });
+    expect(glowFor(el, 0)).toBeNull();
+    view.setNoteState(0, { phase: 'judged', timing: 'on-time' });
+    view.clearOverlay();
+    expect(el.querySelectorAll('.sr-glow')).toHaveLength(0);
+  });
+
+  it('under reduced motion the halo is simply there (no pop animation)', () => {
+    const { el, view } = setup(undefined, { reduced: true });
+    view.setNoteState(0, { phase: 'judged', timing: 'on-time' });
+    expect(glowFor(el, 0)!.classList.contains('sr-glow-pop')).toBe(false);
+  });
+
+  it('draws a sharp heard note above the written note with an up arrow, a flat one below with a down arrow', () => {
+    const { el, view, p } = setup();
+    const plain = ghost(p, 10, { kind: 'late' });
+    view.showGhost(plain);
+    const y = (id: number): number => Number(/translate\([-\d.]+ ([-\d.]+)\)/.exec(el.querySelector(`.sr-ghost[data-detected-id="${id}"] .sr-ghost-head`)!.getAttribute('transform')!)![1]);
+    const y0 = y(10);
+    view.removeGhost(10);
+    view.showGhost(ghost(p, 11, { kind: 'sharp', centsError: 48 }));
+    view.showGhost(ghost(p, 12, { kind: 'flat', centsError: -48, scoreBeat: 2.5 }));
+    const sharp = el.querySelector('.sr-ghost[data-detected-id="11"]')!;
+    const flat = el.querySelector('.sr-ghost[data-detected-id="12"]')!;
+    expect(sharp.getAttribute('data-direction')).toBe('up');
+    expect(flat.getAttribute('data-direction')).toBe('down');
+    expect(sharp.querySelector('.sr-ghost-arrow')!.getAttribute('data-arrow')).toBe('up');
+    expect(flat.querySelector('.sr-ghost-arrow')!.getAttribute('data-arrow')).toBe('down');
+    expect(y(11)).toBeLessThan(y0);
+    expect(y(12)).toBeGreaterThan(y0);
+  });
 });

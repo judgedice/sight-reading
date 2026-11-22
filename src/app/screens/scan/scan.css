@@ -582,3 +582,14 @@
 .scan .sd-live-cap:not([data-active]):not([data-failed]) {
   display: none;
 }
+
+/* The beat line switch before the try (PLAN R70): under Start on desktop, between the sounds and Start on phones. */
+.scan-beatline {
+  display: flex;
+  margin-block-start: var(--space-3);
+}
+
+.scan-dock-inner .scan-beatline {
+  justify-content: center;
+  margin-block-start: var(--space-1);
+}

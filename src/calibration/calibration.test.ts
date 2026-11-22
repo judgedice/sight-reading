@@ -495,8 +495,17 @@ describe('per-take count-in recheck (01 §7.7, R31)', () => {
     const { result } = await countInTake({ sampleRate: 48000, loopback: { rtlSec: 0.045, gainDb: -14 }, dropSeqs }, 'tick', null);
     expect(result.firstClickFound).toBe(false);
     expect(result.clicksFound).toBe(3);
-    expect(result.accepted).toBe(false);
-    const d = decideRecheck(result, 40, budget);
+    // PLAN R70: a count-in is one bar everywhere, so three clicks are enough to measure (recheck.minClicks 3): a 3/4
+    // count-in still rechecks. The first click is still reported missing (the session restarts the count-in once).
+    expect(result.accepted).toBe(true);
+    expect(Math.abs((result.rtlMs as number) - 45)).toBeLessThanOrEqual(1);
+    // Two clicks lost: too few to measure.
+    const second = Math.floor(((0.5 + 0.625 + 0.045) * 48000) / 256);
+    const two = await countInTake({ sampleRate: 48000, loopback: { rtlSec: 0.045, gainDb: -14 }, dropSeqs: [...dropSeqs, ...Array.from({ length: 9 }, (_, i) => second - 4 + i)] }, 'tick', null);
+    expect(two.result.firstClickFound).toBe(false);
+    expect(two.result.clicksFound).toBe(2);
+    expect(two.result.accepted).toBe(false);
+    const d = decideRecheck(two.result, 40, budget);
     expect(d.recheck.status).toBe('unmeasured');
     expect(d.recheck.usedFresh).toBe(false);
     expect(d.latencyMs).toBe(40);

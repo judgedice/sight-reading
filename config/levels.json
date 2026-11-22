@@ -1,6 +1,6 @@
 {
   "$schema": "../schemas/levels.schema.json",
-  "configVersion": "levels-1.0.0",
+  "configVersion": "levels-1.1.0",
   "levels": [
     {
       "_source": "02 §2.3 (level table), §2.2 (cells), §2.4 (NPS caps), §1.4 (tiers)",
@@ -55,7 +55,7 @@
         8
       ],
       "scanSec": 30,
-      "countInBars": 2,
+      "countInBars": 1,
       "description": "Steps and small leaps in quarters and halves"
     },
     {
@@ -121,7 +121,7 @@
         8
       ],
       "scanSec": 30,
-      "countInBars": 2,
+      "countInBars": 1,
       "description": "Adds eighths, minor keys and one-beat pickups"
     },
     {
@@ -196,7 +196,7 @@
         10
       ],
       "scanSec": 30,
-      "countInBars": 2,
+      "countInBars": 1,
       "description": "Dotted quarters, ties over the bar, 2 accidentals"
     },
     {
@@ -1007,7 +1007,7 @@
   "countIn": {
     "_source": "02 §2.3 (count-in note)",
     "slowBelowBpm": 66,
-    "slowBars": 2
+    "slowBars": 1
   },
   "compound": {
     "_source": "02 §2.4",

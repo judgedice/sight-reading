@@ -173,10 +173,10 @@ describe('ghostVisual', () => {
             if (kind !== 'sharp' && kind !== 'flat') expect(v.arrow).toBeNull();
           }
   });
-  it('sharp and flat: offset right with the arrow, dropped under the brake', () => {
+  it('sharp and flat: offset right with the arrow, kept under the brake (PLAN R71)', () => {
     expect(ghostVisual(ghost('sharp'), 'live', false)).toMatchObject({ arrow: 'up', offsetRight: true, fadeMs: 80, opacity: 1, laneGlyph: null });
     expect(ghostVisual(ghost('flat'), 'live', false)).toMatchObject({ arrow: 'down', offsetRight: true });
-    expect(ghostVisual(ghost('sharp'), 'live', true)).toMatchObject({ arrow: null, offsetRight: true, fadeMs: 0, opacity: 0.7 });
+    expect(ghostVisual(ghost('sharp'), 'live', true)).toMatchObject({ arrow: 'up', offsetRight: true, fadeMs: 0, opacity: 0.7 });
     expect(ghostVisual(ghost('flat'), 'review', true).arrow).toBe('down');
   });
   it('early, late, wrong, octave: ghost at played position, no arrow, no ghost lane glyph', () => {

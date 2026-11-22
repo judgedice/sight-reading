@@ -188,4 +188,36 @@ describe('Listen playback review: captions as heard and the notes for the soundi
     await t.player.play({ kind: 'tempo', durSec: 1, segments: [{ atSec: 0, caption: { kind: 'tempo', bpm: 60 } }], schedule: () => Promise.resolve() });
     expect(t.player.view.getState().notes).toBeNull();
   });
+
+  it('the beat line timing (PLAN R70) moves the sounding note and the captions, never the sound', async () => {
+    const t = setup({ lagSec: 0.05 });
+    t.player.visualOffsetSec = 0.1; // 100 ms later
+    let origin = 0;
+    const shown: (string | null)[] = [];
+    t.player.view.subscribe((v) => shown.push(v.caption?.kind ?? null));
+    await t.player.play({
+      kind: 'listen',
+      durSec: 3,
+      segments: [
+        { atSec: 0, caption: { kind: 'lead-in', bpm: 120 } },
+        { atSec: 1, caption: { kind: 'bar', bar: 1, of: 2 }, bar: 1 },
+      ],
+      notes: [{ idx: 0, eventIds: ['e1'], atSec: 1, untilSec: 2 }],
+      schedule: async (o) => {
+        origin = o;
+      },
+    });
+    // The scheduled sound is untouched.
+    expect(origin).toBeCloseTo(10 + SOUND_LEAD_SEC, 9);
+    // The note clock is the heard clock less the offset.
+    expect(t.player.view.getState().notes?.clock()).toBeCloseTo(t.now() - 0.05 - 0.1, 9);
+    // The bar caption comes 100 ms after it is heard, not when it is heard.
+    const heardAt = origin + 1 + 0.05 - t.now();
+    t.player.view.setState({}, false);
+    t.advance(heardAt + 0.09);
+    expect(t.player.view.getState().caption?.kind).toBe('lead-in');
+    t.advance(0.02);
+    expect(t.player.view.getState().caption?.kind).toBe('bar');
+    expect(shown).toContain('bar');
+  });
 });

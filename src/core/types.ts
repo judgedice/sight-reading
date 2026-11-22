@@ -528,7 +528,7 @@ export interface LevelsConfig {
   $schema?: string;
   configVersion: string;
   levels: LevelDef[];
-  /** 2 count-in bars at any tempo below `slowBelowBpm` (66) (02 §2.3). */
+  /** Count-in bars at any tempo below `slowBelowBpm` (02 §2.3; PLAN R70 makes it 1 everywhere). */
   countIn: Sourced & { slowBelowBpm: number; slowBars: number };
   /** Compound meters at these levels count dotted beats in this bpm range with subdivision clicks (02 §2.4). */
   compound: Sourced & { dottedBeatLevels: LevelRange; dottedBpm: { minBpm: number; maxBpm: number }; subdivisionClicks: boolean };
@@ -2456,6 +2456,12 @@ export interface AppSettings {
     showHeard?: boolean;
     /** The try's beat line: a thin line that moves through the staff with the beat (default true). */
     beatLine?: boolean;
+    /**
+     * Beat line timing, ms (PLAN R70): moves the beat line and the other visuals on the heard clock (count-in track,
+     * sounding note, captions) earlier (negative) or later (positive) than the reported output latency places them.
+     * -150 to 150 in steps of 10, default 0. Visual only: audio judging is unchanged.
+     */
+    beatLineOffsetMs?: number;
     /** Note colours: each notehead filled in its letter name's colour on every score (default false, PLAN R69). */
     noteColours?: boolean;
   };

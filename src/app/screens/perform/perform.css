@@ -131,36 +131,20 @@
 /* The beat line switch: a short upright line before the label, in the metronome colour when the line is on,
    dashed and muted when it is off, so on and off differ by shape as well as colour. */
 .perform-beatline {
-  --btn-fg: var(--text-muted);
-  gap: var(--space-2);
-}
-
-.perform-beatline::before {
-  flex: none;
-  block-size: 1rem;
-  border-inline-start: 0.125rem dashed var(--border-strong);
-  content: '';
-}
-
-.perform-beatline[aria-pressed='true'] {
-  --btn-fg: var(--text);
-}
-
-.perform-beatline[aria-pressed='true']::before {
-  border-inline-start-style: solid;
-  border-inline-start-color: var(--metro-active);
+  display: inline-flex;
+  align-items: center;
+  font-size: var(--type-small-size);
 }
 
 @media (max-width: 40rem) {
-  /* Phones: the line alone (the label stays the accessible name), so the strip keeps its room for messages; the
-     button keeps a full tap target. */
-  .perform-beatline {
+  /* Phones: the switch alone (its label stays the accessible name), so the strip keeps its room for messages; the
+     switch keeps a 44 px target. */
+  .perform-beatline .ui-toggle {
     justify-content: center;
-    min-inline-size: 2.75rem;
-    min-block-size: 2.75rem;
+    min-inline-size: var(--toggle-hit-size);
   }
 
-  .perform-beatline > span {
+  .perform-beatline .ui-toggle-label {
     position: absolute;
     inline-size: 0.0625rem;
     block-size: 0.0625rem;

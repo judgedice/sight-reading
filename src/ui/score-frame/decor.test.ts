@@ -2,7 +2,7 @@
 // Score frame drawing additions (06 sections 6.12 and 7): staff space and page margins from the score tokens, the bar
 // wash by index, the key-signature and first-note highlights, the count-in band (full ink), the starting-pitch dim, the downbeat pulse, clean-score
 // mode and the bar under a point.
-import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import type { ExcerptDoc } from '../../core/types.ts';
 import * as notationModule from '../../notation/index.ts';
 import { fixtureDoc } from '../../notation/testing/corpus-node.ts';
@@ -181,23 +181,17 @@ describe('count-in band', () => {
     expect(host.hasAttribute('data-dim')).toBe(false);
   });
 
-  it("the downbeat pulse: the first note's ring replaces its highlight once, then goes", () => {
-    vi.useFakeTimers();
-    try {
-      const p = barsExcerpt(doc, 8);
-      const { host, c } = frame();
-      c.layout(p, { ...DESKTOP, purpose: 'take' }, notation.tickablesPerBar(p));
-      c.highlightFirstNote('Sing');
-      expect(host.querySelector('.sf-hl-disc')!.getAttribute('stroke')).toBe('var(--brass)');
-      c.pulseFirstNote(300);
-      expect(host.querySelector('.sf-hl-name')).toBeNull();
-      expect(host.querySelector('.sf-hl-disc')).toBeNull();
-      expect(host.querySelectorAll('.sf-hl-pulse')).toHaveLength(1);
-      vi.advanceTimersByTime(300);
-      expect(host.querySelector('.sf-hl-pulse')).toBeNull();
-    } finally {
-      vi.useRealTimers();
-    }
+  it('the first-note highlight clears to nothing (PLAN R70: no pulse at the downbeat)', () => {
+    const p = barsExcerpt(doc, 8);
+    const { host, c } = frame();
+    c.layout(p, { ...DESKTOP, purpose: 'take' }, notation.tickablesPerBar(p));
+    c.highlightFirstNote('C3');
+    expect(host.querySelector('.sf-hl-disc')!.getAttribute('stroke')).toBe('var(--brass)');
+    c.highlightFirstNote(null);
+    expect(host.querySelector('.sf-hl-name')).toBeNull();
+    expect(host.querySelector('.sf-hl-disc')).toBeNull();
+    expect(host.querySelector('[data-brass]')).toBeNull();
+    expect('pulseFirstNote' in c).toBe(false);
   });
 
   it('an empty first-note name keeps the ring without a name', () => {

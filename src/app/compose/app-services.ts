@@ -35,6 +35,7 @@ import { tryTitle } from '../screens/scales/index.ts';
 import { adoptingLegacyCalibrations, createCalibrationServices, type CalibrationBackendExtras } from './calibration-services.ts';
 import { calibrationStatus as computeCalStatus, KV_CAL_LAST_FAILURE, type CalFailure, type CalStatus } from './calibration-status.ts';
 import { countTries, reachedBarOne } from './tries.ts';
+import { readBeatLineOffset } from '../../store/settings-read.ts';
 import { createValue, derived, fromStore, jsonEqual, type Value } from './values.ts';
 
 /** Backend members beyond the frozen seam (WebAudioBackend has them). */
@@ -165,6 +166,9 @@ export function composeApp(rt: AppRuntime): ComposedApp {
     ...(rt.testClock ? { rtlOverrideMs: 0 } : {}),
   };
   const session = new PracticeSession({ platform, configs: cfg, manifest, workerFactory: rt.workerFactory }, sessionOptions);
+  // Beat line timing (PLAN R70): every visual on the heard clock moves by the player's offset; sounds never do.
+  const visualOffsetSec = (): number => readBeatLineOffset(settings.get().display.beatLineOffsetMs) / 1000;
+  session.setVisualOffsetMs(visualOffsetSec() * 1000);
 
   const refreshToday = async (): Promise<void> => {
     const day = platform.localDay();
@@ -232,6 +236,7 @@ export function composeApp(rt: AppRuntime): ComposedApp {
   let lastAvailabilityKey = '';
   unsubs.push(
     settings.subscribe(() => {
+      session.setVisualOffsetMs(visualOffsetSec() * 1000);
       const p = settings.get().practice;
       const key = `${p.listening}|${p.outputMode}`;
       if (key === lastAvailabilityKey) return;
@@ -527,7 +532,7 @@ export function composeApp(rt: AppRuntime): ComposedApp {
     ...(rt.wakeLockFailed ? { wakeLockFailed: rt.wakeLockFailed } : {}),
     reducedMotion,
     highContrast,
-    audibleNow: () => platform.audio.audibleNow() as number,
+    audibleNow: () => (platform.audio.audibleNow() as number) - visualOffsetSec(),
     setBeatLine(on) {
       const s = settings.get();
       if (s.display.beatLine !== on) settings.set({ ...s, display: { ...s.display, beatLine: on } });

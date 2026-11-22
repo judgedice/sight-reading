@@ -88,9 +88,10 @@ describe('scan model', () => {
 
   it('says what plays on Start: the starting pitch for a voice, then the clicks', () => {
     const e = testExcerpt();
-    expect(onStartLine(e, cfg, true, false)).toBe('When you start: two bars of clicks.');
+    // One bar at every difficulty (PLAN R70).
+    expect(onStartLine(e, cfg, true, false)).toBe('When you start: one bar of clicks.');
     expect(onStartLine({ ...e, levelServed: 7 }, cfg, true, true)).toBe('When you start: your starting pitch, then one bar of clicks.');
-    expect(onStartLine(e, cfg, true, true)).toBe('When you start: your starting pitch, then two bars of clicks.');
+    expect(onStartLine(e, cfg, true, true)).toBe('When you start: your starting pitch, then one bar of clicks.');
   });
 
   it('says "Starting in N" only in the last 5 s of a ranked scan', () => {

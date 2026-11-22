@@ -40,6 +40,28 @@ describe('settings read (round 2 defaults)', () => {
     (on.display as { noteColours?: unknown }).noteColours = 'yes';
     expect(normaliseSettings(on).display.noteColours).toBe(false);
   });
+  it('reads the beat line timing as 0 when missing, clamps it to -150..150 and rounds it to 10 ms (PLAN R70)', () => {
+    expect(defaultAppSettings().display.beatLineOffsetMs).toBe(0);
+    const old = defaultAppSettings();
+    delete old.display.beatLineOffsetMs;
+    expect(normaliseSettings(old).display.beatLineOffsetMs).toBe(0);
+    const s = defaultAppSettings();
+    s.display.beatLineOffsetMs = -40;
+    expect(normaliseSettings(s)).toBe(s);
+    for (const [stored, read] of [[400, 150], [-999, -150], [33, 30], [Number.NaN, 0], ['50', 0]] as const) {
+      (s.display as { beatLineOffsetMs?: unknown }).beatLineOffsetMs = stored;
+      expect(normaliseSettings(s).display.beatLineOffsetMs, String(stored)).toBe(read);
+    }
+  });
+  it('round-trips the beat line timing through an export file', async () => {
+    const kv = new MemoryKv();
+    const repos = memoryRepos(kv);
+    const s = defaultAppSettings();
+    s.display.beatLineOffsetMs = 60;
+    await repos.settings.put(s);
+    const file = parseExportFile(JSON.parse(JSON.stringify(await exportAll(repos, kv))));
+    expect(file.settings.display.beatLineOffsetMs).toBe(60);
+  });
   it('round-trips note colours through an export file', async () => {
     const kv = new MemoryKv();
     const repos = memoryRepos(kv);

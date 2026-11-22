@@ -249,7 +249,10 @@
 .set-note-key-head {
   inline-size: 0.875rem;
   block-size: 0.625rem;
+  overflow: visible;
   fill: var(--head);
+  stroke: var(--head-outline);
+  stroke-width: 0.9;
 }
 
 .set-row-control {
@@ -522,6 +525,22 @@
   text-align: end;
   font-size: var(--type-small-size);
   font-variant-numeric: tabular-nums;
+}
+
+/* ---- Beat line timing (PLAN R70): "Earlier" and "Later" at the ends, the value under the slider ---- */
+
+.set-timing {
+  flex-wrap: wrap;
+}
+
+.set-timing-end {
+  color: var(--text-muted);
+  font-size: var(--type-small-size);
+}
+
+.set-timing-value {
+  flex: 1 0 100%;
+  text-align: center;
 }
 
 /* ---- About -------------------------------------------------------------------------------- */

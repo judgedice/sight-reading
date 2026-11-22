@@ -7,6 +7,13 @@ import { Group, Row, Section } from './Section.tsx';
 import { text } from './text.ts';
 import { useReadable, useSettingsServices } from './context.ts';
 import { NOTE_LETTERS } from '../../../notation/note-colours.ts';
+import { BEAT_LINE_OFFSET_MS, readBeatLineOffset } from '../../../store/settings-read.ts';
+
+/** "0 ms: as reported", "40 ms earlier", "30 ms later" (PLAN R70). */
+export function timingText(ms: number): string {
+  if (ms === 0) return copy('settings.practice.beatLineTiming.zero');
+  return copy(ms < 0 ? 'settings.practice.beatLineTiming.earlierBy' : 'settings.practice.beatLineTiming.laterBy', { ms: Math.abs(ms) });
+}
 
 /**
  * The note colour key (PLAN R69): seven swatches, each a small notehead in its letter's colour with the letter beside
@@ -141,6 +148,7 @@ export function PracticeSection() {
   const prefs = settings.practicePrefs;
   // The starting-pitch switch only means something for a voice (PLAN R7; 01-ux §10): other instruments show nothing.
   const isVoice = s.configs.instrumentById[settings.practice.instrumentId]?.family === 'voice';
+  const offset = readBeatLineOffset(settings.display.beatLineOffsetMs);
   return (
     <Section id="practice" title={copy('settings.section.practice')}>
       <Group>
@@ -159,6 +167,29 @@ export function PracticeSection() {
           checked={settings.display.beatLine !== false}
           onChange={(v) => s.settings.set(patchSection(settings, 'display', { beatLine: v }))}
         />
+      </Row>
+      <Row label={copy('settings.practice.beatLineTiming')} htmlFor="set-beat-line-timing" hint={copy('settings.practice.beatLineTiming.hint')}>
+        <div className="set-range-wrap set-timing" data-testid="beat-line-timing">
+          <span className="set-timing-end" aria-hidden="true">{copy('settings.practice.beatLineTiming.earlier')}</span>
+          <input
+            id="set-beat-line-timing"
+            className="set-range"
+            type="range"
+            min={BEAT_LINE_OFFSET_MS.min}
+            max={BEAT_LINE_OFFSET_MS.max}
+            step={BEAT_LINE_OFFSET_MS.step}
+            value={offset}
+            aria-valuetext={timingText(offset)}
+            onChange={(e) => s.settings.set(patchSection(settings, 'display', { beatLineOffsetMs: readBeatLineOffset(Number(e.target.value)) }))}
+          />
+          <span className="set-timing-end" aria-hidden="true">{copy('settings.practice.beatLineTiming.later')}</span>
+          <output htmlFor="set-beat-line-timing" className="set-range-value set-timing-value">
+            {timingText(offset)}
+          </output>
+          {offset !== 0 ? (
+            <Button label={copy('settings.practice.beatLineTiming.reset')} variant="quiet" size="compact" onClick={() => s.settings.set(patchSection(settings, 'display', { beatLineOffsetMs: 0 }))} />
+          ) : null}
+        </div>
       </Row>
       <Row label={copy('settings.practice.stars')} inline>
         <Toggle

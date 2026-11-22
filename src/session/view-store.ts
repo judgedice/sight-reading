@@ -95,8 +95,12 @@ export function reduceSessionView(v: SessionView, e: SessionEvent): SessionView 
       return { ...v, emptyPoolSuggestions: e.suggestions };
     case 'scan-tick':
       return { ...v, scan: { remainingSec: e.remainingSec, expired: e.remainingSec <= 0 } };
-    case 'count-in':
-      return { ...v, countIn: { beat: e.beat, of: e.of } };
+    case 'count-in': {
+      // "Restarting the count-in" says why the count starts again; from the new count-in's second click it has been
+      // read, and the strip goes back to "Count-in" (it used to stay to bar 1, PLAN R70).
+      const status = v.status?.kind === 'restarting-count-in' && e.beat >= 2 ? null : v.status;
+      return { ...v, countIn: { beat: e.beat, of: e.of }, status };
+    }
     case 'count-in-restart':
       return { ...v, countIn: null, firstNoteHeard: false, status: { kind: 'restarting-count-in', reason: e.reason } };
     case 'follower':
