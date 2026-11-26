@@ -80,7 +80,8 @@ function fixture(
   over: { eligible?: HomeServices['countEligible']; profile?: PlayerProfile | undefined; practice?: Partial<PracticeSettings>; turnOnMic?: HomeServices['turnOnMic'] } = {},
 ): Fixture {
   const base = defaultAppSettings();
-  const settings = store<AppSettings>({ ...base, practice: { ...base.practice, ...over.practice } });
+  // Practice by default: its difficulty is free (Ranked is locked at the player's own, R76); Ranked has its own tests.
+  const settings = store<AppSettings>({ ...base, practice: { ...base.practice, mode: 'practice', ...over.practice } });
   const started: PracticeSettings[] = [];
   const banners = store<readonly HomeBanner[]>([]);
   const availability = store<RankedAvailability>({ available: true, block: null });
@@ -197,15 +198,18 @@ const flush = (): void => {
 const practice = (f: Fixture): PracticeSettings => f.settings.get().practice;
 
 describe('Practice screen, wide (1024 px and up)', () => {
-  it('shows the instrument card, the setup rows in order, and Mode and Start in the foot; no Credits link', () => {
+  it('shows the instrument card, Mode at the top of the setup card, the rows in order, the pill and Start in the foot; no Credits link', () => {
     render(fixture());
     // Difficulty 1 has one length: it sits at the right of the Tempo row (round 2, 04-design section 1).
     expect($$('[data-setup-slot]').map((el) => el.dataset['setupSlot'])).toEqual(['difficulty', 'key', 'time', 'tempo']);
     expect($('[data-setup-row="length"]', slot('tempo')).textContent).toBe(`${copy('row.length')}${copy('setup.length.chip', { bars: 8 })}`);
     const foot = $('[data-testid="setup-foot"]');
-    expect(foot.querySelector('[data-setup-row="mode"]')).toBeTruthy();
-    expect(foot.querySelector('#start-practice')!.textContent).toContain(copy('action.start'));
-    expect($('[data-testid="setup-form"]').querySelector('[data-setup-row="mode"]')).toBeNull();
+    // Mode sits at the top of the setup card, since what difficulty means depends on it (round 3, 01-ux-review §4.2).
+    const form = $('[data-testid="setup-form"]');
+    expect(form.firstElementChild?.querySelector('[data-setup-row="mode"]')).toBeTruthy();
+    expect(foot.querySelector('[data-setup-row="mode"]')).toBeNull();
+    expect(foot.querySelector('#start-practice')!.textContent).toContain(copy('action.startPractice'));
+    expect(foot.querySelector('[data-testid="mode-pill"]')!.getAttribute('data-mode')).toBe('practice');
     // No scroll area inside the setup (round 2, 01-ux section 6).
     expect(document.querySelector('[data-testid="setup-scroll"]')).toBeNull();
     m!.unmount();
@@ -235,7 +239,7 @@ describe('Practice screen, wide (1024 px and up)', () => {
     const kbd = $('#start-practice kbd');
     expect(kbd.textContent).toBe(copy('shortcuts.spaceKey'));
     expect(kbd.getAttribute('aria-hidden')).toBe('true');
-    expect($('#start-practice > span').textContent).toBe(copy('action.start'));
+    expect($('#start-practice > span').textContent).toBe(copy('action.startPractice'));
     key($('[data-setup-slot="key"] [role="radio"]'), ' ');
     expect(f.started).toHaveLength(0);
     key(document.body, ' ');
@@ -247,7 +251,7 @@ describe('Practice screen, wide (1024 px and up)', () => {
     render(f);
     click($('#start-practice'));
     expect(f.started).toHaveLength(1);
-    expect(f.started[0]).toMatchObject({ instrumentId: 'flute', mode: 'ranked' });
+    expect(f.started[0]).toMatchObject({ instrumentId: 'flute', mode: 'practice' });
     m!.unmount();
     const g = fixture();
     delete (g.services as { onStart?: unknown }).onStart;
@@ -319,14 +323,12 @@ describe('Practice screen, wide (1024 px and up)', () => {
     expect(slot('key').textContent).not.toContain(note);
   });
 
-  it('Follow my progress is a switch; Tempo is Any or a set tempo: random, then a value, then random', () => {
+  it('no Follow my progress switch (R76); Tempo is Any or a set tempo: random, then a value, then random', () => {
     const f = fixture({ practice: { level: 3, bpm: 'random' } });
     render(f);
-    const follow = $('[role="switch"]', slot('difficulty'));
-    click(follow);
-    expect(practice(f).level).toBe('random');
-    expect(slot('difficulty').querySelector('.ui-stepper')).toBeNull();
-    click($('[role="switch"]', slot('difficulty')));
+    expect(slot('difficulty').querySelector('[role="switch"]')).toBeNull();
+    // A stored "Follow my progress" reads as your difficulty and is written back as a number.
+    act(() => f.settings.set({ ...f.settings.get(), practice: { ...practice(f), level: 'random' } }));
     expect(typeof practice(f).level).toBe('number');
     const [anyTempo, setTempo] = radiosIn('tempo');
     expect(anyTempo!.getAttribute('aria-checked')).toBe('true');
@@ -351,17 +353,16 @@ describe('Practice screen, wide (1024 px and up)', () => {
     expect(practice(f).writtenKey).toEqual({ fifths: 4, mode: 'major' });
   });
 
-  it('difficulty 1: the key note says what it uses and what comes next, "Few pieces" and the Match a note link', () => {
+  it('difficulty 1: the key note says what it uses and what comes next, "Few pieces"; Match a note is in Warm up', () => {
     const f = fixture({ practice: { level: 1 }, eligible: (_i, _l, meter) => (meter === null ? 6 : 6) });
     render(f);
     expect(slot('key').textContent).toContain('Difficulty 1 uses major keys with up to 1 sharp or flat. Minor keys start at difficulty 2.');
     expect(document.body.textContent).not.toContain('More keys from');
     expect($('[data-setup-few]', slot('difficulty')).textContent).toContain(copy('home.levelFewMusic'));
-    click($('[data-setup-match] button'));
-    expect(f.matched).toEqual([1]);
-    m!.unmount();
-    render(fixture({ practice: { level: 2 } }));
+    // The difficulty row no longer repeats the Warm up group's Match a note (round 3, one Warm up group).
     expect(document.querySelector('[data-setup-match]')).toBeNull();
+    click($('.home-warmups [data-testid="match-entry"]'));
+    expect(f.matched).toEqual([1]);
   });
 
   it('one XP line counts Any key, time and tempo, in either mode; none chosen asks for Any', () => {
@@ -406,13 +407,14 @@ describe('Practice screen, wide (1024 px and up)', () => {
 });
 
 describe('Practice screen states', () => {
-  it('shows one notice at a time in priority order, and never a calibration banner (round 2, 01-ux section 4)', () => {
+  it('shows one notice at a time in priority order, and never a calibration or audio-delay banner (round 3, R80)', () => {
     const f = fixture();
-    f.banners.set([{ kind: 'calibrate', seconds: 8 }, { kind: 'storage-loss' }, { kind: 'bluetooth' }]);
+    f.banners.set([{ kind: 'calibrate', seconds: 8 }, { kind: 'storage-loss' }, { kind: 'mic-off' }]);
     render(f);
     expect(document.body.textContent).toContain(copy('banner.storageLoss'));
-    act(() => f.banners.set([{ kind: 'calibrate', seconds: 8 }, { kind: 'bluetooth' }]));
-    expect(document.body.textContent).toContain(copy('banner.bluetooth'));
+    act(() => f.banners.set([{ kind: 'calibrate', seconds: 8 }, { kind: 'mic-off' }]));
+    expect(document.body.textContent).toContain(copy('banner.micOff'));
+    expect(document.body.textContent).not.toContain(copy('banner.bluetooth'));
     act(() => f.banners.set([{ kind: 'calibrate', seconds: 8 }]));
     expect(document.body.textContent).not.toContain('Calibrate once');
     expect(document.querySelector('.ui-banner, [role="alert"]')).toBeNull();
@@ -425,7 +427,7 @@ describe('Practice screen states', () => {
     expect(pill.textContent).toContain(copy('calStatus.none'));
     click(pill);
     click(button(copy('calStatus.action.calibrate')));
-    expect(f.location.hash).toBe('#/calibrate');
+    expect(f.location.hash).toBe('#/calibrate?from=home');
   });
 
   it('the last-try line: grade, score and title, then All tries opens History; absent before the first try', () => {
@@ -502,10 +504,12 @@ describe('Practice screen states', () => {
   });
 
   it('Ranked unavailable: practice is shown, the reason and the fix are visible, Start sends practice', () => {
-    const f = fixture();
+    const f = fixture({ practice: { mode: 'ranked' } });
     f.availability.set({ available: false, block: 'calibration' });
     render(f);
-    const ranked = $$('[data-setup-row="mode"] [role="radio"]')[0]!;
+    // Practice first, then Ranked (round 3 mockups).
+    const ranked = $$('[data-setup-row="mode"] [role="radio"]')[1]!;
+    expect(ranked.textContent).toContain(copy('mode.ranked'));
     expect(ranked.getAttribute('aria-disabled')).toBe('true');
     const reason = document.getElementById(ranked.getAttribute('aria-describedby')!)!;
     expect(reason.textContent).toBe(copy('setup.mode.blocked.calibration.link', { link: '' }).trim());
@@ -517,8 +521,11 @@ describe('Practice screen states', () => {
     expect(calibrate).toHaveLength(1);
     expect(document.body.textContent).not.toContain('Calibrate once');
     expect(document.body.textContent).not.toContain(copy('action.calibrateNow'));
+    // Nothing says Ranked: the pill and Start say Practice (R79).
+    expect($('[data-testid="setup-foot"] [data-testid="mode-pill"]').getAttribute('data-mode')).toBe('practice');
+    expect($('#start-practice').textContent).toContain(copy('action.startPractice'));
     click(calibrate[0]!);
-    expect(f.location.hash).toBe('#/calibrate');
+    expect(f.location.hash).toBe('#/calibrate?from=home');
   });
 
   it('permission denied: Turn on microphone that fails shows the browser steps', async () => {
@@ -606,7 +613,12 @@ describe('Practice screen, narrow (below 1024 px)', () => {
     // No keyboard on a phone: no keycap on Start (06 mockup, Practice phone).
     expect(document.querySelector('#start-practice kbd')).toBeNull();
     expect($('.home-mode [data-setup-row="mode"]')).toBeTruthy();
-    expect($('[data-testid="match-entry"]').textContent).toBe(copy('match.entry.phone'));
+    // One "Warm up" group, named the same as on the desktop (01-ux-review problem 12).
+    expect($('[data-testid="match-entry"]').textContent).toBe(copy('match.entry'));
+    expect($('.home-warmups .home-warmup-title').textContent).toBe(copy('home.warmup'));
+    // Mode sits above the summary card on the phone (01-ux-review §4.2), the pill and Start below it.
+    expect($('.home-mode').compareDocumentPosition($('.home-summary')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect($('.home-go [data-testid="mode-pill"]').getAttribute('data-mode')).toBe('practice');
     expect(document.querySelector('.home-rank-card')).toBeNull();
   });
 
@@ -775,10 +787,11 @@ describe('setup model', () => {
     expect(normalize({ ...base, level: 10 }, ctx).level).toBe(9);
   });
 
-  it('local suggestions offer Random time and the nearest level', () => {
+  it('local suggestions offer Random time and the nearest level; Ranked offers Practice instead (R76)', () => {
     const c: SetupContext = { ...ctx, eligible: (_i, l, meter) => (meter !== null ? 0 : l === 2 || l === 3 || l === 4 ? 20 : 0) };
-    const s = localSuggestions({ ...base, level: 3, meter: '4/4' }, c);
+    const s = localSuggestions({ ...base, mode: 'practice', level: 3, meter: '4/4' }, c);
     expect(s).toEqual([{ meter: 'random' }, { level: 2 }]);
+    expect(localSuggestions({ ...base, mode: 'ranked', level: 3, meter: '4/4' }, c)).toEqual([{ meter: 'random' }, { mode: 'practice' }]);
   });
 });
 
@@ -845,15 +858,89 @@ describe('Scales on Practice (PLAN ruling 68)', () => {
     expect(document.querySelector('[data-testid="scales-entry"]')).toBeNull();
   });
 
-  it('phone: a "Warm up: sing a scale" row under the match row, and the chooser is a sheet', () => {
+  it('phone: a "Sing a scale" row under the match row in the Warm up group, and the chooser is a sheet', () => {
     narrow = true;
     const f = fixture({ practice: { instrumentId: 'voice-baritone' } });
     withScales(f);
     render(f);
     const entry = $('[data-testid="scales-entry"]');
-    expect(entry.textContent).toBe(copy('scales.entry.phone'));
+    expect(entry.textContent).toBe(copy('scales.entry'));
     expect(entry.previousElementSibling?.getAttribute('data-testid')).toBe('match-entry');
     click(entry);
     expect($('.ui-sheet [data-testid="scales-chooser"]')).toBeTruthy();
+  });
+});
+
+describe('Home, round 3: mode honesty and difficulty (R76, R77, R79)', () => {
+  const flute2 = (): PlayerProfile => {
+    const p = makeProfile();
+    return { ...p, instruments: { ...p.instruments, flute: { ...p.instruments['flute']!, level: 2 } } };
+  };
+
+  it('Ranked: the difficulty is a read-only row at your difficulty, the pill is brass and Start says "Start ranked try"', () => {
+    const f = fixture({ profile: flute2(), practice: { mode: 'ranked', level: 5 } });
+    render(f);
+    expect(slot('difficulty').querySelector('.ui-stepper')).toBeNull();
+    expect($('[data-locked="true"]', slot('difficulty')).textContent).toContain('Difficulty 2 of 10');
+    expect(slot('difficulty').textContent).toContain(copy('setup.difficulty.rankedLocked'));
+    expect($('[data-testid="setup-foot"] [data-testid="mode-pill"]').getAttribute('data-mode')).toBe('ranked');
+    expect($('#start-practice').textContent).toContain(copy('action.startRanked'));
+    click($('#start-practice'));
+    // What Start sends is the shown mode; the composition root serves Ranked at the player's level.
+    expect(f.started[0]).toMatchObject({ mode: 'ranked' });
+    // The Practice choice is kept for Practice.
+    expect(practice(f).level).toBe(5);
+  });
+
+  it('Practice: a stepper at the chosen difficulty, the mark at yours, "One above your difficulty", and Find my difficulty when Ranked is available', () => {
+    const f = fixture({ profile: flute2(), practice: { mode: 'practice', level: 3 } });
+    let placed = 0;
+    f.services.startPlacement = () => void placed++;
+    render(f);
+    expect(slot('difficulty').querySelector('.ui-stepper')).not.toBeNull();
+    expect($('.su-diff-meter', slot('difficulty')).getAttribute('data-yours')).toBe('2');
+    expect(slot('difficulty').textContent).toContain('One above your difficulty (2).');
+    click($('[data-testid="find-difficulty"]'));
+    expect(placed).toBe(1);
+    expect(f.location.hash).toBe('#/practice/scan');
+    m!.unmount();
+    // Ranked not available: placement's pieces could not be ranked, so no link.
+    const g = fixture({ profile: flute2(), practice: { mode: 'practice', level: 3 } });
+    g.services.startPlacement = () => undefined;
+    g.availability.set({ available: false, block: 'calibration' });
+    render(g);
+    expect(document.querySelector('[data-testid="find-difficulty"]')).toBeNull();
+  });
+
+  it('nothing says Ranked while the check has not answered (R79)', () => {
+    const f = fixture({ practice: { mode: 'ranked' } });
+    f.availability.set({ available: false, block: null });
+    render(f);
+    expect($('[data-testid="setup-foot"] [data-testid="mode-pill"]').getAttribute('data-mode')).toBe('practice');
+    expect($('#start-practice').textContent).toContain(copy('action.startPractice'));
+    act(() => f.availability.set({ available: true, block: null }));
+    expect($('[data-testid="setup-foot"] [data-testid="mode-pill"]').getAttribute('data-mode')).toBe('ranked');
+  });
+
+  it('R77: every piece at your difficulty read, Ranked offers the next difficulty early', () => {
+    const f = fixture({ profile: flute2(), practice: { mode: 'ranked' } });
+    const moved: [string, number][] = [];
+    f.services.unseenRanked = (_id, level) => (level === 2 ? 0 : 5);
+    f.services.moveUp = (id, to) => void moved.push([id, to]);
+    render(f);
+    expect($('[data-testid="exhausted-offer"]').textContent).toContain("You've read every piece at difficulty 2. Move up to difficulty 3, or practise pieces you've seen.");
+    click(button(copy('action.goToLevel', { level: 3 })));
+    expect(moved).toEqual([['flute', 3]]);
+    m!.unmount();
+    // Not in Practice, and not while unseen pieces remain.
+    const g = fixture({ profile: flute2(), practice: { mode: 'practice' } });
+    g.services.unseenRanked = () => 0;
+    render(g);
+    expect(document.querySelector('[data-testid="exhausted-offer"]')).toBeNull();
+  });
+
+  it('the tab and title are "Home"; Practice and Ranked are only modes (R78)', () => {
+    render(fixture());
+    expect($('.home-title').textContent).toBe('Home');
   });
 });

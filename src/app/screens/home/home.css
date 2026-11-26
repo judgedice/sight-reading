@@ -325,48 +325,6 @@
   gap: var(--space-2);
 }
 
-/*
- * Desktop with both warm-ups: two tiles side by side, so the card still ends above the fold at 1440 x 900. Each tile
- * keeps the row's parts: badge, title and chevron on top, the line under them.
- */
-.home-warmups-pair {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-}
-
-.home-warmups-pair .home-match {
-  display: grid;
-  grid-template-areas:
-    'badge title chevron'
-    'body body body';
-  grid-template-columns: auto 1fr auto;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-3);
-}
-
-.home-warmups-pair .home-match-text {
-  display: contents;
-}
-
-.home-warmups-pair .home-match-badge {
-  grid-area: badge;
-}
-
-.home-warmups-pair .home-match-title {
-  grid-area: title;
-  white-space: nowrap;
-}
-
-.home-warmups-pair .home-match-body {
-  grid-area: body;
-  align-self: start;
-}
-
-.home-warmups-pair .home-match-chevron {
-  grid-area: chevron;
-}
-
 /* ---- The setup form and its foot -------------------------------------------------------------------------------- */
 
 .home-setup {
@@ -382,9 +340,45 @@
 }
 
 .home-setup-mode {
-  padding: 0.625rem 0;
-  border-top: 0.0625rem solid var(--border);
+  padding: 0 0 0.625rem;
   border-bottom: 0.0625rem solid var(--border);
+}
+
+/* The mode pill beside Start, the XP line at its left (round 3, R79). */
+.home-go-mode {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+  margin-top: var(--space-2);
+}
+
+.home-go-mode .su-xp-line {
+  margin: 0;
+}
+
+/* "Warm up": one label over Match a note and Sing a scale, on both sizes. */
+.home-warmup-title {
+  margin: 0;
+  font-family: var(--type-label-family);
+  font-size: var(--type-label-size);
+  font-weight: var(--type-label-weight);
+  line-height: var(--type-label-line);
+}
+
+/* R77: every piece at your difficulty has been read; the next difficulty is offered early. */
+.home-exhausted {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+  margin-top: var(--space-2);
+}
+
+.home-exhausted .su-hint {
+  margin: 0;
+  flex: 1 1 16rem;
 }
 
 .home-setup-foot .su-xp-line {

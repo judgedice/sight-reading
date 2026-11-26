@@ -8,6 +8,7 @@ import type { AttemptQuery, AttemptRecord, AttemptSummary } from '../../../core/
 import { copy } from '../../../ui/copy/copy.ts';
 import { Button, Select, Toggle } from '../../../ui/components/form/index.ts';
 import { EmptyState } from '../../../ui/components/domain/index.ts';
+import { ModePill } from '../../../ui/components/setup/index.ts';
 import { Glyph } from '../../../ui/primitives/index.ts';
 import { countTries, reachedBarOne, type TryFacts } from '../../compose/tries.ts';
 import { Link, useNavigate } from '../../router.tsx';
@@ -94,8 +95,7 @@ function HistoryRow({ row, detail, instrumentLabel }: { row: AttemptSummary; det
           <time className="hist-time" dateTime={row.createdAt}>
             {timeLabel(row.createdAt)}
           </time>
-          <span aria-hidden="true">{' \u00b7 '}</span>
-          <span className="hist-mode">{copy(row.ranked ? 'badge.ranked' : 'badge.practice')}</span>
+          <ModePill mode={row.ranked ? 'ranked' : 'practice'} size="compact" className="hist-mode" testId="history-mode" />
         </span>
         <Glyph id="chevron-right" size={16} className="hist-chevron" />
       </Link>

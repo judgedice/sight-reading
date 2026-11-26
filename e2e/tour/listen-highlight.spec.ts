@@ -31,7 +31,7 @@ type Win = {
 
 /** The owner's excerpt for the baritone at difficulty 1 in 3/4, at `bpm` (the session's own prepare, seed 1). */
 async function ownersExcerpt(page: Page, bpm: number): Promise<void> {
-  await page.getByRole('button', { name: 'Start', exact: true }).click();
+  await page.getByRole('button', { name: /^Start (practice|ranked try)/ }).click();
   await expect(page.getByTestId('scan-cover')).toBeVisible({ timeout: 30_000 });
   await expect.poll(() => page.evaluate(() => (window as unknown as Win).__sr.session.current !== null), { timeout: 30_000 }).toBe(true);
   const id = await page.evaluate(

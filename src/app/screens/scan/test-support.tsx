@@ -155,7 +155,7 @@ export function harness(over: { mode?: 'ranked' | 'practice'; prepared?: Prepare
     if (session.pending.mode === 'ranked') {
       session.pending.mode = 'practice';
       session.pending.listenedFirst = true;
-      store.setState({ mode: 'practice', listenedFirst: true });
+      store.setState({ mode: 'practice', listenedFirst: true, practiceReason: 'listened-first' });
     }
     return play({ playing: 'listen', caption: { kind: 'lead-in', bpm: 100 } });
   });

@@ -20,6 +20,7 @@ import { useNavigate } from '../../router.tsx';
 import type { ScreenProps } from '../../route-types.ts';
 import { barCount, meterString, sourceLine } from '../scan/model.ts';
 import { useReadable, useStoreSlice } from '../scan/hooks.ts';
+import { ModePill } from '../../../ui/components/setup/index.ts';
 import { usePracticeFlowServices, type PracticeFlowServices } from '../scan/services.ts';
 import { firstNoteLabel, firstNoteOf, highlightFor, tempoOf } from '../scan/read-model.ts';
 import { keyName } from '../setup/key-names.ts';
@@ -170,7 +171,8 @@ export function PerformScreen(_props: ScreenProps) {
   beatLineRef.current = beatLineOn;
 
   const liveMode = settings.display.liveFeedback === 'full' ? 'live' : 'blind';
-  const mode = svc.session.pending?.mode ?? 'ranked';
+  const viewMode = useStoreSlice(svc.view, (v) => v.mode);
+  const mode = viewMode ?? svc.session.pending?.mode ?? 'ranked';
   const listening = settings.practice.listening;
 
   // What may reach the overlay live (PLAN R61; 01-ux §15.1): ghosts and extras only when `display.ghostsLive` allows
@@ -350,6 +352,8 @@ export function PerformScreen(_props: ScreenProps) {
       <header className="perform-toolbar">
         <div ref={stopRef} className="perform-stop">
           <Button label={copy('play.stop')} variant="secondary" size="compact" icon="stop" onClick={() => setConfirm(true)} disabled={finishing} aria-describedby={finishing ? 'perform-centre-text' : undefined} />
+          {/* The mode during the try (round 3, R79): the same pill as Home, the cover and results. */}
+          <ModePill mode={mode} size="compact" className="perform-mode" testId="try-mode" />
         </div>
         <div className="perform-centre">
           <span id="perform-centre-text" className="perform-centre-text">{centreText}</span>

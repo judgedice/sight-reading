@@ -3,7 +3,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, click, mount, type Mounted } from '../../../ui/primitives/test-render.ts';
 import { RouterProvider, type LocationSource } from '../../router.tsx';
 import { createRouteTable } from '../../routes.tsx';
-import { CalibrationCard } from './CalibrationCard.tsx';
+import { CalibrationCard, shownWarnings, type CalFooter } from './CalibrationCard.tsx';
+import { calibrateReferrer } from './CalibrationScreen.tsx';
 import { MAC_BUILT_IN } from '../../../core/bluetooth-evidence.fixtures.ts';
 import { calReducer, calibrationIsMandatoryPath, diagnosticsWithResult, initialCalState, methodFor, offsetTick, stageStatuses, warningsFor } from './flow.ts';
 import type { CalProgress, LoopbackOutcome } from './services.ts';
@@ -108,14 +109,14 @@ describe('flow', () => {
 });
 
 describe('CalibrationCard', () => {
-  it('speakers: Start unlocks in the click, shows the result, asks about audibility, saves and continues', async () => {
+  it('speakers: Start unlocks in the click, shows the measured delay, asks about audibility, saves and continues', async () => {
     const svc = fakeServices();
     const done = vi.fn();
     current = mount(wrap(<CalibrationCard services={svc} onDone={done} allowSkip />));
     expect(document.body.textContent).toContain("About 15 seconds: clicks at uneven gaps (on purpose, so an echo can't fool the timing), a short tone, then a one-bar count-in.");
-    expect(names()).toEqual(['Hear the click', 'Start', 'Skip']);
-    expect(document.body.textContent).toContain('Without calibration, tries on this device are practice only.');
-    act(() => button('Start').click());
+    expect(names()).toEqual(['Hear the click', 'Skip for now', 'Start timing check']);
+    expect(document.body.textContent).toContain('Skipped, your tries are practice until you run it.');
+    act(() => button('Start timing check').click());
     // unlock was called synchronously from the click, before any await resolved.
     expect(svc.calls[0]).toBe('unlock');
     await act(async () => {
@@ -123,92 +124,162 @@ describe('CalibrationCard', () => {
     });
     expect(svc.calls).toEqual(['unlock', 'loopback']);
     expect(svc.saved).toHaveLength(1);
-    expect(document.body.textContent).toContain("Your setup adds 42 ms. We'll correct for it.");
-    expect(document.body.textContent).toContain('± 2 ms');
+    expect(document.querySelector('[data-testid="cal-result"]')?.textContent).toContain('Measured: 42 ms. Timing marks will be fair.');
     expect(document.body.textContent).toContain('Can you hear the click clearly while you play a note?');
-    expect(names()).not.toContain('Continue');
+    expect(button('Continue').getAttribute('aria-disabled')).toBe('true');
     await press('Yes');
-    expect(names()).toContain('Continue');
     click(button('Continue'));
-    expect(done).toHaveBeenCalledWith('calibrated');
+    expect(done).toHaveBeenCalledWith('calibrated', 42);
   });
-  it('Not really suggests the Woodblock or Beep sound and links to Metronome sound', async () => {
+  it('Not really suggests the Woodblock or Beep sound', async () => {
     const svc = fakeServices();
     current = mount(wrap(<CalibrationCard services={svc} onDone={() => undefined} />));
-    await press('Start');
+    await press('Start timing check');
     await press('Not really');
     expect(document.body.textContent).toContain('Try the Woodblock or Beep sound, or wired headphones.');
-    expect(document.querySelector('a[href="#/settings/audio"]')?.textContent).toBe('Metronome sound');
-    expect(names()).toContain('Continue');
+    expect(button('Continue').getAttribute('aria-disabled')).toBeNull();
   });
-  it('loopback failure names the next steps; Play along instead runs play-along', async () => {
+  it('loopback failure leads with the count and why the alternative shows; Play along runs play-along', async () => {
     const svc = fakeServices({ loopback: [loopbackBad()], playAlong: [playAlongOk()] });
-    const done = vi.fn();
-    current = mount(wrap(<CalibrationCard services={svc} onDone={done} />));
-    await press('Start');
-    expect(document.body.textContent).toContain("Stage 1, Timing, didn't pass.");
-    expect(document.body.textContent).toContain('We heard 2 of 10 ticks, not enough to time them. Turn up the volume, or play along instead.');
-    expect(names()).toEqual(['Try again', 'Play along instead', 'Export diagnostics']);
-    await press('Play along instead');
+    current = mount(wrap(<CalibrationCard services={svc} onDone={() => undefined} />));
+    await press('Start timing check');
+    expect(document.querySelector('[data-testid="cal-fail"]')?.textContent).toBe('We heard 2 of 10 clicks, not enough to time them.');
+    expect(document.body.textContent).toContain("Shown because the clicks weren't heard.");
+    // The stage that failed is named under Details for support.
+    expect(document.querySelector('[data-testid="cal-details"]')?.textContent).toContain("Stage 1, Timing, didn't pass.");
+    expect(names()).toContain('Try the clicks again');
+    await press('Play along');
     expect(svc.calls.filter((c) => c === 'playalong')).toHaveLength(1);
-    expect(document.body.textContent).toContain('Your setup adds 60 ms');
+    expect(document.querySelector('[data-testid="cal-result"]')?.textContent).toContain('Measured: 60 ms.');
     // Play-along has no audibility question.
-    expect(names()).toContain('Continue');
+    expect(button('Continue').getAttribute('aria-disabled')).toBeNull();
   });
   it('headphones go straight to play-along; two failures offer Use an estimate, which never saves', async () => {
     const svc = fakeServices({ output: 'wired', playAlong: [playAlongBad(), playAlongBad()] });
     const done = vi.fn();
     current = mount(wrap(<CalibrationCard services={svc} onDone={done} allowSkip />));
     expect(document.body.textContent).toContain('About 10 seconds: 8 steady clicks. Play one short note on each.');
-    expect(document.body.textContent).toContain("With headphones, sound doesn't reach the mic, so there's no tone or count-in check.");
     expect([...document.querySelectorAll('.cal-stage-row')].map((r) => r.getAttribute('data-stage'))).toEqual(['play-along']);
-    await press('Start');
+    await press('Start timing check');
     expect(document.body.textContent).toContain("Stage 1, Play along, didn't pass.");
-    // Headphones: the speaker checks did not run, and say why.
+    // Headphones: the speaker checks did not run, and say why (under Details for support).
     const skipped = [...document.querySelectorAll('.cal-check[data-status="skipped"] .cal-check-name')].map((n) => n.textContent);
     expect(skipped).toEqual(['Pitch check', 'Clicks heard', 'Timing confirmed', 'Screen speed']);
     expect(document.body.textContent).toContain("Needs the speakers, so it doesn't run with headphones.");
-    expect(names()).toEqual(['Try again', 'Export diagnostics', 'Skip']);
+    expect(names()).not.toContain('Use an estimate');
     await press('Try again');
-    expect(document.body.textContent).toContain("Timing can't be trusted with an estimate, so tries won't earn XP until you calibrate.");
-    expect(names()).toContain('Use an estimate');
+    expect(document.body.textContent).toContain("Shown because play-along didn't work twice.");
     await press('Use an estimate');
     expect(svc.saved).toEqual([]);
     click(button('Continue'));
-    expect(done).toHaveBeenCalledWith('estimate');
+    expect(done).toHaveBeenCalledWith('estimate', null);
   });
-  it('a long delay with no Bluetooth evidence gets the neutral delay message, never Bluetooth; AEC still shows', async () => {
+  it('a long delay with no Bluetooth evidence: the measured number first, info tone, inside the result, never Bluetooth (R80)', async () => {
     const svc = fakeServices({ loopback: [loopbackOk({ rtlMs: 180, aecSuspected: true })] });
     current = mount(wrap(<CalibrationCard services={svc} onDone={() => undefined} />));
-    await press('Start');
-    expect(document.body.textContent).not.toContain('Bluetooth audio');
-    expect(document.body.textContent).toContain("Your audio has a long delay (180 ms), so tries won't earn XP for now.");
+    await press('Start timing check');
+    // "Bluetooth" is an option of the output select; no message names it.
+    expect(document.body.textContent).not.toContain('Bluetooth adds');
+    const result = document.querySelector('[data-testid="cal-result"]')!;
+    const info = result.querySelector('.ui-banner-info')!;
+    expect(info.textContent).toContain("Measured: 180 ms. That's longer than we can time fairly, so tries will be practice for now.");
+    expect(info.textContent).not.toMatch(/XP/);
+    expect(names()).toContain('Run the check again');
     expect(document.body.textContent).toContain('filtering the microphone');
   });
   it("the owner's MacBook measurement (95 ms, spread 0.1 ms) shows no warning", async () => {
     const svc = fakeServices({ loopback: [loopbackOk({ rtlMs: MAC_BUILT_IN.loopback.roundTripMs, madMs: MAC_BUILT_IN.loopback.spreadMs })] });
     current = mount(wrap(<CalibrationCard services={svc} onDone={() => undefined} />));
-    await press('Start');
+    await press('Start timing check');
     expect(document.querySelector('[data-testid="cal-result"]')?.textContent).toContain('95');
     // "Bluetooth" is still an option of the output select; no message names it.
     expect(document.body.textContent).not.toContain('Bluetooth audio');
     expect(document.body.textContent).not.toContain('long delay');
     expect(document.querySelectorAll('.ui-banner-caution')).toHaveLength(0);
   });
-  it('a Bluetooth input label still shows the Bluetooth message', async () => {
+  it('Bluetooth evidence with a fair delay: no warning at all (R80)', async () => {
     const svc = fakeServices({ route: { ...route, inputKind: 'bluetooth' }, loopback: [loopbackOk({ rtlMs: 60 })] });
     current = mount(wrap(<CalibrationCard services={svc} onDone={() => undefined} />));
-    await press('Start');
-    expect(document.body.textContent).toContain('This looks like Bluetooth audio, which can add a lot of delay.');
-    expect(document.body.textContent).not.toContain('long delay');
+    await press('Start timing check');
+    expect(document.body.textContent).not.toContain('Bluetooth adds');
+    expect(document.querySelectorAll('.ui-banner')).toHaveLength(0);
+  });
+  it('Bluetooth evidence with a long delay: the cause is named in caution tone, instead of the neutral line (R80)', async () => {
+    const svc = fakeServices({ route: { ...route, inputKind: 'bluetooth' }, loopback: [loopbackOk({ rtlMs: 240 })] });
+    current = mount(wrap(<CalibrationCard services={svc} onDone={() => undefined} />));
+    await press('Start timing check');
+    const result = document.querySelector('[data-testid="cal-result"]')!;
+    expect(result.querySelector('.ui-banner-caution')?.textContent).toContain("Bluetooth adds a delay we can't time fairly, so tries will be practice.");
+    expect(document.body.textContent).not.toContain("That's longer than we can time fairly");
+  });
+  it('shownWarnings: delay alone is info; Bluetooth only with a long delay; never both', () => {
+    expect(shownWarnings(['delay'])).toEqual([{ id: 'delay', tone: 'info' }]);
+    expect(shownWarnings(['bluetooth'])).toEqual([]);
+    expect(shownWarnings(['bluetooth', 'delay'])).toEqual([{ id: 'bluetooth', tone: 'caution' }]);
+    expect(shownWarnings(['aec'])).toEqual([{ id: 'aec', tone: 'caution' }]);
+  });
+  describe('wizard variant (round 3 Timing stage)', () => {
+    const footer = { current: null as CalFooter | null };
+    const mountWizard = (svc: ReturnType<typeof fakeServices>, done = vi.fn()): void => {
+      current = mount(
+        wrap(
+          <CalibrationCard
+            variant="wizard"
+            allowSkip
+            services={svc}
+            onDone={done}
+            renderFooter={(f) => {
+              footer.current = f;
+              return (
+                <div data-testid="footer">
+                  {f.skip ? <button type="button" onClick={f.skip.onClick}>{f.skip.label}</button> : null}
+                  {f.primary ? <button type="button" aria-disabled={f.primary.disabled ? 'true' : undefined} onClick={f.primary.onClick}>{f.primary.label}</button> : null}
+                </div>
+              );
+            }}
+          />,
+        ),
+      );
+    };
+    it('idle: the output, the preview, Start timing check and Skip for now in the footer; details hold the device select', () => {
+      mountWizard(fakeServices());
+      expect(document.body.textContent).toContain('Sound comes from');
+      expect(footer.current?.primary?.label).toBe('Start timing check');
+      expect(footer.current?.skip?.label).toBe('Skip for now');
+      expect(footer.current?.note).toBe('Skipped, your tries are practice until you run it.');
+      expect(document.querySelector('[data-testid="cal-details"] summary')?.textContent).toBe('Details for support');
+      expect(document.querySelector('[data-testid="cal-details"]')?.textContent).toContain('Input device');
+      // Export diagnostics is never at the top level.
+      expect(names().filter((n) => n === 'Export diagnostics')).toHaveLength(0);
+    });
+    it('a pass says the measured number and Next finishes with it', async () => {
+      const done = vi.fn();
+      mountWizard(fakeServices({ output: 'wired', playAlong: [playAlongOk()] }), done);
+      await press('Start timing check');
+      expect(document.querySelector('[data-testid="cal-result"]')?.textContent).toMatch(/Measured: \d+ ms\. Timing marks will be fair\./);
+      await press('Next');
+      expect(done).toHaveBeenCalledWith('calibrated', expect.any(Number));
+    });
+    it('a failed loopback leads with the count and why the alternative shows, and the footer tries the clicks again', async () => {
+      mountWizard(fakeServices({ loopback: [loopbackBad()] }));
+      await press('Start timing check');
+      expect(document.querySelector('[data-testid="cal-fail"]')?.textContent).toBe('We heard 2 of 10 clicks, not enough to time them.');
+      expect(document.body.textContent).toContain("Shown because the clicks weren't heard.");
+      expect(document.querySelector('[data-testid="cal-play-along"]')?.textContent).toContain('Play along instead');
+      expect(footer.current?.primary?.label).toBe('Try the clicks again');
+    });
+    it('the mandatory path (R16) has no skip', () => {
+      mountWizard(fakeServices({ caps: { osFamily: 'ios', outputLatencyReported: false }, output: 'wired', playAlong: [playAlongOk()] }));
+      expect(footer.current?.skip).toBeNull();
+    });
   });
   it('iOS: beta label, XP note, no Skip control (R16), and a failed run never traps the player', async () => {
     const svc = fakeServices({ caps: { osFamily: 'ios', outputLatencyReported: false }, output: 'wired', playAlong: [playAlongBad(), playAlongBad()] });
     current = mount(wrap(<CalibrationCard services={svc} onDone={() => undefined} allowSkip />));
     expect(document.body.textContent).toContain('iOS: beta');
     expect(document.body.textContent).toContain('On iPhone and iPad, tries earn XP only after this check.');
-    expect(names()).toEqual(['Hear the click', 'Start']);
-    await press('Start');
+    expect(names()).not.toContain('Skip for now');
+    await press('Start timing check');
     await press('Try again');
     expect(names()).toContain('Use an estimate');
   });
@@ -225,16 +296,17 @@ describe('CalibrationCard', () => {
     expect(names()).toContain('Hear the click');
     await press('Hear the click');
     expect(svc.calls).toContain('hear');
-    act(() => button('Start').click());
+    act(() => button('Start timing check').click());
     expect(svc.stops).toBeGreaterThan(0);
     await act(async () => {
       await new Promise((r) => setTimeout(r, 0));
     });
     expect(names()).not.toContain('Hear the click');
     expect(document.body.textContent).toContain('Device choice is locked while we listen.');
+    expect(document.body.textContent).toContain('0 of 10 clicks heard');
     expect([...document.querySelectorAll('select')].every((x) => x.closest('[aria-disabled="true"]') !== null || x.disabled || x.getAttribute('aria-disabled') === 'true')).toBe(true);
     // The mark of the click that has sounded is lit; the others wait.
-    expect(document.querySelectorAll('.cal-dot[data-state="sounding"], .cal-dot[data-state="heard"]')).toHaveLength(1);
+    expect(document.querySelectorAll('.cal-dots')[0]!.querySelectorAll('.cal-dot[data-state="sounding"], .cal-dot[data-state="heard"]')).toHaveLength(1);
     await act(async () => {
       release(loopbackOk());
       await new Promise((r) => setTimeout(r, 0));
@@ -242,25 +314,25 @@ describe('CalibrationCard', () => {
     expect(names()).toContain('Hear the click');
     expect(document.body.textContent).not.toContain('Device choice is locked');
   });
-  it('Skip is available where allowed and is not shown while running', async () => {
+  it('Skip is available where allowed', async () => {
     const svc = fakeServices();
     const done = vi.fn();
     current = mount(wrap(<CalibrationCard services={svc} onDone={done} allowSkip />));
-    click(button('Skip'));
+    click(button('Skip for now'));
     expect(done).toHaveBeenCalledWith('skipped');
   });
   it('a thrown run reads as a failure with a retry', async () => {
     const svc = fakeServices();
     svc.runLoopback = () => Promise.reject(new Error('no audio'));
     current = mount(wrap(<CalibrationCard services={svc} onDone={() => undefined} />));
-    await press('Start');
+    await press('Start timing check');
     expect(document.body.textContent).toContain("The audio check couldn't run. Try again.");
-    expect(names()).toContain('Try again');
+    expect(names()).toContain('Try the clicks again');
   });
   it('changing output resets the card and stores the preference', async () => {
     const svc = fakeServices();
     current = mount(wrap(<CalibrationCard services={svc} onDone={() => undefined} />));
-    const sel = document.querySelector<HTMLSelectElement>('select[aria-label="Output"]');
+    const sel = document.querySelector<HTMLSelectElement>('select[aria-label="Sound comes from"]');
     expect(sel).not.toBeNull();
     const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set;
     act(() => {
@@ -304,7 +376,7 @@ describe('stages', () => {
       });
     current = mount(wrap(<CalibrationCard services={svc} onDone={() => undefined} />));
     expect([...document.querySelectorAll('.cal-stage-row')].map((r) => r.getAttribute('data-stage'))).toEqual(['timing', 'template', 'pitch', 'count-in']);
-    await press('Start');
+    await press('Start timing check');
     const now = (): string => document.querySelector('[data-testid="cal-now"]')?.textContent ?? '';
     expect(document.querySelectorAll('[role="status"]')).toHaveLength(1);
     expect(now()).toBe('Getting ready. Stay quiet.');
@@ -328,9 +400,8 @@ describe('stages', () => {
   it('ends with the delay, what it means, and the audio check in plain words with a line per failure and skip', async () => {
     const svc = fakeServices({ loopback: [loopbackOk({ checks: checksSpeakers({ 'clock-rate': 'fail', recheck: 'fail' }) })] });
     current = mount(wrap(<CalibrationCard services={svc} onDone={() => undefined} />));
-    await press('Start');
-    expect(document.body.textContent).toContain("Your setup adds 42 ms. We'll correct for it.");
-    expect(document.body.textContent).toContain('how long a sound takes to leave your speakers and reach the mic');
+    await press('Start timing check');
+    expect(document.body.textContent).toContain('Measured: 42 ms. Timing marks will be fair.');
     // Stages carry their own results: the count-in stage failed, and says what that means.
     const status = (id: string): string | null => document.querySelector(`[data-stage="${id}"]`)?.getAttribute('data-status') ?? null;
     expect(['timing', 'template', 'pitch', 'count-in'].map(status)).toEqual(['passed', 'done', 'passed', 'failed']);
@@ -350,5 +421,13 @@ describe('stages', () => {
     expect(names()).not.toContain('Check audio');
     await press('Calibrate again');
     expect(svc.calls.filter((c) => c === 'loopback')).toHaveLength(2);
+  });
+});
+
+describe('#/calibrate exits (round 3, 01-ux-review problem 10)', () => {
+  it('Back and Continue return to where the player came from: Home by default, Settings > Sound from Settings', () => {
+    expect(calibrateReferrer('#/calibrate')).toEqual({ path: '/', label: 'Home' });
+    expect(calibrateReferrer('#/calibrate?from=home')).toEqual({ path: '/', label: 'Home' });
+    expect(calibrateReferrer('#/calibrate?from=settings')).toEqual({ path: '/settings/audio', label: 'Settings' });
   });
 });

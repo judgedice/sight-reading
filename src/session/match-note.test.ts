@@ -5,7 +5,8 @@ import type { MessagePortLike, WorkerLike, WorkerMessage, WorkerReply } from '..
 import { configs } from '../../fixtures/follow/gen/io.ts';
 import { DspWorkerCore } from '../platform/web/audio/dsp-worker-core.ts';
 import { FakeAudioBackend, type FakeBackendOptions } from '../testkit/fake-backend.ts';
-import { MATCH_NOTE, MatchNoteService, type MatchFrame, type MatchTimers } from './match-note.ts';
+import type { PitchSteadiness } from '../core/types.ts';
+import { MATCH_NOTE, MatchNoteService, pitchModeConfigFor, type MatchFrame, type MatchTimers } from './match-note.ts';
 
 const cfg = configs();
 const RATE = 48000;
@@ -91,7 +92,7 @@ interface Rig {
   runTo(clock: number): Promise<void>;
 }
 
-function rig(opts: FakeBackendOptions, o: { port?: boolean } = {}): Rig {
+function rig(opts: FakeBackendOptions, o: { port?: boolean; steadiness?: () => PitchSteadiness | undefined } = {}): Rig {
   const audio = new FakeAudioBackend({ sampleRate: RATE, ...opts }) as FakeAudioBackend & { releasedInputs: number; releaseInput(): void };
   audio.releasedInputs = 0;
   audio.releaseInput = () => {
@@ -118,6 +119,7 @@ function rig(opts: FakeBackendOptions, o: { port?: boolean } = {}): Rig {
       return w;
     },
     ...(channel ? { createCaptureChannel: channel } : {}),
+    ...(o.steadiness ? { steadiness: o.steadiness } : {}),
   });
   const r: Rig = {
     audio,
@@ -263,6 +265,41 @@ describe('MatchNoteService: listen (worker pitch mode)', () => {
   it('listen before any target is an error', async () => {
     const r = rig({});
     await expect(r.service.listen(() => undefined)).rejects.toThrow(/before playTarget/);
+  });
+});
+
+describe('MatchNoteService: the steady needle (round 3)', () => {
+  it('the pitch mode carries the preset: by family when the setting is absent, the setting when set', () => {
+    const f = { analysisRate: 16000, a4Hz: 440, fromT: 0 };
+    expect(pitchModeConfigFor(cfg.instrumentById['voice-baritone']!, f).steadiness).toBe('steady');
+    expect(pitchModeConfigFor(cfg.instrumentById['flute']!, f).steadiness).toBe('balanced');
+    expect(pitchModeConfigFor(cfg.instrumentById['voice-baritone']!, { ...f, steadiness: 'quick' }).steadiness).toBe('quick');
+    expect(pitchModeConfigFor(cfg.instrumentById['cello']!, { ...f, steadiness: undefined }).steadiness).toBe('balanced');
+  });
+
+  it('reads the setting at each listen, and every frame carries the filter reading: hidden, then the note', async () => {
+    let setting: PitchSteadiness | undefined = 'quick';
+    const r = rig({ source: tone(hzOf(E3, 6), 0.3, 2) }, { steadiness: () => setting });
+    const { listenFrom } = await playThenListen(r, 'voice-baritone');
+    await r.runTo(listenFrom + 0.01);
+    const capturedAt = r.audio.log.calls.find((c) => c.method === 'startCapture')!.at;
+    await r.runTo(capturedAt + 1.6);
+    const msg = r.workers[0]!.messages[0]!;
+    expect(msg.type === 'pitch' && msg.cfg.steadiness).toBe('quick');
+    const onsetMs = (capturedAt + 0.3) * 1000;
+    expect(r.frames.filter((f) => f.t < onsetMs - 40).every((f) => f.reading.settledMidi === null && f.reading.gap === 'hidden')).toBe(true);
+    const held = r.frames.filter((f) => f.t >= onsetMs + 300 && f.t <= onsetMs + 1200);
+    expect(held.length).toBeGreaterThan(30);
+    for (const f of held) {
+      expect(f.reading.gap).toBe('none');
+      expect(Math.abs((f.reading.settledMidi! - E3) * 100 - 6)).toBeLessThanOrEqual(2);
+      expect(f.reading.judgeMidi).not.toBeNull();
+    }
+    setting = undefined;
+    void r.service.listen((f) => r.frames.push(f));
+    await r.runTo((r.audio.now() as number) + 0.1);
+    const again = r.workers[r.workers.length - 1]!.messages[0]!;
+    expect(again.type === 'pitch' && again.cfg.steadiness).toBe('steady');
   });
 });
 

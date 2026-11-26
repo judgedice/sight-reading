@@ -8,7 +8,7 @@ import { Button } from '../../../ui/components/form/index.ts';
 import { RankEmblem } from '../../../ui/components/domain/index.ts';
 import { PICKER_GROUPS, voiceClef, type PickerResult, type PickerSoundView } from '../../../ui/components/picker/index.ts';
 import { RangePicture } from '../../../ui/components/range/index.ts';
-import { ModeControl, XpLine, lineText, type RankedBlock } from '../../../ui/components/setup/index.ts';
+import { ModeControl, ModePill, XpLine, lineText, type RankedBlock } from '../../../ui/components/setup/index.ts';
 import { splitAt } from '../../../ui/components/setup/text.ts';
 import { Glyph } from '../../../ui/primitives/Glyph.tsx';
 import { openOverlayCount } from '../../../ui/primitives/index.ts';
@@ -107,8 +107,8 @@ const ROW_LABEL = { difficulty: 'row.level', key: 'row.key', time: 'row.time', t
 type Notice = Exclude<HomeBanner, { kind: 'calibrate' }> | { kind: 'mic-denied' };
 
 /**
- * Notices in priority order (05 section 8.6): storage loss, microphone off (or blocked), Bluetooth, offer. There is no
- * calibration banner (round 2, 01-ux section 4): the status pill and the Mode line say it.
+ * Notices in priority order (05 section 8.6): storage loss, microphone off (or blocked), offer. There is no
+ * calibration banner (round 2, 01-ux section 4) and no audio-delay banner (round 3, R80): the status pill says them.
  */
 function pickNotice(list: readonly HomeBanner[], micDenied: boolean): Notice | null {
   for (const kind of BANNER_PRIORITY) {
@@ -138,8 +138,6 @@ function NoticeRow({ services, notice }: { services: HomeServices; notice: Notic
       return <Banner tone="caution" text={copy('banner.micOff')} action={{ label: copy('action.checkMicrophone'), onClick: () => navigate('/calibrate') }} />;
     case 'mic-denied':
       return <Banner tone="caution" text={`${copy('permission.denied.title')} ${deniedSteps(services)}`} />;
-    case 'bluetooth':
-      return <Banner tone="caution" text={copy('banner.bluetooth')} />;
     case 'level-up':
       return (
         <Banner
@@ -261,7 +259,7 @@ function MatchRow({ phone, voice, onOpen }: { phone: boolean; voice: boolean; on
         <Glyph id="tuning-fork" size={20} />
       </span>
       <span className="home-match-text">
-        <span className="home-match-title">{copy(phone ? 'match.entry.phone' : 'match.entry')}</span>
+        <span className="home-match-title">{copy('match.entry')}</span>
         {phone ? null : <span className="home-match-body">{copy(voice ? 'home.matchEntry.body' : 'home.matchEntry.body.instrument')}</span>}
       </span>
       <Glyph id="chevron-right" size={20} className="home-match-chevron" />
@@ -280,7 +278,7 @@ function ScalesRow({ phone, onOpen }: { phone: boolean; onOpen: () => void }) {
         <Glyph id="key-chord" size={20} />
       </span>
       <span className="home-match-text">
-        <span className="home-match-title">{copy(phone ? 'scales.entry.phone' : 'scales.entry')}</span>
+        <span className="home-match-title">{copy('scales.entry')}</span>
         {phone ? null : <span className="home-match-body">{copy('scales.entry.body')}</span>}
       </span>
       <Glyph id="chevron-right" size={20} className="home-match-chevron" />
@@ -330,12 +328,28 @@ function StateCard({
 
 // ---- Screen ----------------------------------------------------------------------------------------------------
 
-/** Practice: see and change the setup, know whether the take will count, start (05 sections 5 and 8.6). */
 /** Space belongs to a focused control (a button, a field, a radio) before it starts a take. */
 const isControl = (t: EventTarget | null): boolean =>
   t instanceof Element &&
   t.closest('button, a, input, select, textarea, [contenteditable], [role="button"], [role="checkbox"], [role="radio"], [role="switch"], [role="slider"], [role="spinbutton"], [role="option"], [role="dialog"]') !== null;
 
+/** "Warm up": Match a note and Sing a scale, under one label, named the same on both sizes (01-ux-review problem 12). */
+function WarmUps({ phone, voice, scales, onMatch, onScales }: { phone: boolean; voice: boolean; scales: boolean; onMatch: () => void; onScales: () => void }) {
+  return (
+    <section className="home-warmups" aria-labelledby={phone ? 'home-warmup-phone' : 'home-warmup'}>
+      <h2 id={phone ? 'home-warmup-phone' : 'home-warmup'} className="home-warmup-title">
+        {copy('home.warmup')}
+      </h2>
+      <MatchRow phone={phone} voice={voice} onOpen={onMatch} />
+      {scales ? <ScalesRow phone={phone} onOpen={onScales} /> : null}
+    </section>
+  );
+}
+
+/**
+ * Home: see and change the setup, know whether the try will count, start (05 sections 5 and 8.6; round 3 §4, §5).
+ * The mode shown is the mode delivered (R79): Ranked shows only when the shared check says the try can be ranked.
+ */
 export function HomeScreen(_props: ScreenProps) {
   const services = useServices();
   const navigate = useNavigate();
@@ -414,23 +428,29 @@ export function HomeScreen(_props: ScreenProps) {
   };
 
   const block: RankedBlock | null = availability && !availability.available ? availability.block : null;
-  const mode = block ? 'practice' : practice.mode;
+  // Until the check answers, nothing says Ranked (R79): the screen shows Practice.
+  const checking = availability !== null && !availability.available && availability.block === null;
+  const mode = block || checking ? 'practice' : practice.mode;
+  // The settings the screen shows and starts: Ranked is at the player's difficulty, Practice at the chosen one (R76).
+  const shown = useMemo(() => (mode === practice.mode ? practice : normalize({ ...practice, mode }, ctx)), [mode, practice, ctx]);
 
   const inst = services.configs.instrumentById[practice.instrumentId];
-  const level = effectiveLevel(practice, ctx);
-  const model = useMemo(() => setupModel(practice, ctx), [practice, ctx]);
+  const level = effectiveLevel(shown, ctx);
+  const model = useMemo(() => setupModel(shown, ctx), [shown, ctx]);
+  const yourLevel = ctx.playerLevel(practice.instrumentId);
+  // R77: every piece at the player's difficulty has been read; offer the next one early.
+  const exhausted = mode === 'ranked' && yourLevel < 10 && services.unseenRanked !== undefined && services.unseenRanked(practice.instrumentId, yourLevel) === 0;
   const range = useMemo(() => (inst ? rangeDataFor(services.configs, inst, level) : null), [services.configs, inst, level]);
 
   const sessionPool = view.suggestions && view.suggestions.length > 0 && view.suggestions !== stalePool ? view.suggestions : null;
-  const suggestions = sessionPool ?? localSuggestions(practice, ctx);
+  const suggestions = sessionPool ?? localSuggestions(shown, ctx);
   const empty = suggestions.length > 0;
   const loading = view.state === 'loading';
 
   const start = (): void => {
     if (empty || loading) return;
     services.settings.set({ ...services.settings.get(), practice });
-    const s = mode === practice.mode ? practice : { ...practice, mode };
-    if (services.onStart?.(s) === true) return;
+    if (services.onStart?.(shown) === true) return;
     navigate('/practice/scan');
   };
 
@@ -452,7 +472,21 @@ export function HomeScreen(_props: ScreenProps) {
     ? (bpm: number, beats: number): void => void services.hearTempo?.(bpm, beats).catch(() => undefined)
     : undefined;
 
-  const calibrate = (): void => navigate('/calibrate');
+  const calibrate = (): void => navigate('/calibrate?from=home');
+  // "Find my difficulty" (R75): placement's pieces are ranked, so the link shows only when Ranked is available.
+  const findLevel =
+    services.startPlacement && availability?.available === true
+      ? (): void => {
+          services.startPlacement?.();
+          navigate('/practice/scan');
+        }
+      : undefined;
+  const exhaustedOffer = exhausted ? (
+    <div className="home-exhausted" data-testid="exhausted-offer">
+      <p className="su-hint su-hint-strong">{copy('setup.difficulty.exhausted', { level: yourLevel, next: yourLevel + 1 })}</p>
+      <Button size="compact" variant="secondary" label={copy('action.goToLevel', { level: yourLevel + 1 })} onClick={() => services.moveUp(practice.instrumentId, yourLevel + 1)} />
+    </div>
+  ) : null;
   const openMatch = (): void => (services.openMatch ? services.openMatch() : navigate('/match'));
   const allTries = (): void => navigate('/history');
   // Scales (PLAN ruling 68): only for an instrument whose set is in config/scales.json.
@@ -478,7 +512,7 @@ export function HomeScreen(_props: ScreenProps) {
     ) : null;
 
   const fix = (b: RankedBlock): void => {
-    if (b === 'calibration') {
+    if (b === 'calibration' || b === 'delay') {
       calibrate();
       return;
     }
@@ -558,7 +592,7 @@ export function HomeScreen(_props: ScreenProps) {
   const startButton = (
     <Button
       id={START_BUTTON_ID}
-      label={loading ? copy('home.loadingMusic') : copy('action.start')}
+      label={loading ? copy('home.loadingMusic') : copy(mode === 'ranked' ? 'action.startRanked' : 'action.startPractice')}
       variant="primary"
       size="hero"
       loading={loading}
@@ -573,14 +607,20 @@ export function HomeScreen(_props: ScreenProps) {
   // summary card's calibration row has it, so the Mode line names the reason without a link.
   const modeFix = wide || block !== 'calibration' || !calStatus ? fix : undefined;
   const modeControl = <ModeControl value={mode} rankedBlock={block} onFix={modeFix} onChange={(m) => apply({ mode: m })} />;
-  const xpLine = empty ? null : <XpLine line={model.xp.line} none={model.xp.none} />;
+  // The mode pill beside Start (R79): what Start delivers, in the same look as the cover, the try and results.
+  const xpLine = (
+    <div className="home-go-mode">
+      {empty ? <span /> : <XpLine line={model.xp.line} none={model.xp.none} />}
+      <ModePill mode={mode} />
+    </div>
+  );
   const lastLine = lastTry ? <LastTryLine last={lastTry} short={!wide} onAll={allTries} /> : null;
 
   if (wide) {
     return (
       <section className="home home-wide" data-testid="screen-home" data-route-id="home">
         <div className="home-head">
-          <h1 className="home-title">{copy('setup.title')}</h1>
+          <h1 className="home-title">{copy('nav.home')}</h1>
           <div className="home-head-status">
             <TodayLine services={services} className="home-today home-today-inline" />
             <span className="home-head-rule" aria-hidden="true" />
@@ -628,24 +668,23 @@ export function HomeScreen(_props: ScreenProps) {
                 <RangePicture data={range} instrumentName={name} onHearNote={hearNote} soundingSlot={soundingSlot} />
               </div>
             ) : null}
-            <div className={scaleSet ? 'home-warmups home-warmups-pair' : 'home-warmups'}>
-              <MatchRow phone={false} voice={voice} onOpen={openMatch} />
-              {scaleSet ? <ScalesRow phone={false} onOpen={() => setScalesOpen(true)} /> : null}
-            </div>
+            <WarmUps phone={false} voice={voice} scales={scaleSet !== null} onMatch={openMatch} onScales={() => setScalesOpen(true)} />
           </section>
           <section className="home-card home-setup" aria-label={copy('action.changeSetup')}>
             <SetupForm
               layout="form"
-              value={practice}
+              value={shown}
               ctx={ctx}
-              onChange={save}
+              onChange={(next, notes) => save({ ...next, mode: practice.mode }, notes)}
               notes={fallback.notes}
               onNoteExpire={fallback.expire}
               onHearTempo={hearTempo}
-              onMatch={openMatch}
+              onFindLevel={findLevel}
+              placementCount={services.configs.progression.placement.excerpts}
+              difficultyExtra={exhaustedOffer}
+              top={<div className="home-setup-mode setup-slot">{modeControl}</div>}
             />
             <div className="home-setup-foot setup" data-testid="setup-foot">
-              <div className="home-setup-mode">{modeControl}</div>
               {errorCard}
               {emptyCard}
               {xpLine}
@@ -663,10 +702,12 @@ export function HomeScreen(_props: ScreenProps) {
   return (
     <section className="home home-narrow" data-testid="screen-home" data-route-id="home">
       <div className="home-head home-head-narrow">
-        <h1 className="home-title">{copy('setup.title')}</h1>
+        <h1 className="home-title">{copy('nav.home')}</h1>
         <TodayLine services={services} className="home-today home-today-strip" />
       </div>
       {notice ? <NoticeRow key={notice.kind} services={services} notice={notice} /> : null}
+      <div className="home-mode setup">{modeControl}</div>
+      {exhaustedOffer}
       <section className="home-card home-summary" aria-label={copy('action.changeSetup')}>
         {inst && range ? (
           <button type="button" className="home-summary-inst" onClick={() => setPicking(true)}>
@@ -685,7 +726,7 @@ export function HomeScreen(_props: ScreenProps) {
         <div className="home-chips">
           {SETUP_ROWS.map((row) => {
             const label = copy(ROW_LABEL[row]);
-            const value = rowValueText(row, practice, ctx);
+            const value = rowValueText(row, shown, ctx);
             return (
               <button
                 key={row}
@@ -713,22 +754,19 @@ export function HomeScreen(_props: ScreenProps) {
       </section>
       {errorCard}
       {emptyCard}
-      <div className="home-mode setup">{modeControl}</div>
       <div className="home-go">
+        {xpLine}
         {startButton}
         {lastLine}
       </div>
-      <div className="home-warmups">
-        <MatchRow phone voice={voice} onOpen={openMatch} />
-        {scaleSet ? <ScalesRow phone onOpen={() => setScalesOpen(true)} /> : null}
-      </div>
+      <WarmUps phone voice={voice} scales={scaleSet !== null} onMatch={openMatch} onScales={() => setScalesOpen(true)} />
       {scalesChooser}
       <SetupSheet
         open={sheetRow !== null}
         row={sheetRow}
-        value={practice}
+        value={shown}
         ctx={ctx}
-        onChange={save}
+        onChange={(next, notes) => save({ ...next, mode: practice.mode }, notes)}
         onClose={() => setSheetRow(null)}
         notes={fallback.notes}
         onNoteExpire={fallback.expire}

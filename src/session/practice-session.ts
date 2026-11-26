@@ -119,7 +119,7 @@ import {
   withRecheckSpec,
   type WorkerRecheckSpec,
 } from '../calibration/index.ts';
-import { buildAudioEnv, calibrationForRoute, evaluateTakeGate, rankedAvailability, type RankedAvailability } from './gates/index.ts';
+import { buildAudioEnv, calibrationForRoute, evaluateTakeGate, rankedAvailability, routeKeyForOutput, type RankedAvailability } from './gates/index.ts';
 import {
   LISTEN,
   chordLengthSec,
@@ -147,7 +147,7 @@ import {
   voiceReferenceTones,
   type TakePlan,
 } from './take-plan.ts';
-import { createSessionStore, type SessionView } from './view-store.ts';
+import { createSessionStore, type PracticeReason, type SessionView } from './view-store.ts';
 import type { StoreApi } from 'zustand/vanilla';
 
 /** Timers the session uses (core has no DOM or Node timer types; the browser's satisfy this). */
@@ -279,6 +279,8 @@ interface Current {
   firstClickRestarts: number;
   /** Listened first in a ranked read-through: practice, recorded as `listened-first` (08 decision 7). */
   listenedFirst: boolean;
+  /** Why a ranked request is practice (round 3, R79); null when ranked or practice by choice. */
+  practiceReason: PracticeReason | null;
 }
 
 interface Take {
@@ -522,6 +524,8 @@ export class PracticeSession implements PracticeSessionInstance {
     this.setState('loading');
     try {
       const profile = await this.loadProfile(s.instrumentId);
+      // Nothing says Ranked unless the try can be ranked (R79): the same predicate as Home's Mode control.
+      const blocked = s.mode === 'ranked' ? await this.rankedBlockFor(s) : null;
       const history = await this.history(profile, s);
       const r = await selectAndPrepare(this.manifest, s, history, this.cfg, this.rng, (id) => loadExcerpt(this.manifest, id, this.platform.assets), this.docCache);
       if ('error' in r) {
@@ -548,8 +552,12 @@ export class PracticeSession implements PracticeSessionInstance {
         stopsBeforeFirstNote: 0,
         firstClickRestarts: 0,
         listenedFirst: false,
+        practiceReason: null,
         scale: null,
       };
+      const cur = this.current;
+      if (blocked) this.demote(cur, 'calibration', false);
+      else if (cur.seenBefore) this.demote(cur, 'seen-before', false);
       this.emit({ type: 'prepared', excerpt: r.prepared });
       this.setState('covered');
       this.syncMode(this.current);
@@ -598,6 +606,7 @@ export class PracticeSession implements PracticeSessionInstance {
         stopsBeforeFirstNote: 0,
         firstClickRestarts: 0,
         listenedFirst: false,
+        practiceReason: null,
         scale: { scaleId, bpm: plan.bpm },
       };
       this.current = c;
@@ -643,6 +652,7 @@ export class PracticeSession implements PracticeSessionInstance {
     const done = p.then(
       (route) => {
         this.route = route;
+        void this.checkRoute(route);
         return route;
       },
       (e: unknown) => {
@@ -711,6 +721,7 @@ export class PracticeSession implements PracticeSessionInstance {
     c.firstClickRestarts = 0;
     // Try again is practice by choice, so its reason is `practice-mode` again.
     c.listenedFirst = false;
+    c.practiceReason = null;
     this.startScan(c);
     this.syncMode(c);
   }
@@ -718,7 +729,42 @@ export class PracticeSession implements PracticeSessionInstance {
   /** Mirrors the excerpt's mode into the view (the scan chip; 05 §4.3 step 4). */
   private syncMode(c: Current): void {
     const v = this.view.getState();
-    if (v.mode !== c.mode || v.listenedFirst !== c.listenedFirst) this.view.setState({ mode: c.mode, listenedFirst: c.listenedFirst });
+    if (v.mode !== c.mode || v.listenedFirst !== c.listenedFirst || v.practiceReason !== c.practiceReason) {
+      this.view.setState({ mode: c.mode, listenedFirst: c.listenedFirst, practiceReason: c.practiceReason });
+    }
+  }
+
+  /**
+   * A ranked request that cannot be ranked becomes practice now, with its reason (round 3, R79): the cover, the
+   * read-through and the try strip say Practice from this moment, and the record carries the reason.
+   */
+  private demote(c: Current, reason: PracticeReason, sync = true): void {
+    if (c.mode !== 'ranked') return;
+    c.mode = 'practice';
+    c.practiceReason = reason;
+    if (reason === 'listened-first') c.listenedFirst = true;
+    if (sync) this.syncMode(c);
+  }
+
+  /** The Mode control's predicate for these settings, before audio is open: null when the try can be ranked. */
+  private async rankedBlockFor(s: PracticeSettings): Promise<RankedAvailability['block']> {
+    // ?testClock=1 runs without calibration (01 §13.4); its tests drive ranked read-throughs on purpose.
+    if (this.opts.rtlOverrideMs !== undefined) return null;
+    const a = await this.rankedAvailability({ listening: s.listening, outputMode: s.outputMode }).catch(() => null);
+    return a && !a.available ? a.block : null;
+  }
+
+  /**
+   * Once audio is open the route the try will use is known: a ranked excerpt whose route has no measured calibration,
+   * or one above the delay ceiling, becomes practice at once, before the try starts (R79).
+   */
+  private async checkRoute(route: AudioRouteInfo): Promise<void> {
+    const c = this.current;
+    if (!c || c.mode !== 'ranked' || this.opts.rtlOverrideMs !== undefined) return;
+    const calibrations = await this.platform.repos.calibrations.all().catch(() => null);
+    if (!calibrations || this.current !== c || c.mode !== 'ranked') return;
+    const a = rankedAvailability({ routeKey: route.routeKey, routeOutputMode: route.outputMode, outputMode: c.settings.outputMode, calibrations, listening: true, permission: 'granted', maxRtlMs: this.cfg.grading.ranked.maxRtlMs });
+    if (!a.available && (this._state === 'covered' || this._state === 'scanning')) this.demote(c, 'calibration');
   }
 
   private reveal(c: Current): void {
@@ -1158,10 +1204,8 @@ export class PracticeSession implements PracticeSessionInstance {
     const c = this.current;
     if (!c || (this._state !== 'scanning' && this._state !== 'covered')) return Promise.reject(new SessionError('unknown', `listenFirst in state ${this._state}`));
     if (c.mode === 'ranked') {
-      c.mode = 'practice';
-      c.listenedFirst = true;
       c.placement = false;
-      this.syncMode(c);
+      this.demote(c, 'listened-first');
     }
     return this.listen({});
   }
@@ -1343,8 +1387,16 @@ export class PracticeSession implements PracticeSessionInstance {
       this.platform.repos.calibrations.all(),
       this.audio.permissionState().catch(() => 'unknown' as const),
     ]);
-    const routeKey = f.routeKey !== undefined ? f.routeKey : (this.route?.routeKey ?? null);
-    return rankedAvailability({ routeKey, outputMode: f.outputMode, calibrations, listening: f.listening, permission });
+    // The open route counts only when it was opened for this output mode (the key includes it).
+    const known = f.routeKey !== undefined;
+    const routeKey = known ? (f.routeKey ?? null) : (this.route?.routeKey ?? null);
+    const routeOutputMode = known ? undefined : (this.route?.outputMode ?? null);
+    return rankedAvailability({ routeKey, routeOutputMode, outputMode: f.outputMode, calibrations, listening: f.listening, permission, maxRtlMs: this.cfg.grading.ranked.maxRtlMs });
+  }
+
+  /** The open route's key when it was opened for `outputMode`, else null (the status line and Ranked agree on it). */
+  routeKeyFor(outputMode: PracticeSettings['outputMode']): string | null {
+    return routeKeyForOutput(this.route?.routeKey ?? null, this.route?.outputMode ?? null, outputMode);
   }
 
   private playPlan(kind: 'listen' | 'bar', plan: ListenPlan, sound: MetronomeSound, notesSound: SoundSetId | undefined, extra: { fromBar: number; slower: boolean; attemptId: string | null }): Promise<void> {
@@ -1697,7 +1749,10 @@ export class PracticeSession implements PracticeSessionInstance {
     }
     this.stopPolling();
     await this.prepare(c.settings);
-    if (this.current) this.current.skipLimitHit = skipLimitHit;
+    if (this.current) {
+      this.current.skipLimitHit = skipLimitHit;
+      if (skipLimitHit) this.demote(this.current, 'skip-limit');
+    }
   }
 
   /** Voids the running take (01 §7.9, 05 W4, W7). Returns the record promise, or null when no take runs. */
@@ -1888,7 +1943,7 @@ export class PracticeSession implements PracticeSessionInstance {
       });
       // A scale try gets the tips its mistakes call for, but not the clean-read tip: it points at the next difficulty.
       if (c.scale) tips = tips.filter((x) => x.patternId !== cfg.tips.selection.cleanReadPatternId);
-      score = { ...score, tipsShown: tips.map((x) => x.id), ...(c.listenedFirst ? { rankedReasons: listenedFirstReasons(score.rankedReasons) } : {}) };
+      score = { ...score, tipsShown: tips.map((x) => x.id), ...(c.practiceReason ? { rankedReasons: demotedReasons(score.rankedReasons, c.practiceReason) } : {}) };
       // PLAN ruling 68: a scale try is scored and graded like any try, but earns nothing.
       if (c.scale) score = { ...score, xp: { total: 0, base: 0, factors: [] } };
     }
@@ -2127,12 +2182,20 @@ export class PracticeSession implements PracticeSessionInstance {
  * `practice-mode`; the attempt records `listened-first` in its place (same position, no duplicate).
  */
 export function listenedFirstReasons(reasons: readonly RankedReason[]): RankedReason[] {
+  return demotedReasons(reasons, 'listened-first');
+}
+
+/**
+ * A ranked request that became practice before the try (R79) went through the grader as practice, which records
+ * `practice-mode`; the attempt records the reason it became practice in its place (as `listenedFirstReasons`).
+ */
+export function demotedReasons(reasons: readonly RankedReason[], why: PracticeReason): RankedReason[] {
   const out: RankedReason[] = [];
   for (const r of reasons) {
-    const next = r === 'practice-mode' ? 'listened-first' : r;
+    const next = r === 'practice-mode' ? why : r;
     if (!out.includes(next)) out.push(next);
   }
-  if (!out.includes('listened-first')) out.unshift('listened-first');
+  if (!out.includes(why)) out.unshift(why);
   return out;
 }
 

@@ -4,7 +4,8 @@
  */
 import type { OutputMode } from '../../../core/types.ts';
 
-export type CalStateView = 'ok' | 'none' | 'changed' | 'failed';
+/** `delay`: measured, above the ranked ceiling (round 3, R80). */
+export type CalStateView = 'ok' | 'none' | 'changed' | 'failed' | 'delay';
 
 export interface CalStatusView {
   state: CalStateView;
@@ -14,8 +15,10 @@ export interface CalStatusView {
   oldOutput: OutputMode | null;
   /** `ok`: when it was measured. */
   when: 'today' | 'yesterday' | { date: string } | null;
-  /** `ok`: the delay the setup adds, whole ms. */
+  /** `ok`, `delay`: the delay the setup adds, whole ms. */
   ms: number | null;
+  /** `delay`: the ranked ceiling, ms. */
+  maxMs?: number | null;
   /** `failed`: copy key of the reason line. */
   reason: string | null;
   reasonVars?: Readonly<Record<string, number>> | null;

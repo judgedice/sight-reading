@@ -66,6 +66,18 @@ export function calTexts(s: CalStatusView, seconds: number = DEFAULT_CALIBRATE_S
         action: again,
       };
     }
+    case 'delay': {
+      // Measured number first, no cause named (R80): the status says what it changes, not what the device is.
+      const full = copy('calStatus.delay');
+      return {
+        full,
+        short: full,
+        lead: full,
+        title: full,
+        detail: copy('calStatus.delay.detail', { ms: s.ms ?? 0, max: s.maxMs ?? 0 }),
+        action: copy('action.runCheckAgain'),
+      };
+    }
     case 'failed': {
       const reason = s.reason !== null && isCopyKey(s.reason) ? copy(s.reason, { ...(s.reasonVars ?? {}) }) : '';
       const full = copy('calStatus.failed');

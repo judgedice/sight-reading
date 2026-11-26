@@ -15,7 +15,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
-import { watchErrors } from './loop/flow.ts';
+import { walkWizard, watchErrors } from './loop/flow.ts';
 
 interface Sample {
   /** Audible clock, s (`AudioBackend.audibleNow`, before the player's timing offset). */
@@ -47,16 +47,7 @@ interface Recording {
 async function onboardBaritone(page: Page): Promise<void> {
   // ?testClock=1 exposes window.__sr (the audio clock and the session) to the recorder.
   await page.goto('./?testClock=1');
-  await expect(page.getByTestId('screen-welcome')).toBeVisible({ timeout: 30_000 });
-  await page.getByRole('button', { name: 'Get started' }).click();
-  await page.getByRole('radio', { name: /^Baritone voice/ }).check();
-  await page.getByRole('button', { name: 'Continue' }).click();
-  await expect(page.getByTestId('ob-mic')).toBeVisible();
-  await page.getByRole('button', { name: 'Not now' }).click();
-  await expect(page.getByTestId('ob-level')).toBeVisible();
-  await page.getByRole('button', { name: "I'll choose" }).click();
-  await page.getByRole('button', { name: 'Start practising' }).click();
-  await expect(page.getByTestId('screen-home')).toBeVisible({ timeout: 15_000 });
+  await walkWizard(page, { mic: 'decline', instrument: /^Baritone voice/ });
 }
 
 async function openScale(page: Page): Promise<void> {

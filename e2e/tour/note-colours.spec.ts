@@ -10,7 +10,7 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import { loadLoopHelpers } from '../loop/bundle.ts';
-import { chooseOutput, LOOP_T0_SEC, pagePlan, watchErrors } from '../loop/flow.ts';
+import { chooseOutput, LOOP_T0_SEC, pagePlan, walkWizard, watchErrors } from '../loop/flow.ts';
 
 test.skip(process.env['E2E_TOUR'] !== '1', 'run with -c e2e/tour/playwright.tour.config.ts');
 
@@ -55,19 +55,7 @@ test('note colours: settings row, read-through, a try with a wrong note, the mar
   };
 
   await page.goto(`./?testClock=1&testClockSec=${LOOP_T0_SEC}`);
-  await expect(page.getByTestId('screen-welcome')).toBeVisible({ timeout: 30_000 });
-  await page.getByRole('button', { name: 'Get started' }).click();
-  await page.getByRole('radio', { name: /^Baritone voice/ }).check();
-  await page.getByRole('button', { name: 'Continue' }).click();
-  await page.getByRole('button', { name: 'Allow microphone' }).click();
-  await expect(page.getByTestId('calibration-card')).toBeVisible({ timeout: 15_000 });
-  await page.getByTestId('calibration-card').getByRole('button', { name: 'Skip' }).click();
-  await expect(page.getByTestId('ob-match')).toBeVisible();
-  await page.locator('.ob-head').getByRole('button', { name: 'Skip' }).click();
-  await expect(page.getByTestId('ob-level')).toBeVisible();
-  await page.getByRole('button', { name: "I'll choose" }).click();
-  await page.getByRole('button', { name: 'Start practising' }).click();
-  await expect(page.getByTestId('screen-home')).toBeVisible({ timeout: 15_000 });
+  await walkWizard(page, { mic: 'allow', instrument: /^Baritone voice/ });
   await chooseOutput(page, 'Wired headphones');
 
   // Settings > Display: Note colours on (off by default), played notes live always.

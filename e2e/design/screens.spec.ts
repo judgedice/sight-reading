@@ -29,7 +29,7 @@ test('every route: axe, tap targets and reduced motion', async ({ page, hasTouch
   // The scan cover: from home, Start.
   await go(page, '#/');
   await chooseOutput(page, 'Wired headphones');
-  await page.getByRole('button', { name: 'Start', exact: true }).click();
+  await page.getByRole('button', { name: /^Start (practice|ranked try)/ }).click();
   await expect(page.getByTestId('scan-cover')).toBeVisible({ timeout: 30_000 });
   await check('scan-cover');
 

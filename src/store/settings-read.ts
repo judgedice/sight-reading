@@ -26,7 +26,8 @@ export function readMetronomeSound(stored: unknown): MetronomeSound {
 /**
  * Settings as read: `practice.clickTimbre` mapped to a player's sound, and the round-2 settings
  * (`practice.autoReference`, `display.ghostsLive`, `display.showHeard`, `display.beatLine`, `display.beatLineOffsetMs`, `display.noteColours`) filled with their defaults when a
- * stored record predates them. Returns the same object when nothing changed.
+ * stored record predates them. `display.pitchSteadiness` stays absent unless it is a preset (absent: by instrument
+ * family). Returns the same object when nothing changed.
  */
 export function normaliseSettings(s: AppSettings): AppSettings {
   const sound = readMetronomeSound(s.practice.clickTimbre);
@@ -38,6 +39,9 @@ export function normaliseSettings(s: AppSettings): AppSettings {
   const beatLineOffsetMs = readBeatLineOffset(s.display.beatLineOffsetMs);
   const noteColours = typeof s.display.noteColours === 'boolean' ? s.display.noteColours : d.display.noteColours;
   const autoReference = typeof s.practice.autoReference === 'boolean' ? s.practice.autoReference : d.practice.autoReference;
+  // The Match a note needle (round 3): a preset, or absent (by instrument family). Anything else reads as absent.
+  const ps = s.display.pitchSteadiness as unknown;
+  const pitchSteadiness = ps === 'steady' || ps === 'balanced' || ps === 'quick' ? ps : undefined;
   if (
     s.practice.clickTimbre === sound &&
     s.practice.autoReference === autoReference &&
@@ -45,20 +49,23 @@ export function normaliseSettings(s: AppSettings): AppSettings {
     s.display.showHeard === showHeard &&
     s.display.beatLine === beatLine &&
     s.display.beatLineOffsetMs === beatLineOffsetMs &&
-    s.display.noteColours === noteColours
+    s.display.noteColours === noteColours &&
+    s.display.pitchSteadiness === pitchSteadiness
   ) {
     return s;
   }
+  const { pitchSteadiness: _stored, ...display } = s.display;
   return {
     ...s,
     practice: { ...s.practice, clickTimbre: sound, ...(autoReference === undefined ? {} : { autoReference }) },
     display: {
-      ...s.display,
+      ...display,
       ...(ghostsLive === undefined ? {} : { ghostsLive }),
       ...(showHeard === undefined ? {} : { showHeard }),
       ...(beatLine === undefined ? {} : { beatLine }),
       beatLineOffsetMs,
       ...(noteColours === undefined ? {} : { noteColours }),
+      ...(pitchSteadiness === undefined ? {} : { pitchSteadiness }),
     },
   };
 }

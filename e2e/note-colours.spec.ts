@@ -80,7 +80,7 @@ test('note colours: heads coloured by letter on the read-through when on, none w
 
   // On: every head takes its letter's colour, and the stems stay ink.
   await setNoteColours(page, true);
-  await page.getByRole('button', { name: 'Start', exact: true }).click();
+  await page.getByRole('button', { name: /^Start (practice|ranked try)/ }).click();
   await expect(page.getByTestId('scan-cover')).toBeVisible({ timeout: 30_000 });
   await readThrough(page);
   const on = await heads(page);
@@ -96,7 +96,7 @@ test('note colours: heads coloured by letter on the read-through when on, none w
 
   // Off again: back to ink, exactly as before.
   await setNoteColours(page, false);
-  await page.getByRole('button', { name: 'Start', exact: true }).click();
+  await page.getByRole('button', { name: /^Start (practice|ranked try)/ }).click();
   await expect(page.getByTestId('scan-cover')).toBeVisible({ timeout: 30_000 });
   await readThrough(page);
   const again = await heads(page);

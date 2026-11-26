@@ -21,7 +21,8 @@ export interface CalFailure {
   vars?: Record<string, number>;
 }
 
-export type CalState = 'ok' | 'none' | 'changed' | 'failed';
+/** `delay`: measured, but above the ranked ceiling (round 3, R80): "Timing: long delay". */
+export type CalState = 'ok' | 'none' | 'changed' | 'failed' | 'delay';
 
 export interface CalStatus {
   state: CalState;
@@ -31,8 +32,10 @@ export interface CalStatus {
   oldOutput: OutputMode | null;
   /** `ok`: when the calibration was measured. */
   when: 'today' | 'yesterday' | { date: string } | null;
-  /** `ok`: the round-trip delay the setup adds, whole ms. */
+  /** `ok` and `delay`: the round-trip delay the setup adds, whole ms. */
   ms: number | null;
+  /** `delay`: the ranked ceiling, ms. */
+  maxMs?: number | null;
   /** `failed`: copy key of the reason line. */
   reason: string | null;
   /** `failed`: values for the reason's placeholders. */
@@ -50,6 +53,8 @@ export interface CalStatusFacts {
   now: number;
   /** The player's local calendar day (`yyyy-mm-dd`) of an epoch ms. */
   localDay(ms: number): string;
+  /** `grading.ranked.maxRtlMs`: a measured delay above it reads `delay`. Absent: never. */
+  maxRtlMs?: number;
 }
 
 const DAY_MS = 86_400_000;
@@ -79,6 +84,7 @@ export function calibrationStatus(f: CalStatusFacts): CalStatus {
     const c = applicable(f);
     // `rankedAvailability` and `applicable` share one test, so `c` is set; a null would be a bug, read as none.
     if (!c) return blank;
+    if (f.maxRtlMs !== undefined && c.roundTripMs > f.maxRtlMs) return { ...blank, state: 'delay', output: c.outputMode, when: whenOf(c.measuredAt, f), ms: Math.round(c.roundTripMs), maxMs: f.maxRtlMs };
     return { ...blank, state: 'ok', output: c.outputMode, when: whenOf(c.measuredAt, f), ms: Math.round(c.roundTripMs) };
   }
   if (f.lastFailure) return { ...blank, state: 'failed', reason: f.lastFailure.reason, reasonVars: f.lastFailure.vars ?? null };

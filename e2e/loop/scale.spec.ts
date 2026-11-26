@@ -5,26 +5,14 @@
 // Run with -c e2e/loop/playwright.loop.config.ts (the production build and the fake microphone).
 import { expect, test, type Page } from '@playwright/test';
 import { loadLoopHelpers } from './bundle.ts';
-import { chooseOutput, LOOP_T0_SEC, pagePlan, watchErrors } from './flow.ts';
+import { chooseOutput, LOOP_T0_SEC, pagePlan, walkWizard, watchErrors } from './flow.ts';
 
 test.skip(process.env['E2E_LOOP'] !== '1', 'run with -c e2e/loop/playwright.loop.config.ts');
 
 /** Onboarding as a baritone, the microphone allowed, calibration and "Sing one note" skipped. */
 async function onboardBaritone(page: Page): Promise<void> {
   await page.goto(`./?testClock=1&testClockSec=${LOOP_T0_SEC}`);
-  await expect(page.getByTestId('screen-welcome')).toBeVisible({ timeout: 30_000 });
-  await page.getByRole('button', { name: 'Get started' }).click();
-  await page.getByRole('radio', { name: /^Baritone voice/ }).check();
-  await page.getByRole('button', { name: 'Continue' }).click();
-  await page.getByRole('button', { name: 'Allow microphone' }).click();
-  await expect(page.getByTestId('calibration-card')).toBeVisible({ timeout: 15_000 });
-  await page.getByTestId('calibration-card').getByRole('button', { name: 'Skip' }).click();
-  await expect(page.getByTestId('ob-match')).toBeVisible();
-  await page.locator('.ob-head').getByRole('button', { name: 'Skip' }).click();
-  await expect(page.getByTestId('ob-level')).toBeVisible();
-  await page.getByRole('button', { name: "I'll choose" }).click();
-  await page.getByRole('button', { name: 'Start practising' }).click();
-  await expect(page.getByTestId('screen-home')).toBeVisible({ timeout: 15_000 });
+  await walkWizard(page, { mic: 'allow', instrument: /^Baritone voice/ });
 }
 
 interface PageRecord {
@@ -63,7 +51,7 @@ test('scale try: Practice > Scales > five-note scale in C, sung through the fake
   await expect(scan).toHaveAttribute('data-state', 'scanning', { timeout: 30_000 });
   await expect(page.getByTestId('scan-cover')).toHaveCount(0);
   await expect(scan.getByTestId('scan-scale-chip')).toHaveText('Scale: Five-note scale in C major');
-  await expect(scan.getByTestId('mode-chip')).toHaveText('Practice');
+  await expect(scan.getByTestId('mode-chip')).toHaveText('Practice · no time limit');
   await expect(scan.locator('[data-expected-idx]').first()).toBeVisible({ timeout: 30_000 });
   await expect.poll(() => page.evaluate(() => document.fonts.check('30pt Bravura')), { timeout: 15_000 }).toBe(true);
   const plan = await pagePlan(page);

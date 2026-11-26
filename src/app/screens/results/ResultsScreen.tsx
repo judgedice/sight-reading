@@ -348,6 +348,12 @@ export function ResultsScreen(_props: ScreenProps) {
     <p className="res-credit">{credit}</p>
   );
   const prepared = view.prepared && view.prepared.excerptId === record.excerptId ? view.prepared : null;
+  // R77: every piece at the player's difficulty read: the move-up offer shows whatever the window says.
+  const ownLevel = profile?.instruments[record.instrumentId]?.level ?? null;
+  const exhausted =
+    !scale && ownLevel !== null && ownLevel < 10 && services.unseenRanked !== undefined && services.unseenRanked(record.instrumentId, ownLevel) === 0
+      ? { instrumentId: record.instrumentId, from: ownLevel, to: ownLevel + 1 }
+      : null;
 
   return (
     <section className="res-screen" data-testid="screen-practice.results" data-route-id="practice.results">
@@ -376,6 +382,7 @@ export function ResultsScreen(_props: ScreenProps) {
         onNext={next}
         onTryAgain={tryAgain}
         {...(voided || scale ? {} : { onChangeSetup: openSetup })}
+        exhausted={exhausted}
         onMoveUp={actions.moveUp}
         onStayAt={actions.stayAt}
         onUndoLevelUp={actions.undoLevelUp}

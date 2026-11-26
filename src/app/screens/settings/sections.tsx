@@ -8,6 +8,8 @@ import { text } from './text.ts';
 import { useReadable, useSettingsServices } from './context.ts';
 import { NOTE_LETTERS } from '../../../notation/note-colours.ts';
 import { BEAT_LINE_OFFSET_MS, readBeatLineOffset } from '../../../store/settings-read.ts';
+import { pitchSteadinessFor } from '../../../session/index.ts';
+import type { PitchSteadiness } from '../../../core/types.ts';
 
 /** "0 ms: as reported", "40 ms earlier", "30 ms later" (PLAN R70). */
 export function timingText(ms: number): string {
@@ -78,6 +80,9 @@ export function DisplaySection() {
   const s = useSettingsServices();
   const settings = useReadable(s.settings);
   const ghosts = settings.display.ghostsLive ?? 'from4';
+  // Absent: by the practice instrument's family (Steady for voices, Balanced for instruments).
+  const family = s.configs.instrumentById[settings.practice.instrumentId]?.family ?? 'voice';
+  const needle = pitchSteadinessFor(settings.display.pitchSteadiness, family);
   return (
     <Section id="display" title={copy('settings.section.display')}>
       <Group>
@@ -121,6 +126,26 @@ export function DisplaySection() {
           ]}
           value={ghosts}
           onChange={(v) => s.settings.set(patchSection(settings, 'display', { ghostsLive: v }))}
+        />
+      </Row>
+      <Row
+        label={copy('settings.display.pitchSteadiness')}
+        hint={copy('settings.display.pitchSteadiness.hint')}
+        below={
+          <span className="set-hint" data-testid="pitch-steadiness-choice">
+            {copy(`settings.display.pitchSteadiness.${needle}.hint`)}
+          </span>
+        }
+      >
+        <SegmentedControl<PitchSteadiness>
+          ariaLabel={copy('settings.display.pitchSteadiness')}
+          options={[
+            { value: 'steady', label: copy('settings.display.pitchSteadiness.steady') },
+            { value: 'balanced', label: copy('settings.display.pitchSteadiness.balanced') },
+            { value: 'quick', label: copy('settings.display.pitchSteadiness.quick') },
+          ]}
+          value={needle}
+          onChange={(v) => s.settings.set(patchSection(settings, 'display', { pitchSteadiness: v }))}
         />
       </Row>
       <Row label={copy('settings.display.noteColours')} hint={copy('settings.display.noteColours.hint')} below={<NoteColourKey />} inline>

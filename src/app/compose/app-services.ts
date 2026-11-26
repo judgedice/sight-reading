@@ -8,7 +8,7 @@ import type { AudioBackend, KeyValue, PlatformCapabilities, PlatformServices, Wo
 import type { AppSettings, AttemptRecord, AttributionsFile, Calibration, Configs, CorpusManifest, PlayerProfile, PracticeSettings, PreparedExcerpt, Rng, ScalesConfig } from '../../core/types.ts';
 import { MatchNoteService, PracticeSession, type PracticeSessionOptions, type RankedAvailability, type SoundPrefs } from '../../session/index.ts';
 import { metronomeSoundOf } from '../../core/click-sounds.ts';
-import { countEligible, prefetchNeighbours } from '../../corpus/index.ts';
+import { countEligible, countUnseenRanked, prefetchNeighbours } from '../../corpus/index.ts';
 import { createProfile, postRevealSkipAllowed, respondToLevelOffer, setInstrumentLevel, startPlacement } from '../../grade/index.ts';
 import { ghostPitch } from '../../follow/index.ts';
 import { bindNotation, type FrameNotation } from '../../ui/score-frame/index.ts';
@@ -122,6 +122,9 @@ export interface ComposedApp {
 
 const PRACTICE_PATHS = /^\/practice\//;
 
+/** Every new player starts here (round 3, R75). */
+const START_LEVEL = 1;
+
 export function composeApp(rt: AppRuntime): ComposedApp {
   const { configs: cfg, manifest } = rt;
   const repos = rt.platform.repos;
@@ -141,8 +144,10 @@ export function composeApp(rt: AppRuntime): ComposedApp {
   const storageLost = createValue(rt.storageLost);
   const calibrations = createValue<readonly Calibration[]>([]);
   const calFailure = createValue<CalFailure | null>(null);
-  // The session's open route, refreshed on every state change; null falls back to the declared output mode.
+  // The session's open route, refreshed on every state change; null falls back to the declared output mode. A route
+  // opened for another output mode does not count (its key includes the mode; round 3, R79).
   const currentRouteKey = createValue<string | null>(null);
+  const routeKeyNow = (): string | null => session.routeKeyFor(settings.get().practice.outputMode);
   const today = createValue<TodayStats>({ takes: 0, ranked: 0, xp: 0, tries: 0 });
   const lastTry = createValue<LastTry | null>(null);
   const sessionAttempts: AttemptRecord[] = [];
@@ -198,19 +203,17 @@ export function composeApp(rt: AppRuntime): ComposedApp {
     }
     await refreshAvailability();
   };
-  // Ranked availability for Practice (05 §4.5, §5.8). Until the first check resolves, a listening player is not
-  // shown a calibration block (it would flash for calibrated players).
-  const availabilityNow = (block: RankedAvailability['block']): RankedAvailability => ({ available: block === null, block });
-  const rankedAvailability = createValue<RankedAvailability>(availabilityNow(settings.get().practice.listening ? null : 'mic'));
+  // Ranked availability for Home (05 §4.5, §5.8; R79). Until the first check resolves it is unknown (not available,
+  // no block): Home then shows Practice, because nothing may say Ranked before the check agrees.
+  const rankedAvailability = createValue<RankedAvailability>(settings.get().practice.listening ? { available: false, block: null } : { available: false, block: 'mic' });
   let availabilityGen = 0;
   const refreshAvailability = async (): Promise<void> => {
     const gen = ++availabilityGen;
     const p = settings.get().practice;
     const a = await session.rankedAvailability({ listening: p.listening, outputMode: p.outputMode });
     if (gen !== availabilityGen) return;
-    // ?testClock=1 skips calibration (01 §13.4), as the calibrate banner does.
-    const next = rt.testClock && a.block === 'calibration' ? availabilityNow(null) : a;
-    if (!jsonEqual(next, rankedAvailability.get())) rankedAvailability.replace(next);
+    // One predicate with the start of the try (R79): ?testClock=1 no longer shows Ranked without a calibration.
+    if (!jsonEqual(a, rankedAvailability.get())) rankedAvailability.replace(a);
   };
   void refreshToday().catch(() => undefined);
   void refreshCalibrations().catch(() => undefined);
@@ -267,7 +270,7 @@ export function composeApp(rt: AppRuntime): ComposedApp {
         currentRouteKey.set(session.routeKey);
         rt.onSessionState?.(e.state);
         // A take ends with a route known and perhaps a calibration marked stale (05 W7, R31).
-        if (e.state === 'results' || e.state === 'covered') void refreshAvailability().catch(() => undefined);
+        if (e.state === 'results' || e.state === 'covered' || e.state === 'scanning') void refreshAvailability().catch(() => undefined);
         if (e.state === 'results') rt.keepAwake.enterResults();
         else if (e.prev === 'results') rt.keepAwake.leaveResults();
       }
@@ -284,8 +287,18 @@ export function composeApp(rt: AppRuntime): ComposedApp {
     });
     return attributions;
   };
+  /**
+   * The settings a try is prepared with. Ranked is always at the player's own difficulty (round 3, R76): every ranked
+   * try from Home, results or "Practise instead" enters the level window. Placement steps through its own levels.
+   */
+  const servedSettings = (s: PracticeSettings): PracticeSettings => {
+    if (s.mode !== 'ranked') return s;
+    const own = (session.currentProfile ?? profile.get())?.instruments[s.instrumentId];
+    return own && !own.placement && own.level !== s.level ? { ...s, level: own.level } : s;
+  };
   /** Prepare the next excerpt for the current settings; the scan screen follows the session's state. */
-  const prepareNext = (s: PracticeSettings = settings.get().practice): void => {
+  const prepareNext = (requested: PracticeSettings = settings.get().practice): void => {
+    const s = servedSettings(requested);
     session.prepare(s).catch(() => undefined);
     const level = typeof s.level === 'number' ? s.level : null;
     if (level !== null) rt.idle(() => void prefetchNeighbours(manifest, level, platform.assets, rt.idle));
@@ -353,7 +366,8 @@ export function composeApp(rt: AppRuntime): ComposedApp {
     (): CalStatus =>
       computeCalStatus({
         calibrations: calibrations.get(),
-        routeKey: currentRouteKey.get(),
+        routeKey: currentRouteKey.get() === null ? null : routeKeyNow(),
+        maxRtlMs: cfg.grading.ranked.maxRtlMs,
         outputMode: settings.get().practice.outputMode,
         lastFailure: calFailure.get(),
         now: Date.parse(platform.clockWall()),
@@ -395,6 +409,8 @@ export function composeApp(rt: AppRuntime): ComposedApp {
     workerFactory: rt.workerFactory,
     ...(rt.createCaptureChannel ? { createCaptureChannel: rt.createCaptureChannel } : {}),
     a4Hz: () => settings.get().practice.a4Hz,
+    // Settings › Display › Pitch needle (round 3): display only, read by the pitch mode alone (never a take, T15).
+    steadiness: () => settings.get().display.pitchSteadiness,
   });
   const openMatch = (): void => rt.navigate?.('/match');
 
@@ -465,13 +481,43 @@ export function composeApp(rt: AppRuntime): ComposedApp {
         return { ok: r.ok };
       });
     },
+    // "Find my difficulty" on Home (round 3, R75): placement's ranked pieces, starting at its first level.
+    startPlacement() {
+      const s = settings.get();
+      const p = session.currentProfile ?? profile.get();
+      if (!p) return;
+      const placed = startPlacement(p, s.practice.instrumentId, cfg);
+      const next: PracticeSettings = { ...s.practice, mode: 'ranked', level: placed.firstLevel };
+      settings.set({ ...s, practice: next });
+      session.stopSounds();
+      // The session reads the profile when it prepares: the placement must be stored first.
+      void saveProfile(placed.profile).then(
+        () => prepareNext(next),
+        () => undefined,
+      );
+    },
+    unseenRanked(instrumentId, level) {
+      const p = session.currentProfile ?? profile.get();
+      return countUnseenRanked(manifest, instrumentId, level, p?.seenGroups ?? {}, cfg);
+    },
   };
 
   // ---- onboarding ----------------------------------------------------------------------------------
+  // The saved position (round 3, R74): written on every step change, cleared when setup finishes.
+  const savedProgress = settings.get().onboardingDone ? null : (settings.get().onboardingProgress ?? null);
   const onboarding: OnboardingServices = {
     capabilities: rt.capabilities,
     instruments: cfg.instruments.instruments,
-    initial: { instrumentId: settings.get().practice.instrumentId, showBeta: settings.get().practicePrefs.showBeta },
+    // Nothing is preselected on a first run (01-ux-review problem 13); a resumed setup keeps its choice.
+    initial: { instrumentId: null, showBeta: settings.get().practicePrefs.showBeta },
+    progress: savedProgress,
+    saveProgress(p) {
+      const s = settings.get();
+      if (s.onboardingDone) return;
+      if (jsonEqual(p ?? null, s.onboardingProgress ?? null)) return;
+      const { onboardingProgress: _old, ...rest } = s;
+      settings.set(p ? { ...rest, onboardingProgress: p } : rest);
+    },
     placement: { excerpts: cfg.progression.placement.excerpts, minutes: Math.max(1, Math.round(cfg.progression.placement.excerpts * 1.5)) },
     levelCount: cfg.levels.levels.length,
     countEligible: (instrumentId, level, meter) => countEligible(manifest, instrumentId, level, meter, cfg),
@@ -487,27 +533,22 @@ export function composeApp(rt: AppRuntime): ComposedApp {
     async finish(r: OnboardingResult) {
       const now = platform.clockWall();
       let p = profile.get() ?? createProfile(platform.idGen(), r.displayName, now, r.instrumentId, cfg);
-      p = { ...p, displayName: r.displayName, activeInstrumentId: r.instrumentId };
-      let level: number;
-      if (r.level.kind === 'placement') {
-        const placed = startPlacement(p, r.instrumentId, cfg);
-        p = placed.profile;
-        level = placed.firstLevel;
-      } else {
-        p = setInstrumentLevel(p, r.instrumentId, r.level.level, cfg);
-        level = r.level.level;
-      }
+      // Everyone starts at difficulty 1 (round 3, R75): no question, no placement here.
+      p = setInstrumentLevel({ ...p, displayName: r.displayName, activeInstrumentId: r.instrumentId }, r.instrumentId, START_LEVEL, cfg);
       await saveProfile(p);
       const s = settings.get();
+      const { onboardingProgress: _done, ...rest } = s;
+      // Ranked only when the microphone is on and a timing check was accepted (R79); otherwise Practice.
+      const ranked = r.micAllowed && r.calibration === 'calibrated';
       const next: AppSettings = {
-        ...s,
+        ...rest,
         onboardingDone: true,
-        practice: { ...s.practice, instrumentId: r.instrumentId, level, listening: r.micAllowed, mode: r.micAllowed ? s.practice.mode : 'practice' },
+        practice: { ...s.practice, instrumentId: r.instrumentId, level: START_LEVEL, listening: r.micAllowed, mode: ranked ? 'ranked' : 'practice' },
         practicePrefs: { ...s.practicePrefs, showBeta: r.showBeta },
       };
       settings.set(next);
       await repos.settings.put(next);
-      if (r.level.kind === 'placement') {
+      if (r.start === 'first-piece') {
         prepareNext(next.practice);
         return '/practice/scan';
       }
@@ -550,6 +591,7 @@ export function composeApp(rt: AppRuntime): ComposedApp {
   // ---- results and tips ----------------------------------------------------------------------------
   const results: ResultsServices & ResultsSetupServices = {
     configs: cfg,
+    unseenRanked: (instrumentId, level) => home.unseenRanked?.(instrumentId, level) ?? 1,
     session: session.view,
     profile,
     settings,
@@ -713,6 +755,17 @@ export function composeApp(rt: AppRuntime): ComposedApp {
     cfg,
     micAllowed: () => platform.audio.permissionState().then((p) => p === 'granted'),
     requestMic,
+    // The band follows the difficulty the player tries at: the chosen one, else their level on this instrument.
+    level() {
+      const s = settings.get().practice;
+      if (typeof s.level === 'number') return s.level;
+      return profile.get()?.instruments[s.instrumentId]?.level ?? 1;
+    },
+    display: () => ({ pitchSteadiness: settings.get().display.pitchSteadiness, showCents: settings.get().display.showCentsMs }),
+    setPitchSteadiness(v) {
+      const s = settings.get();
+      settings.set({ ...s, display: { ...s.display, pitchSteadiness: v } });
+    },
   };
 
   // ---- route table ---------------------------------------------------------------------------------

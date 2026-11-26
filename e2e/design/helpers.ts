@@ -1,7 +1,8 @@
 // Shared helpers for the design QA specs: onboarding through the UI, axe injection, tap-target and motion probes.
 import { createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
-import { expect, type Page } from '@playwright/test';
+import { type Page } from '@playwright/test';
+import { walkWizard } from '../loop/flow.ts';
 
 /** Source of axe-core: the installed package, or the file named by AXE_CORE_PATH. Throws when neither exists. */
 export function axeSource(): string {
@@ -31,31 +32,10 @@ export async function axeSeriousViolations(page: Page): Promise<AxeViolation[]> 
   return raw.filter((v) => v.impact === 'serious' || v.impact === 'critical');
 }
 
-/** Welcome, instrument, microphone, calibration (skipped), level (chosen) and home: leaves the app on the home screen. */
+/** The setup wizard (Hear you and Timing skipped) and Home: leaves the app on Home at difficulty 1. */
 export async function onboard(page: Page, visit?: (name: string) => Promise<void>): Promise<void> {
-  const step = async (name: string): Promise<void> => visit?.(name);
   await page.goto('./');
-  await expect(page.getByTestId('screen-welcome')).toBeVisible({ timeout: 60_000 });
-  await step('welcome');
-  await page.getByRole('button', { name: 'Get started' }).click();
-  await step('onboarding-instrument');
-  await page.getByRole('radio', { name: /Flute/ }).check();
-  await page.getByRole('button', { name: 'Continue' }).click();
-  await expect(page.getByTestId('ob-mic')).toBeVisible();
-  await step('onboarding-mic');
-  await page.getByRole('button', { name: 'Allow microphone' }).click();
-  await expect(page.getByTestId('calibration-card')).toBeVisible({ timeout: 15_000 });
-  await step('onboarding-calibration');
-  await page.getByTestId('calibration-card').getByRole('button', { name: 'Skip' }).click();
-  // Step 5, Sing or Play one note (round 2): skipped here.
-  await expect(page.getByTestId('ob-match')).toBeVisible();
-  await page.locator('.ob-head').getByRole('button', { name: 'Skip' }).click();
-  await expect(page.getByTestId('ob-level')).toBeVisible();
-  await step('onboarding-level');
-  await page.getByRole('button', { name: "I'll choose" }).click();
-  await step('onboarding-level-choose');
-  await page.getByRole('button', { name: 'Start practising' }).click();
-  await expect(page.getByTestId('screen-home')).toBeVisible({ timeout: 15_000 });
+  await walkWizard(page, { mic: 'allow', ...(visit ? { visit } : {}) });
 }
 
 /** Hash routes that need no take, in tour order. `#/dev/components` is last (dev server only). */

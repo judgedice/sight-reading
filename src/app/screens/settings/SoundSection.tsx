@@ -185,9 +185,9 @@ export function SoundSection() {
         {calStatus ? (
           <Row label={text('settings.audio.calibration')} inline>
             <div className="set-cal">
-              <CalStatusPill status={calStatus} variant="line" onCalibrate={() => navigate('/calibrate')} />
+              <CalStatusPill status={calStatus} variant="line" onCalibrate={() => navigate('/calibrate?from=settings')} />
               {calStatus.state === 'ok' ? (
-                <Button label={copy('action.recalibrate')} variant="secondary" size="compact" onClick={() => navigate('/calibrate')} />
+                <Button label={copy('action.recalibrate')} variant="secondary" size="compact" onClick={() => navigate('/calibrate?from=settings')} />
               ) : null}
             </div>
           </Row>

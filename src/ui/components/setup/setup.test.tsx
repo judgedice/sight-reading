@@ -14,6 +14,7 @@ import { FallbackNote, FALLBACK_NOTE_DURATION_MS } from './FallbackNote.tsx';
 import { KeyGrid } from './KeyGrid.tsx';
 import { LengthInline, LengthRow } from './LengthRow.tsx';
 import { ModeControl } from './ModeControl.tsx';
+import { ModePill } from './ModePill.tsx';
 import { MiniKeyStaff, TimeSignatureMark } from './MusicMarks.tsx';
 import { TempoRow } from './TempoRow.tsx';
 import { TimeSegments } from './TimeSegments.tsx';
@@ -84,7 +85,8 @@ const settings = (over: Partial<PracticeSettings>): PracticeSettings => ({
   meter: 'random',
   bpm: 'random',
   bars: 'random',
-  mode: 'ranked',
+  // Practice: the chosen difficulty applies (Ranked is locked at the player's own, R76).
+  mode: 'practice',
   listening: true,
   metronome: 'audible',
   clickTimbre: 'tick',
@@ -261,8 +263,8 @@ describe('TimeSegments', () => {
 // ---- Difficulty --------------------------------------------------------------------------------------------------
 
 describe('DifficultyControl', () => {
-  it('steps, skips nothing it should not, shows the description with the Few pieces tag, and the switch sends random', () => {
-    const sent: (number | 'random')[] = [];
+  it('steps, skips nothing it should not, shows the description with the Few pieces tag; no Follow switch (R76)', () => {
+    const sent: number[] = [];
     current = mount(<DifficultyControl row={difficultyRow(false)} onChange={(v) => sent.push(v)} />);
     expect($('.ui-stepper-value').textContent).toBe('2of 10');
     expect($$('.dom-diff-seg[data-state="no-music"]')).toHaveLength(2);
@@ -277,32 +279,39 @@ describe('DifficultyControl', () => {
     expect(byId(group.getAttribute('aria-describedby')!).textContent).toBe('No music yet for Baritone voice at difficulty 7 to 8.');
     click($('[aria-label="Increase Difficulty"]'));
     click($('[aria-label="Decrease Difficulty"]'));
-    click($('input[role="switch"]'));
-    expect(sent).toEqual([3, 1, 'random']);
-  });
-
-  it('at difficulty 1 with onMatch: "Simpler? Match a note first", the link opens Match a note', () => {
-    const opened: number[] = [];
-    const row = { ...difficultyRow(false), matchHint: { key: 'setup.difficulty.matchHint', vars: {} } };
-    current = mount(<DifficultyControl row={row} onChange={() => undefined} onMatch={() => opened.push(1)} />);
-    expect($('[data-setup-match]').textContent).toBe('Simpler? Match a note first');
-    click($('[data-setup-match] button'));
-    expect(opened).toEqual([1]);
-    current.render(<DifficultyControl row={row} onChange={() => undefined} />);
-    expect($$('[data-setup-match]')).toHaveLength(0);
-  });
-
-  it('follow on hides the stepper and reads the following line; the onboarding prop hides the switch', () => {
-    const sent: (number | 'random')[] = [];
-    current = mount(<DifficultyControl row={difficultyRow(true)} onChange={(v) => sent.push(v)} />);
-    expect($$('.ui-stepper')).toHaveLength(0);
-    expect(document.body.textContent).toContain('Difficulty 2 of 10 (follows your progress)');
-    expect(document.body.textContent).toContain('Uses your current difficulty and moves up as you do.');
-    click($('input[role="switch"]'));
-    expect(sent).toEqual([2]);
-    current.render(<DifficultyControl hideFollow row={difficultyRow(false)} onChange={() => undefined} />);
     expect($$('input[role="switch"]')).toHaveLength(0);
+    expect(sent).toEqual([3, 1]);
+  });
+
+  it('Practice: the brass mark at your difficulty, how the choice sits, and Find my difficulty (R75, R76)', () => {
+    let found = 0;
+    current = mount(<DifficultyControl row={difficultyRow(false)} onChange={() => undefined} onFindLevel={() => found++} placementCount={3} />);
     expect($$('.ui-stepper')).toHaveLength(1);
+    expect($('.su-diff-meter').getAttribute('data-yours')).toBe('1');
+    expect(document.body.textContent).toContain('One above your difficulty (1).');
+    expect(document.body.textContent).toContain('Not sure? Find my difficulty · 3 short pieces');
+    click($('[data-testid="find-difficulty"]'));
+    expect(found).toBe(1);
+  });
+
+  it('Ranked: a read-only row at your difficulty and why it cannot change there (R76)', () => {
+    current = mount(<DifficultyControl row={difficultyRow(true)} onChange={() => undefined} onFindLevel={() => undefined} />);
+    expect($$('.ui-stepper')).toHaveLength(0);
+    expect($('[data-locked="true"]').textContent).toContain('Difficulty 1 of 10, Your difficulty');
+    expect(document.body.textContent).toContain('Ranked tries are at your difficulty. It moves up as you do. To choose another, switch to Practice.');
+    expect($$('[data-testid="find-difficulty"]')).toHaveLength(0);
+  });
+});
+
+describe('ModePill (R79)', () => {
+  it('Ranked is solid brass, Practice dashed; the accessible name is the visible text', () => {
+    current = mount(<ModePill mode="ranked" />);
+    expect($('[data-testid="mode-pill"]').getAttribute('data-mode')).toBe('ranked');
+    expect($('[data-testid="mode-pill"]').textContent).toBe('Ranked');
+    current.render(<ModePill mode="practice" detail="seen before" />);
+    expect($('[data-testid="mode-pill"]').getAttribute('data-mode')).toBe('practice');
+    expect($('[data-testid="mode-pill"]').textContent).toBe('Practice · seen before');
+    expect($('[data-testid="mode-pill"] svg').getAttribute('aria-hidden')).toBe('true');
   });
 });
 
@@ -352,7 +361,7 @@ describe('LengthRow', () => {
 describe('ModeControl', () => {
   it('shows the selected hint', () => {
     current = mount(<ModeControl value="ranked" onChange={() => undefined} />);
-    expect(document.body.textContent).toContain('Full XP. Fresh music and timed reading.');
+    expect(document.body.textContent).toContain('At your difficulty, with timed reading and fresh music. Full XP, and good tries move you up.');
   });
 
   it.each([
@@ -378,7 +387,7 @@ describe('ModeControl', () => {
     expect(document.body.textContent).not.toContain('Calibrate now');
     click(fixes[0]!);
     expect(fixed).toEqual([block]);
-    expect($('.su-mode-hint').textContent).toBe(`Less XP. No time limit. Listen first if you like. ${reason} ${fix}`);
+    expect($('.su-mode-hint').textContent).toBe(`Any difficulty, no time limit, listen first if you like. A quarter of the XP, and your difficulty stays the same. ${reason} ${fix}`);
     current.render(<ModeControl value="practice" rankedBlock={block} onChange={() => undefined} />);
     expect($$('button').filter((b) => b.textContent === fix)).toHaveLength(0);
     expect(byId(byName('Ranked').getAttribute('aria-describedby')!).textContent).toBe(reason);

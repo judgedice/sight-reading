@@ -329,7 +329,7 @@ describe('count-in recheck in the worker (01 §7.7, R31, R55)', () => {
 function pitchCfg(o: Partial<PitchModeConfig> = {}): PitchModeConfig {
   return {
     analysisRate: 16000, windowSamples: 1024, hopSamples: 128, minHz: 87.31, maxHz: 440, a4Hz: 440, clarityThreshold: 0.8,
-    fromT: 0 as ClockSeconds, stepSec: 0.02, smoothSec: 0.04, steadyMs: 150, steadySpreadCents: 120, gateDb: -65, ...o,
+    fromT: 0 as ClockSeconds, stepSec: 0.02, smoothSec: 0.04, steadyMs: 150, steadySpreadCents: 120, gateDb: -65, steadiness: 'steady', ...o,
   };
 }
 
@@ -379,6 +379,27 @@ describe('DspWorkerCore pitch mode', () => {
         expect(f.steady).toBe(true);
       }
     }
+  });
+
+  it('every posted frame carries the steady needle reading, fed once per 8 ms analyser frame (round 3)', () => {
+    const h = harness();
+    h.core.onMessage({ v: 1, type: 'pitch', cfg: pitchCfg() });
+    // 0.3 s of silence, 1 s of E3 +6 cents, then silence.
+    for (const b of signalBlocks(16000, 0, 2.2, (t) => (t < 1.3 ? sine(hzAt(52, 6), 0.3)(t) : 0))) h.core.onMessage({ v: 1, type: 'block', block: b });
+    const frames = framesOf(h.replies);
+    expect(frames.filter((f) => (f.t as number) < 0.25).every((f) => f.reading.gap === 'hidden' && f.reading.settledMidi === null)).toBe(true);
+    const held = frames.filter((f) => (f.t as number) >= 0.3 + 0.3 && (f.t as number) <= 1.25);
+    expect(held.length).toBeGreaterThan(30);
+    for (const f of held) {
+      expect(f.reading.gap).toBe('none');
+      expect(Math.abs((f.reading.settledMidi! - 52) * 100 - 6)).toBeLessThanOrEqual(2);
+      // The run's length moves in analyser hops (128 samples at 16 kHz: 8 ms), not in posted 20 ms steps.
+      expect(Math.abs(f.reading.voicedMs / 8 - Math.round(f.reading.voicedMs / 8))).toBeLessThan(1e-6);
+    }
+    // After the note: bridged, dimmed, then hidden 600 ms on.
+    const after = frames.filter((f) => (f.t as number) > 1.3 + 0.1);
+    expect(after.some((f) => f.reading.gap === 'dim')).toBe(true);
+    expect(after.filter((f) => (f.t as number) > 1.3 + 0.1 + 0.7).every((f) => f.reading.gap === 'hidden')).toBe(true);
   });
 
   it('posts nothing stamped before fromT, but analyses the blocks before it', () => {

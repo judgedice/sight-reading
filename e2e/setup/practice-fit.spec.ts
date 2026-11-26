@@ -31,11 +31,11 @@ async function toPractice(page: Page): Promise<void> {
     if (await offered('Get started')) continue;
     const flute = page.getByRole('radio', { name: /^Flute/ }).first();
     if ((await flute.isVisible().catch(() => false)) && !(await flute.isChecked().catch(() => true))) await flute.check().catch(() => undefined);
-    if (await offered('Start practising')) continue;
+    if (await offered('Go to Home')) continue;
     if (await offered('Allow microphone')) continue;
-    if (await offered('Skip')) continue;
-    if (await offered("I'll choose")) continue;
-    if (await offered('Continue')) continue;
+    if (await offered('Skip this check')) continue;
+    if (await offered('Skip for now')) continue;
+    if (await offered('Next: sound check')) continue;
     await page.waitForTimeout(300);
   }
   await expect(home).toBeVisible({ timeout: 15_000 });

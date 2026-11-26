@@ -9,10 +9,9 @@ import type { CalibrationServices } from '../calibration/services.ts';
 import type { MicBrowser, MicProblem } from '../states/mic.ts';
 import type { CalibrationResult } from '../calibration/CalibrationCard.tsx';
 import type { MatchNoteService } from '../../../session/index.ts';
+import type { HearState, OnboardingProgress } from './flow.ts';
 
 export type MicOutcome = { ok: true } | { ok: false; problem: MicProblem };
-
-export type LevelChoice = { kind: 'placement' } | { kind: 'level'; level: number };
 
 export interface OnboardingResult {
   displayName: string;
@@ -20,16 +19,24 @@ export interface OnboardingResult {
   showBeta: boolean;
   /** true when the microphone was allowed; false shows the "Microphone off" banner on Home. */
   micAllowed: boolean;
-  /** null when the step was never reached (microphone declined). */
+  /** null when the stage was never reached (microphone declined). */
   calibration: CalibrationResult | null;
-  level: LevelChoice;
+  /** Hear you: heard, skipped, or not reached (round 3, R74). */
+  hear: Exclude<HearState, 'pending'>;
+  /** Ready's main button opens the first piece; "Go to Home" opens Home. */
+  start: 'first-piece' | 'home';
 }
 
 export interface OnboardingServices {
   capabilities: PlatformCapabilities;
   /** `configs.instruments.instruments`. */
   instruments: readonly Instrument[];
-  initial: { instrumentId: string; showBeta: boolean };
+  /** null: nothing is preselected (a first run). */
+  initial: { instrumentId: string | null; showBeta: boolean };
+  /** A saved position to resume (`AppSettings.onboardingProgress`, read by `restoreProgress`); null starts at Welcome. */
+  progress?: unknown;
+  /** Saves the position on every step change; null clears it. */
+  saveProgress?(p: OnboardingProgress | null): void;
   /** Placement length (`progression.placement.excerpts`) and the minutes copy says it takes. */
   placement: { excerpts: number; minutes: number };
   levelCount: number;
@@ -42,16 +49,16 @@ export interface OnboardingServices {
   /** Runs unlock and `getUserMedia`. Call synchronously from the click (01 section 7.1). */
   requestMic(): Promise<MicOutcome>;
   calibration: CalibrationServices;
-  /** Saves profile and settings (onboardingDone) and returns where to go: Scan with the placement chip, or Home. */
+  /** Saves profile and settings (onboardingDone, difficulty 1) and returns where to go: the first piece's cover, or Home. */
   finish(r: OnboardingResult): Promise<string>;
   /** A range-picture note button in the picker: that sounding MIDI note for 1 s. Call from the click. */
   playNote?(concertMidi: number): Promise<void>;
   /**
-   * The engine for the step "Sing one note" or "Play one note" (01-ux §3.2). It runs on the instrument chosen in
-   * onboarding, so the stored instrument is not part of it. Omitted: the step is left out.
+   * The engine for the "Hear you" stage (round 3, R74): any note, no target. It runs on the instrument chosen in
+   * onboarding, so the stored instrument is not part of it. Omitted: the stage is left out.
    */
   match?: {
-    service: MatchNoteService;
+    service: Pick<MatchNoteService, 'listenAny' | 'stop' | 'nowMs'>;
     cfg: Configs;
     /** True when the microphone is already allowed. */
     micAllowed(): Promise<boolean>;

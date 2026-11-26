@@ -198,7 +198,7 @@ export async function planWithoutPickup<P extends TrailPlan>(page: Page, read: (
     if (plan.expected.every((e) => e.onsetBeat >= 0)) return plan;
     await page.evaluate(() => { window.location.hash = '#/'; });
     await expect(page.getByTestId('screen-home')).toBeVisible({ timeout: 15_000 });
-    await page.getByRole('button', { name: 'Start', exact: true }).click();
+    await page.getByRole('button', { name: /^Start (practice|ranked try)/ }).click();
     await expect(page.getByTestId('scan-cover')).toBeVisible({ timeout: 30_000 });
     await page.getByRole('button', { name: 'Show the music' }).click();
     await expect(page.getByTestId('screen-practice.scan').locator('[data-expected-idx]').first()).toBeVisible({ timeout: 30_000 });

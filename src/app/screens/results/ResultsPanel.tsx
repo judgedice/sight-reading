@@ -9,6 +9,7 @@ import type { AttemptRecord, Configs, PlayerProfile, ProgressEvent, Tip } from '
 import { copy } from '../../../ui/copy/copy.ts';
 import { Button } from '../../../ui/components/form/index.ts';
 import { GradeBadge, StarRow } from '../../../ui/components/domain/index.ts';
+import { ModePill } from '../../../ui/components/setup/index.ts';
 import { DiagnosticsButton, SureLine, diagnosticsPrompt, sureFacts, sureLevelOf } from '../../../ui/components/diagnostics/index.ts';
 import { Glyph } from '../../../ui/primitives/index.ts';
 import { recheckShiftApplies } from '../../compose/calibration-status.ts';
@@ -85,6 +86,11 @@ export interface ResultsPanelProps extends ResultsHandlers {
   diagnostics?: DiagnosticsServices | undefined;
   /** The credit line (or its source-sheet button) at the page end. */
   credit?: ReactNode;
+  /**
+   * Every piece at the player's difficulty has been read (round 3, R77): the move-up offer shows whatever the level
+   * window says. Absent: not exhausted.
+   */
+  exhausted?: { instrumentId: string; from: number; to: number } | null;
   /** Level cards already answered. */
   dismissedCards?: ReadonlySet<string>;
   onDismissCard?: (card: LevelCard) => void;
@@ -317,6 +323,10 @@ export function ResultsPanel(props: ResultsPanelProps) {
   const rank = profile && !scale ? rankLine(configs, profile) : null;
   const best = graded ? personalBest(progress, record.instrumentId) : null;
   const cards = levelCards(progress, record.instrumentId, configs);
+  const ex = props.exhausted;
+  if (ex && !scale && !cards.some((c) => c.kind === 'offer' || c.kind === 'auto')) {
+    cards.unshift({ kind: 'offer', instrumentId: ex.instrumentId, from: ex.from, to: ex.to, text: text('setup.difficulty.exhausted', { level: ex.from, next: ex.to }) });
+  }
   const calibrateNow = props.onCalibrateNow ?? props.onRecalibrate;
   // Only a try with no measured calibration says so; a measured one says nothing (01-ux 5).
   const measured = record.calibration.method === 'loopback' || record.calibration.method === 'play-along';
@@ -357,6 +367,8 @@ export function ResultsPanel(props: ResultsPanelProps) {
     </p>
   ) : null;
 
+  // The mode pill under the score (round 3, R79): the same look as Home, the cover and the try strip.
+  const modePill = state.badge === 'ranked' || state.badge === 'practice' ? <ModePill mode={state.badge} testId="results-mode" /> : null;
   const offers = <LevelCards cards={cards} h={props} dismissed={dismissed} dismiss={dismiss} />;
 
   return (
@@ -364,6 +376,7 @@ export function ResultsPanel(props: ResultsPanelProps) {
       <header className="res-head">
         <div className="res-head-left">
           {left}
+          {graded && modePill ? <div className="res-mode">{modePill}</div> : null}
           {best ? (
             <p className="res-ribbon" data-testid="res-ribbon">
               <Glyph id="check-circle" size={16} />
@@ -374,7 +387,7 @@ export function ResultsPanel(props: ResultsPanelProps) {
         <div className="res-head-right">
           {state.badge || xpText || rank ? (
             <div className="res-xp-line" data-testid="res-xp">
-              {state.badge ? <GradeBadge kind={state.badge} /> : null}
+              {modePill && !graded ? modePill : state.badge && !modePill ? <GradeBadge kind={state.badge} /> : null}
               {xpText ? (
                 <span className="res-xp" {...(scale ? { 'data-testid': 'res-scale-practice' } : {})}>
                   {xpText}
@@ -435,7 +448,7 @@ export function ResultsPanel(props: ResultsPanelProps) {
       {pinned ? (
         <div className="res-pinned" data-testid="res-pinned">
           {props.onNext ? <NextButton onClick={props.onNext} scale={scale} /> : null}
-          {props.onTryAgain ? <Button label={text(scale ? 'action.sameScaleAgain' : 'action.tryAgain')} onClick={props.onTryAgain} /> : null}
+          {props.onTryAgain ? <Button label={text(scale ? 'action.sameScaleAgain' : 'action.tryAgainPractice')} onClick={props.onTryAgain} /> : null}
         </div>
       ) : null}
     </div>

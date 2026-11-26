@@ -28,6 +28,13 @@ export interface NeedleView {
   band: number;
   /** The meter is dimmed (the note is playing, nothing is heard, or no microphone). */
   dim: boolean;
+  /** The needle is dimmed at its last place: a short silence (120 to 600 ms). */
+  stale?: boolean;
+  /**
+   * The wobble width behind the needle (03-pitch-steadiness §6.2): from and to, as fractions of the track, the 10th
+   * to 90th percentile of the last 400 ms. Null: not drawn (Quick, or nothing heard).
+   */
+  spread?: readonly [number, number] | null;
 }
 
 /** The name the player reads for a concert note: sung for voices, written for everyone else (as the range card). */
@@ -40,6 +47,17 @@ export function targetStaff(inst: Instrument, concertMidi: number): { clef: Staf
   const plan = staffPlan(inst, [concertMidi + inst.writtenMinusSounding.chromatic]);
   const note = plan.notes[0]!;
   return { clef: note.clef, note };
+}
+
+/**
+ * The settled note beside the target on the same staff (written pitch), or null when it would need another clef or
+ * octave mark (the small staff draws one clef).
+ */
+export function heardStaff(inst: Instrument, targetConcert: number, heardConcert: number | null): StaffNote | null {
+  if (heardConcert === null) return null;
+  const shift = inst.writtenMinusSounding.chromatic;
+  const [t, h] = staffPlan(inst, [targetConcert + shift, heardConcert + shift]).notes;
+  return t && h && h.clef === t.clef && h.octaveMark === t.octaveMark ? h : null;
 }
 
 /** The range chips: the tonic chord tones of C major inside the served range at difficulty 1, concert MIDI, low first. */
@@ -92,7 +110,8 @@ export function stateLine(s: MatchState, inst: Instrument): MatchLine {
 export function hintLine(s: MatchState): string | null {
   switch (s.phase) {
     case 'listening':
-      return copy('match.hint.listening');
+      // "The needle moves when we hear a steady note": not once it does.
+      return s.needle === null ? copy('match.hint.listening') : null;
     case 'flat':
       return copy('match.hint.flat');
     case 'sharp':
@@ -112,25 +131,67 @@ export function hintLine(s: MatchState): string | null {
   }
 }
 
-/** "You: E3, 34 cents low", or "You: F3" when the needle is pinned or dead centre. Null before anything is heard. */
-export function youLine(s: MatchState, inst: Instrument): { note: string; text: string } | null {
-  if (s.you === null || s.needle === null || s.phase === 'idle' || s.phase === 'summary') return null;
-  const note = readName(inst, s.you);
-  const cents = Math.round(Math.abs(s.needle));
-  const pinned = Math.abs(s.needle) >= NEEDLE_RANGE_CENTS || s.phase === 'far-up' || s.phase === 'far-down' || s.phase === 'wrong-octave';
-  if (pinned || cents === 0) return { note, text: copy('match.you', { note }) };
-  const direction = copy(s.needle < 0 ? 'match.summary.direction.flat' : 'match.summary.direction.sharp');
-  return { note, text: copy('match.youCents', { note, cents, direction }) };
+/** Under this many cents from the target the "You" line adds no words. */
+export const YOU_CENTRE_CENTS = 10;
+
+/** Cents for the "You" line: whole multiples of 5 (03-pitch-steadiness §6.1). */
+export const roundCents = (c: number): number => Math.round(Math.abs(c) / 5) * 5;
+
+/** "a little low", "much too high", or null near the centre. */
+function wordsFor(cents: number): string | null {
+  const a = Math.abs(cents);
+  if (a < YOU_CENTRE_CENTS) return null;
+  if (a > NEEDLE_RANGE_CENTS) return copy(cents < 0 ? 'match.words.muchLow' : 'match.words.muchHigh');
+  return copy(cents < 0 ? 'match.words.low' : 'match.words.high');
 }
 
-export function needleView(s: MatchState): NeedleView {
+/**
+ * The "You" line (03-pitch-steadiness §6.1): within 50 cents it names the target, so a singer 45 cents flat of E3 reads
+ * "You: E3, a little low", never "E♭3". Words by default; with Settings › Display › show cents on, the cents too,
+ * rounded to 5 ("You: E3, a little low (15 cents)"). Past 50 cents it names the nearest note and says "much too low".
+ * It reads `youCents`, which the model refreshes at most 4 times a second. Null before anything is heard.
+ */
+export function youLine(s: MatchState, inst: Instrument, showCents = false): { note: string; text: string } | null {
+  if (s.you === null || s.needle === null || s.phase === 'idle' || s.phase === 'summary') return null;
+  const c = s.youCents ?? s.needle;
+  const pinned = s.phase === 'far-up' || s.phase === 'far-down' || s.phase === 'wrong-octave';
+  const near = !pinned && Math.abs(c) <= NEEDLE_RANGE_CENTS;
+  const note = readName(inst, near ? s.target : s.you);
+  if (s.phase === 'wrong-octave') return { note, text: copy('match.you', { note }) };
+  const words = wordsFor(pinned ? (s.phase === 'far-down' ? 1 : -1) * (NEEDLE_RANGE_CENTS + 1) : c);
+  if (words === null) return { note, text: copy('match.you', { note }) };
+  if (showCents && near) return { note, text: copy('match.you.wordsCents', { note, words, cents: roundCents(c) }) };
+  return { note, text: copy('match.you.words', { note, words }) };
+}
+
+/** "You sang: E♭3, a little high": the note settled on after a hold (§6.3). Null when there is none. */
+export function settledLine(s: MatchState, inst: Instrument): { note: string; text: string } | null {
+  if (!s.settled || s.phase === 'summary') return null;
+  const midi = Math.round(s.settled.midi);
+  const note = readName(inst, midi);
+  const words = wordsFor((s.settled.midi - midi) * 100);
+  return { note, text: words === null ? copy('match.sang', { note }) : copy('match.sang.words', { note, words }) };
+}
+
+/** The settled note as concert MIDI for the staff's grey head, or null. */
+export function settledMidi(s: MatchState): number | null {
+  return s.settled && s.phase !== 'summary' ? Math.round(s.settled.midi) : null;
+}
+
+/**
+ * The meter. `wobble`: draw the wobble width (Steady and Balanced, §9 open question 2). The needle is green only in
+ * tune (the centre of the note within the band, `inTuneStep`), ink otherwise, grey when held at an edge; it dims at its
+ * last place in a short silence and is hidden after 600 ms of it.
+ */
+export function needleView(s: MatchState, wobble = false): NeedleView {
   const band = Math.min(0.5, s.bandCents / (2 * NEEDLE_RANGE_CENTS));
   const dim = s.phase === 'idle' || s.phase === 'not-heard';
-  if (s.needle === null || dim || s.phase === 'summary') return { at: null, tone: 'ink', band, dim };
-  if (s.phase === 'far-up' || s.phase === 'far-down') return { at: s.phase === 'far-up' ? 0 : 1, tone: 'edge', band, dim };
-  const at = (s.needle + NEEDLE_RANGE_CENTS) / (2 * NEEDLE_RANGE_CENTS);
-  const inBand = s.phase === 'hit' || Math.abs(s.needle) <= s.bandCents;
-  return { at: Math.max(0, Math.min(1, at)), tone: inBand && s.phase !== 'wrong-octave' ? 'in' : 'ink', band, dim };
+  if (s.needle === null || dim || s.phase === 'summary') return { at: null, tone: 'ink', band, dim, stale: false, spread: null };
+  if (s.phase === 'far-up' || s.phase === 'far-down') return { at: s.phase === 'far-up' ? 0 : 1, tone: 'edge', band, dim, stale: s.dim, spread: null };
+  const frac = (c: number): number => Math.max(0, Math.min(1, (c + NEEDLE_RANGE_CENTS) / (2 * NEEDLE_RANGE_CENTS)));
+  const inTune = s.phase === 'hit' || s.phase === 'in-band' || s.phase === 'octave-lower' || s.phase === 'octave-higher';
+  const spread = wobble && s.spread && !s.dim && s.phase !== 'wrong-octave' ? ([frac(s.spread[0]), frac(s.spread[1])] as const) : null;
+  return { at: frac(s.needle), tone: inTune ? 'in' : 'ink', band, dim, stale: s.dim, spread };
 }
 
 /** The round summary line: "4 of 5 hit. On average you were 8 cents low." Centre and no hits have their own line. */

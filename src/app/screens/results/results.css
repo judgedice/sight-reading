@@ -757,3 +757,8 @@
     padding-block-end: 7.5rem;
   }
 }
+
+/* The mode pill under the score (round 3, R79). */
+.res-mode {
+  margin-top: var(--space-2);
+}

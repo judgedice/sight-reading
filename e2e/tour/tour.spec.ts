@@ -13,7 +13,7 @@ import { join } from 'node:path';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { loadLoopHelpers } from '../loop/bundle.ts';
 import { oldWordsIn } from '../a11y/copy-match.ts';
-import { chooseMode, chooseOutput, LOOP_T0_SEC, pagePlan, watchErrors } from '../loop/flow.ts';
+import { chooseMode, chooseOutput, LOOP_T0_SEC, pagePlan, walkWizard, watchErrors } from '../loop/flow.ts';
 
 test.skip(process.env['E2E_TOUR'] !== '1', 'run with -c e2e/tour/playwright.tour.config.ts');
 
@@ -108,25 +108,8 @@ test('screen tour: onboarding, home, scan, take with a wrong and a late note, re
   await page.goto(`./?testClock=1&testClockSec=${LOOP_T0_SEC}`);
   await expect(page.getByTestId('screen-welcome')).toBeVisible({ timeout: 30_000 });
   await shot('welcome');
-  await page.getByRole('button', { name: 'Get started' }).click();
-  await shot('onboarding-instrument');
   // Baritone: a voice, so the take has the starting-pitch reference (its info and the sound) rather than the key chord.
-  await page.getByRole('radio', { name: /Baritone/ }).check();
-  await page.getByRole('button', { name: 'Continue' }).click();
-  await expect(page.getByTestId('ob-mic')).toBeVisible();
-  await shot('onboarding-mic');
-  await page.getByRole('button', { name: 'Allow microphone' }).click();
-  await expect(page.getByTestId('calibration-card')).toBeVisible({ timeout: 15_000 });
-  await shot('onboarding-calibration');
-  await page.getByTestId('calibration-card').getByRole('button', { name: 'Skip' }).click();
-  // Step 5, Sing or Play one note (round 2): skipped here.
-  await expect(page.getByTestId('ob-match')).toBeVisible();
-  await page.locator('.ob-head').getByRole('button', { name: 'Skip' }).click();
-  await expect(page.getByTestId('ob-level')).toBeVisible();
-  await shot('onboarding-level');
-  await page.getByRole('button', { name: "I'll choose" }).click();
-  await shot('onboarding-level-choose');
-  await page.getByRole('button', { name: 'Start practising' }).click();
+  await walkWizard(page, { mic: 'allow', instrument: /Baritone/, visit: async (name) => (name === 'welcome' ? undefined : shot(name)) });
 
   // Home and setup.
   const home = page.getByTestId('screen-home');
@@ -173,7 +156,7 @@ test('screen tour: onboarding, home, scan, take with a wrong and a late note, re
   await expect(home).toBeVisible();
 
   await chooseMode(page, 'practice');
-  await page.getByRole('button', { name: 'Start', exact: true }).click();
+  await page.getByRole('button', { name: /^Start (practice|ranked try)/ }).click();
   await expect(page.getByTestId('scan-cover')).toBeVisible({ timeout: 30_000 });
   await shot('scan-cover');
 

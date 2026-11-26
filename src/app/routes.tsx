@@ -9,14 +9,14 @@ type Spec = Omit<RouteDef, 'Screen'>;
 
 const specs: readonly Spec[] = [
   { id: 'welcome', pattern: '/welcome', titleKey: 'welcome.headline', tab: null, chrome: 'onboarding', devOnly: false },
-  { id: 'home', pattern: '/', titleKey: 'nav.practice', tab: 'practice', chrome: 'full', devOnly: false },
-  { id: 'practice.scan', pattern: '/practice/scan', titleKey: 'nav.practice', tab: 'practice', chrome: 'loop', devOnly: false },
-  { id: 'practice.play', pattern: '/practice/play', titleKey: 'nav.practice', tab: 'practice', chrome: 'none', devOnly: false },
-  { id: 'practice.results', pattern: '/practice/results', titleKey: 'nav.practice', tab: 'practice', chrome: 'loop', devOnly: false },
+  { id: 'home', pattern: '/', titleKey: 'nav.home', tab: 'practice', chrome: 'full', devOnly: false },
+  { id: 'practice.scan', pattern: '/practice/scan', titleKey: 'nav.home', tab: 'practice', chrome: 'loop', devOnly: false },
+  { id: 'practice.play', pattern: '/practice/play', titleKey: 'nav.home', tab: 'practice', chrome: 'none', devOnly: false },
+  { id: 'practice.results', pattern: '/practice/results', titleKey: 'nav.home', tab: 'practice', chrome: 'loop', devOnly: false },
   {
     id: 'practice.tips',
     pattern: '/practice/tips',
-    titleKey: 'nav.practice',
+    titleKey: 'nav.home',
     tab: 'practice',
     chrome: 'loop',
     devOnly: false,
@@ -66,7 +66,8 @@ export type ScreenOverrides = Partial<Record<RouteId, ScreenComponent>>;
 export function createRouteTable(overrides: ScreenOverrides = {}): readonly RouteDef[] {
   return specs.map((spec) => ({
     ...spec,
-    Screen: overrides[spec.id] ?? (spec.id === 'dev.components' ? DevComponentsScreen : PlaceholderScreen),
+    // The component fixtures are a dev route: a production build leaves them out (round 3, size budget R66).
+    Screen: overrides[spec.id] ?? (spec.id === 'dev.components' && import.meta.env.DEV ? DevComponentsScreen : PlaceholderScreen),
   }));
 }
 
@@ -74,7 +75,7 @@ export const routeTable: readonly RouteDef[] = createRouteTable();
 
 /** Routes that appear in the app bar tabs, in order. */
 export const TABS: readonly { id: TabId; path: string; labelKey: CopyKey; glyph: GlyphId }[] = [
-  { id: 'practice', path: '/', labelKey: 'nav.practice', glyph: 'practice' },
+  { id: 'practice', path: '/', labelKey: 'nav.home', glyph: 'practice' },
   { id: 'progress', path: '/progress', labelKey: 'nav.progress', glyph: 'progress' },
   { id: 'history', path: '/history', labelKey: 'nav.history', glyph: 'history' },
 ];

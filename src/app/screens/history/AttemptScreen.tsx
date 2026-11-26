@@ -11,6 +11,7 @@ import { copy } from '../../../ui/copy/copy.ts';
 import { instrumentName } from '../../../ui/copy/instrument-names.ts';
 import { Card } from '../../../ui/components/containers/index.ts';
 import { GradeBadge } from '../../../ui/components/domain/index.ts';
+import { ModePill } from '../../../ui/components/setup/index.ts';
 import { Link, useNavigate } from '../../router.tsx';
 import type { ScreenProps } from '../../route-types.ts';
 import { SourceSheet } from '../about/SourceSheet.tsx';
@@ -281,7 +282,7 @@ export function AttemptScreen({ route }: ScreenProps) {
           <MetaLine instrument={inst ? instrumentName(inst) : record.instrumentId} levelServed={record.levelServed} detail={detail} scale={scale} />
         </p>
         <p className="hist-attempt-when">
-          <GradeBadge kind={status} />
+          {status === 'not-graded' ? <GradeBadge kind={status} /> : <ModePill mode={status} size="compact" testId="attempt-mode" />}
           <time dateTime={record.createdAt}>{when}</time>
           {record.score && !measured ? <span className="hist-timing-note">{copy('badge.timingOffset')}</span> : null}
         </p>

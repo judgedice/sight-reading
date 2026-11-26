@@ -54,7 +54,16 @@ export interface SessionView {
   mode: 'ranked' | 'practice' | null;
   /** The player listened first in a ranked read-through, so this take is practice (`listened-first`, decision 7). */
   listenedFirst: boolean;
+  /**
+   * Why a ranked request is practice (round 3, R79): known before the start (seen before, timing not measured, after a
+   * skip) or met during the read-through (listened first, the route found once audio opened). Null when the excerpt
+   * is ranked, or practice by the player's own choice.
+   */
+  practiceReason: PracticeReason | null;
 }
+
+/** Why a ranked request became practice (R79). The mode pill shows it after a dot: "Practice · seen before". */
+export type PracticeReason = 'listened-first' | 'seen-before' | 'calibration' | 'skip-limit';
 
 export const initialSessionView = (): SessionView => ({
   state: 'idle',
@@ -73,6 +82,7 @@ export const initialSessionView = (): SessionView => ({
   recalibrateRouteKey: null,
   mode: null,
   listenedFirst: false,
+  practiceReason: null,
 });
 
 const STATUS_RANK: Record<SessionStatus['kind'], number> = { 'no-signal': 0, 'lost-place': 1, 'come-in-at': 2, 'restarting-count-in': 3 };

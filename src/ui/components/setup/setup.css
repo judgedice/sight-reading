@@ -79,21 +79,6 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* A switch on the label row: as wide as its label, not the row (06 sections 6.4 and 6.5). */
-.su-switch {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  min-width: 0;
-}
-
-.su-switch .ui-toggle {
-  width: auto;
-  gap: var(--space-2);
-  font-size: var(--type-small-size);
-  font-weight: 500;
-}
-
 /* ---- Fallback note (05 section 5.9) ---------------------------------------------------- */
 
 .su-fallback-wrap:empty {
@@ -158,10 +143,54 @@
   border-inline: 0.0625rem solid var(--border);
 }
 
-.su-diff-follow {
+/* The meter with a brass mark under the player's own difficulty (round 3, R76). */
+.su-diff-meter {
+  position: relative;
+  display: inline-flex;
+  padding-block-end: var(--space-2);
+}
+
+.su-diff-yours {
+  position: absolute;
+  inset-block-end: 0;
+  inset-inline-start: calc((var(--su-yours, 1) - 1) * (0.875rem + var(--difficulty-meter-gap)));
+  inline-size: 0.875rem;
+  block-size: 0.1875rem;
+  border-radius: var(--radius-full);
+  background: var(--brass);
+}
+
+/* Ranked: a read-only row at the player's difficulty. */
+.su-diff-locked {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--segment-track-radius);
+  background: var(--surface-2);
+}
+
+.su-diff-locked-value {
   margin: 0;
   font-size: var(--type-body-size);
   line-height: var(--type-body-line);
+}
+
+.su-diff-locked-tag {
+  margin: 0 0 0 auto;
+  color: var(--text-muted);
+  font-size: var(--type-small-size);
+  line-height: var(--type-small-line);
+}
+
+.su-diff-find {
+  margin: 0;
+  font-size: var(--type-small-size);
+  line-height: var(--type-small-line);
+}
+
+.su-diff-relation {
   font-weight: 600;
 }
 
@@ -176,12 +205,6 @@
   align-items: center;
   justify-content: space-between;
   gap: 0 var(--space-4);
-}
-
-.su-diff-match {
-  margin: 0;
-  font-size: var(--type-small-size);
-  line-height: var(--type-small-line);
 }
 
 /* A caution tag: short word drawn, the full sentence read and shown as the tooltip. */
@@ -719,4 +742,56 @@
   .su-row .su-seg-btn {
     min-height: 2.25rem;
   }
+}
+
+/* ---- Mode pill (round 3, R79): solid brass for Ranked, dashed neutral for Practice ------------------------------ */
+.su-pill {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-2);
+  box-sizing: border-box;
+  min-block-size: var(--mode-chip-height);
+  padding: 0 var(--space-4) 0 var(--space-2);
+  border: 0.09375rem solid var(--brass);
+  border-radius: var(--radius-full);
+  background: var(--surface);
+  color: var(--text);
+  font-family: var(--type-label-family);
+  font-size: var(--type-label-size);
+  font-weight: var(--type-label-weight);
+  line-height: var(--type-label-line);
+  white-space: nowrap;
+}
+
+.su-pill[data-mode='practice'] {
+  border-style: dashed;
+  border-color: var(--border-strong);
+  background: var(--surface-2);
+}
+
+.su-pill-compact {
+  min-block-size: 2rem;
+  padding-inline-end: var(--space-3);
+}
+
+.su-pill-ring {
+  flex: none;
+  inline-size: 1.25rem;
+  block-size: 1.25rem;
+}
+
+.su-pill-ring circle {
+  stroke: var(--brass);
+  stroke-width: 2.5;
+}
+
+.su-pill[data-mode='practice'] .su-pill-ring circle {
+  stroke: var(--text-muted);
+  stroke-dasharray: 4 3;
+}
+
+.su-pill-detail {
+  color: var(--text-muted);
+  font-weight: normal;
 }

@@ -34,6 +34,7 @@ import type { CaptureBlock, CaptureReturn, ClickSpec, PitchModeConfig, PitchMode
 import type { ClockSeconds, DetectedNote, DspConfig, DspEvent, DspStats, EndReason, FinalAlignment, FollowConfig, FollowerEvent, LiveJudgment } from '../../../core/types.ts';
 import { DspPipeline } from '../../../dsp/pipeline.ts';
 import { PitchAnalyzer, widenRange } from '../../../dsp/pitch.ts';
+import { STEADINESS_PRESETS, SteadinessFilter } from '../../../dsp/pitch-steadiness.ts';
 // The worker is a composition point of its own (01 §2: live matcher and final alignment run in the DSP worker), so it
 // reaches follow/ although platform/web otherwise may not (needs an eslint composition-root entry, see the S1 report).
 import { LiveFollower, alignFinalWithReference, liveOutcomeOf, playerNotes } from '../../../follow/index.ts';
@@ -88,7 +89,8 @@ export function copyBlock(b: CaptureBlock): CaptureBlock {
  * Match a note's pitch mode: the `PitchAnalyzer` frames (hop 128, about 8 ms) turned into one `PitchModeFrame` per
  * `stepSec`. The pitch is the mean of the voiced frames of the last `smoothSec`; it is steady once frames have been
  * voiced without a break for `steadyMs` and stayed within `steadySpreadCents` over that time. Frames before `fromT`
- * are analysed (the octave hysteresis and the run need them) but never posted.
+ * are analysed (the octave hysteresis and the run need them) but never posted. Every analyser frame also feeds the
+ * needle's display filter (round 3, `dsp/pitch-steadiness.ts`), and each posted frame carries its reading.
  */
 export class PitchModeTracker {
   readonly cfg: PitchModeConfig;
@@ -98,9 +100,12 @@ export class PitchModeTracker {
   private runStart: number | null = null;
   /** Time the next frame is due; frames are posted on a `stepSec` grid, so the mean rate is 1 / stepSec. */
   private nextDue = -Infinity;
+  /** The needle's display filter (pitch mode only: a take never builds one). */
+  private readonly filter: SteadinessFilter;
 
   constructor(cfg: PitchModeConfig) {
     this.cfg = cfg;
+    this.filter = new SteadinessFilter(STEADINESS_PRESETS[cfg.steadiness]);
     const { minHz, maxHz } = widenRange(cfg.minHz, cfg.maxHz);
     this.analyzer = new PitchAnalyzer({
       analysisRate: cfg.analysisRate,
@@ -122,6 +127,7 @@ export class PitchModeTracker {
     for (const e of this.analyzer.push(b.lowband, b.startT)) {
       const t = e.t as number;
       const voiced = e.midi !== null && Number.isFinite(e.midi) && e.rmsDb >= this.cfg.gateDb;
+      this.filter.push(t * 1000, e.midi, Number.isFinite(e.rmsDb) ? e.rmsDb : -120);
       if (voiced) {
         if (this.runStart === null) this.runStart = t;
         this.run.push({ t, midi: e.midi as number });
@@ -144,7 +150,8 @@ export class PitchModeTracker {
 
   private frameAt(t: number, rmsDb: number, voiced: boolean): PitchModeFrame {
     const levelDb = Math.round((Number.isFinite(rmsDb) ? rmsDb : -120) * 10) / 10;
-    if (!voiced || this.runStart === null) return { t: t as ClockSeconds, midi: null, cents: null, levelDb, steady: false };
+    const reading = this.filter.reading;
+    if (!voiced || this.runStart === null) return { t: t as ClockSeconds, midi: null, cents: null, levelDb, steady: false, reading };
     let sum = 0;
     let n = 0;
     let lo = Infinity;
@@ -165,7 +172,7 @@ export class PitchModeTracker {
     const cents = Math.round((mean - midi) * 1000) / 10;
     const held = t - this.runStart >= this.cfg.steadyMs / 1000 - 1e-9;
     const steady = held && (hi - lo) * 100 <= this.cfg.steadySpreadCents;
-    return { t: t as ClockSeconds, midi, cents, levelDb, steady };
+    return { t: t as ClockSeconds, midi, cents, levelDb, steady, reading };
   }
 }
 

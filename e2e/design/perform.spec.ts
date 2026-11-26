@@ -3,12 +3,13 @@
 // the performance screen by spec.
 import { expect, test, type Page } from '@playwright/test';
 import { movingAnimations, onboard, smallTargets } from './helpers.ts';
+import { walkWizard } from '../loop/flow.ts';
 
 test.skip(process.env['E2E_DESIGN'] !== '1', 'run with -c e2e/design/playwright.design.config.ts');
 
 test('performance toolbar: no ellipsis, 44 px targets, no motion when reduced', async ({ page, hasTouch }, info) => {
   await onboard(page);
-  await page.getByRole('button', { name: 'Start', exact: true }).click();
+  await page.getByRole('button', { name: /^Start (practice|ranked try)/ }).click();
   await expect(page.getByTestId('scan-cover')).toBeVisible({ timeout: 30_000 });
   await page.getByRole('button', { name: 'Show the music' }).click();
   await expect(page.getByTestId('screen-practice.scan')).toHaveAttribute('data-state', 'scanning');
@@ -41,21 +42,7 @@ test('performance toolbar: no ellipsis, 44 px targets, no motion when reduced', 
 /** The onboarding of `onboard`, with a voice: the starting pitch plays before the count-in (01-ux section 10). */
 async function onboardVoice(page: Page): Promise<void> {
   await page.goto('./');
-  await expect(page.getByTestId('screen-welcome')).toBeVisible({ timeout: 60_000 });
-  await page.getByRole('button', { name: 'Get started' }).click();
-  await page.getByRole('radio', { name: /Baritone/ }).first().check();
-  await page.getByRole('button', { name: 'Continue' }).click();
-  await expect(page.getByTestId('ob-mic')).toBeVisible();
-  await page.getByRole('button', { name: 'Allow microphone' }).click();
-  await expect(page.getByTestId('calibration-card')).toBeVisible({ timeout: 15_000 });
-  await page.getByTestId('calibration-card').getByRole('button', { name: 'Skip' }).click();
-  // Step 5, Sing or Play one note (round 2): skipped here.
-  await expect(page.getByTestId('ob-match')).toBeVisible();
-  await page.locator('.ob-head').getByRole('button', { name: 'Skip' }).click();
-  await expect(page.getByTestId('ob-level')).toBeVisible();
-  await page.getByRole('button', { name: "I'll choose" }).click();
-  await page.getByRole('button', { name: 'Start practising' }).click();
-  await expect(page.getByTestId('screen-home')).toBeVisible({ timeout: 15_000 });
+  await walkWizard(page, { mic: 'allow', instrument: /Baritone/ });
 }
 
 interface CountInSample {
@@ -72,7 +59,7 @@ interface CountInSample {
 test('before the music: the starting-pitch card, then a count-in track that says which bar is last, at full ink', async ({ page }, info) => {
   test.skip(info.project.name !== 'desktop-light' && info.project.name !== 'desktop-dark' && info.project.name !== 'iphone-light' && info.project.name !== 'iphone-dark', 'four looks are enough');
   await onboardVoice(page);
-  await page.getByRole('button', { name: 'Start', exact: true }).click();
+  await page.getByRole('button', { name: /^Start (practice|ranked try)/ }).click();
   await expect(page.getByTestId('scan-cover')).toBeVisible({ timeout: 30_000 });
   await page.getByRole('button', { name: 'Show the music' }).click();
   await expect(page.getByTestId('screen-practice.scan')).toHaveAttribute('data-state', 'scanning');
@@ -151,7 +138,7 @@ test('before the music: the starting-pitch card, then a count-in track that says
 
 test('the count-in track fits the paper on every width', async ({ page }, info) => {
   await onboard(page);
-  await page.getByRole('button', { name: 'Start', exact: true }).click();
+  await page.getByRole('button', { name: /^Start (practice|ranked try)/ }).click();
   await expect(page.getByTestId('scan-cover')).toBeVisible({ timeout: 30_000 });
   await page.getByRole('button', { name: 'Show the music' }).click();
   await expect(page.getByTestId('screen-practice.scan')).toHaveAttribute('data-state', 'scanning');

@@ -15,8 +15,12 @@ export interface DifficultySegmentView {
 export interface DifficultyRowView {
   value: number;
   max: number;
-  /** "Follow my progress" is on: the stepper is hidden. */
-  follow: boolean;
+  /** The player's own difficulty: a brass mark under that segment of the meter (round 3, R76). Absent: no mark. */
+  yourLevel?: number;
+  /** "One above your difficulty (1).", or null. */
+  relationNote?: TextLine | null;
+  /** Ranked: a read-only row at the player's difficulty instead of the stepper. */
+  locked?: boolean;
   /** Difficulties with no music for this instrument; the stepper skips them. */
   skipped: readonly number[];
   segments: readonly DifficultySegmentView[];
@@ -25,13 +29,9 @@ export interface DifficultyRowView {
   fewNote: TextLine | null;
   /** "Few pieces": the caution tag at the end of the description. */
   fewTag?: TextLine | null;
-  /** "Simpler? Match a note first." (difficulty 1). Shown only with `onMatch`. */
-  matchHint?: TextLine | null;
   description: string;
   /** "At difficulty 2: C3 to C4". Not shown by the control: the range card shows it (round 2, 01-ux section 6). */
   servedLine?: TextLine;
-  followValue: TextLine | null;
-  followHint: TextLine | null;
 }
 
 export interface KeyOptionView {
@@ -107,4 +107,4 @@ export type LengthRowView =
 export type PracticeMode = 'ranked' | 'practice';
 
 /** Why Ranked cannot be chosen right now (05 section 5.8), or null when it can. */
-export type RankedBlock = 'calibration' | 'mic';
+export type RankedBlock = 'calibration' | 'mic' | 'delay';

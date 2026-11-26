@@ -38,6 +38,8 @@ export interface RankUpMemory {
 
 export interface ResultsServices {
   configs: Configs;
+  /** Unseen pieces a ranked try at `level` could still serve (round 3, R77). Omitted: never exhausted. */
+  unseenRanked?(instrumentId: string, level: number): number;
   session: StoreApi<SessionView>;
   profile: Readable<PlayerProfile | undefined>;
   settings: Writable<AppSettings>;

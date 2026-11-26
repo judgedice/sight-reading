@@ -70,7 +70,8 @@ describe('Cover', () => {
     expect(cover.textContent).toContain(copy('scan.cover'));
     expect(cover.textContent).toContain(copy('scan.ranked.notice', { seconds: 30 }));
     expect(cover.textContent).toContain(copy('scan.skipFreeHint'));
-    expect(chip()).toBe(copy('badge.ranked'));
+    expect(chip()).toBe('Ranked');
+    expect($('[data-testid="mode-chip"]').getAttribute('data-mode')).toBe('ranked');
     expect(document.body.textContent).not.toContain(src.composer);
     expect(document.body.textContent).not.toContain(src.work);
     click(button(copy('action.practiceInstead')));
@@ -81,7 +82,18 @@ describe('Cover', () => {
     const h = harness({ mode: 'practice' });
     render(h);
     expect($('[data-testid="scan-cover"]').textContent).not.toContain(copy('scan.ranked.notice', { seconds: 30 }));
-    expect(chip()).toBe(copy('scan.chip.practice'));
+    expect(chip()).toBe('Practice · no time limit');
+    expect($('[data-testid="mode-chip"]').getAttribute('data-mode')).toBe('practice');
+  });
+
+  it('R79: a ranked request that cannot be ranked says Practice with the reason, on the cover and when it changes', () => {
+    const h = harness();
+    render(h);
+    expect(chip()).toBe('Ranked');
+    act(() => h.view.setState({ mode: 'practice', practiceReason: 'calibration' }));
+    expect(chip()).toBe('Practice · timing not measured');
+    expect(announced()).toBe('Now a practice try: timing not measured.');
+    expect($('[data-testid="scan-cover"]').textContent).not.toContain(copy('scan.ranked.notice', { seconds: 30 }));
   });
 
   it('loading: the frame with "Getting the music…", Show the music held', () => {
@@ -232,7 +244,7 @@ describe('Read-through', () => {
     const h = harness();
     render(h);
     await reveal(h, 24);
-    expect(chip()).toContain(copy('scan.chip.ranked', { time: '0:24' }));
+    expect(chip()).toContain('Ranked · 0:24 to read');
     expect($('[data-testid="mode-chip"] [role="img"]').getAttribute('aria-label')).toBe(copy('scan.timeLeft', { time: '0:24' }));
     expect($('.scan-summary').textContent).toContain('Difficulty 3');
     expect($('.sf-host').getAttribute('data-arrangement')).toBe('all');
@@ -268,7 +280,7 @@ describe('Read-through', () => {
     const h = harness({ mode: 'practice' });
     render(h);
     await reveal(h);
-    expect(chip()).toBe(copy('scan.chip.practice'));
+    expect(chip()).toBe('Practice · no time limit');
     expect($('[data-testid="scan-read-hint"]').textContent).toBe(copy('scan.practice.readHint'));
     tick(h, 10);
     expect(announced()).toBe('');
@@ -446,7 +458,7 @@ describe('Sounds and the reference (05 sections 8.8, 10; section 16 items 9, 10 
     click(button(copy('listen.confirm.no')));
     expect(confirm()).toBeNull();
     expect(h.listenFirst).not.toHaveBeenCalled();
-    expect(chip()).toContain(copy('scan.chip.ranked', { time: '0:24' }));
+    expect(chip()).toContain('Ranked · 0:24 to read');
     expect(h.sounds.getState().playing).toBeNull();
   });
 
@@ -472,8 +484,8 @@ describe('Sounds and the reference (05 sections 8.8, 10; section 16 items 9, 10 
     click(button(copy('listen.confirm.yes')));
     expect(h.listenFirst).toHaveBeenCalledTimes(1);
     expect(confirm()).toBeNull();
-    expect(chip()).toBe(copy('scan.chip.practice'));
-    expect(announced()).toBe(copy('listen.nowPractice'));
+    expect(chip()).toBe('Practice · you listened first');
+    expect(announced()).toBe('Now a practice try: you listened first.');
     expect(h.services.session.pending?.listenedFirst).toBe(true);
     // Playing: the button reads Stop and keeps the practice caption; pressing it stops.
     expect(sound('listen').textContent).toContain(copy('action.stop'));

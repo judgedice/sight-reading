@@ -9,6 +9,8 @@ import type { SessionErrorCode } from '../../../core/types.ts';
 import { CalStatusPill, calTexts } from '../../../ui/components/calibration-status/index.ts';
 import { Button, Toggle } from '../../../ui/components/form/index.ts';
 import { BeatUnitText, ChecklistItem, ScanTimer } from '../../../ui/components/domain/index.ts';
+import { ModePill } from '../../../ui/components/setup/index.ts';
+import type { PracticeReason } from '../../../session/index.ts';
 import { DOCK_QUERY, ListenConfirm, SoundButton, SoundsDock, SoundsGroup, useMediaQuery, type SoundsModel } from '../../../ui/components/sounds/index.ts';
 import { Glyph, Modal, Popover, Sheet, openOverlayCount, useToast } from '../../../ui/primitives/index.ts';
 import { useNavigate } from '../../router.tsx';
@@ -139,6 +141,7 @@ function SourceDetails({ prepared, onClose, mode }: { prepared: Prepared; onClos
 
 interface ToolbarProps {
   prepared: Prepared | null;
+  reason: PracticeReason | null;
   /** The overflow menu has items (a scale's read-through on desktop has none). */
   menu: boolean;
   mode: 'ranked' | 'practice';
@@ -151,31 +154,28 @@ interface ToolbarProps {
   setOverflowAnchor: (el: HTMLElement | null) => void;
 }
 
-function ModeChip({ mode, scanning, remainingSec, totalSec }: { mode: 'ranked' | 'practice'; scanning: boolean; remainingSec: number; totalSec: number }) {
+/**
+ * The mode pill on the cover and the read-through bar (round 3, R79): "Ranked · 0:24 to read" with the countdown ring
+ * while reading; "Practice · no time limit", or the reason a ranked request is practice ("Practice · seen before").
+ */
+function ModeChip({ mode, reason, scanning, remainingSec, totalSec }: { mode: 'ranked' | 'practice'; reason: PracticeReason | null; scanning: boolean; remainingSec: number; totalSec: number }) {
   if (mode === 'practice') {
-    return (
-      <span className="scan-chip" data-mode="practice" data-testid="mode-chip">
-        {copy('scan.chip.practice')}
-      </span>
-    );
+    return <ModePill mode="practice" detail={copy(reason ? (`mode.reason.${reason}` as CopyKey) : 'mode.pill.free')} testId="mode-chip" />;
   }
-  if (!scanning) {
-    return (
-      <span className="scan-chip" data-mode="ranked" data-testid="mode-chip">
-        {copy('badge.ranked')}
-      </span>
-    );
-  }
+  if (!scanning) return <ModePill mode="ranked" testId="mode-chip" />;
   const time = formatClock(remainingSec);
   return (
-    <span className="scan-chip" data-mode="ranked" data-ring="true" data-testid="mode-chip">
-      <ScanTimer remainingSec={remainingSec} totalSec={totalSec} mode="ranked" label={copy('scan.timeLeft', { time })} />
-      <span className="scan-chip-text">{copy('scan.chip.ranked', { time })}</span>
-    </span>
+    <ModePill
+      mode="ranked"
+      detail={copy('scan.chip.ranked.detail', { time })}
+      ring={<ScanTimer remainingSec={remainingSec} totalSec={totalSec} mode="ranked" label={copy('scan.timeLeft', { time })} />}
+      testId="mode-chip"
+      className="scan-pill-ring"
+    />
   );
 }
 
-function Toolbar({ prepared, menu, mode, scanning, remainingSec, totalSec, onHome, overflowOpen, setOverflowOpen, setOverflowAnchor }: ToolbarProps) {
+function Toolbar({ prepared, reason, menu, mode, scanning, remainingSec, totalSec, onHome, overflowOpen, setOverflowOpen, setOverflowAnchor }: ToolbarProps) {
   return (
     <header className="scan-toolbar">
       <Button label={copy('nav.home')} variant="quiet" size="compact" icon="chevron-left" onClick={onHome} className="scan-home" />
@@ -186,7 +186,7 @@ function Toolbar({ prepared, menu, mode, scanning, remainingSec, totalSec, onHom
       ) : (
         <span className="scan-toolbar-gap" />
       )}
-      {prepared ? <ModeChip mode={mode} scanning={scanning} remainingSec={remainingSec} totalSec={totalSec} /> : null}
+      {prepared ? <ModeChip mode={mode} reason={reason} scanning={scanning} remainingSec={remainingSec} totalSec={totalSec} /> : null}
       {scanning && prepared && menu ? (
         <button type="button" className="scan-overflow" aria-label={OVERFLOW_LABEL} aria-haspopup="menu" aria-expanded={overflowOpen} ref={setOverflowAnchor} onClick={() => setOverflowOpen((o) => !o)}>
           <Glyph id="more" />
@@ -313,6 +313,7 @@ export function ScanScreen(_props: ScreenProps) {
   const scan = useStoreSlice(svc.view, (v) => v.scan);
   const error = useStoreSlice(svc.view, (v) => v.error);
   const viewMode = useStoreSlice(svc.view, (v) => v.mode);
+  const practiceReason = useStoreSlice(svc.view, (v) => v.practiceReason ?? null);
   const settings = useReadable(svc.settings);
   const beatLineSwitch = svc.setBeatLine ? <BeatLineSwitch on={settings.display.beatLine !== false} set={(on) => svc.setBeatLine?.(on)} /> : null;
   const wakeLockFailed = useReadable(svc.wakeLockFailed ?? NEVER);
@@ -338,6 +339,13 @@ export function ScanScreen(_props: ScreenProps) {
 
   const announce = useCallback((text: string) => setSaid((s) => ({ text, n: s.n + 1 })), []);
   const sounds = useReadSounds({ svc, prepared, mode, active: scanning, announce });
+  // A ranked try that becomes practice says so at that moment (R79); Listen first announces its own line.
+  const lastReason = useRef<PracticeReason | null>(practiceReason);
+  useEffect(() => {
+    const was = lastReason.current;
+    lastReason.current = practiceReason;
+    if (practiceReason && practiceReason !== was && practiceReason !== 'listened-first' && prepared) announce(copy('mode.nowPractice', { reason: copy(`mode.reason.${practiceReason}` as CopyKey) }));
+  }, [practiceReason, prepared, announce]);
 
   // The session decides when the take starts; the screens follow its state.
   useEffect(() => {
@@ -514,6 +522,7 @@ export function ScanScreen(_props: ScreenProps) {
     <section className="scan" {...routeAttrs} data-state={state} data-mode={mode} data-layout={docked ? 'dock' : 'side'}>
       <Toolbar
         prepared={prepared}
+        reason={practiceReason}
         menu={!isScale || (docked && calStatus !== null)}
         mode={mode}
         scanning={scanning}

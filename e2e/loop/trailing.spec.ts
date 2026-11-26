@@ -9,7 +9,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
-import { chooseMode, chooseOutput, LOOP_T0_SEC, pagePlan, watchErrors } from './flow.ts';
+import { chooseMode, chooseOutput, LOOP_T0_SEC, pagePlan, walkWizard, watchErrors } from './flow.ts';
 import { installLiveWatch, liveMarks, trailingVoice, writeTrailingWav, planWithoutPickup } from './trail.ts';
 
 test.skip(process.env['E2E_LOOP'] !== '1', 'run with -c e2e/loop/playwright.loop.config.ts');
@@ -17,19 +17,7 @@ test.skip(process.env['E2E_LOOP'] !== '1', 'run with -c e2e/loop/playwright.loop
 /** Onboarding as a baritone, the microphone allowed, calibration and "Sing one note" skipped. */
 async function onboardBaritone(page: Page): Promise<void> {
   await page.goto(`./?testClock=1&testClockSec=${LOOP_T0_SEC}`);
-  await expect(page.getByTestId('screen-welcome')).toBeVisible({ timeout: 30_000 });
-  await page.getByRole('button', { name: 'Get started' }).click();
-  await page.getByRole('radio', { name: /^Baritone voice/ }).check();
-  await page.getByRole('button', { name: 'Continue' }).click();
-  await page.getByRole('button', { name: 'Allow microphone' }).click();
-  await expect(page.getByTestId('calibration-card')).toBeVisible({ timeout: 15_000 });
-  await page.getByTestId('calibration-card').getByRole('button', { name: 'Skip' }).click();
-  await expect(page.getByTestId('ob-match')).toBeVisible();
-  await page.locator('.ob-head').getByRole('button', { name: 'Skip' }).click();
-  await expect(page.getByTestId('ob-level')).toBeVisible();
-  await page.getByRole('button', { name: "I'll choose" }).click();
-  await page.getByRole('button', { name: 'Start practising' }).click();
-  await expect(page.getByTestId('screen-home')).toBeVisible({ timeout: 15_000 });
+  await walkWizard(page, { mic: 'allow', instrument: /^Baritone voice/ });
 }
 
 test('trailing voice at difficulty 1: no ghost or extra mark during the try, no extra in the results, diagnostics saved', async ({ page }, info) => {
@@ -44,10 +32,10 @@ test('trailing voice at difficulty 1: no ghost or extra mark during the try, no 
   const home = page.getByTestId('screen-home');
   const phone = (page.viewportSize()?.width ?? 1280) < 1024;
   expect(phone).toBe(false);
-  await home.getByRole('button', { name: /Decrease Difficulty/ }).click();
-  await expect(home.getByText(/1\s*of 10/).first()).toBeVisible();
+  // Difficulty 1: everyone starts there (round 3, R75).
   await chooseMode(page, 'practice');
-  await page.getByRole('button', { name: 'Start', exact: true }).click();
+  await expect(home.getByText(/1\s*of 10/).first()).toBeVisible();
+  await page.getByRole('button', { name: /^Start (practice|ranked try)/ }).click();
   await expect(page.getByTestId('scan-cover')).toBeVisible({ timeout: 30_000 });
   await page.getByRole('button', { name: 'Show the music' }).click();
   const scan = page.getByTestId('screen-practice.scan');

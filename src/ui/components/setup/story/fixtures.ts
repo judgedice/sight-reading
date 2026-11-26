@@ -52,22 +52,22 @@ export function keyRow(max: number, chosen: string | null, next: number | null, 
   };
 }
 
-export function difficultyRow(follow = false): DifficultyRowView {
+/** Practice (a stepper, your difficulty 1 marked) or Ranked (locked at your difficulty). */
+export function difficultyRow(locked = false): DifficultyRowView {
   const skipped = [7, 8];
   return {
-    value: 2,
+    value: locked ? 1 : 2,
     max: 10,
-    follow,
+    yourLevel: 1,
+    relationNote: locked ? null : { key: 'setup.difficulty.above', vars: { n: 1, level: 1 } },
+    locked,
     skipped,
     segments: Array.from({ length: 10 }, (_, i) => ({ level: i + 1, filled: i < 2, hasMusic: !skipped.includes(i + 1) })),
     skippedNote: { key: 'home.levelNoMusic', vars: { instrument: NAME, levels: '7 to 8' } },
     fewNote: { key: 'home.levelFewMusic', vars: {} },
     fewTag: { key: 'setup.difficulty.fewTag', vars: {} },
-    matchHint: null,
     description: 'Adds eighths, minor keys and one-beat pickups.',
     servedLine: { key: 'range.atDifficulty', vars: { level: 2, low: 'C3', high: 'C4' } },
-    followValue: follow ? { key: 'setup.difficulty.followValue', vars: { level: 2, max: 10 } } : null,
-    followHint: follow ? { key: 'setup.difficulty.followHint', vars: {} } : null,
   };
 }
 

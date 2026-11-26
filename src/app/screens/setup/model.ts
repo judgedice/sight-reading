@@ -33,9 +33,12 @@ export function listedInstruments(cfg: Configs, showBeta: boolean): Instrument[]
   return cfg.instruments.instruments.filter((i) => i.status === 'launch' || showBeta);
 }
 
-/** The level whose rows apply: the chosen level, or the player's own when Random (PLAN ruling 22). */
+/**
+ * The level whose rows apply. Ranked is always at the player's own difficulty (round 3, R76); Practice uses the chosen
+ * one. A stored `'random'` (the withdrawn "Follow my progress") reads as the player's own.
+ */
 export function effectiveLevel(p: PracticeSettings, ctx: SetupContext): number {
-  const l = p.level === 'random' ? ctx.playerLevel(p.instrumentId) : p.level;
+  const l = p.mode === 'ranked' || p.level === 'random' ? ctx.playerLevel(p.instrumentId) : p.level;
   return Math.min(10, Math.max(1, Math.round(l)));
 }
 
@@ -171,7 +174,9 @@ export function normalize(p: PracticeSettings, ctx: SetupContext): PracticeSetti
   if (!listed.some((i) => i.id === next.instrumentId)) {
     next.instrumentId = listed[0]?.id ?? next.instrumentId;
   }
-  if (next.level !== 'random') {
+  // "Follow my progress" is withdrawn (R76): a stored 'random' reads as the player's difficulty.
+  if (next.level === 'random') next.level = ctx.playerLevel(next.instrumentId);
+  {
     const counts = levelCounts(ctx, next.instrumentId);
     let l = Math.min(10, Math.max(1, Math.round(next.level)));
     if (counts[l] === 0) {
@@ -206,7 +211,9 @@ export function localSuggestions(p: PracticeSettings, ctx: SetupContext): Partia
   const near = LEVELS.filter((l) => l !== level && ctx.eligible(p.instrumentId, l, null) > 0).sort(
     (a, b) => Math.abs(a - level) - Math.abs(b - level) || a - b,
   );
-  if (near[0] !== undefined && p.level !== 'random') out.push({ level: near[0] });
+  // Ranked is locked to the player's difficulty (R76): the way out is Practice, not another difficulty.
+  if (p.mode === 'ranked') out.push({ mode: 'practice' });
+  else if (near[0] !== undefined) out.push({ level: near[0] });
   return out;
 }
 
@@ -272,8 +279,14 @@ export interface DifficultySegment {
 export interface DifficultyRow {
   value: number;
   max: number;
-  /** "Follow my progress" is on (`level === 'random'`): the stepper is hidden. */
-  follow: boolean;
+  /** The player's own difficulty on this instrument: the brass mark under the meter (round 3, R76). */
+  yourLevel: number;
+  /** Where the chosen difficulty sits against the player's own. */
+  relation: 'same' | 'above' | 'below';
+  /** "One above your difficulty (1).", "Below your difficulty (3).", or null when the same. */
+  relationNote: SetupText | null;
+  /** Ranked: a read-only row at the player's difficulty ("Difficulty 1 of 10 · Your difficulty"). */
+  locked: boolean;
   /** Difficulties with music for this instrument; the stepper steps through these only. */
   withMusic: number[];
   skipped: number[];
@@ -289,15 +302,10 @@ export interface DifficultyRow {
   fewNote: SetupText | null;
   /** The small caution tag at the end of the description ("Few pieces"). */
   fewTag: SetupText | null;
-  /** Difficulty 1 only: "Simpler? Match a note first." beside the switch (round 2, 01-ux section 3.3). */
-  matchHint: SetupText | null;
   /** The level description from levels.json. */
   description: string;
   /** "At difficulty 2: C3 to C4". */
   servedLine: RangeText;
-  /** With follow on: "Difficulty 2 of 10 (follows your progress)" and its hint. */
-  followValue: SetupText | null;
-  followHint: SetupText | null;
 }
 
 export interface KeyOption {
@@ -404,11 +412,21 @@ function difficultyRow(p: PracticeSettings, ctx: SetupContext, inst: Instrument,
   const skipped = LEVELS.filter((l) => (counts[l] ?? 0) === 0);
   const count = counts[level] ?? 0;
   const few = count > 0 && count < THIN_LEVEL;
-  const follow = p.level === 'random';
+  const yourLevel = Math.min(10, Math.max(1, Math.round(ctx.playerLevel(inst.id))));
+  const locked = p.mode === 'ranked';
+  const relation = level === yourLevel ? 'same' : level > yourLevel ? 'above' : 'below';
   return {
     value: level,
     max: 10,
-    follow,
+    yourLevel,
+    relation,
+    relationNote:
+      locked || relation === 'same'
+        ? null
+        : relation === 'above'
+          ? text('setup.difficulty.above', { n: level - yourLevel, level: yourLevel })
+          : text('setup.difficulty.below', { level: yourLevel }),
+    locked,
     withMusic,
     skipped,
     counts,
@@ -419,11 +437,8 @@ function difficultyRow(p: PracticeSettings, ctx: SetupContext, inst: Instrument,
     few,
     fewNote: few ? text('home.levelFewMusic') : null,
     fewTag: few ? text('setup.difficulty.fewTag') : null,
-    matchHint: level === 1 && !follow ? text('setup.difficulty.matchHint') : null,
     description: def.description,
     servedLine: rangeModel(ctx.cfg, inst, level).servedLine,
-    followValue: follow ? text('setup.difficulty.followValue', { level, max: 10 }) : null,
-    followHint: follow ? text('setup.difficulty.followHint') : null,
   };
 }
 
@@ -573,7 +588,7 @@ export function fallbackNotes(requested: PracticeSettings, next: PracticeSetting
   const out: FallbackNote[] = [];
   const inst = ctx.cfg.instrumentById[next.instrumentId];
   const level = effectiveLevel(next, ctx);
-  if (requested.level !== 'random' && next.level !== 'random') {
+  if (requested.level !== 'random' && next.level !== 'random' && requested.mode !== 'ranked') {
     const asked = Math.min(10, Math.max(1, Math.round(requested.level)));
     if (asked !== next.level && inst) {
       out.push({

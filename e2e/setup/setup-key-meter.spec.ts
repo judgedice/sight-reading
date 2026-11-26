@@ -99,7 +99,7 @@ async function chooseInstrument(page: Page, instrument: string): Promise<void> {
 }
 
 async function startAndReveal(page: Page): Promise<void> {
-  await page.getByRole('button', { name: 'Start', exact: true }).click();
+  await page.getByRole('button', { name: /^Start (practice|ranked try)/ }).click();
   await expect(page.getByTestId('scan-cover')).toBeVisible({ timeout: 30_000 });
   await page.getByRole('button', { name: 'Show the music' }).click();
   await expect(page.getByTestId('screen-practice.scan').locator('[data-expected-idx]').first()).toBeVisible({ timeout: 30_000 });

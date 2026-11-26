@@ -25,7 +25,7 @@ export interface CalStatusPillProps {
   className?: string;
 }
 
-const GLYPH: Record<CalStatusView['state'], GlyphId | null> = { ok: 'check', none: 'speaker', changed: 'caution', failed: 'speaker' };
+const GLYPH: Record<CalStatusView['state'], GlyphId | null> = { ok: 'check', none: 'speaker', changed: 'caution', failed: 'speaker', delay: 'speaker' };
 
 function StateGlyph({ state }: { state: CalStatusView['state'] }) {
   const id = GLYPH[state];
@@ -85,7 +85,7 @@ export function CalStatusPill({ status, variant, onCalibrate, onSettings, readTh
       >
         <StateGlyph state={state} />
         <span className="cs-text">{row && state === 'changed' ? t.lead : text}</span>
-        {row && state !== 'ok' ? <span className="cs-row-action">{t.action}</span> : null}
+        {state === 'delay' ? <span className="cs-why">{copy('calStatus.delay.why')}</span> : row && state !== 'ok' ? <span className="cs-row-action">{t.action}</span> : null}
         <Glyph id={row ? 'chevron-right' : 'chevron-down'} size={16} className="cs-chevron" />
       </button>
       <Popover open={open} anchor={anchor} onClose={() => setOpen(false)} label={t.title} title={t.title} id={popId}>

@@ -1,12 +1,43 @@
-import type { ReactNode } from 'react';
-import type { Configs, Instrument } from '../../../core/types.ts';
-import { Button } from '../../../ui/components/form/index.ts';
+import { useState, type ReactNode } from 'react';
+import type { Configs, Instrument, PitchSteadiness } from '../../../core/types.ts';
+import { Button, SegmentedControl } from '../../../ui/components/form/index.ts';
 import { copy } from '../../../ui/copy/copy.ts';
 import { Glyph } from '../../../ui/primitives/index.ts';
 import { MatchStaff } from './MatchStaff.tsx';
 import { Needle } from './Needle.tsx';
 import type { MatchController } from './use-match.ts';
-import { hintLine, needleView, rangeChips, readName, stateLine, summaryLine, targetStaff, youLine } from './view.ts';
+import { heardStaff, hintLine, needleView, rangeChips, readName, settledLine, settledMidi, stateLine, summaryLine, targetStaff, youLine } from './view.ts';
+
+/**
+ * "Needle moving too much? Make it steadier" under the meter (03-pitch-steadiness §4): a quiet link that opens the
+ * same three choices as Settings › Display › Pitch needle. A change is stored and the note plays again with it.
+ */
+function Steadier({ value, onChange }: { value: PitchSteadiness; onChange: (v: PitchSteadiness) => void }) {
+  const [open, setOpen] = useState(false);
+  if (!open) {
+    return (
+      <div className="mt-steadier">
+        <Button label={copy('match.steadier')} variant="tertiary" size="compact" onClick={() => setOpen(true)} />
+      </div>
+    );
+  }
+  return (
+    <div className="mt-steadier" data-testid="match-steadier">
+      <SegmentedControl<PitchSteadiness>
+        ariaLabel={copy('settings.display.pitchSteadiness')}
+        options={[
+          { value: 'steady', label: copy('settings.display.pitchSteadiness.steady') },
+          { value: 'balanced', label: copy('settings.display.pitchSteadiness.balanced') },
+          { value: 'quick', label: copy('settings.display.pitchSteadiness.quick') },
+        ]}
+        value={value}
+        onChange={onChange}
+      />
+      <p className="mt-steadier-hint">{copy(`settings.display.pitchSteadiness.${value}.hint`)}</p>
+      <Button label={copy('match.done')} variant="tertiary" size="compact" onClick={() => setOpen(false)} />
+    </div>
+  );
+}
 
 export interface MatchPanelProps {
   ctl: MatchController;
@@ -54,9 +85,12 @@ export function MatchPanel({ ctl, instrument, cfg, chips, actions, aside, onDone
 
   const noMic = mic === 'none' || mic === 'requesting';
   const line = noMic ? { text: copy('match.noMic'), tone: 'quiet' as const, chevron: null } : stateLine(state, instrument);
-  const you = noMic ? null : youLine(state, instrument);
+  const you = noMic ? null : youLine(state, instrument, ctl.showCents);
+  const sang = noMic ? null : settledLine(state, instrument);
+  const heard = noMic ? null : heardStaff(instrument, state.target, settledMidi(state));
   const hint = noMic ? null : hintLine(state);
-  const needle = needleView(state);
+  // The wobble width shows on Steady and Balanced, where the needle itself is calm (§9 open question 2).
+  const needle = needleView(state, ctl.steadiness !== 'quick');
   const ring = state.phase === 'hit' ? 'hit' : state.phase === 'idle' && mic === 'allowed' ? 'playing' : null;
   const youText = you ? (
     <>
@@ -70,7 +104,7 @@ export function MatchPanel({ ctl, instrument, cfg, chips, actions, aside, onDone
     <div className="mt-body" data-phase={noMic ? 'no-mic' : state.phase}>
       <div className="mt-target">
         <div className="mt-paper">
-          <MatchStaff note={staff.note} ring={ring} />
+          <MatchStaff note={staff.note} ring={ring} heard={heard} />
         </div>
         <div className="mt-name">
           <p className="mt-note" data-testid="match-target">
@@ -89,12 +123,18 @@ export function MatchPanel({ ctl, instrument, cfg, chips, actions, aside, onDone
       <p className="mt-you" data-testid="match-you">
         {youText}
       </p>
+      {sang ? (
+        <p className="mt-sang" data-testid="match-sang">
+          {sang.text}
+        </p>
+      ) : null}
       {aside}
 
-      <Needle view={noMic ? { ...needle, at: null, dim: true } : needle} />
+      <Needle view={noMic ? { ...needle, at: null, dim: true, spread: null } : needle} />
       <p className="mt-hint" data-testid="match-hint">
         {hint ?? ''}
       </p>
+      {!noMic && ctl.setSteadiness ? <Steadier value={ctl.steadiness} onChange={ctl.setSteadiness} /> : null}
 
       <div className="mt-foot">
         {noMic ? (

@@ -218,7 +218,7 @@ describe('SettingsScreen', () => {
     expect(q('[data-testid="cal-status"]').getAttribute('data-state')).toBe('ok');
     const recalibrate = [...document.querySelectorAll('button')].find((b) => b.textContent === copy('action.recalibrate'));
     click(recalibrate!);
-    expect(h.src.navigated).toContain('/calibrate');
+    expect(h.src.navigated).toContain('/calibrate?from=settings');
   });
 
   it('shows the placement action only when the root provides one', async () => {
@@ -433,7 +433,7 @@ describe('Settings > Sound', () => {
     expect(document.body.textContent).toContain(copy('settings.audio.a4.hint'));
     expect(q('[data-testid="cal-status"]').getAttribute('data-state')).toBe('none');
     click([...document.querySelectorAll('button')].find((b) => b.textContent === calTexts(NOT_CAL).action)!);
-    expect(h.src.navigated).toContain('/calibrate');
+    expect(h.src.navigated).toContain('/calibrate?from=settings');
   });
 
   it('shows the changed-output status with the caution tone, and no Recalibrate button until it is OK', async () => {
@@ -589,6 +589,32 @@ describe('Settings round 2 additions', () => {
     expect(switchFor(copy('settings.display.noteColours'))?.checked).toBe(true);
     click(switchFor(copy('settings.display.noteColours'))!);
     expect(h.settings.value().display.noteColours).toBe(false);
+  });
+
+  it('Display has the pitch needle: Steady by default for a voice, Balanced for an instrument, stored when chosen', async () => {
+    const group = (): HTMLElement => document.querySelector<HTMLElement>(`[role="radiogroup"][aria-label="${copy('settings.display.pitchSteadiness')}"]`)!;
+    const checked = (): string | undefined => group().querySelector<HTMLInputElement>('input:checked')?.value;
+    const h = harness();
+    h.settings.set({ ...h.settings.get(), practice: { ...h.settings.get().practice, instrumentId: 'voice-baritone' } });
+    await render(h);
+    expect(group().closest('section')?.getAttribute('data-section')).toBe('display');
+    expect([...group().querySelectorAll('label')].map((l) => l.textContent)).toEqual(['Steady', 'Balanced', 'Quick']);
+    expect(checked()).toBe('steady');
+    expect(document.body.textContent).toContain(copy('settings.display.pitchSteadiness.hint'));
+    expect(q<HTMLElement>('[data-testid="pitch-steadiness-choice"]').textContent).toBe(copy('settings.display.pitchSteadiness.steady.hint'));
+    // Nothing is stored until the player chooses: absent means "by family".
+    expect(h.settings.value().display.pitchSteadiness).toBeUndefined();
+    click(group().querySelector<HTMLInputElement>('input[value="quick"]')!);
+    expect(h.settings.value().display.pitchSteadiness).toBe('quick');
+    expect(checked()).toBe('quick');
+    expect(q<HTMLElement>('[data-testid="pitch-steadiness-choice"]').textContent).toBe(copy('settings.display.pitchSteadiness.quick.hint'));
+
+    m?.unmount();
+    m = null;
+    const flute = harness();
+    flute.settings.set({ ...flute.settings.get(), practice: { ...flute.settings.get().practice, instrumentId: 'flute' } });
+    await render(flute);
+    expect(checked()).toBe('balanced');
   });
 
   it('chooses how played notes show live and stores it', async () => {

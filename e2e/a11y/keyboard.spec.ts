@@ -111,17 +111,15 @@ test('radio groups: one Tab stop, arrows, Home and End (onboarding, Practice, se
   await expect(page.getByTestId('ob-instrument')).toBeVisible();
   await expectRadioGroups(page, 'onboarding instrument', 1);
   await page.getByRole('radio', { name: /Flute/ }).check();
-  await page.getByRole('button', { name: 'Continue' }).click();
+  await page.getByRole('button', { name: 'Next: sound check' }).click();
   await page.getByRole('button', { name: 'Allow microphone' }).click();
+  await page.getByRole('button', { name: 'Skip this check' }).click();
   await expect(page.getByTestId('calibration-card')).toBeVisible({ timeout: 15_000 });
-  await page.getByTestId('calibration-card').getByRole('button', { name: 'Skip' }).click();
-  // Step 5, Sing or Play one note (round 2): skipped here.
-  await expect(page.getByTestId('ob-match')).toBeVisible();
-  await page.locator('.ob-head').getByRole('button', { name: 'Skip' }).click();
-  await expect(page.getByTestId('ob-level')).toBeVisible();
-  await page.getByRole('button', { name: "I'll choose" }).click();
-  await expectRadioGroups(page, 'onboarding difficulty', 0);
-  await page.getByRole('button', { name: 'Start practising' }).click();
+  // The Timing stage's one radio-free control set: the output select and the footer.
+  await page.getByRole('button', { name: 'Skip for now' }).click();
+  await expect(page.getByTestId('ob-ready')).toBeVisible();
+  await expectRadioGroups(page, 'onboarding ready', 0);
+  await page.getByRole('button', { name: 'Go to Home' }).click();
   await expect(page.getByTestId('screen-home')).toBeVisible({ timeout: 15_000 });
 
   if (!isPhone(info.project.name)) {
@@ -215,7 +213,7 @@ type Sr = { __sr: { session: { current: { settings: Record<string, unknown> } | 
 
 test('the listen confirm focuses Keep it ranked and gives focus back to Listen first', async ({ page }) => {
   await onboardWithVisits(page, async () => undefined);
-  await page.getByRole('button', { name: 'Start', exact: true }).click();
+  await page.getByRole('button', { name: /^Start (practice|ranked try)/ }).click();
   await expect(page.getByTestId('scan-cover')).toBeVisible({ timeout: 30_000 });
   await expect.poll(() => page.evaluate(() => (window as unknown as Sr).__sr.session.current !== null), { timeout: 30_000 }).toBe(true);
   // Ranked needs a calibrated route and the fake microphone hears no clicks: ask the session for the ranked excerpt the way Start does.

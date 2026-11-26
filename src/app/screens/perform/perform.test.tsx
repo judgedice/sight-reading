@@ -86,6 +86,10 @@ describe('Performance screen', () => {
     expect($('.sf-host').getAttribute('data-frozen')).toBe('true');
     expect($('.sf-host').getAttribute('data-arrangement')).toBe('slots');
     expect($('.perform').getAttribute('data-mode')).toBe('ranked');
+    // The mode during the try, right of Stop (round 3, R79).
+    expect($('[data-testid="try-mode"]').getAttribute('data-mode')).toBe('ranked');
+    expect($('[data-testid="try-mode"]').textContent).toBe('Ranked');
+    expect($('.perform-stop [data-testid="try-mode"]')).toBeTruthy();
     expect($('.perform-centre-text').textContent).toBe(copy('play.status.countIn'));
     expect($('.perform-tempo').textContent).toContain('♩ = 100');
     // No starting pitch for an instrument: the count-in strip has the mic meter (04-design §5); "Marks start at bar 1"

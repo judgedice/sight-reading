@@ -19,6 +19,9 @@
 }
 
 .perform-stop {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
   justify-self: start;
 }
 

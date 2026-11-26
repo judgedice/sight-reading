@@ -20,6 +20,7 @@ import type {
   DisplayMode,
   DspConfig,
   DspStats,
+  PitchSteadiness,
   EndReason,
   FollowConfig,
   FollowerEvent,
@@ -128,6 +129,82 @@ export interface PitchModeConfig {
   steadySpreadCents: number;
   /** Frames quieter than this, dBFS, are unvoiced. */
   gateDb: number;
+  /**
+   * The needle's display filter preset (round 3, `dsp/pitch-steadiness.ts` `STEADINESS_PRESETS`, 03-pitch-steadiness
+   * §3). Pitch mode only: no take config carries it (T15).
+   */
+  steadiness: PitchSteadiness;
+}
+
+/**
+ * Parameters of the needle's display filter and of the in-tune decision on Match a note (03-pitch-steadiness §3.2).
+ * Times ms, pitches cents, levels dB. `centreMs`, `tauMs`, `judgeMs` and `detentC` differ by preset; the rest are the
+ * same in every preset.
+ */
+export interface SteadinessParams {
+  /** The running median window once the note is held. */
+  centreMs: number;
+  /** The exponential smoother's time constant once the note is held. */
+  tauMs: number;
+  /** The in-tune median window. */
+  judgeMs: number;
+  /** The drawn needle moves only by this much or more. */
+  detentC: number;
+  /** Frames quieter than this are unvoiced, dBFS. */
+  gateDb: number;
+  /** A frame this far below the loudest of the last `peakMs` is a dropout (a dying tail or a deep dip). */
+  tailDb: number;
+  peakMs: number;
+  /** No needle until this much of a run is voiced. */
+  showAfterMs: number;
+  /** Unvoiced gaps up to this long are bridged: needle, state and hit timer kept. */
+  holdMs: number;
+  /** After this long unvoiced the needle is hidden (between `holdMs` and this it is dimmed). */
+  hideMs: number;
+  /** A frame this far from the recent median (unfolded) is held as a glitch ... */
+  jumpC: number;
+  /** ... for up to this long; still away after that, it is a new pitch. */
+  jumpHoldMs: number;
+  /** The centre this far from the smoothed value ... */
+  snapC: number;
+  /** ... for this long makes the smoothed value jump to it. */
+  snapMs: number;
+  /** Width of the hysteresis around the band (enter at band − hystC/2, leave at band + hystC/2). */
+  hystC: number;
+  enterDwellMs: number;
+  exitDwellMs: number;
+  /** In tune this long, with the median of that time within the band, is a hit. */
+  hitMs: number;
+  /** The shortest centre window. */
+  minCentreMs: number;
+  /** Leave at once when the short centre is beyond `fastExitFactor` × band for `fastExitMs`. */
+  fastExitFactor: number;
+  fastExitMs: number;
+  /** The wobble width (10th to 90th percentile) is taken over this window. */
+  spreadMs: number;
+}
+
+/** Whether the needle is fed: a voiced frame, a bridged gap or held glitch, a dimmed gap, or nothing to show. */
+export type SteadinessGap = 'none' | 'bridged' | 'dim' | 'hidden';
+
+/** What the display filter shows at a frame (fractional concert MIDI, unfolded: the screen folds to the target). */
+export interface SteadinessReading {
+  /** The drawn needle value (median, smoother, snap, detent), or null when there is nothing to show. */
+  settledMidi: number | null;
+  /** The short centre (the running median), for the fast exit; null until shown. */
+  centreMidi: number | null;
+  /** The in-tune median over `judgeMs`; null until the run has a full window. */
+  judgeMidi: number | null;
+  /** The median of the last `hitMs` (the hit's accuracy test); null with `judgeMidi`. */
+  holdMidi: number | null;
+  /** The wobble width: 10th and 90th percentile of the last `spreadMs`; null until shown. */
+  spreadLoMidi: number | null;
+  spreadHiMidi: number | null;
+  /** Length of the current voiced run, ms (0 when none). */
+  voicedMs: number;
+  gap: SteadinessGap;
+  /** Bumped when a new run starts (after a dimmed gap, or a jump confirmed as a new pitch). */
+  runId: number;
 }
 
 /** One pitch-mode frame (input time, seconds). `MatchNoteService` turns it into a `MatchFrame` in milliseconds. */
@@ -140,6 +217,8 @@ export interface PitchModeFrame {
   /** Window level, dBFS. */
   levelDb: number;
   steady: boolean;
+  /** The display filter's reading (round 3). */
+  reading: SteadinessReading;
 }
 
 /**

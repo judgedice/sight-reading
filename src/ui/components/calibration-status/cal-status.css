@@ -70,7 +70,8 @@
   flex: none;
 }
 
-.cs-row-action {
+.cs-row-action,
+.cs-why {
   flex: none;
   color: var(--text);
   font-weight: var(--type-label-weight);
@@ -160,4 +161,10 @@
   display: flex;
   align-items: center;
   gap: var(--space-3);
+}
+
+/* "Timing: long delay · Why?" (round 3, R80): the popover holds the measured number and what it changes. */
+.cs-why {
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
 }

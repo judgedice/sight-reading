@@ -69,8 +69,13 @@ export interface SetupFormProps {
    * beside Tempo when only one length exists. `sheet` (the phone sheet): every option in place, each row its own.
    */
   layout?: 'form' | 'sheet';
-  /** Opens "Match a note": difficulty 1 shows "Simpler? Match a note first." (round 2, 01-ux section 3.3). */
-  onMatch?: (() => void) | undefined;
+  /** "Not sure? Find my difficulty" under the Practice stepper (round 3, R75). Absent: no link. */
+  onFindLevel?: (() => void) | undefined;
+  placementCount?: number;
+  /** A line under the Difficulty row: the offer of the next difficulty when the pieces run out (R77). */
+  difficultyExtra?: ReactNode;
+  /** A row above Difficulty: Home puts Mode here, since what difficulty means depends on it (01-ux-review §4.2). */
+  top?: ReactNode;
   className?: string | undefined;
 }
 
@@ -96,7 +101,7 @@ function RowSlot({ id, children }: { id: SetupRowId; children: ReactNode }) {
  * re-filters the other rows and the rows that fell back to Any say so for six seconds, announced politely once.
  * Used by the Practice screen's setup card and by `SetupSheet`.
  */
-export function SetupForm({ value, onChange, ctx, notes, onNoteExpire, onHearTempo, layout = 'sheet', onMatch, className }: SetupFormProps) {
+export function SetupForm({ value, onChange, ctx, notes, onNoteExpire, onHearTempo, layout = 'sheet', onFindLevel, placementCount, difficultyExtra, top, className }: SetupFormProps) {
   const own = useFallbackNotes();
   const shown = notes ?? own.notes;
   const expire = notes ? onNoteExpire : own.expire;
@@ -148,8 +153,16 @@ export function SetupForm({ value, onChange, ctx, notes, onNoteExpire, onHearTem
 
   return (
     <div className={['setup', `setup-${layout}`, className].filter(Boolean).join(' ')} data-testid="setup-form">
+      {top}
       <RowSlot id="difficulty">
-        <DifficultyControl row={model.difficulty} fallback={fallback('difficulty')} onChange={(level) => apply({ level })} onMatch={onMatch} />
+        <DifficultyControl
+          row={model.difficulty}
+          fallback={fallback('difficulty')}
+          onChange={(level) => apply({ level })}
+          onFindLevel={onFindLevel}
+          {...(placementCount !== undefined ? { placementCount } : {})}
+          extra={difficultyExtra}
+        />
       </RowSlot>
       <RowSlot id="key">
         <KeyGrid

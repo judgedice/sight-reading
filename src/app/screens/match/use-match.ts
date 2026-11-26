@@ -3,9 +3,9 @@
  * opens the microphone after it, feeds frames and ticks on the engine's clock into the reducer, and stops everything
  * on the way out. It touches nothing else: no attempts, no profile, no history, no settings.
  */
-import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
-import type { Configs, Instrument } from '../../../core/types.ts';
-import type { MatchNoteService } from '../../../session/index.ts';
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import type { Configs, Instrument, PitchSteadiness } from '../../../core/types.ts';
+import { pitchSteadinessFor, type MatchNoteService } from '../../../session/index.ts';
 import { initialMatchState, matchReducer, type MatchEvent, type MatchMode, type MatchState } from './model.ts';
 import type { MatchServices } from './services.ts';
 
@@ -29,15 +29,23 @@ export interface MatchController {
   fiveMore(): void;
   /** Runs the permission request from the click. */
   allowMic(): void;
+  /** The needle preset in use (Settings › Display, or the default by family). */
+  steadiness: PitchSteadiness;
+  /** Cents on the "You" line (Settings › Display › show cents). */
+  showCents: boolean;
+  /** Stores a new needle preset and plays the note again with it. Absent: the root offers no setter. */
+  setSteadiness?: (v: PitchSteadiness) => void;
 }
 
 export function useMatch(
-  services: Pick<MatchServices, 'micAllowed' | 'requestMic'> & { service: MatchEngine; cfg: Configs },
+  services: Pick<MatchServices, 'micAllowed' | 'requestMic' | 'level' | 'display' | 'setPitchSteadiness'> & { service: MatchEngine; cfg: Configs },
   instrument: Instrument,
   mode: MatchMode,
 ): MatchController {
   const { service, cfg } = services;
-  const [state, dispatch] = useReducer(matchReducer, undefined, () => initialMatchState(instrument, cfg, mode));
+  const [state, dispatch] = useReducer(matchReducer, undefined, () => initialMatchState(instrument, cfg, mode, services.level?.() ?? 1));
+  const [display, setDisplay] = useState(() => services.display?.() ?? { showCents: false });
+  const steadiness = pitchSteadinessFor(display.pitchSteadiness, instrument.family);
   const [mic, setMic] = useState<MicGate>('checking');
   const [nonce, setNonce] = useState(0);
   const [everHit, setEverHit] = useState(false);
@@ -162,5 +170,19 @@ export function useMatch(
     );
   }, [services]);
 
-  return { state, mic, everHit, playAgain, chooseNote, fiveMore, allowMic };
+  const store = services.setPitchSteadiness;
+  const setSteadiness = useMemo(
+    () =>
+      store
+        ? (v: PitchSteadiness): void => {
+            store(v);
+            setDisplay((d) => ({ ...d, pitchSteadiness: v }));
+            // The engine reads the preset when it starts listening: play the note again with it.
+            playAgain();
+          }
+        : undefined,
+    [store, playAgain],
+  );
+
+  return { state, mic, everHit, playAgain, chooseNote, fiveMore, allowMic, steadiness, showCents: display.showCents, ...(setSteadiness ? { setSteadiness } : {}) };
 }

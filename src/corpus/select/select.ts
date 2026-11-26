@@ -508,3 +508,27 @@ export const countEligible: CorpusApi['countEligible'] = (m, instrumentId, level
   // L − 1 alone is never served (its share is capped), so it only counts next to level L or stretch excerpts.
   return poolSize(p) === 0 ? 0 : p.byPool.level.length + p.byPool.below.length + p.byPool.stretch.length;
 };
+
+/**
+ * Unseen excerpts a ranked request at `level` could serve for the instrument (level L and stretch), any key, meter and
+ * tempo (round 3, R77). Zero means the player has read every piece at their difficulty: Home and results then offer
+ * the next difficulty. `seenGroups` is the profile's (dedupe group → first reveal).
+ */
+export function countUnseenRanked(m: CorpusManifest, instrumentId: string, level: number, seenGroups: Readonly<Record<string, string>>, cfg: Configs): number {
+  const s: PracticeSettings = {
+    instrumentId,
+    level,
+    writtenKey: 'random',
+    meter: 'random',
+    bpm: 'random',
+    bars: 'random',
+    mode: 'ranked',
+    listening: true,
+    metronome: 'audible',
+    clickTimbre: 'tick',
+    outputMode: 'speakers',
+    a4Hz: 440,
+  };
+  const h: SelectionHistory = { seenGroups: { ...seenGroups }, recentExcerptIds: [], recentWorks: [], recentWrittenKeys: [], playerLevel: level };
+  return poolSize(buildPool(m, makeRequest(s, level, cfg, shownMetersFor(m, instrumentId, level, cfg, {})), h, cfg, {}));
+}

@@ -47,30 +47,15 @@
   text-align: center;
 }
 
-/* 06 section 6.9: a 36 tall pill with a 26 ring and "Ranked · 0:24 to read". Practice: no ring. Never wraps. */
-.scan-chip {
-  display: inline-flex;
-  flex: none;
-  align-items: center;
-  gap: var(--space-2);
-  box-sizing: border-box;
-  block-size: var(--mode-chip-height);
-  padding: 0 var(--space-4);
-  border: 0.0625rem solid var(--border);
-  border-radius: var(--radius-full);
-  background: var(--surface);
-  font-family: var(--type-label-family);
-  font-size: var(--type-label-size);
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.scan-chip[data-ring='true'] {
-  padding-inline-start: var(--space-1);
-}
-
-.scan-chip .dom-scan-number {
+.scan-chip .dom-scan-number,
+.scan-pill-ring .dom-scan-number {
   display: none;
+}
+
+/* The countdown ring takes the pill's ring place (round 3, R79). */
+.scan-pill-ring .dom-scan-timer {
+  inline-size: 1.5rem;
+  block-size: 1.5rem;
 }
 
 .scan-overflow {

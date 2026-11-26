@@ -8,6 +8,19 @@
   padding-block: var(--space-5);
 }
 
+.cal-screen-head {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  max-inline-size: 45rem;
+  inline-size: 100%;
+}
+
+.cal-back {
+  margin-inline-start: calc(-1 * var(--space-3));
+}
+
 .cal-screen-title {
   margin: 0;
   max-inline-size: 45rem;
@@ -35,50 +48,15 @@
   gap: var(--space-4);
 }
 
-.cal-head {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-3);
-}
-
-.cal-title {
-  margin: 0;
-  font-size: var(--type-h2-size);
-  line-height: var(--type-h2-line);
-  font-weight: var(--type-h2-weight);
-}
-
 .cal-beta {
   font-size: var(--type-caption-size);
   color: var(--text-muted);
 }
 
-.cal-intro,
-.cal-step-text,
-.cal-progress,
-.cal-result-main,
-.cal-result-spread {
+.cal-step-text {
   margin: 0;
   font-size: var(--type-body-size);
   line-height: var(--type-body-line);
-}
-
-.cal-result-spread,
-.cal-progress {
-  font-size: var(--type-small-size);
-  color: var(--text-muted);
-}
-
-.cal-setup {
-  display: grid;
-  gap: var(--space-3);
-  grid-template-columns: 1fr;
-}
-
-@media (min-width: 40rem) {
-  .cal-setup {
-    grid-template-columns: 1fr 1fr;
-  }
 }
 
 .cal-field {
@@ -207,13 +185,6 @@
   margin: 0;
 }
 
-.cal-listening {
-  margin-block-end: calc(var(--space-2) * -1);
-  font-size: var(--type-label-size);
-  line-height: var(--type-label-line);
-  font-weight: var(--type-label-weight);
-}
-
 .cal-stage .cal-step-text {
   font-size: var(--type-small-size);
   color: var(--text-muted);
@@ -248,10 +219,6 @@
   align-items: center;
   flex-wrap: wrap;
   gap: var(--space-2);
-}
-
-.cal-spacer {
-  flex: 1;
 }
 
 .cal-pulse {
@@ -344,14 +311,6 @@
   font-size: var(--type-label-size);
   line-height: var(--type-label-line);
   font-weight: var(--type-label-weight);
-}
-
-.cal-secondary {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  margin-block-start: calc(var(--space-3) * -1);
-  margin-inline-start: calc(var(--space-3) * -1);
 }
 
 /* Stages (owner feedback): each stage names what it plays, shows a mark per sound and its status. */
@@ -518,14 +477,6 @@
   border-block-start: 0.0625rem solid var(--border);
 }
 
-.cal-result-main {
-  font-weight: 600;
-}
-
-.cal-result-spread {
-  font-weight: 400;
-}
-
 .cal-stage-why {
   margin: 0;
   font-size: var(--type-small-size);
@@ -538,10 +489,6 @@
   margin: 0;
   font-size: var(--type-small-size);
   line-height: var(--type-small-line);
-}
-
-.cal-result-meaning {
-  color: var(--text-muted);
 }
 
 .cal-fail-stage {

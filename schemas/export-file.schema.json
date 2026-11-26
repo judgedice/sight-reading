@@ -90,6 +90,10 @@
             "noteColours": {
               "type": "boolean",
               "description": "Note colours: each notehead filled in its letter name's colour on every score (default false, PLAN R69)."
+            },
+            "pitchSteadiness": {
+              "$ref": "#/definitions/PitchSteadiness",
+              "description": "How the Match a note needle moves (round 3, 03-pitch-steadiness §4). Display only: never an input to a try. Absent: by instrument family (Steady for voices, Balanced for instruments)."
             }
           },
           "required": [
@@ -160,6 +164,9 @@
         },
         "onboardingDone": {
           "type": "boolean"
+        },
+        "onboardingProgress": {
+          "description": "Where first-run setup stands (round 3, R74), so a reload resumes at the same step; cleared when setup finishes. Untyped on purpose: `restoreProgress` (app/screens/onboarding/flow.ts) reads it, the round 2 step ids included, and anything it cannot read starts setup at Welcome. Never trusted, so the stored schema need not check it."
         },
         "shown": {
           "type": "object",
@@ -2160,6 +2167,15 @@
       ],
       "additionalProperties": false,
       "description": "One pitch frame, stamped at the window centre (01 §7.3)."
+    },
+    "PitchSteadiness": {
+      "type": "string",
+      "enum": [
+        "steady",
+        "balanced",
+        "quick"
+      ],
+      "description": "The Match a note needle's steadiness preset (round 3, 03-pitch-steadiness §3.2, §4). Display only."
     },
     "PitchVerdict": {
       "type": "string",

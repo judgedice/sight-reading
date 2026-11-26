@@ -190,29 +190,28 @@ test('owner review: baritone at difficulty 1, the fifteen points, then a graded 
   const figure = page.getByRole('figure', { name: /Baritone voice range: G2 to G4\./ });
   await expect(figure).toBeVisible();
   await shot('onboarding-baritone-range');
-  await page.getByRole('button', { name: 'Continue' }).click();
+  await page.getByRole('button', { name: 'Next: sound check' }).click();
   await shot('onboarding-mic');
   await page.getByRole('button', { name: 'Allow microphone' }).click();
-  await expect(page.getByTestId('calibration-card')).toBeVisible({ timeout: 15_000 });
-  await shot('onboarding-calibration');
-  // The fake microphone cannot hear clicks, so calibration is skipped: the player stays "Not calibrated".
-  await page.getByTestId('calibration-card').getByRole('button', { name: 'Skip' }).click();
 
-  await point(3, 'sing one note: onboarding offers it as step 5', async () => {
-    const step = page.getByTestId('ob-match');
-    await expect(step).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Sing one note' })).toBeVisible();
-    await expect(step).toContainText('Not graded.');
-    // The first note is the same on Practice (the middle of the range), so the fake microphone can sing it later.
-    await expect(step.getByTestId('match-target')).toHaveText(/^[A-G][♭♯b#]?\d$/);
-    firstNote = ((await step.getByTestId('match-target').innerText()) ?? '').trim();
-    await shot('onboarding-sing-one-note');
+  // Round 3 retired "sing one note" from setup: "Hear you" takes any note, is not a tuning exercise, and is skippable.
+  await point(3, 'hear you: any note, a level meter, no target and no needle, Skip this check in the footer', async () => {
+    const stage = page.getByTestId('ob-hear');
+    await expect(stage).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole('heading', { name: 'Sing any note' })).toBeVisible();
+    await expect(stage).toContainText("It isn't graded.");
+    await expect(stage.getByTestId('match-target')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Skip this check' })).toBeVisible();
+    await shot('onboarding-hear-you');
   });
-  await page.locator('.ob-head').getByRole('button', { name: 'Skip' }).click();
-  await expect(page.getByTestId('ob-level')).toBeVisible();
-  await shot('onboarding-difficulty');
-  await page.getByRole('button', { name: "I'll choose" }).click();
-  await page.getByRole('button', { name: 'Start practising' }).click();
+  await page.getByRole('button', { name: 'Skip this check' }).click();
+  await expect(page.getByTestId('calibration-card')).toBeVisible({ timeout: 15_000 });
+  await shot('onboarding-timing');
+  // The fake microphone cannot hear clicks, so the timing check is skipped: the player stays "Not calibrated".
+  await page.getByRole('button', { name: 'Skip for now' }).click();
+  await expect(page.getByTestId('ob-ready')).toBeVisible();
+  await shot('onboarding-ready');
+  await page.getByRole('button', { name: 'Go to Home' }).click();
   const home = page.getByTestId('screen-home');
   await expect(home).toBeVisible({ timeout: 15_000 });
   await shot('practice', false);
@@ -262,9 +261,8 @@ test('owner review: baritone at difficulty 1, the fifteen points, then a graded 
     }
   });
 
-  // Difficulty 1 (Practice starts at 2 after "I'll choose").
+  // Difficulty 1: setup starts everyone there (round 3, R75).
   let row = await openRow(page, 'difficulty');
-  await row.getByRole('button', { name: /Decrease Difficulty/ }).click();
   await expect(row.getByText(/1\s*of 10/).first()).toBeVisible();
   await closeRow(page);
 
@@ -306,6 +304,12 @@ test('owner review: baritone at difficulty 1, the fifteen points, then a graded 
   await point(3, 'sing one note: Practice opens it and the fake microphone hits the note', async () => {
     const entry = home.getByTestId('match-entry');
     await expect(entry).toBeVisible();
+    // The first note is always the same (the middle of the range): read it once, then come back with the file written.
+    await entry.click();
+    await expect(page.getByTestId('screen-match').getByTestId('match-target')).toHaveText(/^[A-G][♭♯b#]?\d$/, { timeout: 10_000 });
+    firstNote = ((await page.getByTestId('screen-match').getByTestId('match-target').innerText()) ?? '').trim();
+    await page.goBack();
+    await expect(home).toBeVisible();
     // The microphone opens again after the target sounds, so Chromium plays the file from its start: write it first.
     writeToneWav(wav, noteToMidi(firstNote));
     await entry.click();
@@ -324,7 +328,7 @@ test('owner review: baritone at difficulty 1, the fifteen points, then a graded 
   // Practice mode (Ranked needs calibration), then the read-through.
   await chooseOutput(page, 'Wired headphones');
   await home.locator('[data-setup-row="mode"]').getByRole('radio', { name: 'Practice' }).click();
-  await page.getByRole('button', { name: 'Start', exact: true }).click();
+  await page.getByRole('button', { name: /^Start (practice|ranked try)/ }).click();
   await expect(page.getByTestId('scan-cover')).toBeVisible({ timeout: 30_000 });
   await shot('cover');
   await page.getByRole('button', { name: 'Show the music' }).click();
@@ -405,7 +409,7 @@ test('owner review: baritone at difficulty 1, the fifteen points, then a graded 
   // ---- Part two: a graded try (the test clock puts bar 1 at a known time in the fake capture) --------------------
   await page.goto(`./?testClock=1&testClockSec=${LOOP_T0_SEC}#/`);
   await expect(home).toBeVisible({ timeout: 30_000 });
-  await page.getByRole('button', { name: 'Start', exact: true }).click();
+  await page.getByRole('button', { name: /^Start (practice|ranked try)/ }).click();
   await expect(page.getByTestId('scan-cover')).toBeVisible({ timeout: 30_000 });
   await page.getByRole('button', { name: 'Show the music' }).click();
   await expect(scan.locator('[data-expected-idx]').first()).toBeVisible({ timeout: 30_000 });

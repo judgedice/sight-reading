@@ -2,6 +2,7 @@ export {
   selectExcerpt,
   selectExcerptWith,
   countEligible,
+  countUnseenRanked,
   shownMeters,
   METER_MIN_EXCERPTS,
   poolOf,

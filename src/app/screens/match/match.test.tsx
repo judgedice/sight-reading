@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PlatformServices, WorkerLike } from '../../../core/platform.ts';
-import type { Instrument } from '../../../core/types.ts';
+import type { Instrument, PitchSteadiness } from '../../../core/types.ts';
 import { createEmitter } from '../../../core/events.ts';
 import { createRng } from '../../../core/rng.ts';
 import { loadManifest } from '../../../corpus/index.ts';
@@ -43,17 +43,27 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-function services(o: { instrumentId?: string; mic?: boolean } = {}) {
+function services(o: { instrumentId?: string; mic?: boolean; steadiness?: PitchSteadiness; showCents?: boolean; level?: number; setter?: boolean } = {}) {
   const engine = new FakeEngine();
   const requestMic = vi.fn(() => Promise.resolve({ ok: true as const }));
+  const stored: { steadiness: PitchSteadiness | undefined } = { steadiness: o.steadiness };
+  if (o.steadiness) engine.steadiness = o.steadiness;
+  const setPitchSteadiness = vi.fn((v: PitchSteadiness) => {
+    stored.steadiness = v;
+    // The real engine reads the setting when it starts listening; the fake one is told here.
+    engine.steadiness = v;
+  });
   const svc: MatchServices = {
     service: engine as unknown as MatchNoteService,
     instrument: inst(o.instrumentId ?? 'voice-baritone'),
     cfg,
     micAllowed: () => Promise.resolve(o.mic ?? true),
     requestMic,
+    ...(o.level !== undefined ? { level: () => o.level! } : {}),
+    ...(o.steadiness !== undefined || o.showCents !== undefined ? { display: () => ({ pitchSteadiness: stored.steadiness, showCents: o.showCents ?? false }) } : {}),
+    ...(o.setter ? { setPitchSteadiness } : {}),
   };
-  return { svc, engine, requestMic };
+  return { svc, engine, requestMic, setPitchSteadiness, stored };
 }
 
 async function render(svc: MatchServices): Promise<void> {
@@ -111,7 +121,7 @@ describe('route', () => {
 });
 
 describe('Match a note', () => {
-  it('a fake capture at E3 shows "You hit it: E3." within 1 s, with the needle in the band', async () => {
+  it('a fake capture at E3 shows "You hit it: E3." within 1.5 s, with the needle in the band', async () => {
     const { svc, engine } = services();
     await render(svc);
     await chooseE3();
@@ -119,10 +129,10 @@ describe('Match a note', () => {
     expect(text('match-target')).toBe('E3');
     expect(engine.listening).toBe(true);
     expect(text('match-line')).toBe('Sing E3 and hold it.');
-    await run(engine, 1000, at(6));
+    await run(engine, 1500, at(6));
     expect(text('match-line')).toBe('You hit it: E3.');
     expect(q('match-line')?.dataset.tone).toBe('hit');
-    expect(text('match-you')).toBe('You: E3, 6 cents high');
+    expect(text('match-you')).toBe('You: E3');
     expect(q('match-needle')?.dataset.tone).toBe('in');
     expect(q('match-staff')?.dataset.ring).toBe('hit');
   });
@@ -133,7 +143,7 @@ describe('Match a note', () => {
     expect(engine.played).toEqual([G3]);
     expect(text('match-target')).toBe('G3');
     expect(q('match-staff')?.dataset.ring).toBe('none');
-    await run(engine, 1000, at(0));
+    await run(engine, 1500, at(0));
     expect(text('match-line')).toBe('You hit it: G3.');
     expect(text('match-hint')).toBe('Next note in 1.5 seconds.');
     await run(engine, NEXT_DELAY_MS);
@@ -144,7 +154,8 @@ describe('Match a note', () => {
   it('reaches the hit in the hold time, not before', async () => {
     const { svc, engine } = services();
     await render(svc);
-    await run(engine, HIT_HOLD_MS - 100, at(0));
+    // Steady: in tune once the 400 ms judge window holds the note for 100 ms, a hit 800 ms after that.
+    await run(engine, 400 + 100 + HIT_HOLD_MS - 100, at(0));
     expect(text('match-line')).toBe('Hold it…');
     await run(engine, 200, at(0));
     expect(text('match-line')).toBe('You hit it: G3.');
@@ -163,7 +174,7 @@ describe('Match a note', () => {
     expect(line.lastElementChild?.classList.contains('mt-chevron')).toBe(false);
     expect(Number(q('match-needle')?.dataset.at)).toBeLessThan(0.5 - 30 / 100);
     expect(q('match-needle')?.dataset.tone).toBe('ink');
-    expect(text('match-you')).toBe('You: E3, 34 cents low');
+    expect(text('match-you')).toBe('You: E3, a little low');
     expect(text('match-hint')).toBe('Lift it a little until the needle sits in the middle.');
   });
 
@@ -186,21 +197,21 @@ describe('Match a note', () => {
     expect(text('match-line')).toBe('Higher. Try E3.');
     expect(q('match-needle')?.dataset.at).toBe('0.000');
     expect(q('match-needle')?.dataset.tone).toBe('edge');
-    expect(text('match-you')).toBe('You: B2');
+    expect(text('match-you')).toBe('You: B2, much too low');
   });
 
   it('a baritone singing E2 against E3 hits it with no octave line (E2 is below the full range)', async () => {
     const { svc, engine } = services();
     await render(svc);
     await chooseE3();
-    await run(engine, 1000, at(0, -12));
+    await run(engine, 1500, at(0, -12));
     expect(text('match-line')).toBe('You hit it: E3.');
   });
 
   it('a bass singing an octave lower hears "An octave lower. That counts."', async () => {
     const { svc, engine } = services({ instrumentId: 'voice-bass' });
     await render(svc);
-    await run(engine, 300, at(0, -12));
+    await run(engine, 700, at(0, -12));
     expect(text('match-line')).toBe('An octave lower. That counts.');
   });
 
@@ -238,7 +249,7 @@ describe('Match a note', () => {
     await chooseE3();
     expect(engine.played).toEqual([G3, E3]);
     expect(q(`match-chip-${E3}`)?.getAttribute('aria-pressed')).toBe('true');
-    await run(engine, 1000, at(0));
+    await run(engine, 1500, at(0));
     expect(text('match-line')).toBe('You hit it: E3.');
     expect(text('match-hint')).toBe('');
     await run(engine, NEXT_DELAY_MS + 1000);
@@ -250,7 +261,7 @@ describe('Match a note', () => {
     const { svc, engine, requestMic } = services();
     await render(svc);
     for (let i = 0; i < ROUND_SIZE; i++) {
-      await run(engine, 1000, at(-8));
+      await run(engine, 1500, at(-8));
       expect(text('match-line')).toBe(`You hit it: ${text('match-target')}.`);
       await run(engine, NEXT_DELAY_MS);
     }
@@ -268,7 +279,7 @@ describe('Match a note', () => {
     expect(engine.played).toHaveLength(ROUND_SIZE + 1);
     await run(engine, 20);
     for (let i = 0; i < ROUND_SIZE; i++) {
-      await run(engine, 1000, at(0));
+      await run(engine, 1500, at(0));
       await run(engine, NEXT_DELAY_MS);
     }
     await press('Done');
@@ -317,6 +328,154 @@ describe('Match a note', () => {
     current = null;
     vi.advanceTimersByTime(1);
     expect(engine.stops).toBeGreaterThan(before);
+  });
+});
+
+// ---- the steady needle (round 3, 03-pitch-steadiness) -----------------------------------------------------------------
+
+/** A wobbling voice at the engine's target: ±22 c at 3.3 Hz around `centre` cents. */
+const wobble =
+  (centre = 0) =>
+  (e: FakeEngine) => {
+    const c = centre + 22 * Math.sin((2 * Math.PI * 3.3 * e.clock) / 1000);
+    return { midi: e.target, cents: c, steady: true };
+  };
+
+describe('the steady needle', () => {
+  it('a wobbling voice centred on the note: the needle sits still near the middle and the line says "Hold it…", then a hit', async () => {
+    const { svc, engine } = services({ steadiness: 'steady' });
+    await render(svc);
+    await chooseE3();
+    await run(engine, 700, wobble());
+    const seen: number[] = [];
+    for (let i = 0; i < 20; i++) {
+      await run(engine, 20, wobble());
+      if (text('match-line') === 'You hit it: E3.') break;
+      expect(text('match-line')).toBe('Hold it…');
+      seen.push(Number(q('match-needle')?.dataset.at));
+    }
+    // ±22 c of wobble, the needle moves less than ±5 c (0.05 of the track).
+    expect(Math.max(...seen) - Math.min(...seen)).toBeLessThan(0.1);
+    expect(q('match-needle')?.dataset.tone).toBe('in');
+    await run(engine, 600, wobble());
+    expect(text('match-line')).toBe('You hit it: E3.');
+  });
+
+  it('centred 45 c low: never a hit, and the line says low', async () => {
+    const { svc, engine } = services({ steadiness: 'steady' });
+    await render(svc);
+    await chooseE3();
+    await run(engine, 3000, wobble(-45));
+    expect(text('match-line')).toBe('A little low. Go up.');
+    expect(text('match-you')).toBe('You: E3, a little low');
+  });
+
+  it('shows cents, rounded to 5, only with show cents on', async () => {
+    const { svc, engine } = services({ showCents: true, steadiness: 'steady' });
+    await render(svc);
+    await chooseE3();
+    await run(engine, 600, at(-33));
+    expect(text('match-you')).toBe('You: E3, a little low (35 cents)');
+  });
+
+  it('draws the wobble width behind the needle on Steady and Balanced, not on Quick', async () => {
+    for (const k of ['steady', 'balanced', 'quick'] as const) {
+      const { svc, engine } = services({ steadiness: k });
+      await render(svc);
+      await chooseE3();
+      await run(engine, 900, wobble(-10));
+      const bar = q('match-spread');
+      if (k === 'quick') expect(bar, k).toBeNull();
+      else {
+        expect(bar, k).not.toBeNull();
+        const from = Number(bar!.dataset.from);
+        const to = Number(bar!.dataset.to);
+        // About -30 to +10 c: 0.2 to 0.6 of the track.
+        expect(from, k).toBeLessThan(0.35);
+        expect(to, k).toBeGreaterThan(0.45);
+        expect(to - from, k).toBeGreaterThan(0.25);
+      }
+      current?.unmount();
+      current = null;
+    }
+  });
+
+  it('hides a dead needle: dimmed at its place in a short silence, gone after 600 ms', async () => {
+    const { svc, engine } = services();
+    await render(svc);
+    await chooseE3();
+    await run(engine, 600, at(-20));
+    expect(q('match-needle')?.dataset.stale).toBe('false');
+    const place = q('match-needle')?.dataset.at;
+    await run(engine, 300, () => ({ midi: null, cents: null, steady: false }));
+    expect(q('match-needle')?.dataset.stale).toBe('true');
+    expect(q('match-needle')?.dataset.at).toBe(place);
+    await run(engine, 400, () => ({ midi: null, cents: null, steady: false }));
+    expect(q('match-needle')).toBeNull();
+    expect(text('match-you')).toBe('');
+  });
+
+  it('after a hit the settled note is drawn grey beside the target, with "You sang"', async () => {
+    const { svc, engine } = services();
+    await render(svc);
+    await chooseE3();
+    await run(engine, 1500, at(14));
+    expect(text('match-line')).toBe('You hit it: E3.');
+    expect(text('match-sang')).toBe('You sang: E3, a little high');
+    expect(q('match-heard')?.getAttribute('data-letter')).toBe('e');
+  });
+
+  it('a stop after a long hold off the note draws the note sung', async () => {
+    const { svc, engine } = services();
+    await render(svc);
+    await chooseE3();
+    await run(engine, 1200, at(-60));
+    await run(engine, 200, () => ({ midi: null, cents: null, steady: false }));
+    expect(text('match-sang')).toBe('You sang: E♭3, a little high');
+    expect(q('match-heard')).not.toBeNull();
+  });
+
+  it('"Make it steadier" opens the three choices; a choice is stored and the note plays again with it', async () => {
+    const { svc, engine, setPitchSteadiness } = services({ steadiness: 'quick', setter: true });
+    await render(svc);
+    expect(q('match-steadier')).toBeNull();
+    await press('Needle moving too much? Make it steadier');
+    const group = q('match-steadier')!.querySelector<HTMLElement>('[role="radiogroup"]')!;
+    expect(group.getAttribute('aria-label')).toBe('Pitch needle');
+    expect(group.querySelector<HTMLInputElement>('input:checked')?.value).toBe('quick');
+    expect(text('match-steadier')).toContain('Shows every wobble as it happens.');
+    const played = engine.played.length;
+    act(() => group.querySelector<HTMLInputElement>('input[value="steady"]')!.click());
+    await flush();
+    await flush();
+    expect(setPitchSteadiness).toHaveBeenCalledWith('steady');
+    expect(engine.played.length).toBe(played + 1);
+    expect(engine.steadiness).toBe('steady');
+    expect(q('match-steadier')!.querySelector<HTMLInputElement>('input:checked')?.value).toBe('steady');
+    expect(text('match-steadier')).toContain('The needle shows the middle of your note and moves calmly.');
+    await press('Done');
+    expect(q('match-steadier')).toBeNull();
+  });
+
+  it('no setter, no link (onboarding before the wizard)', async () => {
+    const { svc } = services();
+    await render(svc);
+    expect([...document.querySelectorAll('button')].some((b) => b.textContent === 'Needle moving too much? Make it steadier')).toBe(false);
+  });
+
+  it('the band follows the player’s difficulty on Practice: 22 c low hits at difficulty 1, not at 7 (20 c)', async () => {
+    for (const [level, hit] of [
+      [1, true],
+      [7, false],
+    ] as const) {
+      const { svc, engine } = services({ level });
+      await render(svc);
+      await chooseE3();
+      await run(engine, 1500, at(-22));
+      expect(text('match-line') === 'You hit it: E3.', `difficulty ${level}`).toBe(hit);
+      current?.unmount();
+      current = null;
+    }
   });
 });
 
@@ -396,7 +555,7 @@ describe('Match a note stores nothing', () => {
     const svc: MatchServices = { service: engine as unknown as MatchNoteService, instrument: base.instrument, cfg: base.cfg, micAllowed: () => Promise.resolve(true), requestMic: base.requestMic };
     await render(svc);
     for (let i = 0; i < ROUND_SIZE; i++) {
-      await run(engine, 1000, at(i % 2 ? 12 : -12));
+      await run(engine, 1500, at(i % 2 ? 12 : -12));
       await run(engine, NEXT_DELAY_MS);
     }
     expect(text('match-summary')).toContain('5 of 5 hit.');

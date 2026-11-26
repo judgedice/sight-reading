@@ -12,11 +12,27 @@
  *
  * `MatchFrame.t` is milliseconds on the audio clock (`nowMs()`), which the screen also uses for its ticks.
  */
-import type { AudioBackend, MessagePortLike, PitchModeConfig, PitchModeFrame, SoundSetId, WorkerLike, WorkerMessage, WorkerReply } from '../core/platform.ts';
-import type { ClockSeconds, Configs, Instrument } from '../core/types.ts';
+import type { AudioBackend, MessagePortLike, PitchModeConfig, PitchModeFrame, SoundSetId, SteadinessReading, WorkerLike, WorkerMessage, WorkerReply } from '../core/platform.ts';
+import type { ClockSeconds, Configs, Instrument, PitchSteadiness } from '../core/types.ts';
 import { midiToFreq } from '../dsp/pitch.ts';
+import { pitchSteadinessFor } from '../dsp/pitch-steadiness.ts';
 import { hasSoundSet, soundSetFor } from '../instruments/sound-sets.ts';
 import { LISTEN } from './listen-plan.ts';
+
+/** The needle's filter and in-tune decision, for the screen's model (app/ may not import dsp/). */
+export {
+  IN_TUNE_INITIAL,
+  PITCH_STEADINESS_VALUES,
+  STEADINESS_COMMON,
+  STEADINESS_PRESETS,
+  SteadinessFilter,
+  centsAgainst,
+  defaultPitchSteadiness,
+  inTuneStep,
+  pitchSteadinessFor,
+  type InTuneInput,
+  type InTuneState,
+} from '../dsp/pitch-steadiness.ts';
 
 /** A frame from the pitch engine, concert pitch. `t` is milliseconds on the audio clock. */
 export interface MatchFrame {
@@ -28,6 +44,8 @@ export interface MatchFrame {
   cents: number | null;
   levelDb: number;
   steady: boolean;
+  /** The needle's display filter (round 3, 03-pitch-steadiness §3): unfolded concert MIDI, times in ms. */
+  reading: SteadinessReading;
 }
 
 /** Fixed values of Match a note (01-ux §3, 06-plan section 4). */
@@ -76,6 +94,11 @@ export interface MatchNoteDeps {
   a4Hz?: () => number;
   /** Extra delay before listening, seconds: the route's round-trip latency when known (default 0). */
   latencySec?: () => number;
+  /**
+   * The player's "Pitch needle" setting (Settings › Display), read at each `listen`. Absent or undefined: by family
+   * (Steady for voices, Balanced for instruments). Display only: it reaches the pitch mode's filter and nothing else.
+   */
+  steadiness?: () => PitchSteadiness | undefined;
 }
 
 /** The global timers (session/ has no DOM lib, as in practice-session.ts). */
@@ -91,11 +114,11 @@ interface Listening {
 
 /** Turns a worker frame (seconds) into a `MatchFrame` (milliseconds). */
 export function matchFrameOf(f: PitchModeFrame): MatchFrame {
-  return { t: (f.t as number) * 1000, midi: f.midi, cents: f.cents, levelDb: f.levelDb, steady: f.steady };
+  return { t: (f.t as number) * 1000, midi: f.midi, cents: f.cents, levelDb: f.levelDb, steady: f.steady, reading: f.reading };
 }
 
 /** The pitch-mode config for an instrument (its detection settings, 01 §7.3). */
-export function pitchModeConfigFor(inst: Instrument, f: { analysisRate: number; a4Hz: number; fromT: number }): PitchModeConfig {
+export function pitchModeConfigFor(inst: Instrument, f: { analysisRate: number; a4Hz: number; fromT: number; steadiness?: PitchSteadiness | undefined }): PitchModeConfig {
   const d = inst.detection;
   return {
     analysisRate: f.analysisRate,
@@ -111,6 +134,7 @@ export function pitchModeConfigFor(inst: Instrument, f: { analysisRate: number; 
     steadyMs: MATCH_NOTE.steadyMs,
     steadySpreadCents: MATCH_NOTE.steadySpreadCents[d.vibratoClass],
     gateDb: MATCH_NOTE.gateDb,
+    steadiness: pitchSteadinessFor(f.steadiness, inst.family),
   };
 }
 
@@ -195,7 +219,7 @@ export class MatchNoteService {
     if (!inst) throw new RangeError(`MatchNoteService: unknown instrument ${target.instrumentId}`);
     const contextRate = audio.audioInfo().contextSampleRate;
     const analysisRate = contextRate / Math.max(1, Math.round(contextRate / 16000));
-    const cfg = pitchModeConfigFor(inst, { analysisRate, a4Hz: this.d.a4Hz?.() ?? 440, fromT: this.listenFrom });
+    const cfg = pitchModeConfigFor(inst, { analysisRate, a4Hz: this.d.a4Hz?.() ?? 440, fromT: this.listenFrom, steadiness: this.d.steadiness?.() });
     const worker = this.d.workerFactory();
     const channel = this.d.createCaptureChannel?.() ?? null;
     const l: Listening = { worker, channel };
@@ -218,6 +242,16 @@ export class MatchNoteService {
     }
     // Stopped or superseded while capture was starting.
     if (this.listening !== l) audio.stopCapture();
+  }
+
+  /**
+   * Opens capture at once with no target note (round 3, the wizard's "Hear you"): nothing plays first, so there is
+   * nothing to wait out. Frames as `listen`. Additive: Match a note keeps `playTarget` and `listen`.
+   */
+  listenAny(instrumentId: string, onFrame: (f: MatchFrame) => void): Promise<void> {
+    this.target = { midi: -1, instrumentId };
+    this.listenFrom = this.d.audio.now() as number;
+    return this.listen(onFrame);
   }
 
   /** Stops the sound, the capture and the worker, and releases the microphone track. */

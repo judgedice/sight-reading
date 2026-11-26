@@ -259,6 +259,8 @@ export function xpView(record: AttemptRecord, cfg: Configs, profile: PlayerProfi
   if (byId.get('repeat') === 0 || (s.xp.total === 0 && byId.has('repeat'))) return { headline: text('xp.none.repeat'), factors: [] };
   if (byId.has('practice') || byId.has('repeat')) {
     const mult = byId.get('practice') ?? byId.get('repeat') ?? x.practiceMult;
+    // A first practice try of the day earns the quarter: say so, and that the difficulty stays (round 3, §8.3).
+    if (byId.has('practice')) return { headline: text('results.xp.practice', { xp: s.xp.total }), factors: [] };
     return { headline: text('xp.practice', { xp: s.xp.total, percent: Math.round(mult * 100) }), factors: [] };
   }
   const factors: string[] = [text('xp.factor.levelBase', { level: record.levelServed, value: s.xp.base })];
@@ -292,6 +294,13 @@ export function xpView(record: AttemptRecord, cfg: Configs, profile: PlayerProfi
       default:
         break;
     }
+  }
+  // A ranked try in the level window says how far it is to moving up (round 3, §8.3).
+  const inst = s.ranked ? profile?.instruments[record.instrumentId] : undefined;
+  if (inst && inst.window.some((e) => e.attemptId === record.id)) {
+    const w = cfg.progression.levelWindow;
+    const n = inst.window.filter((e) => e.score >= w.offer.score).length;
+    return { headline: text('results.xp.ranked.window', { xp: s.xp.total, n: Math.min(n, w.offer.minCount), need: w.offer.minCount }), factors };
   }
   return { headline: text('xp.headline', { xp: s.xp.total }), factors };
 }

@@ -9,6 +9,7 @@ export {
   selectExcerptWith,
   selectAndPrepare,
   countEligible,
+  countUnseenRanked,
   type SelectOptions,
   type SelectAndPrepareResult,
 } from './select/index.ts';

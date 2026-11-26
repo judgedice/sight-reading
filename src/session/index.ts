@@ -7,6 +7,7 @@ export {
   SessionError,
   VOICE_REFERENCE_LEAD_SEC,
   listenedFirstReasons,
+  demotedReasons,
   type SessionStartKind,
   type ListenRequest,
   type PracticeSessionOptions,
@@ -36,9 +37,22 @@ export {
 } from './listen-plan.ts';
 // Match the note (round 2): one target note, then pitch frames from the mic.
 export { MATCH_NOTE, MatchNoteService, matchFrameOf, pitchModeConfigFor, type MatchFrame, type MatchNoteDeps, type MatchTimers } from './match-note.ts';
+export {
+  IN_TUNE_INITIAL,
+  PITCH_STEADINESS_VALUES,
+  STEADINESS_COMMON,
+  STEADINESS_PRESETS,
+  SteadinessFilter,
+  centsAgainst,
+  defaultPitchSteadiness,
+  inTuneStep,
+  pitchSteadinessFor,
+  type InTuneInput,
+  type InTuneState,
+} from './match-note.ts';
 export { HEARD, planHeard, scoreZeroOf, type HeardFacts, type HeardNote, type HeardNoteIn, type HeardPlan, type ScoreZeroFacts } from './heard-plan.ts';
 export { SoundPlayer, idleSoundView, SOUND_FAILED_MS, type SoundCaption, type SoundKind, type SoundNotes, type SoundNoteSpan, type SoundSegment, type SoundView } from './sounds.ts';
-export { createSessionStore, initialSessionView, reduceSessionView, type SessionStatus, type SessionView } from './view-store.ts';
+export { createSessionStore, initialSessionView, reduceSessionView, type PracticeReason, type SessionStatus, type SessionView } from './view-store.ts';
 export {
   barOfBeat,
   countInBarsFor,

@@ -31,15 +31,13 @@ test('a baritone picks a voice, sees the range, sets key and time, hears the pit
   const figure = page.getByRole('figure', { name: /Baritone voice range: G2 to G4\. At difficulty \d+: / });
   await expect(figure).toBeVisible();
   done('saw the range picture and its text');
-  await page.getByRole('button', { name: 'Continue' }).click();
+  await page.getByRole('button', { name: 'Next: sound check' }).click();
   await page.getByRole('button', { name: 'Allow microphone' }).click();
+  // Hear you and Timing: skipped here (round 3 wizard).
+  await page.getByRole('button', { name: 'Skip this check' }).click();
   await expect(page.getByTestId('calibration-card')).toBeVisible({ timeout: 15_000 });
-  await page.getByTestId('calibration-card').getByRole('button', { name: 'Skip' }).click();
-  // Step 5, Sing one note (round 2): skipped here.
-  await expect(page.getByTestId('ob-match')).toBeVisible();
-  await page.locator('.ob-head').getByRole('button', { name: 'Skip' }).click();
-  await page.getByRole('button', { name: "I'll choose" }).click();
-  await page.getByRole('button', { name: 'Start practising' }).click();
+  await page.getByRole('button', { name: 'Skip for now' }).click();
+  await page.getByRole('button', { name: 'Go to Home' }).click();
   await expect(page.getByTestId('screen-home')).toBeVisible({ timeout: 15_000 });
 
   // 3. Set a key: G major.
@@ -83,7 +81,7 @@ test('a baritone picks a voice, sees the range, sets key and time, hears the pit
   await page.evaluate(() => (location.hash = '#/'));
   await expect(page.getByTestId('screen-home')).toBeVisible();
   await page.getByRole('radio', { name: 'Practice' }).click();
-  await page.getByRole('button', { name: 'Start', exact: true }).click();
+  await page.getByRole('button', { name: /^Start (practice|ranked try)/ }).click();
   await expect(page.getByTestId('scan-cover')).toBeVisible({ timeout: 30_000 });
   await page.getByRole('button', { name: 'Show the music' }).click();
   await expect(page.getByTestId('screen-practice.scan')).toHaveAttribute('data-state', 'scanning');

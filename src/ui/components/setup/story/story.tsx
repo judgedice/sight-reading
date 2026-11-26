@@ -13,6 +13,7 @@ import { FallbackNote } from '../FallbackNote.tsx';
 import { KeyGrid } from '../KeyGrid.tsx';
 import { LengthRow } from '../LengthRow.tsx';
 import { ModeControl } from '../ModeControl.tsx';
+import { ModePill } from '../ModePill.tsx';
 import { TempoRow } from '../TempoRow.tsx';
 import { TimeSegments } from '../TimeSegments.tsx';
 import type { PracticeMode } from '../types.ts';
@@ -24,7 +25,6 @@ const keyValue = (k: KeySig | 'random'): string | null => (k === 'random' ? null
 
 function Story() {
   const [key, setKey] = useState<string | null>('1:major');
-  const [follow, setFollow] = useState(false);
   const [meter, setMeter] = useState<'random' | '4/4' | '3/4'>('4/4');
   const [bpm, setBpm] = useState<number | 'random'>(72);
   const [mode, setMode] = useState<PracticeMode>('ranked');
@@ -37,7 +37,7 @@ function Story() {
       <GlyphSprite />
       <section className="story-card story-home" data-story="home">
         <div className="story-scroll">
-          <DifficultyControl row={difficultyRow(follow)} onChange={(l) => setFollow(l === 'random')} />
+          <DifficultyControl row={difficultyRow(mode === 'ranked')} onChange={() => undefined} onFindLevel={() => undefined} placementCount={3} />
           <hr className="story-rule" />
           <KeyGrid row={keyRow(1, key, 3)} clef="bass" difficulty={2} onChange={(k) => setKey(keyValue(k))} />
         </div>
@@ -45,6 +45,7 @@ function Story() {
           <ModeControl inlineLabel value={mode} onChange={setMode} />
           <div className="story-start-row">
             <XpLine line={xp} />
+            <ModePill mode={mode} />
             <span className="story-start" data-heard={heard ?? ''} />
           </div>
         </div>

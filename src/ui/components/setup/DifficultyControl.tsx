@@ -2,72 +2,73 @@ import { useId, type ReactNode } from 'react';
 import { copy } from '../../copy/copy.ts';
 import { DifficultyMeter } from '../domain/DifficultyMeter.tsx';
 import { Stepper } from '../form/Stepper.tsx';
-import { Toggle } from '../form/Toggle.tsx';
-import { FewTag, Hint, NoteLine, SetupRowFrame } from './parts.tsx';
+import { FewTag, NoteLine, SetupRowFrame } from './parts.tsx';
 import { lineText, splitAt } from './text.ts';
 import type { DifficultyRowView } from './types.ts';
 import './setup.css';
 
 export interface DifficultyControlProps {
   row: DifficultyRowView;
-  /** A difficulty, or `'random'` when "Follow my progress" is turned on. Turning it off sends the current value. */
-  onChange: (level: number | 'random') => void;
-  /** Onboarding: no "Follow my progress" switch. */
-  hideFollow?: boolean;
+  onChange: (level: number) => void;
   /** Row label. Default "Difficulty". */
   label?: string;
   /** A `FallbackNote` for this row, shown above the label. */
   fallback?: ReactNode;
-  /** Opens "Match a note". With it, difficulty 1 shows "Simpler? Match a note first." beside the switch. */
-  onMatch?: (() => void) | undefined;
+  /** "Not sure? Find my difficulty · 3 short pieces" (round 3, R75): runs placement. Absent: no link. */
+  onFindLevel?: (() => void) | undefined;
+  /** How many pieces placement plays, for the link's count. */
+  placementCount?: number;
+  /** A line under the row (the exhaustion offer, R77). */
+  extra?: ReactNode;
 }
 
-/** "Simpler? Match a note first.": the words before the link stay plain, the rest is the link (04-design section 1). */
-function MatchHint({ line, onMatch }: { line: NonNullable<DifficultyRowView['matchHint']>; onMatch: () => void }) {
-  const text = lineText(line);
-  const cut = text.indexOf('? ');
-  const lead = cut >= 0 ? text.slice(0, cut + 2) : '';
-  const link = cut >= 0 ? text.slice(cut + 2).replace(/\.$/, '') : text;
+/** The meter with a brass mark under the player's own difficulty. */
+function Meter({ row }: { row: DifficultyRowView }) {
+  const noMusic = row.segments.filter((s) => !s.hasMusic).map((s) => s.level);
   return (
-    <p className="su-diff-match" data-setup-match="">
-      {lead ? <span className="su-muted">{lead}</span> : null}
-      <button type="button" className="su-link" onClick={onMatch}>
-        {link}
-      </button>
-    </p>
+    <span className="su-diff-meter" style={row.yourLevel ? { ['--su-yours' as string]: String(row.yourLevel) } : undefined} data-yours={row.yourLevel ?? undefined}>
+      <DifficultyMeter level={row.value} noMusic={noMusic} />
+      {row.yourLevel ? <span className="su-diff-yours" aria-hidden="true" /> : null}
+    </span>
   );
 }
 
 /**
- * Difficulty (round 2: 01-ux section 6, 04-design section 1): stepper "2 of 10" and the meter on one line; the
- * description with a "Few pieces" tag; "Follow my progress" with "Simpler? Match a note first" across from it.
+ * Difficulty (round 3, 01-ux-review §4.2, R76). Practice: the stepper "2 of 10", the meter with a brass mark at the
+ * player's difficulty, the description, how the choice sits against the player's difficulty, and "Find my
+ * difficulty". Ranked: a read-only row at the player's difficulty, and why it cannot be changed there.
  */
-export function DifficultyControl({ row, onChange, hideFollow = false, label = copy('row.level'), fallback, onMatch }: DifficultyControlProps) {
+export function DifficultyControl({ row, onChange, label = copy('row.level'), fallback, onFindLevel, placementCount, extra }: DifficultyControlProps) {
   const id = useId();
   const labelId = `${id}-label`;
   const skippedId = `${id}-skipped`;
-  const follow = row.follow && !hideFollow;
   const [, suffix] = splitAt('setup.difficulty.value', { level: row.value, max: row.max }, 'level');
-  const noMusic = row.segments.filter((s) => !s.hasMusic).map((s) => s.level);
-  const match = onMatch && row.matchHint ? <MatchHint line={row.matchHint} onMatch={onMatch} /> : null;
+
+  if (row.locked) {
+    const value = `${label} ${copy('setup.difficulty.value', { level: row.value, max: row.max })}`;
+    return (
+      <SetupRowFrame row="difficulty" labelId={labelId} label={label} before={fallback}>
+        <div className="su-diff-locked" role="group" aria-labelledby={labelId} data-locked="true">
+          <p className="su-diff-locked-value">
+            <span className="ui-visually-hidden">{`${value}, ${copy('setup.difficulty.yours')}`}</span>
+            <b aria-hidden="true">{value}</b>
+          </p>
+          <Meter row={row} />
+          <p className="su-diff-locked-tag" aria-hidden="true">
+            {copy('setup.difficulty.yours')}
+          </p>
+        </div>
+        <p className="su-hint">{copy('setup.difficulty.rankedLocked')}</p>
+        {extra}
+      </SetupRowFrame>
+    );
+  }
 
   return (
     <SetupRowFrame row="difficulty" labelId={labelId} label={label} before={fallback}>
       <div className="su-diff-line" role="group" aria-labelledby={labelId} aria-describedby={row.skippedNote ? skippedId : undefined}>
-        {follow ? (
-          <p className="su-diff-follow">{row.followValue ? lineText(row.followValue) : null}</p>
-        ) : (
-          <Stepper
-            value={row.value}
-            min={1}
-            max={row.max}
-            disabledValues={row.skipped}
-            ariaLabel={label}
-            valueSuffix={suffix.trim()}
-            onChange={(level) => onChange(level)}
-          />
-        )}
-        <DifficultyMeter level={row.value} noMusic={noMusic} />
+        <Stepper value={row.value} min={1} max={row.max} disabledValues={row.skipped} ariaLabel={label} valueSuffix={suffix.trim()} onChange={(level) => onChange(level)} />
+        <Meter row={row} />
       </div>
       <p className="su-hint su-hint-strong su-diff-desc">
         <span>{row.description}</span>
@@ -77,18 +78,27 @@ export function DifficultyControl({ row, onChange, hideFollow = false, label = c
             <FewTag tag={row.fewTag} full={row.fewNote} />
           </>
         ) : null}
+        {row.relationNote ? (
+          <>
+            {' '}
+            <b className="su-diff-relation">{lineText(row.relationNote)}</b>
+          </>
+        ) : null}
       </p>
-      {follow && row.followHint ? <Hint>{lineText(row.followHint)}</Hint> : null}
-      {hideFollow && !match ? null : (
+      {onFindLevel ? (
         <div className="su-diff-foot">
-          {hideFollow ? null : (
-            <span className="su-switch">
-              <Toggle checked={row.follow} label={copy('setup.difficulty.follow')} onChange={(on) => onChange(on ? 'random' : row.value)} />
-            </span>
-          )}
-          {match}
+          {onFindLevel ? (
+            <p className="su-diff-find">
+              <span className="su-muted">{`${copy('setup.difficulty.find.lead')} `}</span>
+              <button type="button" className="su-link" data-testid="find-difficulty" onClick={onFindLevel}>
+                {copy('action.runPlacementAgain')}
+              </button>
+              {placementCount ? <span className="su-muted">{` · ${copy('setup.difficulty.find.count', { count: placementCount })}`}</span> : null}
+            </p>
+          ) : null}
         </div>
-      )}
+      ) : null}
+      {extra}
       {row.skippedNote ? <NoteLine id={skippedId} line={row.skippedNote} /> : null}
     </SetupRowFrame>
   );

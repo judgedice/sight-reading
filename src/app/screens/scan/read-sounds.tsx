@@ -142,7 +142,7 @@ export function useReadSounds({ svc, prepared, mode, active, announce }: ReadSou
   const listenMakePractice = useCallback(() => {
     setConfirmOpen(false);
     startListen();
-    announce(copy('listen.nowPractice'));
+    announce(copy('mode.nowPractice', { reason: copy('mode.reason.listened-first') }));
   }, [startListen, announce]);
 
   // The confirm never outlives the read-through (count-in at 0 closes it as Keep it ranked).

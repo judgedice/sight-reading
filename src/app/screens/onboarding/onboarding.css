@@ -1,115 +1,232 @@
-/* Onboarding (05 sections 4.1 and 8.1 to 8.5). Tokens only; rem, never px. */
+/* Onboarding: the setup wizard (round 3, 01-ux-review §3, R74; mockups wizard-*). Tokens only; rem, never px. */
 
 .ob {
   box-sizing: border-box;
   inline-size: 100%;
-  max-inline-size: 35rem;
+  max-inline-size: 51rem;
   margin-inline: auto;
-  padding-block: var(--space-3) var(--space-6);
+  /* Room for the fixed footer below the content. */
+  padding-block: var(--space-5) 8rem;
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
 }
 
-.ob[data-step='1'] {
+.ob[data-step='welcome'] {
   max-inline-size: 45rem;
   padding-block: var(--space-6) var(--space-7);
 }
 
-.ob[data-step='2'] {
-  max-inline-size: 80rem;
+.ob[data-step='instrument'] {
+  max-inline-size: 64rem;
 }
 
-.ob[data-step='4'] {
-  max-inline-size: 40rem;
-}
+/* ---- Stepper: three named segments across the top (01-ux-review §3.1) ---- */
 
-.ob-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.ob-step {
-  margin: 0;
-  font-size: var(--type-small-size);
-  color: var(--text-muted);
-}
-
-/* ---- Sing one note / Play one note (04-design §4): title in the bar, Skip at the right ---- */
-
-.ob[data-step='5'] {
-  max-inline-size: 60rem;
-}
-
-.ob-head[data-match='true'] {
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  gap: var(--space-3);
-}
-
-.ob-head[data-match='true'] .ob-step {
-  justify-self: end;
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-}
-
-.ob-head .ob-head-title {
-  margin: 0;
-  font-family: var(--type-h3-family);
-  font-size: var(--type-h3-size);
-  line-height: var(--type-h3-line);
-  font-weight: var(--type-h3-weight);
-  color: var(--text);
-  text-align: center;
-}
-
-.ob-head-title:focus {
-  outline: none;
-}
-
-.ob-match {
+.ob-stepper {
   display: flex;
   flex-direction: column;
+  gap: var(--space-4);
+}
+
+.ob-stepper-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ob-stepper-button,
+.ob-stepper-static {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  inline-size: 100%;
+  min-block-size: var(--target-min);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+}
+
+.ob-stepper-button {
+  cursor: pointer;
+  border-radius: var(--radius-s);
+}
+
+.ob-stepper-button:focus-visible {
+  outline: 0.125rem solid var(--focus-ring);
+  outline-offset: 0.25rem;
+}
+
+.ob-stepper-bar,
+.ob-level-track {
+  display: block;
+  block-size: 0.375rem;
+  border-radius: var(--radius-full);
+  background: var(--track);
+  overflow: hidden;
+}
+
+.ob-stepper-fill,
+.ob-level-fill {
+  display: block;
+  block-size: 100%;
+  border-radius: inherit;
+  background: var(--text);
+  transition: inline-size var(--dur-base) var(--ease-out);
+}
+
+.ob-stepper-item[data-status='now'] .ob-stepper-fill {
+  background: var(--brass);
+}
+
+.ob-stepper-head {
+  display: flex;
   align-items: center;
-  text-align: center;
+  gap: var(--space-2);
+  min-inline-size: 0;
 }
 
-.ob-match-lead {
-  margin: var(--space-5) 0 0;
+.ob-stepper-dot,
+.ob-stage-dot {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  inline-size: 1.75rem;
+  block-size: 1.75rem;
+  border: 0.09375rem solid var(--border-strong);
+  border-radius: var(--radius-full);
+  color: var(--text-muted);
+  font-size: var(--type-small-size);
+  font-weight: 600;
 }
 
-.ob-match .mt-target {
-  margin-block-start: var(--space-4);
+.ob-stepper-item[data-status='done'] .ob-stepper-dot,
+.ob-stage[data-status='done'] .ob-stage-dot {
+  border-color: var(--text);
+  background: var(--text);
+  color: var(--bg);
 }
 
-/* The onboarding line is a sentence longer than the practice one: one size down so it stays on one line. */
-.ob-match .mt-line {
-  font-size: var(--type-h1-size);
-  text-wrap: balance;
+.ob-stepper-item[data-status='now'] .ob-stepper-dot,
+.ob-stage[data-status='now'] .ob-stage-dot {
+  border-color: var(--brass);
+  background: var(--brass-wash);
+  color: var(--brass-ink);
+}
+
+.ob-stepper-name {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: var(--type-body-size);
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ob-stepper-item[data-status='done'] .ob-stepper-name,
+.ob-stepper-item[data-status='now'] .ob-stepper-name {
+  color: var(--text);
+}
+
+.ob-eyebrow {
+  margin: 0;
+  color: var(--text-muted);
+  font-family: var(--type-caption-family);
+  font-size: var(--type-caption-size);
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.ob-welcome-steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  inline-size: 100%;
+  max-inline-size: 32rem;
+  margin-block-end: var(--space-5);
+}
+
+/* ---- Footer: fixed to the bottom on every step; Back left, Skip and the primary right ---- */
+
+.ob-footer {
+  position: fixed;
+  inset-inline: 0;
+  inset-block-end: 0;
+  z-index: 2;
+  border-block-start: 0.0625rem solid var(--border);
+  background: var(--bg);
+  padding: var(--space-3) max(var(--page-margin, var(--space-4)), var(--sai-left, 0rem)) max(var(--space-3), var(--sai-bottom, 0rem));
+}
+
+.ob-footer-inner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3) var(--space-4);
+  box-sizing: border-box;
+  max-inline-size: 51rem;
+  margin-inline: auto;
+}
+
+.ob[data-step='instrument'] .ob-footer-inner {
+  max-inline-size: 64rem;
+}
+
+.ob-footer-back {
+  flex: none;
+  margin-inline-start: calc(-1 * var(--space-3));
+}
+
+.ob-footer-note {
+  flex: 1 1 auto;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--type-small-size);
+  line-height: var(--type-small-line);
+  text-align: end;
+}
+
+.ob-footer-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-inline-start: auto;
 }
 
 @media (max-width: 43.6875rem) {
-  .ob-head[data-match='true'] .ob-step > span {
-    display: none;
+  .ob {
+    padding-block-end: 10rem;
   }
 
-  .ob-match .mt-body {
-    inline-size: 100%;
+  .ob-footer-inner {
+    flex-wrap: wrap;
   }
 
-  .ob-match .mt-line {
-    font-size: var(--type-h2-size);
+  .ob-footer-note {
+    order: 3;
+    flex-basis: 100%;
+    text-align: start;
   }
 
-  /* Play it again and Continue side by side, in thumb reach. */
-  .ob-match .mt-actions {
-    flex-direction: row;
+  .ob-footer-actions {
+    display: contents;
   }
 
-  .ob-match .mt-actions > * {
-    flex: 1;
+  .ob-footer-skip {
+    margin-inline-start: auto;
+  }
+
+  /* The primary takes the full width on its own row below Back and Skip. */
+  .ob-footer-primary {
+    order: 4;
+    flex-basis: 100%;
   }
 }
 
@@ -120,21 +237,6 @@
   flex-direction: column;
   align-items: center;
   text-align: center;
-}
-
-.ob-wordmark {
-  display: flex;
-  align-items: center;
-  gap: 0.625rem;
-  font-family: var(--type-h2-family);
-  font-size: 1.5rem;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  color: var(--text);
-}
-
-.ob-wordmark svg {
-  display: block;
 }
 
 .ob-paper {
@@ -192,7 +294,7 @@
 }
 
 @media (max-width: 43.6875rem) {
-  .ob[data-step='1'] {
+  .ob[data-step='welcome'] {
     padding-block: var(--space-2) var(--space-6);
   }
 
@@ -207,17 +309,6 @@
 }
 
 /* ---- Cards, titles, text ---- */
-
-.ob-card {
-  inline-size: 100%;
-  box-sizing: border-box;
-}
-
-.ob-body {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-}
 
 .ob-title {
   margin: 0;
@@ -254,37 +345,6 @@
   color: var(--accent);
 }
 
-.ob-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-3);
-  align-items: center;
-}
-
-.ob-actions-stack {
-  flex-direction: column;
-  align-items: stretch;
-}
-
-.ob-actions-stack .ui-button {
-  /* A long label ("Find my difficulty (3 short excerpts, about 5 minutes)") wraps inside the button instead of past the card. */
-  white-space: normal;
-  text-align: center;
-  padding-block: var(--space-2);
-}
-
-.ob-actions-stack .ob-hint {
-  text-align: center;
-}
-
-.ob-granted {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  margin: 0;
-  font-weight: 600;
-  color: var(--text);
-}
 
 /* ---- Microphone problems: a tinted block inside the step's card, not a card of its own ---- */
 
@@ -297,10 +357,6 @@
   background: var(--surface-2);
 }
 
-.ob-problem-icon {
-  color: var(--danger);
-}
-
 .ob-problem-body {
   margin: 0;
   font-weight: 600;
@@ -311,32 +367,6 @@
   font-size: var(--type-small-size);
   line-height: var(--type-small-line);
   color: var(--text-muted);
-}
-
-/* ---- Calibration: the calibration card is the step's card ---- */
-
-.ob-cal {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-}
-
-.ob-skip-hint {
-  text-align: center;
-}
-
-/* ---- Difficulty ---- */
-
-.ob-card-level {
-  max-inline-size: 35rem;
-}
-
-.ob-choose {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-5);
-  padding-block-start: var(--space-4);
-  border-block-start: 0.0625rem solid var(--border);
 }
 
 /* ---- Picker as the page ---- */
@@ -357,23 +387,21 @@
   margin-block-start: var(--space-5);
 }
 
-/* Narrow: the selection's picture and Continue are pinned to the bottom edge, as the phone sheet pins its panel. */
+/* Narrow: the selection's picture sits under the cards (the footer carries Next). */
 .ob-pick-side {
-  position: sticky;
-  inset-block-end: 0;
-  z-index: 1;
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-  margin-inline: calc(var(--page-margin) * -1);
-  padding: var(--space-3) var(--page-margin) max(var(--space-3), var(--sai-bottom, 0rem));
-  border-block-start: 0.0625rem solid var(--border);
+  padding: var(--space-4);
+  border: 0.0625rem solid var(--border);
+  border-radius: var(--radius-l);
   background: var(--surface);
-  box-shadow: var(--e2);
 }
 
-.ob-pick-side > .ui-button {
-  inline-size: 100%;
+.ob-start-line {
+  margin: 0;
+  font-size: var(--type-small-size);
+  line-height: var(--type-small-line);
 }
 
 @media (min-width: 64rem) {
@@ -397,18 +425,415 @@
 
   .ob-pick-side {
     grid-area: side;
+    position: sticky;
     inset-block-start: var(--space-4);
-    inset-block-end: auto;
-    margin-inline: 0;
     padding: var(--space-5);
-    border: 0.0625rem solid var(--border);
-    border-radius: var(--radius-l);
-    box-shadow: none;
-    background: var(--surface);
   }
 }
 
 /* Without app chrome the shell adds no page margin, so the screen keeps its own. */
 .app-shell[data-chrome='none'] .ob {
   padding-inline: max(var(--page-margin), var(--sai-left, 0rem));
+}
+
+/* ---- Sound check: stages on the left (desktop) or chips (phone), the current stage's card ---- */
+
+.ob-sound,
+.ob-ready {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.ob-sound-head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.ob-sound-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2.2fr);
+  gap: var(--space-5);
+  align-items: start;
+}
+
+.ob-stages {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ob-stage {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 0.0625rem solid transparent;
+  border-radius: var(--radius-m);
+}
+
+.ob-stage[data-status='now'] {
+  border-color: var(--border);
+  background: var(--surface);
+  box-shadow: var(--e1);
+}
+
+.ob-stage-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-inline-size: 0;
+}
+
+.ob-stage-name {
+  font-weight: 600;
+}
+
+.ob-stage-sub {
+  color: var(--text-muted);
+  font-size: var(--type-small-size);
+  line-height: var(--type-small-line);
+}
+
+.ob-stage[data-status='skipped'] .ob-stage-name,
+.ob-stage[data-status='needs-mic'] .ob-stage-name,
+.ob-stage[data-status='upcoming'] .ob-stage-name {
+  color: var(--text-muted);
+}
+
+.ob-stage-card {
+  inline-size: 100%;
+  box-sizing: border-box;
+}
+
+.ob-stage-panel,
+.cal-wizard {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-4);
+}
+
+.ob-stage-title {
+  margin: 0;
+  font-family: var(--type-h2-family);
+  font-size: var(--type-h2-size);
+  line-height: var(--type-h2-line);
+  font-weight: var(--type-h2-weight);
+}
+
+.ob-stage-title:focus {
+  outline: none;
+}
+
+.ob-note {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  margin: 0;
+  padding: var(--space-4);
+  border-radius: var(--radius-m);
+  background: var(--surface-2);
+  font-size: var(--type-small-size);
+  line-height: var(--type-small-line);
+}
+
+.ob-note svg {
+  flex: none;
+  margin-block-start: 0.125rem;
+}
+
+/* "Shown because…": the lead line of every failure-only panel. */
+.ob-because {
+  margin: 0;
+  padding-inline-start: var(--space-3);
+  border-inline-start: 0.1875rem solid var(--border-strong);
+  font-size: var(--type-small-size);
+  line-height: var(--type-small-line);
+}
+
+@media (max-width: 63.9375rem) {
+  .ob-sound-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .ob-stages-chips {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-2);
+  }
+
+  .ob-stages-chips .ob-stage {
+    padding: var(--space-2);
+  }
+
+  .ob-stages-chips .ob-stage-name {
+    font-size: var(--type-small-size);
+  }
+}
+
+/* ---- Hear you: level meter, then the note name, fixed once steady ---- */
+
+.ob-level {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.ob-level-label {
+  margin: 0;
+  font-size: var(--type-small-size);
+  font-weight: 600;
+}
+
+.ob-level-track {
+  block-size: 0.75rem;
+}
+
+.ob-level-fill {
+  background: var(--accent);
+  transition: none;
+}
+
+.ob-heard {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  min-block-size: 5.5rem;
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius-m);
+  background: var(--surface-2);
+}
+
+.ob-heard-note {
+  flex: none;
+  margin: 0;
+  font-family: var(--type-display-family);
+  font-size: var(--type-display-size);
+  line-height: 1;
+  font-weight: 600;
+}
+
+.ob-heard[data-state='steady'] .ob-heard-note {
+  color: var(--text-muted);
+}
+
+.ob-heard-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.ob-heard-ok {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--correct);
+  font-weight: 600;
+}
+
+.ob-heard-where {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--type-small-size);
+  line-height: var(--type-small-line);
+}
+
+.ob-offer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  margin: 0;
+}
+
+/* ---- Timing (the calibration card's wizard variant) ---- */
+
+.cal-field-inline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+}
+
+.cal-wizard-progress,
+.cal-wizard-fail {
+  margin: 0;
+  font-weight: 600;
+}
+
+.cal-wizard-fail-block {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.cal-wizard-pass {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--correct);
+  font-size: var(--type-h3-size);
+  font-weight: 600;
+}
+
+.ob-alt {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3) var(--space-4);
+  padding: var(--space-4);
+  border: 0.0625rem solid var(--border);
+  border-radius: var(--radius-m);
+}
+
+.ob-alt-text {
+  display: flex;
+  flex: 1 1 14rem;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.ob-alt-title {
+  margin: 0;
+  font-weight: 600;
+}
+
+.ob-details summary {
+  min-block-size: var(--target-min);
+  display: flex;
+  align-items: center;
+  color: var(--text-muted);
+  font-size: var(--type-small-size);
+  cursor: pointer;
+}
+
+.ob-details-body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-4);
+  padding-block-start: var(--space-3);
+}
+
+/* ---- Ready: one row per item, a fix link where one exists ---- */
+
+.ob-ready-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-5);
+  border: 0.0625rem solid var(--border);
+  border-radius: var(--radius-l);
+  background: var(--surface);
+}
+
+.ob-ready-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ob-ready-row {
+  display: grid;
+  grid-template-columns: 1.5rem minmax(6rem, 10rem) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3);
+  min-block-size: var(--target-min);
+  padding-block: var(--space-3);
+  border-block-end: 0.0625rem solid var(--border);
+}
+
+.ob-ready-mark {
+  color: var(--correct);
+}
+
+.ob-ready-row[data-ok='false'] .ob-ready-mark {
+  color: var(--text-muted);
+}
+
+.ob-ready-label {
+  color: var(--text-muted);
+}
+
+.ob-ready-value {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.ob-ready-main {
+  font-weight: 600;
+}
+
+.ob-ready-detail {
+  color: var(--text-muted);
+  font-size: var(--type-small-size);
+  line-height: var(--type-small-line);
+}
+
+.ob-ready-action {
+  min-block-size: var(--target-min);
+}
+
+.ob-ready-mode {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-4);
+  border-radius: var(--radius-m);
+  background: var(--surface-2);
+  font-size: var(--type-small-size);
+  line-height: var(--type-small-line);
+}
+
+@media (max-width: 43.6875rem) {
+  .ob-ready-card {
+    padding: var(--space-4);
+  }
+
+  .ob-ready-row {
+    grid-template-columns: 1.5rem minmax(0, 1fr) auto;
+  }
+
+  .ob-ready-label,
+  .ob-ready-value {
+    grid-column: 2;
+  }
+
+  .ob-ready-mark {
+    grid-row: span 2;
+  }
+
+  .ob-ready-row > :last-child {
+    grid-area: 1 / 3 / span 2;
+  }
+
+  .ob-heard {
+    gap: var(--space-4);
+    padding: var(--space-4);
+  }
+
+  .ob-heard-note {
+    font-size: var(--type-h1-size);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ob-stepper-fill {
+    transition: none;
+  }
+}
+
+:root[data-motion='reduced'] .ob-stepper-fill {
+  transition: none;
 }

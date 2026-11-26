@@ -27,8 +27,8 @@ function Reason({ id, block, onFix }: { id: string; block: RankedBlock; onFix?: 
   const [lead, tail] =
     block === 'calibration'
       ? splitAt('setup.mode.blocked.calibration.link', { link: '' }, 'link')
-      : [`${copy('setup.mode.blocked.mic')} `, ''];
-  const action = copy(block === 'calibration' ? 'calStatus.action.calibrate' : 'action.turnOnMic');
+      : [`${copy(block === 'delay' ? 'setup.mode.blocked.delay' : 'setup.mode.blocked.mic')} `, ''];
+  const action = copy(block === 'calibration' ? 'calStatus.action.calibrate' : block === 'delay' ? 'action.runCheckAgain' : 'action.turnOnMic');
   return (
     <span className="su-mode-reason">
       <span id={id}>{lead.trimEnd()}</span>
@@ -46,7 +46,7 @@ function Reason({ id, block, onFix }: { id: string; block: RankedBlock; onFix?: 
 }
 
 /**
- * Mode (round 2: 01-ux section 6, 04-design section 1): Ranked and Practice, then one hint line. When Ranked is
+ * Mode (round 2: 01-ux section 6, 04-design section 1; round 3 mockups home-*): Practice and Ranked, then one hint line. When Ranked is
  * blocked the line carries the reason and its fix as a link; there is no second button.
  */
 export function ModeControl({ value, onChange, rankedBlock = null, onFix, inlineLabel = false, label = copy('row.mode') }: ModeControlProps) {
@@ -66,6 +66,7 @@ export function ModeControl({ value, onChange, rankedBlock = null, onFix, inline
         labelledBy={labelId}
         onSelect={(v) => onChange(v as PracticeMode)}
         options={[
+          { id: 'practice', content: copy('mode.practice'), selected: value === 'practice' },
           {
             id: 'ranked',
             content: rankedBlock ? (
@@ -80,7 +81,6 @@ export function ModeControl({ value, onChange, rankedBlock = null, onFix, inline
             blocked: rankedBlock !== null,
             describedBy: rankedBlock ? reasonId : undefined,
           },
-          { id: 'practice', content: copy('mode.practice'), selected: value === 'practice' },
         ]}
       />
       <p className="su-hint su-mode-hint">

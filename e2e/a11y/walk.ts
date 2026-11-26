@@ -50,7 +50,7 @@ export async function walkScreens(page: Page, wav: string, phone: boolean, visit
   await go(page, '#/');
   await chooseOutput(page, 'Wired headphones');
   await chooseMode(page, 'practice');
-  await page.getByRole('button', { name: 'Start', exact: true }).click();
+  await page.getByRole('button', { name: /^Start (practice|ranked try)/ }).click();
   await expect(page.getByTestId('scan-cover')).toBeVisible({ timeout: 30_000 });
   await visit('scan-cover');
   await page.getByRole('button', { name: 'Show the music' }).click();
@@ -96,7 +96,7 @@ export async function walkScreens(page: Page, wav: string, phone: boolean, visit
 
   // Calibration listening state (a pulse that must become a fill under reduced motion).
   await go(page, '#/calibrate');
-  const start = page.getByRole('button', { name: 'Start', exact: true });
+  const start = page.getByRole('button', { name: /^Start (practice|ranked try)/ });
   if ((await start.count()) > 0) {
     await start.click();
     await page.waitForTimeout(700);

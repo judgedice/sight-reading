@@ -176,7 +176,7 @@ describe('model over fixtures/grade', () => {
     expect(v.factors[0]).toBe(copy('xp.factor.levelBase', { level: rec.levelServed, value: rec.score!.xp.base }));
     for (const line of v.factors) expect(line).not.toMatch(/×1\.00$/);
     const practice: AttemptRecord = { ...rec, score: { ...rec.score!, xp: { total: 8, base: 34, factors: [{ id: 'practice', value: 0.25 }] } } };
-    expect(xpView(practice, cfg, undefined).headline).toBe('+8 XP (practice earns 25% of the XP)');
+    expect(xpView(practice, cfg, undefined).headline).toBe('+8 XP. Practice earns a quarter of the XP, and your difficulty stays the same.');
     const repeat: AttemptRecord = { ...rec, score: { ...rec.score!, xp: { total: 0, base: 34, factors: [{ id: 'repeat', value: 0 }] } } };
     expect(xpView(repeat, cfg, undefined).headline).toBe(copy('xp.none.repeat'));
     const inc = attemptFrom('case10-incomplete');
@@ -255,7 +255,10 @@ describe('ResultsPanel', () => {
     render({ record: rec, profile: makeProfile({ xp: 2180, rank: 3 }) });
     const name = copy('a11y.grade.heading', { grade: s.grade, score: s.score, stars: s.stars });
     expect(document.querySelector(`[aria-label="${name}"]`)).toBeTruthy();
-    expect($('.dom-pill[data-kind="ranked"]').textContent).toContain(copy('badge.ranked'));
+    // The mode pill under the score (round 3, R79).
+    expect($('[data-testid="results-mode"]').getAttribute('data-mode')).toBe('ranked');
+    expect($('[data-testid="results-mode"]').textContent).toBe('Ranked');
+    expect($('.res-head-left [data-testid="results-mode"]')).toBeTruthy();
     expect(document.body.textContent).toContain(copy(`grade.${s.grade}`));
     // Ranked: no reason line.
     expect($('[data-testid="results-panel"]').getAttribute('data-header')).toBe('ranked');
@@ -384,10 +387,11 @@ describe('ResultsPanel', () => {
     const practice: AttemptRecord = { ...rec, score: { ...rec.score!, ranked: false, rankedReasons: ['practice-mode'], xp: { total: 8, base: 34, factors: [{ id: 'practice', value: 0.25 }] } } };
     render({ record: practice });
     expect($('[data-testid="results-panel"]').getAttribute('data-header')).toBe('practice');
-    expect($('.dom-pill[data-kind="practice"]').textContent).toBe(copy('badge.practice'));
+    expect($('[data-testid="results-mode"]').getAttribute('data-mode')).toBe('practice');
+    expect($('[data-testid="results-mode"]').textContent).toBe('Practice');
     expect(q('[data-testid="res-reason"]')).toBeNull();
     expect(document.body.textContent).not.toContain(copy('ranked.reason.practice-mode'));
-    expect($('[data-testid="res-xp"]').textContent).toContain('+8 XP (practice earns 25% of the XP)');
+    expect($('[data-testid="res-xp"]').textContent).toContain('+8 XP. Practice earns a quarter of the XP, and your difficulty stays the same.');
   });
 
   it('practice for a reason: the Practice badge with the reason (listened first)', () => {
@@ -395,9 +399,26 @@ describe('ResultsPanel', () => {
     const listened: AttemptRecord = { ...rec, score: { ...rec.score!, ranked: false, rankedReasons: ['listened-first'] } };
     render({ record: listened });
     expect($('[data-testid="results-panel"]').getAttribute('data-header')).toBe('practice-reason');
-    expect($('.dom-pill[data-kind="practice"]')).toBeTruthy();
+    expect($('[data-testid="results-mode"]').getAttribute('data-mode')).toBe('practice');
     expect($('[data-testid="res-reason"]').textContent).toBe('You listened first, so this one is practice.');
     expect(document.body.textContent).not.toContain(copy('action.calibrateNow'));
+  });
+
+  it('R77: when every piece at your difficulty is read, the move-up offer shows whatever the window says', () => {
+    const rec = attemptFrom('case01-perfect-flute-l4');
+    const onMoveUp = vi.fn();
+    render({ record: rec, exhausted: { instrumentId: rec.instrumentId, from: 1, to: 2 }, onMoveUp });
+    expect($('[data-testid="level-offer"]').textContent).toContain("You've read every piece at difficulty 1. Move up to difficulty 2, or practise pieces you've seen.");
+    click(button(copy('action.goToLevel', { level: 2 })));
+    expect(onMoveUp).toHaveBeenCalledWith(rec.instrumentId, 2);
+  });
+
+  it('a ranked try in the level window says how far it is to moving up', () => {
+    const rec = attemptFrom('case01-perfect-flute-l4');
+    const inst = { level: rec.levelServed, window: [{ attemptId: 'a', score: 90, atMidTempo: true }, { attemptId: rec.id, score: 95, atMidTempo: true }] };
+    const profile = makeProfile({ instruments: { [rec.instrumentId]: { ...makeProfile().instruments[rec.instrumentId]!, ...inst } } });
+    const v = xpView(rec, cfg, profile);
+    expect(v.headline).toBe(`+${rec.score!.xp.total} XP. Counts toward moving up: 2 of the 4 good tries needed.`);
   });
 
   it('not calibrated: Practice with the calibration reason, Calibrate now, and the timing note on the score', () => {
@@ -406,7 +427,7 @@ describe('ResultsPanel', () => {
     const onCalibrateNow = vi.fn();
     render({ record: uncal, onCalibrateNow, review: <div data-testid="fake-review" /> });
     expect($('[data-testid="results-panel"]').getAttribute('data-header')).toBe('not-calibrated');
-    expect($('.dom-pill[data-kind="practice"]')).toBeTruthy();
+    expect($('[data-testid="results-mode"]').getAttribute('data-mode')).toBe('practice');
     expect($('[data-testid="res-reason"]').textContent).toContain(copy('ranked.reason.calibration'));
     click(button(copy('action.calibrateNow')));
     expect(onCalibrateNow).toHaveBeenCalledTimes(1);
@@ -479,7 +500,8 @@ describe('ResultsPanel', () => {
     const end = $('[data-testid="res-actions-end"]');
     expect(end.compareDocumentPosition($('[data-testid="res-components"]')) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();
     const pinned = $('[data-testid="res-pinned"]');
-    expect([...pinned.querySelectorAll('button')].map((b) => b.textContent)).toEqual([copy('action.nextExcerpt'), copy('action.tryAgain')]);
+    // "Try again as practice" on both sizes (01-ux-review problem 14).
+    expect([...pinned.querySelectorAll('button')].map((b) => b.textContent)).toEqual([copy('action.nextExcerpt'), copy('action.tryAgainPractice')]);
     // One Next piece button on the page: the bar's.
     expect([...end.querySelectorAll('button')].map((b) => b.textContent)).toEqual([copy('action.tryAgainPractice'), copy('action.changeSetup')]);
   });

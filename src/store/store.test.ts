@@ -71,6 +71,31 @@ describe('settings read (round 2 defaults)', () => {
     const file = parseExportFile(JSON.parse(JSON.stringify(await exportAll(repos, kv))));
     expect(file.settings.display.noteColours).toBe(true);
   });
+  it('reads the pitch needle as absent (by family) when missing or unknown, and keeps a stored preset (round 3)', () => {
+    expect(defaultAppSettings().display.pitchSteadiness).toBeUndefined();
+    const old = defaultAppSettings();
+    expect(normaliseSettings(old)).toBe(old);
+    const s = defaultAppSettings();
+    for (const v of ['steady', 'balanced', 'quick'] as const) {
+      s.display.pitchSteadiness = v;
+      expect(normaliseSettings(s)).toBe(s);
+    }
+    (s.display as { pitchSteadiness?: unknown }).pitchSteadiness = 'wobbly';
+    const read = normaliseSettings(s);
+    expect(read.display.pitchSteadiness).toBeUndefined();
+    expect('pitchSteadiness' in read.display).toBe(false);
+  });
+  it('round-trips the pitch needle through an export file, and refuses an unknown one', async () => {
+    const kv = new MemoryKv();
+    const repos = memoryRepos(kv);
+    const s = defaultAppSettings();
+    s.display.pitchSteadiness = 'quick';
+    await repos.settings.put(s);
+    const raw = JSON.parse(JSON.stringify(await exportAll(repos, kv))) as { settings: { display: Record<string, unknown> } };
+    expect(parseExportFile(raw).settings.display.pitchSteadiness).toBe('quick');
+    raw.settings.display['pitchSteadiness'] = 'wobbly';
+    expect(() => parseExportFile(raw)).toThrow();
+  });
   it('rejects an unknown ghostsLive value', () => {
     const s = defaultAppSettings();
     (s.display as { ghostsLive?: string }).ghostsLive = 'sometimes';

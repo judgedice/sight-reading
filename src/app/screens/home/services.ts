@@ -55,10 +55,9 @@ export type HomeBanner =
   | { kind: 'storage-loss' }
   | { kind: 'mic-off' }
   | { kind: 'calibrate'; seconds: number }
-  | { kind: 'bluetooth' }
   | { kind: 'level-up'; instrumentId: string; from: number; to: number };
 
-export const BANNER_PRIORITY: readonly HomeBanner['kind'][] = ['storage-loss', 'mic-off', 'calibrate', 'bluetooth', 'level-up'];
+export const BANNER_PRIORITY: readonly HomeBanner['kind'][] = ['storage-loss', 'mic-off', 'calibrate', 'level-up'];
 
 export interface HomeServices {
   configs: Configs;
@@ -115,4 +114,14 @@ export interface HomeServices {
   startScale?(scaleId: string, bpm: number | null): void;
   /** "Turn on microphone": turns listening on and runs the permission request. Call from the click. */
   turnOnMic?(): Promise<{ ok: boolean }>;
+  /**
+   * "Find my difficulty" (round 3, R75): starts placement for the chosen instrument and prepares its first ranked
+   * piece; the screen then opens the cover. Omitted: no link.
+   */
+  startPlacement?(): void;
+  /**
+   * Unseen pieces a ranked try at `level` could still serve for the instrument (R77). Zero: Home and results offer the
+   * next difficulty. Omitted: never exhausted.
+   */
+  unseenRanked?(instrumentId: string, level: number): number;
 }

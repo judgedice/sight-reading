@@ -28,6 +28,7 @@ import {
   SessionError,
   VOICE_REFERENCE_LEAD_SEC,
   decodePcm16,
+  demotedReasons,
   initialSessionView,
   listenSourceOf,
   reduceSessionView,
@@ -1378,5 +1379,57 @@ describe('Listen playback review: the instrument sound is ready for the first pr
     expect(view.notes!.clock()).toBeCloseTo((h.be.now() as number) - 0.02, 9);
     h.session.stopSounds();
     expect(h.session.sounds.getState().notes).toBeNull();
+  });
+});
+
+describe('round 3: the mode shown is the mode delivered (R79)', () => {
+  const speakers = (routeKey: string): Calibration => ({ ...makeCalibration(routeKey), method: 'loopback', outputMode: 'speakers', roundTripMs: 60, spreadMs: 2, clicksDetected: 10, templates: {} });
+
+  it('headphones without calibration: a route opened for the speakers says nothing about the next try (the review case)', async () => {
+    const h = await harness({ calibration: speakers('spk'), backend: { route: { routeKey: 'spk', outputMode: 'speakers' } } });
+    await h.session.ensureAudio();
+    expect(h.session.routeKey).toBe('spk');
+    // The speakers are calibrated on the open route.
+    expect(await h.session.rankedAvailability({ listening: true, outputMode: 'speakers' })).toEqual({ available: true, block: null });
+    // The player chose Wired headphones: Home must not offer Ranked, because the try's route will not be measured.
+    expect(await h.session.rankedAvailability({ listening: true, outputMode: 'wired' })).toEqual({ available: false, block: 'calibration' });
+    expect(h.session.routeKeyFor('wired')).toBeNull();
+    expect(h.session.routeKeyFor('speakers')).toBe('spk');
+    // A ranked request is practice from the cover on, with its reason.
+    await h.session.prepare(settings({ mode: 'ranked', outputMode: 'wired' }));
+    expect(h.session.pending?.mode).toBe('practice');
+    expect(h.session.view.getState()).toMatchObject({ mode: 'practice', practiceReason: 'calibration' });
+  });
+
+  it('a measured delay above the ranked ceiling blocks Ranked with its own reason (gate (g))', async () => {
+    const h = await harness({ calibration: playAlong(cfg.grading.ranked.maxRtlMs + 40) });
+    expect(await h.session.rankedAvailability({ routeKey: ROUTE, listening: true, outputMode: 'wired' })).toEqual({ available: false, block: 'delay' });
+  });
+
+  it('once audio opens on an unmeasured route, a ranked excerpt becomes practice before the try, and says why', async () => {
+    // Measured for wired, but on another device: before audio opens it counts; the real route does not match.
+    const h = await harness({ calibration: { ...playAlong(40), routeKey: 'other-device' } });
+    await h.session.prepare(settings({ mode: 'ranked' }));
+    expect(h.session.view.getState().mode).toBe('ranked');
+    await h.session.ensureAudio();
+    await flush();
+    await flush();
+    expect(h.session.view.getState()).toMatchObject({ mode: 'practice', practiceReason: 'calibration' });
+  });
+
+  it('a calibrated route stays ranked from the cover to the start of the try', async () => {
+    const h = await harness();
+    await h.session.prepare(settings({ mode: 'ranked' }));
+    await h.session.ensureAudio();
+    await flush();
+    expect(h.session.view.getState()).toMatchObject({ mode: 'ranked', practiceReason: null });
+    expect(h.session.pending?.mode).toBe('ranked');
+  });
+
+  it('the record keeps the reason in place of practice-mode', () => {
+    expect(demotedReasons(['practice-mode', 'calibration'], 'calibration')).toEqual(['calibration']);
+    expect(demotedReasons(['practice-mode'], 'seen-before')).toEqual(['seen-before']);
+    expect(demotedReasons(['practice-mode', 'seen-before'], 'seen-before')).toEqual(['seen-before']);
+    expect(demotedReasons([], 'skip-limit')).toEqual(['skip-limit']);
   });
 });

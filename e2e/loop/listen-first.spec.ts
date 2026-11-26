@@ -24,7 +24,7 @@ type Sr = {
  * Practice's Start makes) instead of going through calibration.
  */
 async function rankedCover(page: Page): Promise<void> {
-  await page.getByRole('button', { name: 'Start', exact: true }).click();
+  await page.getByRole('button', { name: /^Start (practice|ranked try)/ }).click();
   await expect(page.getByTestId('scan-cover')).toBeVisible({ timeout: 30_000 });
   // The cover shows while the excerpt still loads; wait for the session's current excerpt before asking again.
   await expect.poll(() => page.evaluate(() => (window as unknown as Sr).__sr.session.current !== null), { timeout: 30_000 }).toBe(true);
@@ -67,7 +67,7 @@ test('ranked read-through: Listen first asks, makes the take practice, and resul
   await listen.click();
   await page.getByRole('dialog', { name: 'Listen first?' }).getByRole('button', { name: 'Listen, make it practice' }).click();
   await expect(scan).toHaveAttribute('data-mode', 'practice');
-  await expect(chip).toHaveText('Practice');
+  await expect(chip).toHaveText('Practice · you listened first');
   await expect(page.getByTestId('scan-announce')).toHaveText('Now a practice try');
   await expect(page.getByRole('button', { name: /^Stop/ })).toBeVisible();
 

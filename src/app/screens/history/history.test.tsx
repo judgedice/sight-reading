@@ -91,6 +91,8 @@ describe('HistoryScreen', () => {
     await renderAt('#/history', services);
     const rows = document.querySelectorAll('[data-testid="history-row"]');
     expect(rows).toHaveLength(25);
+    // Each row carries the small mode pill (round 3, R79).
+    expect(rows[0]?.querySelector('[data-testid="history-mode"]')?.getAttribute('data-mode')).toMatch(/^(ranked|practice)$/);
     expect(rows[0]?.getAttribute('href')).toBe(`#/history/${newest.id}`);
     // Round 2: the day heading counts its tries, with the one definition (compose/tries.ts).
     const day = localDayOf(newest.createdAt);

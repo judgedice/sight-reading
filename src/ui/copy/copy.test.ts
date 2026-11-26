@@ -72,7 +72,7 @@ describe('copy() and the typed key union', () => {
       b: 8,
       licenceShort: 'CC0',
     })).toBe('Schubert (1797–1828) · Heidenröslein, D 257 · bars 1–8 · CC0');
-    expect(copy('calibrate.loopback.success', { ms: 42 })).toBe("Your setup adds 42 ms. We'll correct for it.");
+    expect(copy('onboarding.timing.pass', { ms: 42 })).toBe('Measured: 42 ms. Timing marks will be fair.');
   });
 
   it('exposes a key union that matches en.json, with the expected count', () => {
@@ -180,7 +180,6 @@ describe('en.json catalogue', () => {
     for (const k of [
       'welcome.headline',
       'welcome.body',
-      'calibrate.intro',
       'scan.cover',
       'scan.ranked.notice',
       'scan.startingIn',
@@ -215,7 +214,7 @@ describe('en.json catalogue', () => {
 describe('round 2 vocabulary and new copy (01-ux.md 2 to 16, 04-design.md 10, 02-sounds.md)', () => {
   const blank = (t: string): string => t.replace(/\{\s*[A-Za-z_]+/g, '{');
   /** Keys where "take" is the ordinary verb ("a sound takes time", "Take a moment"), not the noun for a try. */
-  const TAKE_VERB = ['calibrate.result.meaning.loopback', 'calibrate.result.meaning.playAlong', 'scan.cover', 'calStatus.none.detail', 'calStatus.ok.detail'];
+  const TAKE_VERB = ['scan.cover', 'calStatus.none.detail', 'calStatus.ok.detail'];
 
   it('has no value that says take(s) for a try, excerpt(s), slip(s), scan or "a stretch"', () => {
     const hits = (re: RegExp, skip: readonly string[] = []): string[] =>
@@ -280,11 +279,7 @@ const SPEC: Readonly<Record<string, string>> = {
   "action.tuningNote": "Check my tuning",
   "action.stayAt": "Stay at difficulty {level}",
   "action.goToLevel": "Go to difficulty {level}",
-  "onboarding.level.placement": "Find my difficulty ({count} short pieces, about {minutes} minutes)",
-  "onboarding.level.title": "Choose a starting difficulty",
-  "onboarding.level.stepper": "Starting difficulty",
-  "onboarding.instrument.body": "We choose music in your range. Pick the card that fits you best.",
-  "scan.chip.ranked": "Ranked · {time} to read",
+  "onboarding.instrument.body": "We pick music in your range. Choose the card that fits you best.",
   "scan.summary": "Difficulty {level} · {key} · {meter} · {tempo} · {bars} bars",
   "scan.peek": "Look before you play",
   "grade.D": "Rough one. Stay at this difficulty for now.",
@@ -362,15 +357,11 @@ const SPEC: Readonly<Record<string, string>> = {
   "range.a11y": "{instrument} range: {low} to {high}. At difficulty {level}: {servedLow} to {servedHigh}.",
   "range.hearNote": "Hear {note}",
   "instrument.card.a11y": "{instrument}, range {low} to {high}",
-  "setup.title": "Practice",
   "setup.changeInstrument": "Change instrument",
   "setup.done": "Done",
   "setup.chip.a11y": "{row}: {value}. Change",
   "setup.difficulty.value": "{level} of {max}",
   "setup.difficulty.chip": "Difficulty {level}",
-  "setup.difficulty.follow": "Follow my progress",
-  "setup.difficulty.followValue": "Difficulty {level} of {max} (follows your progress)",
-  "setup.difficulty.followHint": "Uses your current difficulty and moves up as you do.",
   "setup.key.any": "Any key",
   "setup.key.major": "Major",
   "setup.key.minor": "Minor",
@@ -392,17 +383,16 @@ const SPEC: Readonly<Record<string, string>> = {
   "setup.fallback.time": "Time signature set to Any: {meter} isn't available at difficulty {level}.",
   "setup.fallback.length": "Length set to Any: {bars} bars isn't used at difficulty {level}.",
   "setup.fallback.difficulty": "Difficulty set to {level}: no music yet for {instrument} at difficulty {from}.",
-  "setup.mode.ranked.hint": "Full XP. Fresh music and timed reading.",
-  "setup.mode.practice.hint": "Less XP. No time limit. Listen first if you like.",
+  "setup.mode.ranked.hint": "At your difficulty, with timed reading and fresh music. Full XP, and good tries move you up.",
+  "setup.mode.practice.hint": "Any difficulty, no time limit, listen first if you like. A quarter of the XP, and your difficulty stays the same.",
   "setup.mode.blocked.mic": "Ranked needs the microphone.",
   "action.calibrateNow": "Calibrate now",
   "action.turnOnMic": "Turn on microphone",
   "home.loadingMusic": "Loading music…",
   "home.rankLine": "{rank} · {percent}% to {nextRank}",
-  "onboarding.mic.notNowHint": "You can still practise, but tries won't be graded.",
+  "onboarding.mic.notNowHint": "Not now? You can still read and sing along, but tries won't be graded. You can turn the microphone on later from Home.",
   "onboarding.mic.continueWithout": "Continue without the microphone",
-  "onboarding.level.needsMic": "Needs the microphone.",
-  "calibrate.skipHint": "Without calibration, tries on this device are practice only. You can calibrate later from Practice or Settings.",
+  "calibrate.skipHint": "Skipped, your tries are practice until you run it. You can run it later from Home or Settings.",
   "action.hearClick": "Hear the click",
   "scan.cover.loading": "Getting the music…",
   "scan.skipFreeHint": "Skip is free before you see the music.",
@@ -439,7 +429,6 @@ const SPEC: Readonly<Record<string, string>> = {
   "listen.confirm.body": "Hearing the music before you play makes this a practice try. It earns less XP and doesn't count toward your rank.",
   "listen.confirm.yes": "Listen, make it practice",
   "listen.confirm.no": "Keep it ranked",
-  "listen.nowPractice": "Now a practice try",
   "ranked.reason.listened-first": "You listened first, so this one is practice.",
   "action.hearBar": "Hear bar {bar}",
   "shortcuts.l": "Listen or stop",

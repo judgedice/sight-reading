@@ -11,7 +11,7 @@ import { join } from 'node:path';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { loadLoopHelpers } from '../loop/bundle.ts';
 import { oldWordsIn } from '../a11y/copy-match.ts';
-import { chooseMode, chooseOutput, LOOP_T0_SEC, pagePlan, watchErrors } from '../loop/flow.ts';
+import { chooseMode, chooseOutput, LOOP_T0_SEC, pagePlan, walkWizard, watchErrors } from '../loop/flow.ts';
 
 test.skip(process.env['E2E_TOUR'] !== '1', 'run with -c e2e/tour/playwright.tour.config.ts');
 
@@ -79,23 +79,9 @@ test('first-time user: three takes on three instruments, results, tips, history,
     return seed / 2147483648;
   };
 
-  // Onboarding: flute, microphone allowed, calibration skipped (a ranked request later must come back unranked).
+  // Setup: flute, microphone allowed, Hear you and Timing skipped (so Ranked cannot be offered later).
   await page.goto(`./?testClock=1&testClockSec=${LOOP_T0_SEC}`);
-  await expect(page.getByTestId('screen-welcome')).toBeVisible({ timeout: 30_000 });
-  await check('welcome');
-  await page.getByRole('button', { name: 'Get started' }).click();
-  await page.getByRole('radio', { name: /Flute/ }).check();
-  await page.getByRole('button', { name: 'Continue' }).click();
-  await page.getByRole('button', { name: 'Allow microphone' }).click();
-  await expect(page.getByTestId('calibration-card')).toBeVisible({ timeout: 15_000 });
-  await page.getByTestId('calibration-card').getByRole('button', { name: 'Skip' }).click();
-  // Step 5, Sing or Play one note (round 2): skipped here.
-  await expect(page.getByTestId('ob-match')).toBeVisible();
-  await page.locator('.ob-head').getByRole('button', { name: 'Skip' }).click();
-  await expect(page.getByTestId('ob-level')).toBeVisible();
-  await page.getByRole('button', { name: "I'll choose" }).click();
-  await check('onboarding');
-  await page.getByRole('button', { name: 'Start practising' }).click();
+  await walkWizard(page, { mic: 'allow', visit: async (name) => check(name) });
   const home = page.getByTestId('screen-home');
   await expect(home).toBeVisible({ timeout: 15_000 });
 
@@ -116,19 +102,26 @@ test('first-time user: three takes on three instruments, results, tips, history,
     await card.click();
     await page.getByRole('button', { name: 'Done', exact: true }).click();
     await expect(card).toHaveCount(0);
-    const level = await pickDifficulty(page, rnd);
+    // No measured calibration (R79): Ranked is blocked, so Home says Practice; the cover must say the same.
+    const ranked = home.locator('[data-setup-row="mode"]').getByRole('radio', { name: 'Ranked' });
+    await expect(ranked).toHaveAttribute('aria-disabled', 'true');
     await chooseMode(page, t.mode);
+    const level = await pickDifficulty(page, rnd);
+    await expect(home.getByTestId('mode-pill').first()).toHaveAttribute('data-mode', 'practice');
+    await expect(page.getByRole('button', { name: /^Start practice/ })).toBeVisible();
     await check(`home before take ${i + 1}`);
-    await page.getByRole('button', { name: 'Start', exact: true }).click();
+    await page.getByRole('button', { name: /^Start (practice|ranked try)/ }).click();
     const cover = page.getByTestId('scan-cover');
     const empty = page.getByTestId('empty-pool');
     await expect(cover.or(empty)).toBeVisible({ timeout: 30_000 });
     if (await empty.isVisible()) {
       issues.push(`take ${i + 1}: empty pool at level ${level} for ${t.instrument}`);
       await empty.getByRole('button').first().click();
-      await page.getByRole('button', { name: 'Start', exact: true }).click();
+      await page.getByRole('button', { name: /^Start (practice|ranked try)/ }).click();
       await expect(cover).toBeVisible({ timeout: 30_000 });
     }
+    // When Home says Practice, the cover says Practice (R79), and the try strip after it.
+    await expect(page.getByTestId('mode-chip')).toHaveAttribute('data-mode', 'practice');
     await page.getByRole('button', { name: 'Show the music' }).click();
     const scan = page.getByTestId('screen-practice.scan');
     await expect(scan.locator('[data-expected-idx]').first()).toBeVisible({ timeout: 30_000 });
@@ -148,9 +141,10 @@ test('first-time user: three takes on three instruments, results, tips, history,
     const off = r!.judgments.filter((j) => j.status !== 'matched' || (j.timing !== null && j.timing !== 'on-time') || (j.pitch !== null && !['ok', 'in-tune', 'not-graded'].includes(j.pitch)));
     process.stdout.write(`take ${i + 1} ${r!.instrumentId} ${JSON.stringify(r!.score!.components)} off: ${JSON.stringify(off)}\n`);
     info.annotations.push({ type: `take ${i + 1}`, description: `${r!.instrumentId} L${r!.levelServed} bpm ${plan.bpm}: ${r!.score!.score} ${r!.score!.grade}, ranked ${r!.score!.ranked} (${r!.score!.rankedReasons.join(', ')}), tips ${r!.score!.tipsShown.join(', ') || 'none'}` });
-    // No measured calibration: a ranked request is practice (R16). Practice mode is unranked by definition.
+    // No measured calibration: Ranked was never offered, so every take was practice, as shown (R16, R79).
     expect(r!.score!.ranked).toBe(false);
-    if (t.mode === 'ranked') expect(r!.score!.rankedReasons).toContain('calibration');
+    expect(r!.score!.rankedReasons).toContain('practice-mode');
+    await expect(results.getByTestId('results-mode')).toHaveAttribute('data-mode', 'practice');
     // Next: the tips interstitial when tips were chosen, then home (or a session summary every 10 takes).
     await page.getByRole('button', { name: 'Next piece' }).click();
     const tips = page.getByTestId('screen-practice.tips');

@@ -9,6 +9,8 @@ export type { TempoRowProps } from './TempoRow.tsx';
 export { LengthInline, LengthRow } from './LengthRow.tsx';
 export type { LengthRowProps } from './LengthRow.tsx';
 export { ModeControl } from './ModeControl.tsx';
+export { ModePill } from './ModePill.tsx';
+export type { ModePillProps } from './ModePill.tsx';
 export type { ModeControlProps } from './ModeControl.tsx';
 export { XpLine } from './XpLine.tsx';
 export type { XpLineProps } from './XpLine.tsx';

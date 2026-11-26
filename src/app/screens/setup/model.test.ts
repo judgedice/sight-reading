@@ -39,7 +39,8 @@ const base = (over: Partial<PracticeSettings> = {}): PracticeSettings => ({
   meter: 'random',
   bpm: 'random',
   bars: 'random',
-  mode: 'ranked',
+  // Practice: the chosen difficulty applies (Ranked is locked at the player's own, R76).
+  mode: 'practice',
   listening: true,
   metronome: 'audible',
   clickTimbre: 'tick',
@@ -129,7 +130,6 @@ describe('setup model at difficulty 1, 2, 5 and 9', () => {
 
         // Round 2: the few-pieces tag, the key note and the fold above eight keys and seven meters.
         expect(t(m.difficulty.fewTag)).toBe(m.difficulty.few ? 'Few pieces' : null);
-        expect(t(m.difficulty.matchHint)).toBe(level === 1 ? 'Simpler? Match a note first.' : null);
         expect(m.key.count).toBe(def.writtenKeys.modes.length * (1 + 2 * def.writtenKeys.maxAccidentals));
         expect(m.key.many !== null).toBe(m.key.count > 8);
         expect(m.time.top.length + m.time.more.length).toBe(m.time.options.length);
@@ -232,12 +232,30 @@ describe('difficulty without music', () => {
     expect(formatLevelList([1, 7, 8, 10])).toBe('1, 7 to 8, 10');
   });
 
-  it('follow my progress hides the stepper and keeps the lines', () => {
-    const m = model({ level: 'random' }, ctxWith(shippedEligible, 3));
-    expect(m.difficulty.follow).toBe(true);
-    expect(t(m.difficulty.followValue)).toBe('Difficulty 3 of 10 (follows your progress)');
-    expect(t(m.difficulty.followHint)).toBe('Uses your current difficulty and moves up as you do.');
+  it('a stored "Follow my progress" (random) reads as your difficulty (R76, no migration)', () => {
+    const ctx = ctxWith(shippedEligible, 3);
+    expect(normalize(base({ level: 'random' }), ctx).level).toBe(3);
+    const m = model({ level: 'random' }, ctx);
+    expect(m.level).toBe(3);
+    expect(m.difficulty.relation).toBe('same');
+    expect(m.difficulty.relationNote).toBeNull();
     expect(setupText(m.difficulty.servedLine)).toBe('At difficulty 3: D4 to G5');
+  });
+
+  it('Ranked is locked at your difficulty whatever Practice chose; Practice says where it sits (R76)', () => {
+    const ctx = ctxWith(shippedEligible, 3);
+    const ranked = model({ level: 5, mode: 'ranked' }, ctx);
+    expect(ranked.level).toBe(3);
+    expect(ranked.difficulty.locked).toBe(true);
+    expect(ranked.difficulty.yourLevel).toBe(3);
+    expect(ranked.difficulty.relationNote).toBeNull();
+    const above = model({ level: 5, mode: 'practice' }, ctx);
+    expect(above.level).toBe(5);
+    expect(above.difficulty.locked).toBe(false);
+    expect(above.difficulty.relation).toBe('above');
+    expect(t(above.difficulty.relationNote)).toBe('2 above your difficulty (3).');
+    expect(t(model({ level: 4, mode: 'practice' }, ctx).difficulty.relationNote)).toBe('One above your difficulty (3).');
+    expect(t(model({ level: 1, mode: 'practice' }, ctx).difficulty.relationNote)).toBe('Below your difficulty (3).');
   });
 });
 

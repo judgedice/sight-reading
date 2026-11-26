@@ -1,8 +1,8 @@
 import './calibration.css';
-import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useReducer, useRef, useState, type ReactNode } from 'react';
 import { Banner, Card } from '../../../ui/components/containers/index.ts';
 import { Button, Select } from '../../../ui/components/form/index.ts';
-import { Link } from '../../router.tsx';
+import { Glyph } from '../../../ui/primitives/index.ts';
 import { text, type TextKey } from '../states/text.ts';
 import {
   calReducer,
@@ -25,14 +25,48 @@ import type { ClickTimbre, OutputMode } from '../../../core/types.ts';
 
 export type CalibrationResult = 'calibrated' | 'estimate' | 'skipped';
 
+/** A footer button the setup wizard draws (round 3): the card hands its actions out instead of drawing them. */
+export interface CalFooterAction {
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+  loading?: boolean;
+  testId?: string;
+}
+
+export interface CalFooter {
+  primary: CalFooterAction | null;
+  skip: CalFooterAction | null;
+  /** What skipping costs, beside Skip. */
+  note: string | null;
+}
+
 export interface CalibrationCardProps {
   services: CalibrationServices;
-  /** Called when the player leaves the card: calibrated, using an estimate, or skipping. */
-  onDone(result: CalibrationResult): void;
+  /** Called when the player leaves the card: calibrated (with the measured delay, ms), using an estimate, or skipping. */
+  onDone(result: CalibrationResult, ms?: number | null): void;
   /** Shows a Skip control (onboarding, settings). Ignored where calibration is the mandatory path (R16, iOS without reported latency). */
   allowSkip?: boolean;
-  /** Onboarding embeds the card under its own heading, so the card drops its title. */
-  embedded?: boolean;
+  /**
+   * `wizard` (round 3, the setup's Timing stage; presentation only, `flow.ts` keeps its states): the output choice,
+   * the marks, one result line with the numbers, the recovery panels with their "Shown because" lead, and the device
+   * select, stage list, audio check and export under "Details for support". Start, Next and Skip go to `renderFooter`.
+   */
+  variant?: 'card' | 'wizard';
+  /** The wizard's footer, drawn from the card's actions. */
+  renderFooter?: (f: CalFooter) => ReactNode;
+}
+
+/**
+ * The warnings to show for a run (round 3, R80): the measured number first, a cause only on positive evidence, nothing
+ * when the delay is within the limit. Bluetooth (caution) replaces the neutral delay line (info) when both apply; a
+ * Bluetooth route with a fair delay gets no warning. AirPods and filtering keep their caution lines.
+ */
+export function shownWarnings(warnings: readonly CalWarning[]): { id: CalWarning; tone: 'info' | 'caution' }[] {
+  const out: { id: CalWarning; tone: 'info' | 'caution' }[] = [];
+  if (warnings.includes('delay')) out.push(warnings.includes('bluetooth') ? { id: 'bluetooth', tone: 'caution' } : { id: 'delay', tone: 'info' });
+  for (const w of warnings) if (w === 'airpods' || w === 'aec') out.push({ id: w, tone: 'caution' });
+  return out;
 }
 
 /** The "Device choice is locked while we listen." line, named by both device selects while they are disabled. */
@@ -288,7 +322,9 @@ function failedStageText(state: CalState): string | null {
  * pitch, a count-in check; or play-along on headphones), each sound shown as it is heard, then one result with the
  * audio check. One card for onboarding, Settings > Audio, banners and results prompts.
  */
-export function CalibrationCard({ services, onDone, allowSkip = false, embedded = false }: CalibrationCardProps) {
+export function CalibrationCard({ services, onDone, allowSkip = false, variant = 'card', renderFooter }: CalibrationCardProps) {
+  const wizard = variant === 'wizard';
+  const titleId = useId();
   const [state, dispatch] = useReducer(calReducer, undefined, initialCalState);
   const [prefs, setPrefsState] = useState<AudioPrefs>(() => services.prefs());
   const [devices, setDevices] = useState<{ id: string; label: string }[]>([]);
@@ -383,112 +419,159 @@ export function CalibrationCard({ services, onDone, allowSkip = false, embedded 
   const preview = kind === 'loopback' ? text('calibrate.preview.loopback', { seconds: plan.seconds }) : text('calibrate.preview.playAlong', { seconds: plan.seconds, clicks: plan.stages[0]?.sounds ?? 0 });
   const failStage = failed ? failedStageText(state) : null;
   const loopbackFail = state.failure && LOOPBACK_FAIL[state.failure] ? (LOOPBACK_FAIL[state.failure] as TextKey) : 'calibrate.fail.loopback.few';
-  const body = (
-    <section className="cal" data-testid="calibration-card" aria-label={text('action.calibrate')}>
-      {ios ? <span className="cal-beta">{text('app.beta')}</span> : null}
-      <p className="cal-intro">{text('calibrate.intro')}</p>
-      {mandatory ? <p className="cal-intro cal-ios-note">{text('onboarding.calibration.iosNote')}</p> : null}
-
-      <div className="cal-setup">
-        <label className="cal-field">
-          <span className="cal-label">{text('calibrate.inputDevice')}</span>
-          <Select ariaLabel={text('calibrate.inputDevice')} options={inputOptions} value={prefs.inputDeviceId ?? ''} disabled={running} describedBy={LOCKED_ID} onChange={(v) => changePrefs({ inputDeviceId: v === '' ? null : v })} />
-        </label>
-        <label className="cal-field">
-          <span className="cal-label">{text('calibrate.output')}</span>
-          <Select ariaLabel={text('calibrate.output')} options={outputOptions} value={prefs.outputMode} disabled={running} describedBy={LOCKED_ID} onChange={(v) => changePrefs({ outputMode: v as OutputMode })} />
-        </label>
-      </div>
+  // Inside the result, under the measured number (R80); never stacked above the card.
+  const warningBanners = shownWarnings(state.warnings).map((w) => (
+    <Banner
+      key={w.id}
+      tone={w.tone}
+      text={w.id === 'delay' ? text(WARNING_KEY[w.id], { ms: Math.round(state.rtlMs ?? 0) }) : text(WARNING_KEY[w.id])}
+      {...(w.id === 'delay' && !running ? { action: { label: text('action.runCheckAgain'), onClick: () => run(kind) } } : {})}
+    />
+  ));
+  const doneLabel = text(wizard ? 'action.next' : 'action.continue');
+  const heard = found(state);
+  const total = state.dots.length || plan.stages.find((st) => isMeasuredStage(st.id))?.sounds || 0;
+  const playAlongStage = services.plan('wired').stages[0];
+  const footer: CalFooter = {
+    primary:
+      state.step === 'idle'
+        ? { label: text('onboarding.timing.start'), onClick: start }
+        : running
+          ? { label: text('calibrate.listening'), onClick: () => undefined, disabled: true, loading: true }
+          : state.step === 'loopback-failed'
+            ? { label: text('onboarding.timing.retry'), onClick: () => run('loopback') }
+            : state.step === 'playalong-failed'
+              ? { label: text('action.tryAgain'), onClick: () => run('play-along') }
+              : canFinish || (state.step === 'finished' && state.estimate)
+                ? { label: doneLabel, onClick: () => onDone(state.estimate ? 'estimate' : 'calibrated', state.rtlMs === null ? null : Math.round(state.rtlMs)) }
+                : { label: doneLabel, onClick: () => undefined, disabled: true },
+    skip: showSkip ? { label: text('onboarding.timing.skip'), onClick: () => onDone('skipped') } : null,
+    note: showSkip ? text('onboarding.timing.skipNote') : null,
+  };
+  const section = (
+    <section className="cal cal-wizard" data-testid="calibration-card" data-variant={variant} data-step={state.step} aria-labelledby={titleId}>
+      <h2 id={titleId} className="ob-stage-title" tabIndex={-1}>
+        {text('onboarding.timing.title')}
+        {ios ? <span className="cal-beta">{` ${text('app.beta')}`}</span> : null}
+      </h2>
+      <p className="ob-text">{text('onboarding.timing.body')}</p>
+      {mandatory ? <p className="ob-hint">{text('onboarding.calibration.iosNote')}</p> : null}
+      <label className="cal-field cal-field-inline">
+        <span className="cal-label">{text('onboarding.timing.output')}</span>
+        <Select ariaLabel={text('onboarding.timing.output')} options={outputOptions} value={prefs.outputMode} disabled={running} onChange={(v) => changePrefs({ outputMode: v as OutputMode })} />
+      </label>
       {running ? <p id={LOCKED_ID} className="cal-locked">{text('calibrate.devicesLocked')}</p> : null}
-
-      <div className="cal-stage" data-running={running ? 'true' : undefined}>
-        {running ? <p className="cal-listening">{text('calibrate.listening')}</p> : null}
-        {state.step === 'idle' ? (
-          <>
-            <p className="cal-step-text" data-testid="cal-instruction">
-              {preview}
-            </p>
-            {plan.skipped.length ? <p className="cal-step-text">{text('calibrate.preview.headphones')}</p> : null}
-          </>
-        ) : null}
-        <p className="cal-now" role="status" aria-live="polite" data-testid="cal-now" hidden={!running}>
-          {live}
+      {state.step === 'idle' ? (
+        <p className="cal-step-text" data-testid="cal-instruction">
+          {preview}
         </p>
-        <Stages state={state} plan={plan} sound={sound} kind={kind} />
-        {state.step === 'playalong-running' && state.stage === 'play-along' ? <p className="cal-pulse">{text('calibrate.playAlong.playNow')}</p> : null}
-        {showMeasured && state.rtlMs !== null ? (
-          <div className="cal-result" data-testid="cal-result">
-            <p className="cal-result-main">
-              {text('calibrate.loopback.success', { ms: Math.round(state.rtlMs) })}
-              {state.madMs !== null ? <span className="cal-result-spread"> {text('calibrate.loopback.spread', { ms: Math.round(state.madMs) })}</span> : null}
-            </p>
-            <p className="cal-result-meaning">{text(state.method === 'play-along' ? 'calibrate.result.meaning.playAlong' : 'calibrate.result.meaning.loopback')}</p>
-          </div>
-        ) : null}
-      </div>
-
-      {state.warnings.map((w) => (
-        <Banner key={w} tone="caution" text={w === 'delay' ? text(WARNING_KEY[w], { ms: Math.round(state.rtlMs ?? 0) }) : text(WARNING_KEY[w])} />
-      ))}
-
+      ) : null}
+      <p className="cal-now ui-visually-hidden" role="status" aria-live="polite" data-testid="cal-now">
+        {live}
+      </p>
+      {running ? (
+        <p className="cal-wizard-progress">
+          <b>{text('calibrate.listening')}</b> {text('onboarding.timing.progress', { found: heard, total })}
+        </p>
+      ) : null}
       {state.step === 'loopback-failed' ? (
-        <div className="cal-fail" role="alert" data-testid="cal-fail">
-          {failStage ? <p className="cal-fail-stage">{failStage}</p> : null}
-          <p>{state.errored ? text('calibrate.fail.error') : text(loopbackFail, { found: state.clicksFound ?? 0, total: state.dots.length })}</p>
-          <div className="cal-actions">
-            <Button label={text('action.tryAgain')} variant="primary" onClick={() => run('loopback')} />
-            <Button label={text('action.playAlongInstead')} onClick={() => run('play-along')} />
-          </div>
+        <p className="cal-wizard-fail" role="alert" data-testid="cal-fail">
+          {state.errored ? text('calibrate.fail.error') : state.failure === 'too-few-clicks' || !state.failure ? text('onboarding.timing.failFew', { found: state.clicksFound ?? heard, total }) : text(loopbackFail, { found: state.clicksFound ?? 0, total })}
+        </p>
+      ) : null}
+      {running || state.step === 'loopback-failed' || state.step === 'playalong-failed' || showMeasured ? <Dots state={state} total={total} kind={kind} /> : null}
+      {state.step === 'playalong-running' && state.stage === 'play-along' ? <p className="cal-pulse">{text('calibrate.playAlong.playNow')}</p> : null}
+      {showMeasured && state.rtlMs !== null ? (
+        <div className="cal-result" data-testid="cal-result">
+          <p className="cal-wizard-pass">
+            <Glyph id="check" size={16} />
+            <span>{text('onboarding.timing.pass', { ms: Math.round(state.rtlMs) })}</span>
+          </p>
+          {warningBanners}
+          {!running && !state.estimate ? <Button label={text('action.recalibrate')} variant="quiet" size="compact" onClick={() => run(kind)} /> : null}
         </div>
+      ) : null}
+      {state.step === 'loopback-failed' && !state.errored ? (
+        <>
+          <p className="ob-because">
+            <b>{text('onboarding.timing.becauseClicks.lead')}</b> {text('onboarding.timing.becauseClicks')}
+          </p>
+          <div className="ob-alt" data-testid="cal-play-along">
+            <div className="ob-alt-text">
+              <p className="ob-alt-title">{text('action.playAlongInstead')}</p>
+              <p className="ob-hint">{text('onboarding.timing.playAlong.body', { clicks: playAlongStage?.sounds ?? 8, seconds: services.plan('wired').seconds })}</p>
+            </div>
+            <Button label={text('calibrate.stage.playAlong')} variant="secondary" onClick={() => run('play-along')} />
+          </div>
+        </>
       ) : null}
       {state.step === 'playalong-failed' ? (
-        <div className="cal-fail" role="alert" data-testid="cal-fail">
-          {failStage ? <p className="cal-fail-stage">{failStage}</p> : null}
-          <p>{state.errored ? text('calibrate.fail.error') : text('calibrate.fail.playAlong')}</p>
-          {state.playAlongFailures >= 2 ? <p>{text('calibrate.fail.estimate')}</p> : null}
-          <div className="cal-actions">
-            <Button label={text('action.tryAgain')} variant="primary" onClick={() => run('play-along')} />
-            {state.playAlongFailures >= 2 ? <Button label={text('action.useEstimate')} onClick={() => dispatch({ type: 'use-estimate' })} /> : null}
-          </div>
+        <div className="cal-wizard-fail-block" role="alert" data-testid="cal-fail">
+          <p className="cal-wizard-fail">{state.errored ? text('calibrate.fail.error') : text('calibrate.fail.playAlong')}</p>
+          {state.playAlongFailures >= 2 ? (
+            <>
+              <p className="ob-because">
+                <b>{text('onboarding.timing.becausePlayAlong.lead')}</b> {text('onboarding.timing.becausePlayAlong')}
+              </p>
+              <Button label={text('action.useEstimate')} onClick={() => dispatch({ type: 'use-estimate' })} />
+            </>
+          ) : null}
         </div>
       ) : null}
-
-      {!running && state.checks ? <Checks checks={state.checks} plan={plan} /> : null}
-      {!running && (showMeasured || state.checks) ? (
-        <div className="cal-secondary">
-          {showMeasured && !state.estimate ? <Button label={text('action.recalibrate')} variant="tertiary" onClick={() => run(kind)} /> : null}
-          {state.checks ? <Button label={text('action.exportDiagnostics')} variant="tertiary" onClick={() => services.exportDiagnostics(diagnosticsWithResult((state.checks as SelfTestOutcome).diagnosticsJson, state))} /> : null}
-        </div>
-      ) : null}
-
       {state.step === 'measured' && state.method === 'loopback' && state.audibility === 'unanswered' ? (
         <div className="cal-audibility" role="group" aria-label={text('calibrate.audibility.question')}>
           <p className="cal-step-text">{text('calibrate.audibility.question')}</p>
           <div className="cal-actions">
-            <Button label={text('action.yes')} variant="primary" onClick={() => dispatch({ type: 'audibility', answer: 'yes' })} />
+            <Button label={text('action.yes')} variant="secondary" onClick={() => dispatch({ type: 'audibility', answer: 'yes' })} />
             <Button label={text('action.notReally')} onClick={() => dispatch({ type: 'audibility', answer: 'not-really' })} />
           </div>
         </div>
       ) : null}
       {state.audibility === 'not-really' ? (
         <p className="cal-step-text" data-testid="cal-audibility-hint">
-          {text('calibrate.audibility.hint')} <Link to="/settings/audio">{text('settings.audio.clickSound')}</Link>
+          {text('calibrate.audibility.hint')}
         </p>
       ) : null}
-
-      <div className="cal-footer">
-        {mayHear ? <Button label={text('action.hearClick')} variant="tonal" icon="metronome" loading={hearing} onClick={hear} /> : null}
-        <span className="cal-spacer" />
-        {state.step === 'idle' ? <Button label={text('action.start')} variant="primary" onClick={start} /> : null}
-        {canFinish || (state.step === 'finished' && state.estimate) ? (
-          <Button label={text('action.continue')} variant="primary" onClick={() => onDone(state.estimate ? 'estimate' : 'calibrated')} />
-        ) : null}
-        {showSkip ? <Button label={text('action.skip')} variant="quiet" onClick={() => onDone('skipped')} /> : null}
-      </div>
-      {showSkip && !embedded ? <p className="cal-skip-hint">{text('calibrate.skipHint')}</p> : null}
       {state.estimate ? <p className="cal-step-text">{text('calibrate.estimateUsed')}</p> : null}
+      {mayHear ? (
+        <div className="cal-actions">
+          <Button label={text('action.hearClick')} variant="tonal" size="compact" icon="metronome" loading={hearing} onClick={hear} />
+        </div>
+      ) : null}
+      <details className="ob-details" data-testid="cal-details">
+        <summary>{text('onboarding.details')}</summary>
+        <div className="ob-details-body">
+          <label className="cal-field">
+            <span className="cal-label">{text('calibrate.inputDevice')}</span>
+            <Select ariaLabel={text('calibrate.inputDevice')} options={inputOptions} value={prefs.inputDeviceId ?? ''} disabled={running} onChange={(v) => changePrefs({ inputDeviceId: v === '' ? null : v })} />
+          </label>
+          <Stages state={state} plan={plan} sound={sound} kind={kind} />
+          {failStage ? <p className="cal-fail-stage">{failStage}</p> : null}
+          {!running && state.checks ? <Checks checks={state.checks} plan={plan} /> : null}
+          {!running && state.checks ? (
+            <Button label={text('action.exportDiagnostics')} variant="tertiary" size="compact" onClick={() => services.exportDiagnostics(diagnosticsWithResult((state.checks as SelfTestOutcome).diagnosticsJson, state))} />
+          ) : null}
+        </div>
+      </details>
+      {wizard ? (
+        renderFooter?.(footer)
+      ) : (
+        <div className="cal-footer">
+          {footer.skip ? <Button label={footer.skip.label} variant="quiet" onClick={footer.skip.onClick} /> : null}
+          {footer.primary ? (
+            <Button
+              label={footer.primary.label}
+              variant="primary"
+              onClick={footer.primary.onClick}
+              disabled={footer.primary.disabled ?? false}
+              loading={footer.primary.loading ?? false}
+            />
+          ) : null}
+        </div>
+      )}
+      {!wizard && footer.note ? <p className="cal-skip-hint">{text('calibrate.skipHint')}</p> : null}
     </section>
   );
-  // Embedded (onboarding), this card is the step's own card and the step prints the skip hint under it.
-  return <Card className="cal-card">{body}</Card>;
+  // The setup wizard draws the card's actions in its footer; #/calibrate shows the same card in a card of its own.
+  return wizard ? section : <Card className="cal-card">{section}</Card>;
 }

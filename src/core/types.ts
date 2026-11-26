@@ -51,6 +51,9 @@ export type ClickTimbre = 'tick' | 'wood' | MetronomeSound;
 /** The metronome sounds a player can choose (06 §9). `tick` and `wood` are the legacy stored names of classic and woodblock. */
 export type MetronomeSound = 'classic' | 'woodblock' | 'beep';
 
+/** The Match a note needle's steadiness preset (round 3, 03-pitch-steadiness §3.2, §4). Display only. */
+export type PitchSteadiness = 'steady' | 'balanced' | 'quick';
+
 /** Metronome mode. `'visual'` is later (01 §7.6, 02 §5.2). */
 export type MetronomeMode = 'audible' | 'countInOnly';
 
@@ -2466,6 +2469,11 @@ export interface AppSettings {
     beatLineOffsetMs?: number;
     /** Note colours: each notehead filled in its letter name's colour on every score (default false, PLAN R69). */
     noteColours?: boolean;
+    /**
+     * How the Match a note needle moves (round 3, 03-pitch-steadiness §4). Display only: never an input to a try.
+     * Absent: by instrument family (Steady for voices, Balanced for instruments).
+     */
+    pitchSteadiness?: PitchSteadiness;
   };
   practicePrefs: { showStars: boolean; showTips: boolean; showBeta: boolean };
   /** Optional name shown on the home screen; absent until the player sets one. */
@@ -2477,6 +2485,12 @@ export interface AppSettings {
     announceResults: boolean;
   };
   onboardingDone: boolean;
+  /**
+   * Where first-run setup stands (round 3, R74), so a reload resumes at the same step; cleared when setup finishes.
+   * Untyped on purpose: `restoreProgress` (app/screens/onboarding/flow.ts) reads it, the round 2 step ids included,
+   * and anything it cannot read starts setup at Welcome. Never trusted, so the stored schema need not check it.
+   */
+  onboardingProgress?: unknown;
   /** One-time hints and sheets already shown (05 W11, W13). */
   shown: { installCoach: boolean; autoLockHint: boolean };
 }
