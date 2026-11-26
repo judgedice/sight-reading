@@ -51,6 +51,9 @@ export async function walkWizard(page: Page, o: WizardWalk): Promise<void> {
     // Hear you opens in the same screen: skipped here (Match a note is the place for tuning).
     await expect(page.getByTestId('ob-hear')).toBeVisible({ timeout: 15_000 });
     await visit('onboarding-hear');
+    // Let the capture worker finish loading first: skipping stops it, and a worker stopped mid-load leaves module
+    // requests that Playwright never sees finish, so a later waitForLoadState('networkidle') would hang (dev server).
+    await page.waitForLoadState('networkidle');
     await page.getByRole('button', { name: 'Skip this check' }).click();
     // Timing: skipped (the fake microphone hears no clicks). The test clock runs with RTL 0.
     await expect(page.getByTestId('calibration-card')).toBeVisible({ timeout: 15_000 });

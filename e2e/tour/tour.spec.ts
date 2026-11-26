@@ -219,7 +219,8 @@ test('screen tour: onboarding, home, scan, take with a wrong and a late note, re
   // PLAN ruling 61 (01-ux §14): at difficulties 1 to 3 no ghost is drawn live; the ghosts wait for the results.
   const served = await page.evaluate(() => (window as unknown as { __sr: { session: { prepared: { levelServed: number } | null } } }).__sr.session.prepared?.levelServed);
   expect(served).toBeLessThanOrEqual(3);
-  await expect(play.locator('.sr-ghost')).toHaveCount(0);
+  // Ruling 71: the heard note of a wrong-pitch note is always drawn; nothing else is.
+  await expect(play.locator('.sr-ghost:not([data-kind="wrong-pitch"])')).toHaveCount(0);
   await shot('performing-wrong-note', false);
   const lateNote = play.locator(`[data-expected-idx="${lateIdx}"]`).first();
   await expect(lateNote).toHaveClass(/n-error/, { timeout: (plan.endSec + 5) * 1000 });

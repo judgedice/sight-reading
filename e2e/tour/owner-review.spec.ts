@@ -298,7 +298,8 @@ test('owner review: baritone at difficulty 1, the fifteen points, then a graded 
     });
     notes.push(`practice ${page.viewportSize()?.width}x${page.viewportSize()?.height}: document ${m.scroll} of ${m.client}`);
     expect(m.scrollers, 'elements that scroll inside the setup').toEqual([]);
-    expect(m.scroll).toBeLessThanOrEqual(m.client);
+    // The phone page may scroll (round 3 phone mockup: Mode, the pill and Warm up around Start); the desktop may not.
+    if (!isPhone(page)) expect(m.scroll).toBeLessThanOrEqual(m.client);
   });
 
   await point(3, 'sing one note: Practice opens it and the fake microphone hits the note', async () => {

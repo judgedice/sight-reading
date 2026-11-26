@@ -31,7 +31,7 @@ function Match({ services }: { services: MatchServices }) {
       <header className="mt-head">
         <button type="button" className="mt-back" onClick={leave}>
           <Glyph id="chevron-left" size={22} />
-          <span className="mt-back-label">{copy('nav.practice')}</span>
+          <span className="mt-back-label">{copy('nav.home')}</span>
         </button>
         <h1 className="mt-title">{copy('match.title')}</h1>
         <div className="mt-progress">

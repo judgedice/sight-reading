@@ -166,30 +166,6 @@
   background: var(--accent);
 }
 
-.cal-stage {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  padding: var(--space-4);
-  border-radius: 1.125rem;
-  background: var(--bg);
-}
-
-@media (min-width: 40rem) {
-  .cal-stage {
-    padding: 1.75rem;
-  }
-}
-
-.cal-stage > * {
-  margin: 0;
-}
-
-.cal-stage .cal-step-text {
-  font-size: var(--type-small-size);
-  color: var(--text-muted);
-}
-
 .cal-count {
   margin: 0;
   font-size: 1.0625rem;
@@ -484,7 +460,6 @@
   color: var(--text);
 }
 
-.cal-result-meaning,
 .cal-fail-stage {
   margin: 0;
   font-size: var(--type-small-size);

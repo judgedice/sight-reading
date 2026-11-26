@@ -571,8 +571,13 @@
     padding: var(--space-2);
   }
 
-  .ob-stages-chips .ob-stage-name {
+  .ob-stages-chips .ob-stage-name,
+  .ob-stepper-name {
     font-size: var(--type-small-size);
+  }
+
+  .ob-stages-chips .ob-stage-dot {
+    display: none;
   }
 }
 
@@ -595,7 +600,7 @@
 }
 
 .ob-level-fill {
-  background: var(--accent);
+  background: var(--correct);
   transition: none;
 }
 

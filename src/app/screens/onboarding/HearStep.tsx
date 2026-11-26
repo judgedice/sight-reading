@@ -70,7 +70,7 @@ export function HearPanel({ state, instrument, cfg, onChangeVoice, headingId }: 
             {name}
           </p>
         ) : null}
-        <div className="ob-heard-text" role="status" aria-live="polite">
+        <div className="ob-heard-text" id={`${headingId}-heard`} role="status" aria-live="polite">
           {state.heard && name ? (
             <>
               <p className="ob-heard-ok">

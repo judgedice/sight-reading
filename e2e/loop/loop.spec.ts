@@ -45,7 +45,8 @@ test('practice loop: onboarding, setup, scan, count-in, live red note, graded re
   // wrong-pitch judgment is checked in the record below.
   const served = await page.evaluate(() => (window as unknown as { __sr: { session: { prepared: { levelServed: number } | null } } }).__sr.session.prepared?.levelServed);
   expect(served).toBeLessThanOrEqual(3);
-  await expect(play.locator('.sr-ghost')).toHaveCount(0);
+  // Ruling 71: the heard note of a wrong-pitch note is always drawn; nothing else is (extras and timing ghosts wait).
+  await expect(play.locator('.sr-ghost:not([data-kind="wrong-pitch"])')).toHaveCount(0);
 
   // Results with a grade.
   const results = page.getByTestId('results-panel');

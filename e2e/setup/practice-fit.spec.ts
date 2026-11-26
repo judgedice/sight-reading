@@ -144,5 +144,7 @@ test('phone: chip labels never meet their chevrons; "Time signature" is never sh
     expect(chevron.x + chevron.width).toBeLessThanOrEqual(box.x + box.width + 0.5);
   }
   await expect(page.locator('[data-chip="time"] .home-chip-label')).toHaveText('Time signature');
-  await expect(page.getByTestId('match-entry')).toContainText('Warm up: match a note');
+  // One Warm up group, named the same as on the desktop (round 3, 01-ux-review problem 12).
+  await expect(page.getByTestId('match-entry')).toContainText('Match a note');
+  await expect(page.getByRole('heading', { name: 'Warm up' })).toBeVisible();
 });

@@ -358,6 +358,20 @@
   margin: 0;
 }
 
+/* Desktop with both warm-ups: two tiles side by side, so the card still ends above the fold at 1440 x 900. */
+.home-warmups-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+
+.home-warmups-pair .home-warmup-title {
+  grid-column: 1 / -1;
+}
+
+.home-warmups-pair .home-match-body {
+  display: none;
+}
+
 /* "Warm up": one label over Match a note and Sing a scale, on both sizes. */
 .home-warmup-title {
   margin: 0;

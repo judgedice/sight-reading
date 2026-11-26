@@ -336,7 +336,7 @@ const isControl = (t: EventTarget | null): boolean =>
 /** "Warm up": Match a note and Sing a scale, under one label, named the same on both sizes (01-ux-review problem 12). */
 function WarmUps({ phone, voice, scales, onMatch, onScales }: { phone: boolean; voice: boolean; scales: boolean; onMatch: () => void; onScales: () => void }) {
   return (
-    <section className="home-warmups" aria-labelledby={phone ? 'home-warmup-phone' : 'home-warmup'}>
+    <section className={scales && !phone ? 'home-warmups home-warmups-pair' : 'home-warmups'} aria-labelledby={phone ? 'home-warmup-phone' : 'home-warmup'}>
       <h2 id={phone ? 'home-warmup-phone' : 'home-warmup'} className="home-warmup-title">
         {copy('home.warmup')}
       </h2>

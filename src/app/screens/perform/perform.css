@@ -424,3 +424,10 @@
     transform: scaleY(0.45);
   }
 }
+
+/* Phones: the try strip's mode pill drops its ring to leave room for the bar and the meter (round 3, R79). */
+@media (max-width: 43.6875rem) {
+  .perform-mode .su-pill-ring {
+    display: none;
+  }
+}

@@ -276,7 +276,10 @@ describe('DifficultyControl', () => {
     expect(tag.querySelector('[aria-hidden="true"]')!.textContent).toBe('Few pieces');
     expect(tag.querySelector('.ui-visually-hidden')!.textContent).toBe('Few pieces here: some may repeat.');
     const group = $('.su-diff-line');
-    expect(byId(group.getAttribute('aria-describedby')!).textContent).toBe('No music yet for Baritone voice at difficulty 7 to 8.');
+    // The description, then the "no music yet" note (round 3: the description also says why a stepper end waits).
+    const [descId, skippedId] = group.getAttribute('aria-describedby')!.split(' ');
+    expect(byId(descId!).textContent).toContain('Adds eighths, minor keys and one-beat pickups.');
+    expect(byId(skippedId!).textContent).toBe('No music yet for Baritone voice at difficulty 7 to 8.');
     click($('[aria-label="Increase Difficulty"]'));
     click($('[aria-label="Decrease Difficulty"]'));
     expect($$('input[role="switch"]')).toHaveLength(0);

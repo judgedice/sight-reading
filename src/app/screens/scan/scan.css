@@ -47,7 +47,6 @@
   text-align: center;
 }
 
-.scan-chip .dom-scan-number,
 .scan-pill-ring .dom-scan-number {
   display: none;
 }
@@ -577,4 +576,11 @@
 .scan-dock-inner .scan-beatline {
   justify-content: center;
   margin-block-start: var(--space-1);
+}
+
+/* Narrow phones: the practice pill drops its reason so Home, the pill and the menu fit (the reason is announced). */
+@media (max-width: 26rem) {
+  .scan-toolbar .su-pill[data-mode='practice'] .su-pill-detail {
+    display: none;
+  }
 }

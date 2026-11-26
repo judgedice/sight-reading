@@ -21,8 +21,8 @@ test.use({
   },
 });
 
-test.beforeEach((_fixtures, info) => {
-  test.skip(info.project.name !== 'chromium', 'chromium project only (the file sets its own fake microphone)');
+test.beforeEach(() => {
+  test.skip(test.info().project.name !== 'chromium', 'chromium project only (the file sets its own fake microphone)');
 });
 
 const footerButtons = (page: Page) => page.getByTestId('wizard-footer').last().getByRole('button');

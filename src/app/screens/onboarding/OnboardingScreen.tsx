@@ -159,7 +159,9 @@ function Onboarding({ services }: { services: OnboardingServices }) {
               <h1 ref={headingRef} tabIndex={-1} className="ob-title">
                 {copy('onboarding.instrument.title')}
               </h1>
-              <p className="ob-text">{copy('onboarding.instrument.body')}</p>
+              <p className="ob-text" id="ob-pick-why">
+                {copy('onboarding.instrument.body')}
+              </p>
             </div>
             <div className="ob-pick-grid">
               <InstrumentGrid
@@ -188,7 +190,7 @@ function Onboarding({ services }: { services: OnboardingServices }) {
           </section>
           <WizardFooter
             onBack={goBack}
-            primary={{ label: copy('onboarding.next.sound'), onClick: () => dispatch({ type: 'next' }), disabled: selected === undefined, testId: 'wizard-next' }}
+            primary={{ label: copy('onboarding.next.sound'), onClick: () => dispatch({ type: 'next' }), disabled: selected === undefined, describedBy: 'ob-pick-why', testId: 'wizard-next' }}
           />
         </>
       ) : null}

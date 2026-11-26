@@ -38,12 +38,12 @@ async function open(browser: Browser, look: (typeof LOOKS)[number]): Promise<Pag
     hasTouch: look.mobile,
     colorScheme: look.scheme,
     permissions: ['microphone'],
-    baseURL: test.info().project.use.baseURL,
+    baseURL: test.info().project.use.baseURL ?? 'http://localhost:4173/',
   });
   return context.newPage();
 }
 
-for (const look of LOOKS) {
+for (const look of LOOKS.filter((l) => !process.env['E2E_LOOK'] || l.name === process.env['E2E_LOOK'])) {
   test(`round 3 screens, ${look.name}`, async ({ browser }) => {
     test.setTimeout(300_000);
     const page = await open(browser, look);
@@ -65,6 +65,8 @@ for (const look of LOOKS) {
     await expect(page.getByTestId('ob-hear')).toBeVisible({ timeout: 15_000 });
     await shot('wizard-2b-sound-hear-listening');
     await expect(page.getByText('We hear you clearly.')).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId('ob-heard-note')).toBeVisible();
+    await page.waitForTimeout(1000);
     await shot('wizard-2b-sound-hear');
     await page.getByRole('button', { name: 'Next', exact: true }).click();
     await expect(page.getByTestId('calibration-card')).toBeVisible({ timeout: 15_000 });

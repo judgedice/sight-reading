@@ -41,12 +41,12 @@ describe('App shell', () => {
     mounted = mount(<App location={fakeLocation('')} dev={false} />);
     expect(document.querySelector('[data-testid=screen-home]')).not.toBeNull();
     const tabs = Array.from(document.querySelectorAll('.app-tab'));
-    expect(tabs.map((t) => t.textContent)).toEqual([copy('nav.practice'), copy('nav.progress'), copy('nav.history')]);
+    expect(tabs.map((t) => t.textContent)).toEqual([copy('nav.home'), copy('nav.progress'), copy('nav.history')]);
     expect(tabs[0]?.getAttribute('aria-current')).toBe('page');
     expect(tabs[1]?.hasAttribute('aria-current')).toBe(false);
     expect(document.querySelector('.app-gear')?.getAttribute('aria-label')).toBe(copy('nav.settings'));
     expect(document.querySelector('.app-gear use')?.getAttribute('href')).toBe('#settings');
-    expect(document.title).toBe(`${copy('nav.practice')} | ${copy('app.name')}`);
+    expect(document.title).toBe(`${copy('nav.home')} | ${copy('app.name')}`);
   });
 
   it('follows hash changes and moves the current tab', () => {
@@ -121,7 +121,7 @@ describe('App shell', () => {
     expect(document.querySelector('[data-route-id=home]')).not.toBeNull();
     expect(document.querySelector('[data-route-id="practice.tips"]')).toBeNull();
     expect(loc.hash).toBe('#/');
-    expect(document.querySelector('.app-tab[aria-current=page]')?.textContent).toBe(copy('nav.practice'));
+    expect(document.querySelector('.app-tab[aria-current=page]')?.textContent).toBe(copy('nav.home'));
   });
 
   it('Page not found keeps the app bar, tells the cause and links to Practice', () => {

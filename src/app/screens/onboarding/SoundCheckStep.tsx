@@ -29,7 +29,7 @@ function StageList({ state, voice, phone }: { state: OnboardingState; voice: boo
         const status = statuses[id];
         const statusKey = STATUS_KEY[status];
         const name = t(`onboarding.stage.${id}`);
-        const sub = status === 'now' ? `${copy('onboarding.stage.status.now')}: ${stageSub(id, voice).toLowerCase()}` : statusKey ? t(`onboarding.stage.status.${statusKey}`) : stageSub(id, voice);
+        const sub = status === 'now' ? copy('onboarding.stage.now', { stage: stageSub(id, voice).toLowerCase() }) : statusKey ? t(`onboarding.stage.status.${statusKey}`) : stageSub(id, voice);
         return (
           <li key={id} className="ob-stage" data-stage={id} data-status={status} aria-current={status === 'now' ? 'step' : undefined}>
             <span className="ob-stage-dot" aria-hidden="true">
@@ -136,7 +136,7 @@ export function SoundCheckStep({ services, cfg, state, dispatch, instrument, pho
       <WizardFooter
         onBack={onBack}
         skip={{ label: copy('onboarding.hear.skip'), onClick: () => dispatch({ type: 'hear-skip' }) }}
-        primary={{ label: copy('action.next'), onClick: () => dispatch({ type: 'hear-done' }), disabled: !hearing.heard }}
+        primary={{ label: copy('action.next'), onClick: () => dispatch({ type: 'hear-done' }), disabled: !hearing.heard, describedBy: `${headingId}-heard` }}
       />
     );
   } else {

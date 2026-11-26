@@ -105,7 +105,9 @@ test('first-time user: three takes on three instruments, results, tips, history,
     // No measured calibration (R79): Ranked is blocked, so Home says Practice; the cover must say the same.
     const ranked = home.locator('[data-setup-row="mode"]').getByRole('radio', { name: 'Ranked' });
     await expect(ranked).toHaveAttribute('aria-disabled', 'true');
-    await chooseMode(page, t.mode);
+    // A ranked request cannot be made: the radio is blocked (it stays focusable, a click does nothing).
+    if (t.mode === 'ranked') await ranked.click({ force: true });
+    else await chooseMode(page, t.mode);
     const level = await pickDifficulty(page, rnd);
     await expect(home.getByTestId('mode-pill').first()).toHaveAttribute('data-mode', 'practice');
     await expect(page.getByRole('button', { name: /^Start practice/ })).toBeVisible();

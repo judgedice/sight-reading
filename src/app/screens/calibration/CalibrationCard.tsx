@@ -32,6 +32,7 @@ export interface CalFooterAction {
   disabled?: boolean;
   loading?: boolean;
   testId?: string;
+  describedBy?: string;
 }
 
 export interface CalFooter {
@@ -437,14 +438,14 @@ export function CalibrationCard({ services, onDone, allowSkip = false, variant =
       state.step === 'idle'
         ? { label: text('onboarding.timing.start'), onClick: start }
         : running
-          ? { label: text('calibrate.listening'), onClick: () => undefined, disabled: true, loading: true }
+          ? { label: text('calibrate.listening'), onClick: () => undefined, loading: true }
           : state.step === 'loopback-failed'
             ? { label: text('onboarding.timing.retry'), onClick: () => run('loopback') }
             : state.step === 'playalong-failed'
               ? { label: text('action.tryAgain'), onClick: () => run('play-along') }
               : canFinish || (state.step === 'finished' && state.estimate)
                 ? { label: doneLabel, onClick: () => onDone(state.estimate ? 'estimate' : 'calibrated', state.rtlMs === null ? null : Math.round(state.rtlMs)) }
-                : { label: doneLabel, onClick: () => undefined, disabled: true },
+                : { label: doneLabel, onClick: () => undefined, disabled: true, describedBy: `${titleId}-ask` },
     skip: showSkip ? { label: text('onboarding.timing.skip'), onClick: () => onDone('skipped') } : null,
     note: showSkip ? text('onboarding.timing.skipNote') : null,
   };
@@ -520,7 +521,9 @@ export function CalibrationCard({ services, onDone, allowSkip = false, variant =
       ) : null}
       {state.step === 'measured' && state.method === 'loopback' && state.audibility === 'unanswered' ? (
         <div className="cal-audibility" role="group" aria-label={text('calibrate.audibility.question')}>
-          <p className="cal-step-text">{text('calibrate.audibility.question')}</p>
+          <p className="cal-step-text" id={`${titleId}-ask`}>
+            {text('calibrate.audibility.question')}
+          </p>
           <div className="cal-actions">
             <Button label={text('action.yes')} variant="secondary" onClick={() => dispatch({ type: 'audibility', answer: 'yes' })} />
             <Button label={text('action.notReally')} onClick={() => dispatch({ type: 'audibility', answer: 'not-really' })} />

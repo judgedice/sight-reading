@@ -2,8 +2,6 @@
  "_comment": "Catalogue keys with no use in src/ (strings for features not built: shortcuts overlay, calibration dot states, modification credits, a few tips and errors, the abbreviations that stay for the catalogue test). The lint fails on any key not listed and on any listed key that gets used, so this list can only shrink. The QA wave deleted the 05 section 13.3 keys and the leftovers of the old tips screen (tips.header, tips.noTips, tips.incomplete, results.xp.details, action.doneForNow) and put review.toolbar to use as the name of the My take and Clean score switch. Round 2 (R2-22) adds the twelve round 2 keys that no screen uses yet (match.lead.voice, match.onboarding.hint, calStatus.readthrough.none, heard.note, results.mistakeOf, the superseded diagnostics copy). The beat line replaced the try's bar highlight, so play.status.barAhead is gone. src/ui/copy/copy.test.ts and round2-spec.json pin them, so they stay in en.json until the copy owner removes them from those files; each leaves this list when a screen uses it.",
  "keys": [
   "action.keyboardShortcutsList",
-  "placement.chip",
-  "scan.windowTooShort",
   "score.readAsText",
   "mod.excerpted",
   "mod.grace-removed",
@@ -33,7 +31,6 @@
   "shortcuts.inspector",
   "shortcuts.c",
   "shortcuts.question",
-  "calibrate.title",
   "calibrate.done",
   "calibrate.audibility.link",
   "setup.tempo.anyChip",

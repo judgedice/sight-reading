@@ -45,10 +45,11 @@ test('scales: Practice entry, chooser, read-through, a sung scale, results, Hist
   await expect(home).toBeVisible({ timeout: 15_000 });
   await chooseOutput(page, 'Wired headphones');
 
-  // Practice: the entry with "Match a note", and no scrolling at either size.
+  // Home: the entry in the Warm up group with "Match a note". The desktop does not scroll; the phone may (round 3: the
+  // Mode row, the mode pill and the Warm up label sit above and below Start, as the round 3 phone mockup does).
   await expect(home.getByTestId('scales-entry')).toBeVisible();
   const scroll = await page.evaluate(() => document.documentElement.scrollHeight - window.innerHeight);
-  expect(scroll, 'Practice scrolls').toBeLessThanOrEqual(1);
+  if ((page.viewportSize()?.width ?? 1280) >= 1024) expect(scroll, 'Home scrolls').toBeLessThanOrEqual(1);
   await shot('practice', true);
 
   await home.getByTestId('scales-entry').click();

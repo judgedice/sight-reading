@@ -66,11 +66,11 @@ export function DifficultyControl({ row, onChange, label = copy('row.level'), fa
 
   return (
     <SetupRowFrame row="difficulty" labelId={labelId} label={label} before={fallback}>
-      <div className="su-diff-line" role="group" aria-labelledby={labelId} aria-describedby={row.skippedNote ? skippedId : undefined}>
-        <Stepper value={row.value} min={1} max={row.max} disabledValues={row.skipped} ariaLabel={label} valueSuffix={suffix.trim()} onChange={(level) => onChange(level)} />
+      <div className="su-diff-line" role="group" aria-labelledby={labelId} aria-describedby={row.skippedNote ? `${id}-desc ${skippedId}` : `${id}-desc`}>
+        <Stepper value={row.value} min={1} max={row.max} disabledValues={row.skipped} ariaLabel={label} describedBy={`${id}-desc`} valueSuffix={suffix.trim()} onChange={(level) => onChange(level)} />
         <Meter row={row} />
       </div>
-      <p className="su-hint su-hint-strong su-diff-desc">
+      <p className="su-hint su-hint-strong su-diff-desc" id={`${id}-desc`}>
         <span>{row.description}</span>
         {row.fewTag && row.fewNote ? (
           <>

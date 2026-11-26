@@ -10,6 +10,8 @@ export interface StepperProps {
   onChange: (value: number) => void;
   /** Accessible name of the group (the setup row's label). */
   ariaLabel: string;
+  /** The id of a visible line that describes the group (and so why a button at an end is disabled). */
+  describedBy?: string | undefined;
   /** Accessible names of the two buttons. Default: copy 'stepper.decrease' / 'stepper.increase' with `ariaLabel`. */
   decrementLabel?: string;
   incrementLabel?: string;
@@ -28,6 +30,7 @@ export function Stepper({
   disabledValues = [],
   onChange,
   ariaLabel,
+  describedBy,
   decrementLabel = copy('stepper.decrease', { label: ariaLabel }),
   incrementLabel = copy('stepper.increase', { label: ariaLabel }),
   formatValue = (n: number) => String(n),
@@ -49,7 +52,7 @@ export function Stepper({
   const incrementInert = disabled || up === null;
 
   return (
-    <div role="group" aria-label={ariaLabel} className="ui-stepper">
+    <div role="group" aria-label={ariaLabel} aria-describedby={describedBy} className="ui-stepper">
       <button
         type="button"
         className="ui-stepper-button"

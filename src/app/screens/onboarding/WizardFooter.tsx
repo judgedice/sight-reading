@@ -9,6 +9,8 @@ export interface FooterAction {
   loading?: boolean;
   icon?: GlyphId;
   testId?: string;
+  /** The id of the visible line that says why the action waits (disabled). */
+  describedBy?: string;
 }
 
 export interface WizardFooterProps {
@@ -51,6 +53,7 @@ export function WizardFooter({ onBack, skip, primary, note }: WizardFooterProps)
               onClick={primary.onClick}
               disabled={primary.disabled ?? false}
               loading={primary.loading ?? false}
+              {...(primary.describedBy ? { 'aria-describedby': primary.describedBy } : {})}
               className="ob-footer-primary"
               data-testid={primary.testId ?? 'wizard-primary'}
             />
