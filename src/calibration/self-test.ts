@@ -78,7 +78,11 @@ export interface SelfTestDiagnostics {
   osFamily: PlatformCapabilities['osFamily'];
   displayMode: PlatformCapabilities['displayMode'];
   outputLatencyReported: boolean;
-  route: Pick<AudioRouteInfo, 'inputKind' | 'outputMode' | 'sampleRate' | 'appliedProcessing'> & { reportedLatencyMs: number | null };
+  /**
+   * `trackSampleRate`: the microphone track's own rate (the hands-free signature is 8 or 16 kHz); null when the
+   * browser does not report it. Numbers and the coarse input kind only: no label, no device id.
+   */
+  route: Pick<AudioRouteInfo, 'inputKind' | 'outputMode' | 'sampleRate' | 'appliedProcessing'> & { reportedLatencyMs: number | null; trackSampleRate: number | null };
   audio: { contextSampleRate: number; contextRecreated: boolean; audioSessionType: string | null; clockRateError: number | null; captureRelay: boolean };
   items: SelfTestItem[];
 }
@@ -187,6 +191,7 @@ export async function runSelfTest(deps: CalibrationDeps, o: SelfTestOptions): Pr
       sampleRate: o.route.sampleRate,
       appliedProcessing: { ...o.route.appliedProcessing },
       reportedLatencyMs: o.route.reportedLatencySec === undefined ? null : round(o.route.reportedLatencySec * 1000),
+      trackSampleRate: o.route.trackSampleRate ?? null,
     },
     audio: {
       contextSampleRate: info.contextSampleRate,

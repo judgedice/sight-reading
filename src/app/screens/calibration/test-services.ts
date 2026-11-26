@@ -69,7 +69,7 @@ export interface FakeCal extends CalibrationServices {
   stops: number;
 }
 
-export function fakeServices(o: { caps?: Partial<PlatformCapabilities>; loopback?: LoopbackOutcome[]; playAlong?: PlayAlongOutcome[]; output?: AudioPrefs['outputMode'] } = {}): FakeCal {
+export function fakeServices(o: { caps?: Partial<PlatformCapabilities>; loopback?: LoopbackOutcome[]; playAlong?: PlayAlongOutcome[]; output?: AudioPrefs['outputMode']; route?: AudioRouteInfo } = {}): FakeCal {
   const loopback = [...(o.loopback ?? [loopbackOk()])];
   const playAlong = [...(o.playAlong ?? [playAlongOk()])];
   let prefs: AudioPrefs = { outputMode: o.output ?? 'speakers', inputDeviceId: null };
@@ -90,7 +90,7 @@ export function fakeServices(o: { caps?: Partial<PlatformCapabilities>; loopback
     inputDevices: async () => [{ id: 'mic1', label: 'Built-in mic' }],
     unlock: () => {
       s.calls.push('unlock');
-      return Promise.resolve(route);
+      return Promise.resolve(o.route ?? route);
     },
     runLoopback: async (x) => {
       s.calls.push('loopback');

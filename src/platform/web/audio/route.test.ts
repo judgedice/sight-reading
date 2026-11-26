@@ -25,12 +25,24 @@ describe('route identity', () => {
     ['External Microphone', 'wired'],
     ['Headphones (wired)', 'wired'],
     ['MacBook Pro Microphone', 'built-in'],
+    ['Default - MacBook Pro Microphone (Built-in)', 'built-in'],
+    ['MacBook Air Speakers', 'built-in'],
+    ['Jabra Evolve2 BT', 'bluetooth'],
+    ['Headset Microphone', 'unknown'],
     ['iPhone Microphone', 'built-in'],
     ['Default - Microphone Array (Realtek)', 'built-in'],
     ['', 'unknown'],
     ['Mystery Box', 'unknown'],
   ] as const)('classifies %j as %s (W8)', (label, kind) => {
     expect(inputKindOf(label)).toBe(kind);
+  });
+
+  it('hands-free signature: an 8 or 16 kHz track after a label change is Bluetooth; a low rate alone is not (round 3)', () => {
+    expect(inputKindOf('Headset Microphone', { trackSampleRate: 16000, labelChanged: true })).toBe('bluetooth');
+    expect(inputKindOf('Mystery Box', { trackSampleRate: 8000, labelChanged: true })).toBe('bluetooth');
+    expect(inputKindOf('Mystery Box', { trackSampleRate: 16000, labelChanged: false })).toBe('unknown');
+    expect(inputKindOf('MacBook Pro Microphone', { trackSampleRate: 48000, labelChanged: true })).toBe('built-in');
+    expect(inputKindOf('', { trackSampleRate: null, labelChanged: false })).toBe('unknown');
   });
 
   it('reads back applied processing; unreported is null (W5)', () => {

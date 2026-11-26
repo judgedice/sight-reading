@@ -7,6 +7,7 @@ import { text, type TextKey } from '../states/text.ts';
 import {
   calReducer,
   calibrationIsMandatoryPath,
+  diagnosticsWithResult,
   initialCalState,
   isIos,
   isMeasuredStage,
@@ -45,6 +46,7 @@ const OUTPUT_OPTIONS: readonly { value: OutputMode; key: TextKey }[] = [
 
 const WARNING_KEY: Record<CalWarning, TextKey> = {
   bluetooth: 'calibrate.warn.bluetooth',
+  delay: 'calibrate.warn.delay',
   airpods: 'calibrate.warn.airpods',
   aec: 'calibrate.warn.aec',
 };
@@ -338,12 +340,12 @@ export function CalibrationCard({ services, onDone, allowSkip = false, embedded 
           if (k === 'loopback') {
             const outcome = await services.runLoopback({ ...progress, onClick: (index, heard) => alive.current && dispatch({ type: 'click', index, heard }) });
             if (outcome.accepted && outcome.calibration) await services.save(outcome.calibration);
-            const warnings = warningsFor({ outputMode: prefs.outputMode, rtlMs: outcome.rtlMs, maxRtlMs: services.maxRtlMs, route, caps, aecSuspected: outcome.aecSuspected });
+            const warnings = warningsFor({ outputMode: prefs.outputMode, rtlMs: outcome.rtlMs, maxRtlMs: services.maxRtlMs, accepted: outcome.accepted, route, caps, aecSuspected: outcome.aecSuspected });
             if (alive.current) dispatch({ type: 'loopback-done', outcome, warnings });
           } else {
             const outcome = await services.runPlayAlong({ ...progress, onNote: (index, offsetMs) => alive.current && dispatch({ type: 'note', index, offsetMs }) });
             if (outcome.accepted && outcome.calibration) await services.save(outcome.calibration);
-            const warnings = warningsFor({ outputMode: prefs.outputMode, rtlMs: outcome.rtlMs, maxRtlMs: services.maxRtlMs, route, caps, aecSuspected: false });
+            const warnings = warningsFor({ outputMode: prefs.outputMode, rtlMs: outcome.rtlMs, maxRtlMs: services.maxRtlMs, accepted: outcome.accepted, route, caps, aecSuspected: false });
             if (alive.current) dispatch({ type: 'playalong-done', outcome, warnings });
           }
         } catch {
@@ -426,7 +428,7 @@ export function CalibrationCard({ services, onDone, allowSkip = false, embedded 
       </div>
 
       {state.warnings.map((w) => (
-        <Banner key={w} tone="caution" text={text(WARNING_KEY[w])} />
+        <Banner key={w} tone="caution" text={w === 'delay' ? text(WARNING_KEY[w], { ms: Math.round(state.rtlMs ?? 0) }) : text(WARNING_KEY[w])} />
       ))}
 
       {state.step === 'loopback-failed' ? (
@@ -455,7 +457,7 @@ export function CalibrationCard({ services, onDone, allowSkip = false, embedded 
       {!running && (showMeasured || state.checks) ? (
         <div className="cal-secondary">
           {showMeasured && !state.estimate ? <Button label={text('action.recalibrate')} variant="tertiary" onClick={() => run(kind)} /> : null}
-          {state.checks ? <Button label={text('action.exportDiagnostics')} variant="tertiary" onClick={() => services.exportDiagnostics((state.checks as SelfTestOutcome).diagnosticsJson)} /> : null}
+          {state.checks ? <Button label={text('action.exportDiagnostics')} variant="tertiary" onClick={() => services.exportDiagnostics(diagnosticsWithResult((state.checks as SelfTestOutcome).diagnosticsJson, state))} /> : null}
         </div>
       ) : null}
 

@@ -8,6 +8,7 @@ import { rankedReasons } from '../../grade/ranked.ts';
 import { exportAll, importAll } from '../../store/index.ts';
 import { MemoryKv, makeAttempt, makeCalibration, memoryRepos } from '../../store/test-data.ts';
 import type { AudioRouteInfo, Calibration, GateId, GradeInput } from '../../core/types.ts';
+import { MAC_BUILT_IN } from '../../core/bluetooth-evidence.fixtures.ts';
 import { bluetoothBanner, buildAudioEnv, evaluateTakeGate, type GateFacts } from './index.ts';
 
 const cfg = configs();
@@ -128,18 +129,23 @@ describe('ranked reason mapping', () => {
 });
 
 describe('bluetooth banner (W8)', () => {
-  const b = (inputLabel: string | null, roundTripMs: number | null, osFamily: 'ios' | 'linux' = 'linux') => bluetoothBanner({ inputLabel, roundTripMs, osFamily }, cfg);
+  const b = (inputLabel: string | null, roundTripMs: number | null, osFamily: 'ios' | 'linux' | 'macos' = 'linux') => bluetoothBanner({ inputLabel, roundTripMs, osFamily }, cfg);
   it('label fixtures raise the flag', () => {
-    for (const l of ['AirPods Pro', 'Bluetooth Headset', 'Beats Studio', 'Hands-Free HF Audio', 'JABRA headset']) expect(b(l, 40).show).toBe(true);
+    for (const l of ['AirPods Pro', 'Bluetooth Headset', 'Beats Studio', 'Hands-Free HF Audio', 'Jabra Evolve BT']) expect(b(l, 40).show).toBe(true);
     expect(b('MacBook Pro Microphone', 40).show).toBe(false);
+    expect(b('JABRA headset', 40).show).toBe(false);
     expect(b(null, null).show).toBe(false);
+    expect(bluetoothBanner({ inputLabel: null, inputKind: 'bluetooth', roundTripMs: null, osFamily: 'linux' }, cfg).show).toBe(true);
   });
-  it('a 150 ms calibration raises it; the ceiling does not', () => {
-    expect(b('Built-in', 150).show).toBe(true);
-    expect(b('Built-in', ranked.maxRtlMs).show).toBe(false);
+  it('a 150 ms calibration is a high delay, not Bluetooth; the ceiling is neither', () => {
+    expect(b('Built-in', 150)).toEqual({ show: false, iosHint: false, delayHigh: true });
+    expect(b('Built-in', ranked.maxRtlMs)).toEqual({ show: false, iosHint: false, delayHigh: false });
+  });
+  it("the owner's MacBook (95 ms loopback, rechecks up to 101 ms) is neither", () => {
+    for (const ms of [MAC_BUILT_IN.loopback.roundTripMs, ...MAC_BUILT_IN.rechecksMs]) expect(b('MacBook Pro Microphone', ms, 'macos')).toEqual({ show: false, iosHint: false, delayHigh: false });
   });
   it('iOS adds the hint', () => {
-    expect(b('AirPods', 40, 'ios')).toEqual({ show: true, iosHint: true });
+    expect(b('AirPods', 40, 'ios')).toEqual({ show: true, iosHint: true, delayHigh: false });
     expect(b('AirPods', 40).iosHint).toBe(false);
     expect(b('Built-in', 30, 'ios').iosHint).toBe(false);
   });

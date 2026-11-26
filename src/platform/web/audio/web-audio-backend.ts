@@ -46,7 +46,7 @@ import { isSamplerContext, midiOfHz, playSampledNotes, Sampler, SAMPLE_GAIN, typ
 import { CALIBRATION_ACCENT_DB, Metronome } from './metronome.ts';
 import { fitClockWindow, median, type ClockFit, type ClockSample } from './clock-fit.ts';
 import { CAPTURE_PROCESSOR_NAME, FRAMES_PER_BLOCK, type FromWorklet, type ToWorklet } from './protocol.ts';
-import { appliedProcessingOf, inputKindOf, routeKeyAliasesOf, routeKeyOf } from './route.ts';
+import { appliedProcessingOf, inputKindOf, normalizeInputLabel, routeKeyAliasesOf, routeKeyOf } from './route.ts';
 
 export type InterruptionReason = 'interrupted' | 'hidden' | 'track-ended' | 'device-change';
 
@@ -234,6 +234,8 @@ export class WebAudioBackend implements AudioBackend {
   private runningSinceMs: number | null = null;
   private audioSessionType: string | null = null;
   private trackSampleRate: number | null = null;
+  /** The first non-empty input label of this backend's life, normalised; the hands-free signature needs a change from it. */
+  private firstLabel: string | null = null;
 
   private cap: CaptureState | null = null;
   private lastStats: CaptureStats = { postedBlocks: 0, droppedBlocks: 0, maxQueueMs: 0, relay: false };
@@ -526,13 +528,18 @@ export class WebAudioBackend implements AudioBackend {
     const ctx = this.ctx as AudioContextLike;
     const label = this.track?.label ?? '';
     const settings = this.track?.getSettings() ?? {};
+    const norm = normalizeInputLabel(label);
+    if (this.firstLabel === null && norm !== '') this.firstLabel = norm;
+    const labelChanged = this.firstLabel !== null && norm !== '' && norm !== this.firstLabel;
+    const trackSampleRate = finite(settings.sampleRate) ? settings.sampleRate : null;
     const r: AudioRouteInfo = {
       routeKey: routeKeyOf(label, this.outputMode, ctx.sampleRate, this.capabilities.osFamily),
       routeKeyAliases: routeKeyAliasesOf(label, this.outputMode, ctx.sampleRate, this.capabilities.osFamily),
-      inputKind: inputKindOf(label),
+      inputKind: inputKindOf(label, { trackSampleRate, labelChanged }),
       outputMode: this.outputMode,
       sampleRate: ctx.sampleRate,
       appliedProcessing: appliedProcessingOf(settings),
+      trackSampleRate,
     };
     const out = ctx.outputLatency;
     if (this.capabilities.outputLatencyReported && finite(out) && out > 0) r.reportedLatencySec = (finite(ctx.baseLatency) ? ctx.baseLatency : 0) + out;

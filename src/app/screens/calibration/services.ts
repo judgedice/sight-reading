@@ -76,7 +76,7 @@ export interface AudioPrefs {
 
 export interface CalibrationServices {
   capabilities: PlatformCapabilities;
-  /** Round-trip latency above which the setup reads as Bluetooth and is unranked (`grading.ranked.maxRtlMs`). */
+  /** Round-trip latency above which takes are unranked and the card shows the neutral delay warning (`grading.ranked.maxRtlMs`). Never read as Bluetooth. */
   maxRtlMs: number;
   /** The stages a run on this output plays, their counts (from `measurement-budget.json`) and about how long. */
   plan(outputMode: OutputMode): CalPlan;

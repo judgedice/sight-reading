@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Setup: sound check, hear you</title>
+<link rel="stylesheet" href="round3.css">
+<script>if (/dark/.test(location.search)) document.documentElement.dataset.theme = 'dark';</script>
+</head>
+<body>
+<header class="appbar"><div class="brand"><svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><g stroke="var(--text)" stroke-width="1.3" opacity="0.9"><path d="M1.5 4.5h21M1.5 8.25h21M1.5 12h21M1.5 15.75h21M1.5 19.5h21"/></g><ellipse cx="13" cy="10.1" rx="3.6" ry="2.6" transform="rotate(-22 13 10.1)" fill="var(--brass)"/></svg><span>Sightread</span></div></header>
+<main class="wiz">
+  <ol class="wiz-steps" aria-label="Setup, step 2 of 3"><li class="wiz-step done"><span class="bar"></span><span class="name"><span class="dot">✓</span>Instrument</span></li><li class="wiz-step now" style="--fill:45%" aria-current="step"><span class="bar"></span><span class="name"><span class="dot">2</span>Sound check</span></li><li class="wiz-step "><span class="bar"></span><span class="name"><span class="dot">3</span>Ready</span></li></ol><p class="eyebrow" style="margin:-12px 0 10px">Step 2 of 3</p>
+  <div class="wiz-head"><h1 class="h1">Sound check</h1><p class="muted">Three quick checks so we can hear you and time your notes fairly. About a minute.</p></div>
+  <div class="sc wiz-body">
+    <ol class="stages" aria-label="Sound check stages"><li class="stage done"><span class="n">✓</span><span class="t">Microphone</span><span class="s">Done</span></li><li class="stage now"><span class="n">2</span><span class="t">Hear you</span><span class="s">Now: sing any note</span></li><li class="stage "><span class="n">3</span><span class="t">Timing</span><span class="s">Measure the delay</span></li></ol><div class="stage-chips" aria-hidden="true"><span class="done">✓ Microphone</span><span class="now">Hear you</span><span class="">Timing</span></div>
+    <section class="card panel">
+      <h2 class="h2">Sing any note</h2>
+      <p class="muted">Sing a comfortable note and hold it for a moment. Any note is fine: this only checks that we hear you clearly. It isn't graded.</p>
+      <div style="margin:22px 0 8px" class="label">Input level</div>
+      <div class="meter" role="img" aria-label="Input level: good"><i></i></div>
+      <div class="heard" style="margin-top:22px">
+        <span class="big">G3</span>
+        <div><p class="ok"><svg class="icon sm" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>We hear you clearly.</p><p class="small muted">You sang about G3, which sits well in the baritone range.</p></div>
+      </div>
+      <p class="small muted" style="margin-top:16px">The note name stays put once we're sure of it. To work on tuning, use Match a note on Home.</p>
+    </section>
+  </div>
+</main>
+<footer class="wiz-foot"><div class="wiz-foot-in"><button class="btn btn-quiet"><svg class="icon" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>Back</button><span class="spacer"></span><button class="btn btn-quiet">Skip this check</button><button class="btn btn-primary">Next<svg class="icon" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button></div></footer></body>
+</html>

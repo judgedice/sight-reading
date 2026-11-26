@@ -3,6 +3,7 @@
  * Calibration never blocks a take (R16): every end state lets the player carry on; a missing measurement only
  * makes takes practice.
  */
+import { delayMatters } from '../../../core/bluetooth-evidence.ts';
 import type { PlatformCapabilities } from '../../../core/platform.ts';
 import type { AudioRouteInfo, Calibration, OutputMode } from '../../../core/types.ts';
 import type { CalPlan, CalStageId, LoopbackOutcome, PlayAlongOutcome, SelfTestOutcome } from './services.ts';
@@ -26,7 +27,8 @@ export type CalStep =
   | 'measured'
   | 'finished';
 
-export type CalWarning = 'bluetooth' | 'airpods' | 'aec';
+/** `delay`: a measured round trip above the ranked limit with no Bluetooth evidence or with it (neutral wording). */
+export type CalWarning = 'bluetooth' | 'delay' | 'airpods' | 'aec';
 
 export interface CalState {
   step: CalStep;
@@ -162,23 +164,58 @@ export const methodFor = (o: OutputMode): 'loopback' | 'play-along' => (o === 's
 export const isIos = (c: Pick<PlatformCapabilities, 'osFamily'>): boolean => c.osFamily === 'ios' || c.osFamily === 'ipados';
 
 /**
- * Warnings for a result (04 section 5.9 item 6): Bluetooth when declared or when the RTL is above the ranked limit,
- * AirPods on iOS with a Bluetooth input, AEC when the loopback run suspects it.
+ * Warnings for a result (04 section 5.9 item 6; round 3, Bluetooth false positive). Bluetooth only on positive
+ * evidence: the player chose Bluetooth, or the route's input is Bluetooth (label or hands-free signature, see
+ * core/bluetooth-evidence.ts). Never from latency: a MacBook's built-in audio measures about 95 ms in Chrome. A
+ * round trip above the ranked limit (`grading.ranked.maxRtlMs`, 120 ms) gets the neutral `delay` warning, and only
+ * when the run was accepted (a rejected run's delay is not trusted; its failure message says what went wrong).
+ * AirPods on iOS with Bluetooth evidence, AEC when the loopback run suspects it.
  */
 export function warningsFor(i: {
   outputMode: OutputMode;
   rtlMs: number | null;
   maxRtlMs: number;
+  /** The run's measurement was accepted. */
+  accepted: boolean;
   route: Pick<AudioRouteInfo, 'inputKind'> | null;
   caps: Pick<PlatformCapabilities, 'osFamily'>;
   aecSuspected: boolean;
 }): CalWarning[] {
   const out: CalWarning[] = [];
-  const bt = i.outputMode === 'bluetooth' || (i.rtlMs !== null && i.rtlMs > i.maxRtlMs);
+  const bt = i.outputMode === 'bluetooth' || i.route?.inputKind === 'bluetooth';
   if (bt) out.push('bluetooth');
-  if (isIos(i.caps) && (i.route?.inputKind === 'bluetooth' || bt)) out.push('airpods');
+  if (i.accepted && delayMatters(i.rtlMs, i.maxRtlMs)) out.push('delay');
+  if (isIos(i.caps) && bt) out.push('airpods');
   if (i.aecSuspected) out.push('aec');
   return out;
+}
+
+const round2dp = (x: number | null): number | null => (x === null || !Number.isFinite(x) ? null : Math.round(x * 100) / 100);
+
+/**
+ * The diagnostics export with what the card showed added as `shown` (round 3, Bluetooth false positive): the run's
+ * method and end step, whether it was accepted, its failure, round trip and spread, and the warnings it raised. The
+ * self-test export alone could not say which warning a player saw or why. Numbers and enum names only. A JSON that
+ * does not parse to an object is exported unchanged.
+ */
+export function diagnosticsWithResult(json: string, s: CalState): string {
+  let d: unknown;
+  try {
+    d = JSON.parse(json);
+  } catch {
+    return json;
+  }
+  if (d === null || typeof d !== 'object' || Array.isArray(d)) return json;
+  const shown = {
+    method: s.method,
+    step: s.step,
+    accepted: (s.step === 'measured' || s.step === 'finished') && !s.estimate,
+    failure: s.failure,
+    rtlMs: round2dp(s.rtlMs),
+    madMs: round2dp(s.madMs),
+    warnings: [...s.warnings],
+  };
+  return JSON.stringify({ ...(d as Record<string, unknown>), shown }, null, 2);
 }
 
 /** R16: iOS where output latency is unreported has no Skip control in onboarding; calibration is the default path. */

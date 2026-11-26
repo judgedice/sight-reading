@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The mode in every place</title>
+<link rel="stylesheet" href="round3.css">
+<script>if (/dark/.test(location.search)) document.documentElement.dataset.theme = 'dark';</script>
+</head>
+<body>
+
+<main style="max-width:1200px;margin:0 auto;padding:28px 32px 48px">
+<p class="sheet-title">Where the mode shows, practice (left) and ranked (right)</p>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:24px" class="mode-grid">
+ <div class="card" style="padding:18px"><p class="label">Home, beside Start</p><div class="start-line"><span class="small muted">Practice: listen first, no time limit</span><span class="mode mode-practice"><span class="ring" aria-hidden="true"></span>Practice</span></div><button class="btn btn-primary btn-block">Start practice</button></div>
+ <div class="card" style="padding:18px"><p class="label">Home, beside Start</p><div class="start-line"><span class="small muted">Choosing Any: +24% XP</span><span class="mode mode-ranked"><span class="ring" aria-hidden="true"></span>Ranked</span></div><button class="btn btn-primary btn-block">Start ranked try</button></div>
+ <div class="card" style="padding:0;overflow:hidden"><p class="label" style="padding:14px 18px 0">Cover and read-through bar</p><header class="loopbar" style="border:0"><span><svg class="icon" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></span><span>Home</span><span class="mid">Difficulty 2 · F major · 4/4</span><span class="mode mode-practice"><span class="ring" aria-hidden="true"></span>Practice <span class="sub">· no time limit</span></span></header></div>
+ <div class="card" style="padding:0;overflow:hidden"><p class="label" style="padding:14px 18px 0">Cover and read-through bar</p><header class="loopbar" style="border:0"><span><svg class="icon" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></span><span>Home</span><span class="mid">Difficulty 1 · C major · 4/4</span><span class="mode mode-ranked"><svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true"><circle cx="11" cy="11" r="9" fill="none" stroke="var(--track)" stroke-width="3"/><path d="M11 2a9 9 0 017.8 13.5" fill="none" stroke="var(--brass)" stroke-width="3"/></svg>Ranked <span class="sub">· 0:24 to read</span></span></header></div>
+ <div class="card" style="padding:0;overflow:hidden"><p class="label" style="padding:14px 18px 0">Try strip</p><header class="loopbar"><button class="btn btn-secondary" style="height:36px;font-size:14px"><svg class="icon sm" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor" stroke="none"/></svg>Stop</button><span class="mode mode-practice"><span class="ring" aria-hidden="true"></span>Practice</span>
+<span class="mid"><b style="color:var(--text)">Bar 1 of 8</b><span class="tempo"> · ♩ = 63</span></span><span class="mic">Mic <span class="bars"><i style="height:5px"></i><i style="height:9px"></i><i style="height:13px"></i><i style="height:16px"></i><i style="height:10px"></i></span></span></header></div>
+ <div class="card" style="padding:0;overflow:hidden"><p class="label" style="padding:14px 18px 0">Try strip</p><header class="loopbar"><button class="btn btn-secondary" style="height:36px;font-size:14px"><svg class="icon sm" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor" stroke="none"/></svg>Stop</button><span class="mode mode-ranked"><span class="ring" aria-hidden="true"></span>Ranked</span>
+<span class="mid"><b style="color:var(--text)">Bar 1 of 8</b><span class="tempo"> · ♩ = 63</span></span><span class="mic">Mic <span class="bars"><i style="height:5px"></i><i style="height:9px"></i><i style="height:13px"></i><i style="height:16px"></i><i style="height:10px"></i></span></span></header></div>
+ <div class="card" style="padding:18px"><p class="label" style="margin-bottom:12px">Results</p><div style="display:flex;gap:16px;align-items:center"><span class="display" style="font-size:72px;line-height:.9">A</span><div><p class="h2">86 <span class="small muted">of 100</span></p><span class="mode mode-practice"><span class="ring" aria-hidden="true"></span>Practice</span></div></div><p class="small" style="margin-top:12px">+4 XP. Practice earns a quarter of the XP, and your difficulty stays the same.</p></div>
+ <div class="card" style="padding:18px"><p class="label" style="margin-bottom:12px">Results</p><div style="display:flex;gap:16px;align-items:center"><span class="display" style="font-size:72px;line-height:.9">A</span><div><p class="h2">86 <span class="small muted">of 100</span></p><span class="mode mode-ranked"><span class="ring" aria-hidden="true"></span>Ranked</span></div></div><p class="small" style="margin-top:12px">+16 XP. Counts toward moving up: 3 of the 4 good tries needed.</p></div>
+ <div class="card" style="padding:18px;grid-column:1/-1"><p class="label" style="margin-bottom:10px">A ranked try that turns into practice says so at that moment, in the same place</p><div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap"><span class="mode mode-ranked"><span class="ring" aria-hidden="true"></span>Ranked <span class="sub">· 0:18 to read</span></span><span class="muted">→</span><span class="mode mode-practice"><span class="ring" aria-hidden="true"></span>Practice <span class="sub">· you listened first</span></span><span class="small muted">The polite live region says "Now a practice try: you listened first."</span></div></div>
+</div>
+</main>
+<style>@media (max-width:699px){.mode-grid{grid-template-columns:1fr !important} .loopbar .mid{display:none}}</style></body>
+</html>

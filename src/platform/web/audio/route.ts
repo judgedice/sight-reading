@@ -3,6 +3,7 @@
  * the label itself is never stored, only its hash and the coarse `inputKind` (05 §5.2: nothing identifies the
  * person or the device).
  */
+import { bluetoothLabelMatches, handsFreeSignature } from '../../../core/bluetooth-evidence.ts';
 import type { AppliedProcessing, AudioRouteInfo, OsFamily, OutputMode } from '../../../core/platform.ts';
 
 /** FNV-1a, 32-bit, as 8 hex digits. Not cryptographic; it only needs to be stable. */
@@ -53,9 +54,12 @@ export function routeKeyAliasesOf(inputLabel: string, outputMode: OutputMode, sa
   return keys;
 }
 
-/** Coarse input class from the track label (W8 uses the Bluetooth pattern). */
-export function inputKindOf(label: string): AudioRouteInfo['inputKind'] {
-  if (/airpods|bluetooth|beats|headset|hands-free|hfp/i.test(label)) return 'bluetooth';
+/**
+ * Coarse input class from the track label (W8). `bluetooth` only on positive evidence (core/bluetooth-evidence.ts):
+ * a Bluetooth label, or the hands-free signature (an 8 or 16 kHz track after the label changed). Never from latency.
+ */
+export function inputKindOf(label: string, o: { trackSampleRate?: number | null; labelChanged?: boolean } = {}): AudioRouteInfo['inputKind'] {
+  if (bluetoothLabelMatches(label) || handsFreeSignature(o.trackSampleRate, o.labelChanged ?? false)) return 'bluetooth';
   if (/usb|interface|scarlett|focusrite|audient|motu|presonus|zoom|rode|shure|yeti/i.test(label)) return 'usb-interface';
   if (/headphone|wired|line in|external|lightning|earpods/i.test(label)) return 'wired';
   if (/built-?in|internal|macbook|iphone|ipad|microphone array|default|fake/i.test(label)) return 'built-in';

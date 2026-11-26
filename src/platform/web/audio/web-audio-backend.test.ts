@@ -636,6 +636,17 @@ describe('void paths and route changes (01 §7.9, W4, W7)', () => {
     expect(routes).toEqual(['bluetooth']);
   });
 
+  it('hands-free signature: a 16 kHz track after the label changed is Bluetooth; the first label at 48 kHz is not (round 3)', async () => {
+    const { world, be } = await live();
+    const routes: string[] = [];
+    be.onRouteChange((r) => routes.push(`${r.inputKind}@${r.trackSampleRate ?? 'none'}`));
+    const t = world.tracks[0] as unknown as { label: string; settings: Record<string, unknown> };
+    t.label = 'Mystery Box';
+    t.settings = { ...t.settings, sampleRate: 16000 };
+    world.mediaDevices.dispatch('devicechange');
+    expect(routes).toEqual(['bluetooth@16000']);
+  });
+
   it('a declared output mode change changes the route key', async () => {
     const { be } = await live();
     const keys: string[] = [];

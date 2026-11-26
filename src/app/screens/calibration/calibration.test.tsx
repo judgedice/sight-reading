@@ -4,7 +4,8 @@ import { act, click, mount, type Mounted } from '../../../ui/primitives/test-ren
 import { RouterProvider, type LocationSource } from '../../router.tsx';
 import { createRouteTable } from '../../routes.tsx';
 import { CalibrationCard } from './CalibrationCard.tsx';
-import { calReducer, calibrationIsMandatoryPath, initialCalState, methodFor, offsetTick, stageStatuses, warningsFor } from './flow.ts';
+import { MAC_BUILT_IN } from '../../../core/bluetooth-evidence.fixtures.ts';
+import { calReducer, calibrationIsMandatoryPath, diagnosticsWithResult, initialCalState, methodFor, offsetTick, stageStatuses, warningsFor } from './flow.ts';
 import type { CalProgress, LoopbackOutcome } from './services.ts';
 import { checksSpeakers, fakeServices, headphonePlan, loopbackBad, loopbackOk, playAlongBad, playAlongOk, route, speakerPlan } from './test-services.ts';
 
@@ -60,13 +61,39 @@ describe('flow', () => {
     expect(s.playAlongFailures).toBe(0);
     expect(s.dots.every((d) => d === 'heard')).toBe(true);
   });
-  it('warnings: bluetooth by declaration or RTL above the ranked limit, AirPods on iOS, AEC', () => {
-    const base = { outputMode: 'speakers', rtlMs: 40, maxRtlMs: 120, route, caps: { osFamily: 'windows' }, aecSuspected: false } as const;
+  it('warnings: Bluetooth only on evidence (declared or a Bluetooth input), a neutral delay above the ranked limit, AirPods on iOS, AEC', () => {
+    const base = { outputMode: 'speakers', rtlMs: 40, maxRtlMs: 120, accepted: true, route, caps: { osFamily: 'windows' }, aecSuspected: false } as const;
     expect(warningsFor(base)).toEqual([]);
-    expect(warningsFor({ ...base, rtlMs: 121 })).toEqual(['bluetooth']);
+    // Latency alone is never Bluetooth (round 3): a long, accepted round trip gets the neutral delay warning.
+    expect(warningsFor({ ...base, rtlMs: 121 })).toEqual(['delay']);
+    expect(warningsFor({ ...base, rtlMs: 120 })).toEqual([]);
+    // A rejected run's delay is not trusted, so it raises nothing.
+    expect(warningsFor({ ...base, rtlMs: 250, accepted: false })).toEqual([]);
     expect(warningsFor({ ...base, outputMode: 'bluetooth' })).toEqual(['bluetooth']);
-    expect(warningsFor({ ...base, rtlMs: 200, caps: { osFamily: 'ios' } })).toEqual(['bluetooth', 'airpods']);
+    expect(warningsFor({ ...base, route: { inputKind: 'bluetooth' } })).toEqual(['bluetooth']);
+    expect(warningsFor({ ...base, route: { inputKind: 'bluetooth' }, rtlMs: 200 })).toEqual(['bluetooth', 'delay']);
+    expect(warningsFor({ ...base, route: { inputKind: 'bluetooth' }, accepted: false, rtlMs: null })).toEqual(['bluetooth']);
+    expect(warningsFor({ ...base, rtlMs: 200, caps: { osFamily: 'ios' } })).toEqual(['delay']);
+    expect(warningsFor({ ...base, route: { inputKind: 'bluetooth' }, caps: { osFamily: 'ios' } })).toEqual(['bluetooth', 'airpods']);
     expect(warningsFor({ ...base, aecSuspected: true })).toEqual(['aec']);
+  });
+  it("the owner's MacBook built-in audio (real numbers) raises no warning at all", () => {
+    const mac = { outputMode: MAC_BUILT_IN.outputMode, maxRtlMs: 120, route: { inputKind: MAC_BUILT_IN.inputKind }, caps: { osFamily: MAC_BUILT_IN.osFamily }, aecSuspected: MAC_BUILT_IN.loopback.aecSuspected } as const;
+    for (const rtlMs of [MAC_BUILT_IN.loopback.roundTripMs, ...MAC_BUILT_IN.rechecksMs, MAC_BUILT_IN.selfTestLoopback.rtlMs]) {
+      expect(warningsFor({ ...mac, rtlMs, accepted: true }), String(rtlMs)).toEqual([]);
+      expect(warningsFor({ ...mac, rtlMs, accepted: false }), String(rtlMs)).toEqual([]);
+    }
+    // The 2026-11-20 tries had no recognised label: an unknown input is not Bluetooth either.
+    expect(warningsFor({ ...mac, route: { inputKind: 'unknown' }, rtlMs: MAC_BUILT_IN.rechecksMs[2], accepted: true })).toEqual([]);
+    expect(warningsFor({ ...mac, route: null, rtlMs: MAC_BUILT_IN.loopback.roundTripMs, accepted: true })).toEqual([]);
+  });
+  it('the diagnostics export says which run the card showed and what it warned', () => {
+    let s = calReducer(initialCalState(), { type: 'start-loopback', plan: speakerPlan() });
+    s = calReducer(s, { type: 'loopback-done', outcome: loopbackOk({ rtlMs: MAC_BUILT_IN.loopback.roundTripMs, madMs: MAC_BUILT_IN.loopback.spreadMs }), warnings: [] });
+    const out = JSON.parse(diagnosticsWithResult('{"kind":"audio-self-test","route":{"inputKind":"built-in"}}', s)) as Record<string, unknown>;
+    expect(out['kind']).toBe('audio-self-test');
+    expect(out['shown']).toEqual({ method: 'loopback', step: 'measured', accepted: true, failure: null, rtlMs: 95.48, madMs: 0.11, warnings: [] });
+    expect(diagnosticsWithResult('not json', s)).toBe('not json');
   });
   it('mandatory path is iOS with unreported output latency (R16)', () => {
     expect(calibrationIsMandatoryPath({ osFamily: 'ios', outputLatencyReported: false })).toBe(true);
@@ -150,12 +177,30 @@ describe('CalibrationCard', () => {
     click(button('Continue'));
     expect(done).toHaveBeenCalledWith('estimate');
   });
-  it('shows Bluetooth and AEC warnings', async () => {
+  it('a long delay with no Bluetooth evidence gets the neutral delay message, never Bluetooth; AEC still shows', async () => {
     const svc = fakeServices({ loopback: [loopbackOk({ rtlMs: 180, aecSuspected: true })] });
     current = mount(wrap(<CalibrationCard services={svc} onDone={() => undefined} />));
     await press('Start');
-    expect(document.body.textContent).toContain('This looks like Bluetooth audio');
+    expect(document.body.textContent).not.toContain('Bluetooth audio');
+    expect(document.body.textContent).toContain("Your audio has a long delay (180 ms), so tries won't earn XP for now.");
     expect(document.body.textContent).toContain('filtering the microphone');
+  });
+  it("the owner's MacBook measurement (95 ms, spread 0.1 ms) shows no warning", async () => {
+    const svc = fakeServices({ loopback: [loopbackOk({ rtlMs: MAC_BUILT_IN.loopback.roundTripMs, madMs: MAC_BUILT_IN.loopback.spreadMs })] });
+    current = mount(wrap(<CalibrationCard services={svc} onDone={() => undefined} />));
+    await press('Start');
+    expect(document.querySelector('[data-testid="cal-result"]')?.textContent).toContain('95');
+    // "Bluetooth" is still an option of the output select; no message names it.
+    expect(document.body.textContent).not.toContain('Bluetooth audio');
+    expect(document.body.textContent).not.toContain('long delay');
+    expect(document.querySelectorAll('.ui-banner-caution')).toHaveLength(0);
+  });
+  it('a Bluetooth input label still shows the Bluetooth message', async () => {
+    const svc = fakeServices({ route: { ...route, inputKind: 'bluetooth' }, loopback: [loopbackOk({ rtlMs: 60 })] });
+    current = mount(wrap(<CalibrationCard services={svc} onDone={() => undefined} />));
+    await press('Start');
+    expect(document.body.textContent).toContain('This looks like Bluetooth audio, which can add a lot of delay.');
+    expect(document.body.textContent).not.toContain('long delay');
   });
   it('iOS: beta label, XP note, no Skip control (R16), and a failed run never traps the player', async () => {
     const svc = fakeServices({ caps: { osFamily: 'ios', outputLatencyReported: false }, output: 'wired', playAlong: [playAlongBad(), playAlongBad()] });
@@ -299,7 +344,8 @@ describe('stages', () => {
     ]);
     expect(document.body.textContent).toContain('Some checks failed');
     await press('Export diagnostics');
-    expect(svc.exported).toEqual(['{"kind":"audio-self-test"}']);
+    // The export carries what the card showed (round 3), next to the self-test's own fields.
+    expect(svc.exported.map((j) => JSON.parse(j) as unknown)).toEqual([{ kind: 'audio-self-test', shown: { method: 'loopback', step: 'measured', accepted: true, failure: null, rtlMs: 42, madMs: 2, warnings: [] } }]);
     // There is no separate audio-check card or button: it ran with the calibration.
     expect(names()).not.toContain('Check audio');
     await press('Calibrate again');

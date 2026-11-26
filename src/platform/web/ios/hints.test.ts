@@ -4,12 +4,12 @@ import type { OsFamily, SessionState } from '../../../core/types.ts';
 import gradingJson from '../../../../config/grading-config.json';
 import {
   BLUETOOTH_LABEL_RE,
-  BLUETOOTH_RTL_MS,
+  HIGH_RTL_MS,
   HINT_COPY,
   bluetoothBanner,
   bluetoothLabelMatches,
   iosBetaLabelKey,
-  rtlIsBluetoothClass,
+  rtlIsHigh,
   shouldShowAutoLockHint,
   shouldShowInstallCoach,
   type InstallCoachInput,
@@ -98,54 +98,50 @@ describe('IOS5 Auto-Lock hint (W11)', () => {
 });
 
 describe('IOS5 Bluetooth banner (W8)', () => {
-  it('reads the RTL threshold from config/grading-config.json (ranked.maxRtlMs)', () => {
-    expect(BLUETOOTH_RTL_MS).toBe(gradingJson.ranked.maxRtlMs);
-    expect(BLUETOOTH_RTL_MS).toBe(120);
+  it('reads the high-delay threshold from config/grading-config.json (ranked.maxRtlMs)', () => {
+    expect(HIGH_RTL_MS).toBe(gradingJson.ranked.maxRtlMs);
+    expect(HIGH_RTL_MS).toBe(120);
   });
 
-  it('matches the labels the spec names, case-insensitively', () => {
-    for (const label of ['AirPods Pro', 'Bluetooth Headphones', 'Beats Studio', 'Headset Microphone', 'Hands-Free', 'airpods', 'BLUETOOTH']) {
+  it('matches the Bluetooth labels, case-insensitively', () => {
+    for (const label of ['AirPods Pro', 'Bluetooth Headphones', 'Beats Studio', 'Hands-Free', 'airpods', 'BLUETOOTH', 'Jabra BT']) {
       expect(bluetoothLabelMatches(label)).toBe(true);
     }
     expect(BLUETOOTH_LABEL_RE.flags).toContain('i');
   });
 
-  it('does not match built-in or wired labels', () => {
-    for (const label of ['MacBook Air Microphone', 'iPhone Microphone', 'USB Audio Device', 'Built-in Microphone', '', null, undefined]) {
+  it('does not match built-in, wired or generic headset labels', () => {
+    for (const label of ['MacBook Air Microphone', 'MacBook Pro Microphone', 'iPhone Microphone', 'USB Audio Device', 'Built-in Microphone', 'Headset Microphone', '', null, undefined]) {
       expect(bluetoothLabelMatches(label)).toBe(false);
     }
   });
 
-  it('flags RTL strictly above 120 ms, never when unmeasured', () => {
-    expect(rtlIsBluetoothClass(120)).toBe(false);
-    expect(rtlIsBluetoothClass(120.5)).toBe(true);
-    expect(rtlIsBluetoothClass(150)).toBe(true);
-    expect(rtlIsBluetoothClass(40)).toBe(false);
-    expect(rtlIsBluetoothClass(null)).toBe(false);
+  it('flags RTL strictly above 120 ms as high (the neutral delay message), never when unmeasured', () => {
+    expect(rtlIsHigh(120)).toBe(false);
+    expect(rtlIsHigh(120.5)).toBe(true);
+    expect(rtlIsHigh(150)).toBe(true);
+    expect(rtlIsHigh(40)).toBe(false);
+    expect(rtlIsHigh(null)).toBe(false);
   });
 
-  it('a 150 ms fake calibration raises the banner with no label', () => {
-    const b = bluetoothBanner({ inputLabel: 'Built-in Microphone', rtlMs: 150, osFamily: 'linux' });
+  it('a label fixture raises the banner', () => {
+    const b = bluetoothBanner({ inputLabel: 'AirPods', osFamily: 'linux' });
     expect(b.show).toBe(true);
     expect(b.copyKeys).toEqual([HINT_COPY.bluetoothBanner]);
   });
 
-  it('a label fixture raises the banner with no measurement', () => {
-    const b = bluetoothBanner({ inputLabel: 'AirPods', rtlMs: null, osFamily: 'linux' });
-    expect(b.show).toBe(true);
-    expect(b.copyKeys).toEqual([HINT_COPY.bluetoothBanner]);
-  });
-
-  it('no banner for a wired route with a normal RTL', () => {
-    expect(bluetoothBanner({ inputLabel: 'USB Audio', rtlMs: 30, osFamily: 'ios' })).toEqual({ show: false, copyKeys: [] });
+  it('no banner for built-in or wired routes (latency is not an input: round 3)', () => {
+    expect(bluetoothBanner({ inputLabel: 'Built-in Microphone', osFamily: 'linux' })).toEqual({ show: false, copyKeys: [] });
+    expect(bluetoothBanner({ inputLabel: 'MacBook Pro Microphone', osFamily: 'macos' })).toEqual({ show: false, copyKeys: [] });
+    expect(bluetoothBanner({ inputLabel: 'USB Audio', osFamily: 'ios' })).toEqual({ show: false, copyKeys: [] });
   });
 
   it('adds the AirPods hint on iOS only', () => {
-    const ios = bluetoothBanner({ inputLabel: 'AirPods', rtlMs: null, osFamily: 'ios' });
+    const ios = bluetoothBanner({ inputLabel: 'AirPods', osFamily: 'ios' });
     expect(ios.copyKeys).toEqual([HINT_COPY.bluetoothBanner, HINT_COPY.airpodsHint]);
-    const ipad = bluetoothBanner({ inputLabel: 'AirPods', rtlMs: null, osFamily: 'ipados' });
+    const ipad = bluetoothBanner({ inputLabel: 'AirPods', osFamily: 'ipados' });
     expect(ipad.copyKeys).toContain(HINT_COPY.airpodsHint);
-    const mac = bluetoothBanner({ inputLabel: 'AirPods', rtlMs: null, osFamily: 'macos' });
+    const mac = bluetoothBanner({ inputLabel: 'AirPods', osFamily: 'macos' });
     expect(mac.copyKeys).toEqual([HINT_COPY.bluetoothBanner]);
   });
 });

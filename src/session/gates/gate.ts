@@ -17,6 +17,7 @@ import type {
   RankedReason,
 } from '../../core/types.ts';
 import { isMeasuredFor } from '../../calibration/index.ts';
+import { BLUETOOTH_LABEL_RE, bluetoothLabelMatches, delayMatters } from '../../core/bluetooth-evidence.ts';
 
 export interface GateFacts {
   /** Route of this take (routeKey decides whether the stored calibration applies). */
@@ -76,23 +77,25 @@ export function evaluateTakeGate(f: GateFacts, cfg: Configs): GateResult {
   return { gateFailures, rankedReasons, gatePassed: gateFailures.length === 0, clockRateOff };
 }
 
-/** 05 W8 label pattern. */
-export const BLUETOOTH_LABEL = /airpods|bluetooth|beats|headset|hands-free/i;
+/** 05 W8 label pattern (core/bluetooth-evidence.ts). */
+export const BLUETOOTH_LABEL = BLUETOOTH_LABEL_RE;
 
 export interface BluetoothBanner {
   show: boolean;
   /** iOS adds the hint that AirPods microphones reduce accuracy (04 copy). */
   iosHint: boolean;
+  /**
+   * The measured round trip is above the ranked ceiling (gate (g)). Not Bluetooth evidence: it gets the neutral delay
+   * message, whatever the route (round 3, Bluetooth false positive).
+   */
+  delayHigh: boolean;
 }
 
-/** W8: label match or measured RTL above the ranked ceiling (gate (g)). */
+/** W8: Bluetooth only on positive evidence (a Bluetooth label or input kind), never from the round trip alone. */
 export function bluetoothBanner(
   f: { inputLabel: string | null | undefined; inputKind?: AudioRouteInfo['inputKind']; roundTripMs: number | null; osFamily: OsFamily },
   cfg: Configs,
 ): BluetoothBanner {
-  const byLabel = !!f.inputLabel && BLUETOOTH_LABEL.test(f.inputLabel);
-  const byKind = f.inputKind === 'bluetooth';
-  const byRtl = f.roundTripMs !== null && f.roundTripMs > cfg.grading.ranked.maxRtlMs;
-  const show = byLabel || byKind || byRtl;
-  return { show, iosHint: show && (f.osFamily === 'ios' || f.osFamily === 'ipados') };
+  const show = bluetoothLabelMatches(f.inputLabel) || f.inputKind === 'bluetooth';
+  return { show, iosHint: show && (f.osFamily === 'ios' || f.osFamily === 'ipados'), delayHigh: delayMatters(f.roundTripMs, cfg.grading.ranked.maxRtlMs) };
 }

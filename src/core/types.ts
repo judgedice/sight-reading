@@ -87,6 +87,8 @@ export interface AudioRouteInfo {
   appliedProcessing: AppliedProcessing;
   /** baseLatency + outputLatency as reported by the browser, seconds; absent where not reported (iOS Safari). */
   reportedLatencySec?: number;
+  /** Microphone track rate from `getSettings()`, Hz; null when not reported (diagnostics, hands-free signature). */
+  trackSampleRate?: number | null;
 }
 
 // =====================================================================================

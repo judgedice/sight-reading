@@ -8,6 +8,7 @@
 import type { PlatformCapabilities } from '../../../core/platform.ts';
 import type { OsFamily, SessionState } from '../../../core/types.ts';
 import gradingJson from '../../../../config/grading-config.json';
+import { BLUETOOTH_LABEL_RE, bluetoothLabelMatches, delayMatters } from '../../../core/bluetooth-evidence.ts';
 
 /** en.json keys used by the triggers. Each is checked against en.json by the tests. */
 export const HINT_COPY = {
@@ -20,11 +21,14 @@ export const HINT_COPY = {
 
 export type HintCopyKey = (typeof HINT_COPY)[keyof typeof HINT_COPY];
 
-/** Input label patterns that mean a Bluetooth or hands-free route (W8). */
-export const BLUETOOTH_LABEL_RE = /airpods|bluetooth|beats|headset|hands-free/i;
+/** Input label patterns that mean a Bluetooth or hands-free route (W8; core/bluetooth-evidence.ts). */
+export { BLUETOOTH_LABEL_RE, bluetoothLabelMatches };
 
-/** Gate (g): round-trip latency above this is a Bluetooth-class route. Read from config, not hard-coded (W8). */
-export const BLUETOOTH_RTL_MS: number = gradingJson.ranked.maxRtlMs;
+/**
+ * Gate (g): round-trip latency above this makes takes unranked. Read from config, not hard-coded (W8). It is not
+ * Bluetooth evidence (round 3): it gets the neutral delay message, never the Bluetooth banner.
+ */
+export const HIGH_RTL_MS: number = gradingJson.ranked.maxRtlMs;
 
 const IOS_FAMILY: ReadonlySet<OsFamily> = new Set<OsFamily>(['ios', 'ipados']);
 
@@ -93,8 +97,6 @@ export function shouldShowAutoLockHint(i: AutoLockHintInput): boolean {
 export interface BluetoothBannerInput {
   /** The input device label, if the browser reports one. */
   inputLabel: string | null | undefined;
-  /** Measured round-trip latency in ms (from calibration), or null when not measured. */
-  rtlMs: number | null;
   osFamily: OsFamily;
 }
 
@@ -104,22 +106,17 @@ export interface BluetoothBanner {
   copyKeys: HintCopyKey[];
 }
 
-export function bluetoothLabelMatches(label: string | null | undefined): boolean {
-  return typeof label === 'string' && BLUETOOTH_LABEL_RE.test(label);
-}
-
-/** RTL above the gate (g) threshold. Null (not measured) is never a Bluetooth flag by itself. */
-export function rtlIsBluetoothClass(rtlMs: number | null): boolean {
-  return rtlMs !== null && rtlMs > BLUETOOTH_RTL_MS;
+/** RTL above the gate (g) threshold: the neutral delay message, not a Bluetooth flag. Null (not measured) is never high. */
+export function rtlIsHigh(rtlMs: number | null): boolean {
+  return delayMatters(rtlMs, HIGH_RTL_MS);
 }
 
 /**
- * Banner when the label matches or the measured RTL exceeds 120 ms. On iOS the AirPods hint is added, which says
- * AirPods microphones reduce accuracy and the iPhone mic works better.
+ * Banner only when the label names a Bluetooth device (positive evidence; never from latency). On iOS the AirPods
+ * hint is added, which says AirPods microphones reduce accuracy and the iPhone mic works better.
  */
 export function bluetoothBanner(i: BluetoothBannerInput): BluetoothBanner {
-  const show = bluetoothLabelMatches(i.inputLabel) || rtlIsBluetoothClass(i.rtlMs);
-  if (!show) return { show: false, copyKeys: [] };
+  if (!bluetoothLabelMatches(i.inputLabel)) return { show: false, copyKeys: [] };
   const copyKeys: HintCopyKey[] = [HINT_COPY.bluetoothBanner];
   if (isIosFamily(i.osFamily)) copyKeys.push(HINT_COPY.airpodsHint);
   return { show: true, copyKeys };
