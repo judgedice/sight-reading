@@ -151,7 +151,7 @@ impl SessionInfo {
 pub enum SessionEvent {
     /// iOS `interruptionNotification`, type began (a call, an alarm, Siri). Streams stop.
     InterruptionBegan,
-    /// iOS interruption ended; the session has been activated again when the OS allows.
+    /// iOS interruption ended. The audio layer restarts its streams itself when `should_resume` is set.
     InterruptionEnded {
         /// The OS says the app may resume (`shouldResume`).
         #[serde(default)]

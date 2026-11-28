@@ -208,8 +208,8 @@ class AudioSessionPlugin: Plugin {
       if let options = note.userInfo?[AVAudioSessionInterruptionOptionKey] as? UInt {
         resume = AVAudioSession.InterruptionOptions(rawValue: options).contains(.shouldResume)
       }
-      // The system deactivated the session when the interruption began; bring it back before the app reopens.
-      try? apply(lastConfig)
+      // The audio layer (cpal) reactivates the session and restarts its streams itself when shouldResume is set.
+      // When it is not, nothing runs until the app opens the audio again, which configures the session.
       emit(SessionEvent(kind: "interruptionEnded", shouldResume: resume))
     @unknown default:
       break

@@ -1,0 +1,162 @@
+name: native-mobile
+
+# Mobile builds of the Tauri 2 shell (src-tauri/). Nothing here is signed with a store identity and no secret is used.
+#
+# The generated projects (src-tauri/gen/android, src-tauri/gen/apple) are not in git. Each job runs
+# `tauri android|ios init`, which writes them from tauri.conf.json (identifier, minimum OS versions), Info.ios.plist
+# (microphone usage text) and the session plugin's own manifest and Swift package (src-tauri/plugins/). See
+# docs/native/MOBILE.md.
+#
+# What a signed build would need, kept out of this file on purpose:
+#   iOS device or TestFlight: an Apple Developer team id (APPLE_DEVELOPMENT_TEAM, or bundle.iOS.developmentTeam),
+#     a signing certificate and provisioning profile (or an App Store Connect API key: APPLE_API_ISSUER,
+#     APPLE_API_KEY, APPLE_API_KEY_PATH) and `tauri ios build --export-method app-store-connect`. A free personal
+#     team is enough to run on one's own phone from Xcode, not to upload.
+#   Android release: an upload keystore and its passwords wired into app/build.gradle.kts through a
+#     keystore.properties file written by the job from secrets, then `tauri android build --aab`.
+# Both would be added as separate, manually started jobs once the secrets exist.
+
+on:
+  push:
+    branches: [claude/native-tauri]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: native-mobile-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      NDK_VERSION: 27.2.12479018
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      # Installs the command-line tools, accepts the licences (so Gradle may fetch the platform and build tools it
+      # asks for) and puts the NDK where the Tauri CLI looks for it.
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools ndk;${{ env.NDK_VERSION }}
+      - name: Point the Tauri CLI at the NDK
+        run: |
+          echo "NDK_HOME=$ANDROID_HOME/ndk/$NDK_VERSION" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/$NDK_VERSION" >> "$GITHUB_ENV"
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          key: android
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('src-tauri/Cargo.lock', 'src-tauri/tauri.conf.json', 'src-tauri/plugins/**/build.gradle.kts') }}
+          restore-keys: gradle-${{ runner.os }}-
+      - run: pnpm install --frozen-lockfile
+      - name: Generate the Android project
+        run: pnpm tauri android init --ci
+      # `tauri android init` writes the default launcher icons; this replaces them with the app's.
+      - name: Launcher icons
+        run: pnpm tauri icon src-tauri/icons/icon.png
+      - name: Debug APK (arm64)
+        run: pnpm tauri android build --debug --apk --target aarch64
+      - name: Locate the APK
+        run: |
+          find src-tauri/gen/android/app/build/outputs -name '*.apk' -print
+          test -n "$(find src-tauri/gen/android/app/build/outputs -name '*.apk')"
+      # The debug build is signed with the Gradle debug key, which is enough for `adb install`. It is not a release.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sightread-android-debug-apk
+          path: src-tauri/gen/android/app/build/outputs/apk/**/*.apk
+          if-no-files-found: error
+      - name: Merged manifest (permissions and features)
+        if: always()
+        run: |
+          find src-tauri/gen/android/app/build/intermediates -name AndroidManifest.xml -path '*debug*' -print -exec grep -E 'uses-permission|uses-feature|minSdk' {} + || true
+
+  ios:
+    runs-on: macos-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios,aarch64-apple-ios-sim
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          key: ios
+      - run: pnpm install --frozen-lockfile
+      # The Tauri CLI generates the Xcode project from a template through XcodeGen.
+      - name: XcodeGen
+        run: brew list xcodegen >/dev/null 2>&1 || brew install xcodegen
+      - name: Generate the Xcode project
+        run: pnpm tauri ios init --ci
+      - name: App icons
+        run: pnpm tauri icon src-tauri/icons/icon.png
+      # No development team is set, so a device build cannot be signed here; the simulator build needs no signing.
+      # First try the CLI (it prepares the web assets and registers the Swift plugin package); if it stops at the
+      # signing and export step, build the generated project with xcodebuild and signing switched off.
+      - name: Simulator build with the Tauri CLI
+        id: cli
+        continue-on-error: true
+        run: pnpm tauri ios build --debug --target aarch64-sim --ci 2>&1 | tee /tmp/ios-cli.log
+        shell: bash
+      - name: Simulator build with xcodebuild (signing off)
+        if: steps.cli.outcome == 'failure'
+        shell: bash
+        run: |
+          set -eo pipefail
+          pnpm build
+          cd src-tauri/gen/apple
+          PROJECT=$(ls -d ./*.xcodeproj | head -1)
+          SCHEME=$(xcodebuild -list -json -project "$PROJECT" | python3 -c 'import json,sys; s=json.load(sys.stdin)["project"]["schemes"]; print(next(x for x in s if x.endswith("_iOS")))')
+          echo "project=$PROJECT scheme=$SCHEME"
+          xcodebuild build -project "$PROJECT" -scheme "$SCHEME" -configuration debug \
+            -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build ARCHS=arm64 ONLY_ACTIVE_ARCH=YES \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            2>&1 | tee /tmp/ios-xcodebuild.log
+      - name: Collect the simulator app
+        shell: bash
+        run: |
+          set -eo pipefail
+          APP=$(find src-tauri/gen/apple -type d -name '*.app' -path '*iphonesimulator*' | head -1)
+          if [ -z "$APP" ]; then APP=$(find src-tauri/gen/apple -type d -name '*.app' | head -1); fi
+          test -n "$APP" || { echo "no .app was produced"; exit 1; }
+          echo "app=$APP"
+          plutil -p "$APP/Info.plist" | grep -E 'CFBundleIdentifier|MinimumOSVersion|NSMicrophoneUsageDescription|UIBackgroundModes' || true
+          mkdir -p out && ditto -c -k --keepParent "$APP" out/sightread-ios-simulator.app.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sightread-ios-simulator-app
+          path: out/sightread-ios-simulator.app.zip
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ios-build-logs
+          path: /tmp/ios-*.log
+          if-no-files-found: ignore

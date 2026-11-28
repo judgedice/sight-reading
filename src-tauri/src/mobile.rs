@@ -18,7 +18,7 @@ use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
 
 use sr_audio_core::latency::{LatencyParts, LatencyReport, Platform, Transport};
 use sr_audio_device::{DeviceError, DeviceEvent, DeviceIo, EngineFactory, InterruptionReason, OpenConfig, OpenInfo, RouteFacts, StreamKind};
-use tauri_plugin_sr_audio_session::{FocusState, PermissionState, PortTransport, SessionConfig, SessionEvent, SessionInfo};
+use tauri_plugin_sr_audio_session::{FocusState, PermissionState, PortTransport, SessionConfig, SessionEvent, SessionInfo, DEFAULT_IO_BUFFER_SEC, DEFAULT_SAMPLE_RATE};
 
 use crate::audio::{AudioEvent, EventSink};
 
@@ -172,6 +172,13 @@ pub fn android_buffer_frames(default_request: u32, burst: Option<u32>) -> Option
     Some(default_request.div_ceil(burst) * burst)
 }
 
+/// iOS callback size: the session's preferred IO buffer (5 ms) at the preferred rate, in frames. cpal sets the
+/// session's IO buffer duration from the size it is asked for, after the plugin has configured the session, so the
+/// preference only holds when this size is what cpal is asked for.
+pub fn ios_buffer_frames() -> u32 {
+    (DEFAULT_IO_BUFFER_SEC * DEFAULT_SAMPLE_RATE).round() as u32
+}
+
 /// The `route` event for `info`.
 pub fn route_event(info: &OpenInfo) -> AudioEvent {
     AudioEvent::Route { route: (&info.route).into(), latency: info.latency.into(), engine_rate: info.engine_rate }
@@ -269,8 +276,12 @@ impl DeviceIo for SessionIo {
     fn open(&mut self, mut cfg: OpenConfig, make_engine: EngineFactory, events: Sender<DeviceEvent>) -> Result<OpenInfo, DeviceError> {
         let session = self.api.configure(SessionConfig::default()).map_err(|e| DeviceError::Backend(format!("audio session: {e}")))?;
         self.configured = true;
-        if self.platform == Platform::Android && cfg.buffer_frames.is_none() {
-            cfg.buffer_frames = android_buffer_frames(256, session.output_frames_per_buffer);
+        if cfg.buffer_frames.is_none() {
+            cfg.buffer_frames = match self.platform {
+                Platform::Android => android_buffer_frames(256, session.output_frames_per_buffer),
+                Platform::Ios => Some(ios_buffer_frames()),
+                _ => None,
+            };
         }
         let base = match self.inner.open(cfg, make_engine, events.clone()) {
             Ok(info) => info,

@@ -152,6 +152,37 @@ fn android_buffer_is_a_whole_number_of_bursts() {
 }
 
 #[test]
+fn ios_buffer_is_five_milliseconds_at_48k() {
+    assert_eq!(ios_buffer_frames(), 240);
+}
+
+#[test]
+fn on_ios_the_default_buffer_is_the_sessions_preference() {
+    let log = Arc::new(Mutex::new(Vec::new()));
+    let script = Script::new(Arc::clone(&log), ios_session());
+    let (sink, _rx) = collecting_sink();
+    let mut device = SessionIo::new(Box::new(fake(&log, false)), script, Arc::clone(&sink));
+    device.platform = Platform::Ios;
+    let host = AudioHost::default();
+    host.open_with(Box::new(device), OpenConfig::default(), sink).unwrap();
+    assert_eq!(log.lock().unwrap()[1], "open buffer=Some(240)");
+    host.close();
+}
+
+#[test]
+fn an_explicit_buffer_request_is_kept() {
+    let log = Arc::new(Mutex::new(Vec::new()));
+    let script = Script::new(Arc::clone(&log), ios_session());
+    let (sink, _rx) = collecting_sink();
+    let mut device = SessionIo::new(Box::new(fake(&log, false)), script, Arc::clone(&sink));
+    device.platform = Platform::Ios;
+    let host = AudioHost::default();
+    host.open_with(Box::new(device), OpenConfig { buffer_frames: Some(64), ..OpenConfig::default() }, sink).unwrap();
+    assert_eq!(log.lock().unwrap()[1], "open buffer=Some(64)");
+    host.close();
+}
+
+#[test]
 fn session_events_map_to_interruptions_and_routes() {
     let interrupted = Some(DeviceEvent::Interruption { stream: StreamKind::Output, reason: InterruptionReason::Interrupted });
     assert_eq!(device_event_for(&SessionEvent::InterruptionBegan), interrupted);
