@@ -50,6 +50,12 @@
     "macOS": {
       "minimumSystemVersion": "11.0",
       "entitlements": "./Entitlements.plist"
+    },
+    "iOS": {
+      "minimumSystemVersion": "15.0"
+    },
+    "android": {
+      "minSdkVersion": 26
     }
   }
 }

@@ -44,7 +44,15 @@ jobs:
         if: always()
         with:
           name: smoke-linux
-          path: tools/native/artifacts/
+          path: tools/native/artifacts/*.png
+          if-no-files-found: warn
+      - name: End-to-end test (real UI on the fake audio device)
+        run: pnpm native:e2e:linux
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: e2e-linux
+          path: tools/native/artifacts/e2e/
           if-no-files-found: warn
       - name: Rust tests (no sound card needed)
         run: cargo test --workspace --all-features

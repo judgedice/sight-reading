@@ -1,0 +1,21 @@
+[package]
+name = "tauri-plugin-sr-audio-session"
+version = "0.1.0"
+description = "Audio session, microphone permission and route facts for the Sightread mobile shells (Swift on iOS, Kotlin on Android, a no-op on desktop). Called by the app's audio layer in Rust; it exposes no command to the webview."
+edition = "2021"
+rust-version = "1.85"
+publish = false
+exclude = ["/.tauri"]
+links = "tauri-plugin-sr-audio-session"
+
+[dependencies]
+tauri = { version = "2", default-features = false }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+
+[target.'cfg(target_os = "ios")'.dependencies]
+tauri = { version = "2", default-features = false, features = ["wry"] }
+
+[build-dependencies]
+tauri-plugin = { version = "=2.8.0", features = ["build"] }

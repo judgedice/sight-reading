@@ -1,4 +1,5 @@
 pub mod audio;
+pub mod mobile;
 
 use serde::Serialize;
 
@@ -25,7 +26,11 @@ fn app_info() -> AppInfo {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let builder = tauri::Builder::default();
+    // Mobile only: the audio session plugin (microphone permission, session, route facts).
+    #[cfg(mobile)]
+    let builder = mobile::register(builder);
+    builder
         .manage(audio::AudioHost::default())
         .invoke_handler(tauri::generate_handler![
             app_info,

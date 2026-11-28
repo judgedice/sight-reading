@@ -948,6 +948,17 @@ fn fake_device(host: &AudioHost) -> Result<Box<dyn DeviceIo>, String> {
     Ok(Box::new(FakeIo::new(FakeConfig { signal_control: host.inner.signal.clone(), ..FakeConfig::from_env()? })))
 }
 
+/// The real device: cpal, and on mobile cpal inside the session wrapper (`crate::mobile::SessionIo`), which
+/// configures the audio session before the streams open and fills route and latency facts from the plugin.
+fn real_device(sink: &EventSink) -> Box<dyn DeviceIo> {
+    #[cfg(mobile)]
+    if let Some(api) = crate::mobile::session() {
+        return Box::new(crate::mobile::SessionIo::new(Box::new(CpalIo::new()), api, Arc::clone(sink)));
+    }
+    let _ = sink;
+    Box::new(CpalIo::new())
+}
+
 /// Which device to open: `SR_AUDIO_DEVICE=fake` forces the fake; otherwise cpal, and when cpal cannot open and
 /// `SR_AUDIO_ALLOW_FAKE=1`, the fake. Otherwise the error says what happened.
 pub fn open_selected(host: &AudioHost, cfg: OpenConfig, sink: EventSink) -> Result<OpenInfoJson, String> {
@@ -955,7 +966,7 @@ pub fn open_selected(host: &AudioHost, cfg: OpenConfig, sink: EventSink) -> Resu
     if env("SR_AUDIO_DEVICE").as_deref() == Some("fake") {
         return host.open_with(fake_device(host)?, cfg, sink).map_err(|e| e.to_string());
     }
-    match host.open_with(Box::new(CpalIo::new()), cfg.clone(), Arc::clone(&sink)) {
+    match host.open_with(real_device(&sink), cfg.clone(), Arc::clone(&sink)) {
         Ok(info) => Ok(info),
         Err(e @ DeviceError::PermissionDenied) => Err(e.to_string()),
         Err(e) if env("SR_AUDIO_ALLOW_FAKE").as_deref() == Some("1") => {
@@ -1014,10 +1025,15 @@ impl AudioHost {
 
 /// `audio_permission` without a request: the microphone permission as the platform reports it, never prompting.
 /// macOS: the capture authorization status (`granted`, `denied`, `prompt`). Linux and Windows: `granted` when an
-/// input device can be enumerated, else `unknown`. The fake device is always `granted`.
+/// input device can be enumerated, else `unknown`. iOS and Android: the session plugin's answer. The fake device
+/// is always `granted`.
 pub fn permission_state() -> &'static str {
     if std::env::var("SR_AUDIO_DEVICE").as_deref() == Ok("fake") {
         return "granted";
+    }
+    #[cfg(mobile)]
+    if let Some(state) = crate::mobile::permission_state() {
+        return state;
     }
     sr_audio_device::permission::microphone_state().as_str()
 }
@@ -1029,6 +1045,10 @@ pub fn permission_state() -> &'static str {
 pub fn permission_request() -> &'static str {
     if std::env::var("SR_AUDIO_DEVICE").as_deref() == Ok("fake") {
         return "granted";
+    }
+    #[cfg(mobile)]
+    if let Some(state) = crate::mobile::request_permission() {
+        return state;
     }
     let (tx, rx) = std::sync::mpsc::channel();
     sr_audio_device::permission::request_microphone(move |p| {

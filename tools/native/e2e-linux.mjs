@@ -10,7 +10,7 @@
 // The app must have been started with SR_AUDIO_DEVICE=fake SR_E2E_HOOKS=1 SR_E2E_SEED=<n> SR_FAKE_LOOP_MS=<loop ms> (the shell
 // script does this). Writes <artifact dir>/e2e-<scenario>.json and screenshots; exits 1 when a check fails.
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -180,7 +180,7 @@ try {
   const permission = await invoke('audio_permission', { request: false });
   R.stages.mic.permission = permission;
   await click('Allow microphone');
-  const hearShown = await waitFor(`${testid('ob-hear')} || ${testid('calibration-card')} || ${testid('ob-mic')}?.querySelector('[role=alert]')`, 'the stage after the microphone', 30000);
+  await waitFor(`${testid('ob-hear')} || ${testid('calibration-card')} || ${testid('ob-mic')}?.querySelector('[role=alert]')`, 'the stage after the microphone', 30000);
   const afterMic = await sync(`return { hear: !!${testid('ob-hear')}, timing: !!${testid('calibration-card')}, problem: !!document.querySelector('[data-testid^="mic-"]') }`);
   check(afterMic.hear, `microphone granted: the Hear you stage opened (permission state before the click: ${permission})`);
 
@@ -274,7 +274,7 @@ try {
   await click('Start practice', 'Start practice', { prefix: true });
   await waitFor(testid('scan-cover'), 'the cover', 30000);
   await shot('cover');
-  await click('Show the music');
+  await click('Show the music', 'Show the music', { prefix: true });
   await waitFor(`document.querySelector('[data-testid="screen-practice.scan"]')?.dataset.state === 'scanning'`, 'the read-through', 15000);
   await waitFor(`document.querySelector('[data-expected-idx]')`, 'the notation', 30000);
   await waitFor(`document.fonts.check('30pt Bravura')`, 'the notation font', 15000);
@@ -291,7 +291,7 @@ try {
 
   await page(`sr.audio.resetPacketDelays(); window.__e2e.faults.length = 0;`);
   const before = await page(`return sr.audio.voiceStats();`);
-  await click('Start playing');
+  await click('Start playing', 'Start playing', { prefix: true });
   await waitFor(`${testid('screen-practice.play')}`, 'the play screen', 15000);
   const clock = await waitFor(`window.__sr.session.takeClock && JSON.stringify(window.__sr.session.takeClock)`, 'the take clock', 15000).then(JSON.parse);
   const nowSec = (await invoke('audio_clock_sync')).engineSec;
@@ -336,17 +336,16 @@ try {
   check(after.stats.rejected - before.rejected === 0 && after.stats.late - before.late === 0, `no rejected or late voice during the try (rejected ${after.stats.rejected - before.rejected}, late ${after.stats.late - before.late})`);
 
   // ---- (e) Listen with a sampled instrument set, metronome previews --------------------------------------------------------
-  await click('Next piece');
+  await click('Next piece', 'Next piece', { prefix: true });
   await waitFor(testid('scan-cover'), 'the next cover', 30000);
-  await click('Show the music');
+  await click('Show the music', 'Show the music', { prefix: true });
   await waitFor(`document.querySelector('[data-testid="screen-practice.scan"]')?.dataset.state === 'scanning'`, 'the next read-through', 15000);
   await waitFor(`document.querySelector('[data-expected-idx]')`, 'the notation', 30000);
   const l0 = await page(`return sr.audio.voiceStats();`);
-  await click('Listen', 'Listen', { timeoutMs: 15000 });
+  await click('Listen', 'Listen', { timeoutMs: 15000, prefix: true });
   await waitFor(`window.__sr.audio.voiceStats().voices > ${l0.voices}`, 'Listen voices to be scheduled', 20000);
   await sleep(700);
   await shot('listen');
-  const l1 = await page(`return { stats: sr.audio.voiceStats(), flute: sr.audio.soundState('flute'), state: sr.session.state };`);
   await waitFor(`window.__sr.audio.voiceStats().ended >= window.__sr.audio.voiceStats().voices`, 'every Listen voice to end', 90000);
   const l2 = await page(`return { stats: sr.audio.voiceStats(), flute: sr.audio.soundState('flute') };`);
   R.measurements.listen = { scheduled: l2.stats.voices - l0.voices, ended: l2.stats.ended - l0.ended, rejected: l2.stats.rejected - l0.rejected, late: l2.stats.late - l0.late, uploads: l2.stats.uploads - l0.uploads, soundSet: l2.flute };
