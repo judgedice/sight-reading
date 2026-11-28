@@ -22,6 +22,8 @@ WORKLET="$(cd "$ROOT/dist" && ls assets/capture.worklet*.js 2>/dev/null | head -
 
 DSPW="$(cd "$ROOT/dist" && ls assets/dsp.worker*.js 2>/dev/null | head -n1 || true)"
 
+# The native audio smoke step runs on the silent fake device (no sound card needed).
+export SR_AUDIO_DEVICE=fake
 export WEBKIT_DISABLE_COMPOSITING_MODE=1
 export WEBKIT_DISABLE_DMABUF_RENDERER=1
 export NO_PROXY="127.0.0.1,localhost${NO_PROXY:+,$NO_PROXY}" no_proxy="127.0.0.1,localhost${no_proxy:+,$no_proxy}"

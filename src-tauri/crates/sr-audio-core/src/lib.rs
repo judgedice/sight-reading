@@ -7,6 +7,9 @@
 //! | [`latency`] | Reported latency parts, sums, trust class, predicted round trip |
 //! | [`decode`] | MP3 to mono PCM |
 //! | [`wire`] | Binary layouts shared with the webview |
+//! | [`capture`] | Input to packets on the engine grid: [`CaptureHalf`], [`CaptureReader`], aligner, packetizer |
+//! | [`resample`] | Windowed-sinc resampler and the drift controller of the resampled capture path |
+//! | [`synth`] | Ports of the TypeScript click, Listen note and tone renderers |
 //!
 //! This file ties them together for a device layer:
 //!
@@ -24,6 +27,7 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
+pub mod capture;
 pub mod clock;
 pub mod decode;
 pub mod latency;
@@ -41,7 +45,8 @@ use std::sync::Arc;
 
 use rtrb::{Consumer, Producer, RingBuffer};
 
-use clock::{ClockAnchor, ClockBridge, ClockPoint, RateCheck, RateCheckReport, StreamClock};
+pub use capture::{CaptureHalf, CaptureReader};
+use clock::{ClockAnchor, ClockBridge, ClockPoint, RateCheck, RateCheckReport};
 use mixer::{AudioBuffer, BufferStore, EventSink, Group, RejectReason, Scheduler, SpecError, Voice, VoiceEvent, VoiceSpec};
 
 /// Sizes of an engine. Everything is allocated once, in [`engine`].
@@ -152,6 +157,18 @@ struct Shared {
     rejected_voices: AtomicU64,
     notifications_dropped: AtomicU64,
     input_frames: AtomicU64,
+    /// Steps of the output clock (xruns, restarts), counted by the render side for the capture side.
+    output_steps: AtomicU64,
+    /// Rate uncertainty of the output clock as `f64` bits (a fraction; infinite until it has settled).
+    output_uncertainty: AtomicU64,
+    /// Input clock rate against the output clock, ppm, as `f64` bits (NaN until both have settled).
+    input_drift_ppm: AtomicU64,
+    capture_running: AtomicU64,
+    capture_packets: AtomicU64,
+    capture_frames: AtomicU64,
+    capture_dropped: AtomicU64,
+    /// Fullest the packet ring has been, microseconds of audio.
+    capture_max_ring_us: AtomicU64,
     /// Sequence lock over the three anchor words: odd while the render thread is writing; 0 = no anchor yet.
     anchor_seq: AtomicU64,
     anchor_engine_sec: AtomicU64,
@@ -306,8 +323,13 @@ pub fn engine(config: EngineConfig) -> (Engine, EngineHandle) {
     let (cmd_tx, cmd_rx) = RingBuffer::new(config.command_capacity.max(1));
     let (out_tx, out_rx) = RingBuffer::new(config.notification_capacity.max(1));
     let (garbage_tx, garbage_rx) = RingBuffer::new(config.garbage_capacity.max(1));
-    let shared = Arc::new(Shared { engine_rate: config.engine_rate, ..Shared::default() });
-    let reader = ClockReader { shared: Arc::clone(&shared) };
+    let shared = Arc::new(Shared {
+        engine_rate: config.engine_rate,
+        output_uncertainty: AtomicU64::new(f64::INFINITY.to_bits()),
+        input_drift_ppm: AtomicU64::new(f64::NAN.to_bits()),
+        ..Shared::default()
+    });
+    let (capture_half, capture_reader) = capture::channel(ClockReader { shared: Arc::clone(&shared) });
     let engine = Engine {
         scheduler: Scheduler::new(config.engine_rate, config.max_pending, config.max_sounding),
         bridge: ClockBridge::new(config.engine_rate),
@@ -315,7 +337,7 @@ pub fn engine(config: EngineConfig) -> (Engine, EngineHandle) {
         out: out_tx,
         garbage: garbage_tx,
         shared: Arc::clone(&shared),
-        capture: Some(CaptureHalf::new(reader)),
+        capture: Some(capture_half),
     };
     let handle = EngineHandle {
         engine_rate: config.engine_rate,
@@ -325,6 +347,7 @@ pub fn engine(config: EngineConfig) -> (Engine, EngineHandle) {
         shared,
         store: BufferStore::new(),
         rate_check: RateCheck::new(config.engine_rate, RATE_CHECK_POINTS),
+        capture: Some(capture_reader),
     };
     (engine, handle)
 }
@@ -382,6 +405,8 @@ impl Engine {
                         }
                     }
                     self.bridge.reset_output();
+                    self.shared.output_steps.fetch_add(1, Ordering::Relaxed);
+                    self.shared.output_uncertainty.store(f64::INFINITY.to_bits(), Ordering::Relaxed);
                 }
                 Err(_) => break,
             }
@@ -392,7 +417,11 @@ impl Engine {
         if let Some(point) = update.closed {
             sink.send(Out::Point(point));
         }
+        if update.step {
+            self.shared.output_steps.fetch_add(1, Ordering::Relaxed);
+        }
         if update.refit {
+            self.shared.output_uncertainty.store(self.bridge.output().rate_uncertainty().to_bits(), Ordering::Relaxed);
             if let Some(anchor) = self.bridge.anchor_at(host_ns) {
                 self.shared.publish_anchor(anchor);
                 sink.send(Out::Note(Notification::Clock(anchor)));
@@ -427,74 +456,6 @@ impl Engine {
     /// streams). `None` the second time.
     pub fn split_capture(&mut self) -> Option<CaptureHalf> {
         self.capture.take()
-    }
-}
-
-/// The capture side of the engine.
-///
-/// **STUB SEAM.** Only the clock observation is implemented. The capture aligner (downmix, locked and
-/// resampled paths), the packetizer with its ring, and the loopback estimator's tap plug in at the marked
-/// place in [`CaptureHalf::capture`], as new modules (`capture`, `resample`, `loopback`), without changes to
-/// the render half: this half already has what they need from it, the output clock through a lock-free
-/// [`ClockReader`].
-#[derive(Debug)]
-pub struct CaptureHalf {
-    clock: ClockReader,
-    /// `A(m)`: the input stream's clock. Created on the first callback at the engine rate; the device layer
-    /// sets the real rate with [`CaptureHalf::set_input_rate`].
-    input_clock: StreamClock,
-    /// Input frames delivered so far, frames at the input rate.
-    frames: u64,
-    /// The last output anchor read (kept when a read meets a write in progress).
-    anchor: Option<ClockAnchor>,
-}
-
-impl CaptureHalf {
-    fn new(clock: ClockReader) -> Self {
-        let rate = clock.engine_rate() as f64;
-        CaptureHalf { clock, input_clock: StreamClock::new(rate), frames: 0, anchor: None }
-    }
-
-    /// Declares the input stream's nominal rate, Hz, and restarts its clock. Call before the stream starts
-    /// (not from the callback).
-    pub fn set_input_rate(&mut self, input_rate: u32) {
-        self.input_clock = StreamClock::new(input_rate as f64);
-        self.frames = 0;
-    }
-
-    /// The input stream's clock (`A(m)` is [`StreamClock::host_ns_at`]).
-    pub fn input_clock(&self) -> &StreamClock {
-        &self.input_clock
-    }
-
-    /// The output anchor this half last read; with [`CaptureHalf::input_clock`] it gives `p(m) = R(A(m))`.
-    pub fn output_anchor(&self) -> Option<ClockAnchor> {
-        self.anchor
-    }
-
-    /// Input frames delivered so far.
-    pub fn frames(&self) -> u64 {
-        self.frames
-    }
-
-    /// The input callback. Realtime: one clock observation (constant work, bounded refit), a bounded
-    /// lock-free read of the output anchor, two atomic stores. No allocation, lock or system call.
-    pub fn capture(&mut self, host_ns: u64, input: &[f32], channels: usize) {
-        if channels == 0 {
-            return;
-        }
-        self.frames += (input.len() / channels) as u64;
-        self.input_clock.observe(host_ns, self.frames);
-        if let Ok(a) = self.clock.anchor_bounded(4) {
-            self.anchor = a;
-        }
-        self.clock.shared.input_frames.store(self.frames, Ordering::Relaxed);
-        // ---- CAPTURE SEAM (next task) -------------------------------------------------------------------
-        // Here: downmix `input` to mono; CaptureAligner (locked: pass through with an integer offset fixed at
-        // capture start; resampled: SincResampler steered by DriftController) using `self.input_clock` and
-        // `self.anchor`; Packetizer into the capture ring with `wire::encode_packet_into`; tap for the
-        // LoopbackEstimator. Capture start and stop arrive as commands on a ring of this half's own.
-        // -------------------------------------------------------------------------------------------------
     }
 }
 
@@ -558,6 +519,7 @@ pub struct EngineHandle {
     shared: Arc<Shared>,
     store: BufferStore,
     rate_check: RateCheck,
+    capture: Option<CaptureReader>,
 }
 
 impl fmt::Debug for EngineHandle {
@@ -707,7 +669,19 @@ impl EngineHandle {
     /// The running clock-rate check over the last `dur_sec` seconds (`audio_clock_check`), from the points
     /// that [`EngineHandle::poll`] has collected. Not consistent until that much time has been polled.
     pub fn rate_check(&self, dur_sec: f64) -> RateCheckReport {
-        self.rate_check.check(dur_sec)
+        let ppm = f64::from_bits(self.shared.input_drift_ppm.load(Ordering::Relaxed));
+        RateCheckReport { input_drift_ppm: if ppm.is_finite() { Some(ppm) } else { None }, ..self.rate_check.check(dur_sec) }
+    }
+
+    /// Takes the control side of capture out of the handle (start, stop, events, packets), so that the pump
+    /// thread can own it. `None` the second time.
+    pub fn take_capture_reader(&mut self) -> Option<CaptureReader> {
+        self.capture.take()
+    }
+
+    /// The control side of capture while it is still in the handle.
+    pub fn capture_reader(&mut self) -> Option<&mut CaptureReader> {
+        self.capture.as_mut()
     }
 
     /// Counters since the engine was created.

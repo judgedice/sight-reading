@@ -312,6 +312,7 @@ pub enum StreamName {
 
 /// `AudioEvent` of the design. `Late` is an addition (see the report): later `Late` notifications of the engine.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[allow(clippy::large_enum_variant)] // events are built and sent one at a time; boxing would only add noise
 #[serde(tag = "type", rename_all = "camelCase", rename_all_fields = "camelCase")]
 pub enum AudioEvent {
     /// Every 250 ms.

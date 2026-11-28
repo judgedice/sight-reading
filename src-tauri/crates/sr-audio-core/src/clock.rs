@@ -212,8 +212,8 @@ fn hull_slope<const N: usize>(pts: &[Pt]) -> f64 {
     (b.y - a.y) / (b.h - a.h)
 }
 
-/// Least-squares slope of `y` against `h`.
-fn lsq_slope(pts: &[Pt]) -> f64 {
+/// Least-squares slope of `y` against `h`, and its standard error.
+fn lsq_slope(pts: &[Pt]) -> (f64, f64) {
     let n = pts.len() as f64;
     let (mut mh, mut my) = (0.0, 0.0);
     for p in pts {
@@ -227,7 +227,13 @@ fn lsq_slope(pts: &[Pt]) -> f64 {
         sxy += (p.h - mh) * (p.y - my);
         sxx += (p.h - mh) * (p.h - mh);
     }
-    sxy / sxx
+    let slope = sxy / sxx;
+    let mut res = 0.0;
+    for p in pts {
+        let r = p.y - my - slope * (p.h - mh);
+        res += r * r;
+    }
+    (slope, (res / (n - 2.0).max(1.0) / sxx).sqrt())
 }
 
 /// Stream frames as a line in host time, from callback observations `(host_ns, frames)`.
@@ -264,6 +270,8 @@ pub struct StreamClock {
     ds: f64,
     /// `ds` has come from data at least once.
     slope_fitted: bool,
+    /// Rough standard error of `ds`, frames per host second (infinite until `slope_fitted`).
+    ds_error: f64,
     line: Option<Line>,
     last_fit_ns: u64,
     steps: u64,
@@ -280,6 +288,7 @@ impl StreamClock {
             long: Window::new(LONG_BUCKET_NS),
             ds: 0.0,
             slope_fitted: false,
+            ds_error: f64::INFINITY,
             line: None,
             last_fit_ns: 0,
             steps: 0,
@@ -338,14 +347,16 @@ impl StreamClock {
                 }
             }
         }
-        let slope = if self.long.len >= LONG_MIN_POINTS {
+        let from_long = self.long.len >= LONG_MIN_POINTS;
+        let (slope, long_error) = if from_long {
             lsq_slope(self.long.pts())
         } else if self.fine.span_sec() >= MIN_SLOPE_SPAN_SEC {
-            hull_slope::<WINDOW_BUCKETS>(self.fine.pts())
+            (hull_slope::<WINDOW_BUCKETS>(self.fine.pts()), 0.0)
         } else {
-            f64::NAN
+            (f64::NAN, 0.0)
         };
-        if slope.is_finite() && slope.abs() <= MAX_SLOPE_DEVIATION * self.nominal {
+        let fitted = slope.is_finite() && slope.abs() <= MAX_SLOPE_DEVIATION * self.nominal;
+        if fitted {
             self.ds = slope;
             self.slope_fitted = true;
         }
@@ -353,6 +364,16 @@ impl StreamClock {
         let touch = highest(self.fine.pts(), self.ds).or(self.fine.open);
         if let Some(t) = touch {
             self.line = Some(Line { h0: t.h, y0: t.y, ds: self.ds });
+            if fitted {
+                self.ds_error = if from_long {
+                    long_error
+                } else {
+                    // Hull slope: the mean distance of the points below the line, over the span.
+                    let pts = self.fine.pts();
+                    let slack: f64 = pts.iter().map(|p| t.y + self.ds * (p.h - t.h) - p.y).sum::<f64>() / pts.len() as f64;
+                    slack.max(0.0) / self.fine.span_sec().max(1e-3)
+                };
+            }
         }
         step
     }
@@ -378,6 +399,27 @@ impl StreamClock {
         let (o, l) = (self.origin?, self.line?);
         let h = (frames - o.frames as f64 - l.y0 + l.ds * l.h0) / (self.nominal + l.ds);
         Some(o.host_ns as f64 + h * 1e9)
+    }
+
+    /// Stream position at the fractional host time `host_ns` (nanoseconds), frames. As
+    /// [`StreamClock::frames_at`], for host times that come out of another clock's line.
+    pub fn frames_at_f64(&self, host_ns: f64) -> Option<f64> {
+        let (o, l) = (self.origin?, self.line?);
+        let h = (host_ns - o.host_ns as f64) * 1e-9;
+        Some(o.frames as f64 + self.nominal * h + l.y0 + l.ds * (h - l.h0))
+    }
+
+    /// True once the slope has been fitted from data (the stream has run for a good second). Before that
+    /// positions can be a few milliseconds off.
+    pub fn is_settled(&self) -> bool {
+        self.slope_fitted
+    }
+
+    /// Rough standard error of the fitted rate as a fraction of the nominal rate (1e-6 = 1 ppm); infinite
+    /// until [`StreamClock::is_settled`]. From the scatter of the points about the line, so it is 0 for
+    /// perfectly regular callbacks.
+    pub fn rate_uncertainty(&self) -> f64 {
+        self.ds_error / self.nominal
     }
 
     /// Fitted rate, frames per host second. `None` before the first observation.
@@ -621,6 +663,11 @@ pub struct RateCheckReport {
     pub frames_per_sec: f64,
     /// Nominal engine rate, Hz.
     pub expected: f64,
+    /// Rate of the input stream's clock against the output stream's, parts per million (positive: the input
+    /// delivers frames faster than its nominal rate, measured on the engine clock). `None` from
+    /// [`RateCheck::check`] itself and until both clocks have settled; [`crate::EngineHandle::rate_check`]
+    /// fills it in.
+    pub input_drift_ppm: Option<f64>,
     /// The underlying fit.
     pub fit: ClockFit,
 }
@@ -674,6 +721,7 @@ impl RateCheck {
             consistent: fit.consistent,
             frames_per_sec: self.engine_rate * (1.0 + fit.error),
             expected: self.engine_rate,
+            input_drift_ppm: None,
             fit,
         }
     }

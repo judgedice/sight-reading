@@ -64,6 +64,62 @@ try {
   if (!version || os !== 'linux' || !arch) throw new Error(`unexpected app_info: ${JSON.stringify(info.v)}`);
   out(`ok  IPC app_info: ${JSON.stringify(info.v)}`);
 
+  // 2b. Native audio output on the fake device (the shell is started with SR_AUDIO_DEVICE=fake): open, put a short
+  // buffer, schedule it 200 ms ahead, wait for its `ended` event, close. Raw payloads are plain Uint8Arrays; the events
+  // Channel is built from `transformCallback` because the JS API package is not loaded in the page (it serialises as
+  // `__CHANNEL__:<id>` and delivers `{ message, index }`).
+  const audio = await async_(
+    `const done = arguments[arguments.length - 1];
+     (async () => {
+       const T = window.__TAURI_INTERNALS__;
+       const log = [];
+       const events = [];
+       const channel = {
+         id: T.transformCallback((raw) => { if (raw && 'message' in raw) events.push(raw.message); }),
+         toJSON() { return '__CHANNEL__:' + this.id; },
+       };
+       const step = async (name, p) => { try { const v = await p; log.push(name + ': ok'); return v; } catch (e) { throw new Error(name + ' failed: ' + (typeof e === 'string' ? e : JSON.stringify(e))); } };
+       try {
+         const info = await step('audio_open', T.invoke('audio_open', { input: false, outputMode: 'speakers', events: channel }));
+         if (!(info.engineRate > 0) || info.inFrames !== null) throw new Error('unexpected OpenInfo ' + JSON.stringify(info));
+         const n = 4800;
+         const bytes = new Uint8Array(16 + n * 4);
+         const dv = new DataView(bytes.buffer);
+         bytes.set([0x53, 0x52, 0x42, 0x31], 0); // 'SRB1'
+         dv.setUint32(4, 1, true); dv.setUint32(8, info.engineRate, true); dv.setUint32(12, n, true);
+         dv.setFloat32(16, 0.25, true);
+         await step('audio_put_buffer', T.invoke('audio_put_buffer', bytes));
+         const sync = await step('audio_clock_sync', T.invoke('audio_clock_sync'));
+         const t = sync.engineSec + 0.2;
+         const sched = await step('audio_schedule', T.invoke('audio_schedule', { group: 'sounds', voices: [{ id: 1, buffer: 1, t, gain: 0.5 }] }));
+         if (!Array.isArray(sched.late) || sched.late.length !== 0) throw new Error('voice was late: ' + JSON.stringify(sched));
+         const deadline = Date.now() + 8000;
+         const ended = () => events.some((e) => e.type === 'ended' && e.ids.includes(1));
+         while (!ended() && Date.now() < deadline) await new Promise((r) => setTimeout(r, 25));
+         if (!ended()) throw new Error('no ended event for voice 1; events: ' + JSON.stringify(events));
+         log.push('ended event received after ' + events.length + ' events (' + events.filter((e) => e.type === 'clock').length + ' clock)');
+         // Raw request and raw response: decode a real sample shipped with the app (u32 id + MP3 bytes in, u32 rate,
+         // u32 frames, f32 samples out).
+         const mp3 = new Uint8Array(await (await fetch('/sounds/flute/A4.mp3')).arrayBuffer());
+         const req = new Uint8Array(4 + mp3.length);
+         new DataView(req.buffer).setUint32(0, 2, true);
+         req.set(mp3, 4);
+         const reply = await step('audio_decode', T.invoke('audio_decode', req));
+         const rdv = new DataView(reply instanceof ArrayBuffer ? reply : reply.buffer);
+         const rate = rdv.getUint32(0, true), frames = rdv.getUint32(4, true);
+         if (!(rate > 0 && frames > 1000 && rdv.byteLength === 8 + frames * 4)) throw new Error('bad decode reply: rate ' + rate + ' frames ' + frames + ' bytes ' + rdv.byteLength);
+         log.push('decoded ' + frames + ' frames at ' + rate + ' Hz');
+         await step('audio_close', T.invoke('audio_close'));
+         done({ ok: true, log, engineRate: info.engineRate, outFrames: info.outFrames });
+       } catch (e) {
+         try { await T.invoke('audio_close'); } catch { /* best effort */ }
+         done({ ok: false, error: String(e && e.message || e), log, events });
+       }
+     })();`,
+  );
+  if (!audio.ok) throw new Error(`native audio failed: ${audio.error} | log: ${audio.log.join('; ')} | events: ${JSON.stringify(audio.events)}`);
+  out(`ok  native audio on fake device: ${audio.log.join('; ')} (rate ${audio.engineRate}, buffer ${audio.outFrames})`);
+
   // 3. Origin facts (informational unless noted).
   const facts = await async_(
     `const done = arguments[arguments.length - 1];
