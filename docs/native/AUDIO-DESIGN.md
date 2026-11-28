@@ -67,19 +67,19 @@ cpal's `StreamInstant` has a per-stream origin and cannot be compared across str
 - Output `StreamClock`: observation `(host_ns, framesRenderedBeforeThisCallback)`. Fit `R(h)`, the render head at host time `h`.
 - Input `StreamClock`: observation `(host_ns, framesDeliveredIncludingThisCallback)`. Fit `A(m)`, the host time input frame `m` arrived.
 - A callback can be late, never early, so the truth lies on or above every observation. Per 100 ms bucket only the earliest observation is kept, over a 4 s window. The line, refitted every 250 ms: its offset touches those points from above; its slope is a least-squares fit through the earliest observation of each 1 s bucket over 32 s once 8 exist, before that (from 1 s on) the edge of the 4 s window's upper convex hull over its centre, before 1 s the nominal rate. A plain least-squares line through the bucket points, as first designed, sits 0.14 to 0.43 ms below the truth with 3 ms of jitter. Measured: under 0.02 ms from 10 s on for 128, 256 and 480-frame callbacks; from 2 s on under 0.05 ms at 128 frames and up to 0.13 ms at 480.
-- Step: when the newest 0.5 s lies more than 0.5 ms off the line through the rest (an xrun), the older points are dropped and `ClockUpdate.step` is set. A capture in progress fixes its mapping again and flags its packets (bit 4); the grid breaks there, which the receiver sees as a gap.
+- Step: when, in two refits running, the newest 0.5 s lies off the line through the rest by more than 0.5 ms and more than three times the window's own scatter (an xrun), the older points are dropped and `ClockUpdate.step` is set. Without the scatter term rough callback timing alone fired it (480 frames with 5 ms jitter: 3 steps in 120 s and 0.66 ms error; now 0 steps, 0.07 ms). A 10 ms xrun is found after 0.8 to 0.9 s. A capture in progress ends there: its last packet carries bits 3 and 4. A loss too small to be a step is not seen as one; on the locked path it shows as drift (below).
 - Engine position of input frame `m`: `p(m) = R(A(m))`, in output frames. Ratio `r = dp/dm`.
 
-A capture starts at the first input callback at which both clocks have a fitted slope (about 1.2 s after open, at once later) and is announced by a `Started` event; `audio_capture_start` waits for it. `CaptureAligner` then picks a path:
+A capture starts at the first input callback at which the two clock fits together place a frame within 0.1 ms (rate uncertainty over 2.5 s), and is announced by a `Started` event; `audio_capture_start` waits for it (up to 14 s). That is at once on streams that have run a while, about 1.2 s after open or after an output restart with regular callbacks, and 5 to 9 s with 3 ms of callback jitter; after 12 s it starts anyway, resampled. `CaptureAligner` then picks a path:
 
-- **Locked**: samples pass through untouched. `p(m) = m + C`, `C = round(R(A(m)) - m)` fixed at capture start. Chosen when the device layer says the clocks are shared (`ClockRelation::Shared`: one device, or one non-zero CoreAudio clock domain) and the rates are equal; or, with unknown clocks, when the rates are equal and the measured rate difference plus the uncertainty of both fits is under 5 ppm (with jittery callbacks that takes about 9 s; until then the choice is resampled). The monitor reports `drift = R(A(m)) - (m + C)`; above 1 ms it sets flag bit 1.
+- **Locked**: samples pass through untouched. `p(m) = m + C`, `C = round(R(A(m)) - m)` fixed at capture start. Chosen when the device layer says the clocks are shared (`ClockRelation::Shared`: one device, or one non-zero CoreAudio clock domain), the rates are equal and the measurement does not contradict it (measured difference minus the uncertainty of both fits at most 2 ppm); or, with unknown clocks, when the rates are equal and the measured rate difference plus that uncertainty is under 0.5 ppm (0.3 ms over ten minutes; at 5 ppm, the first design, a 10-minute capture at +3 ppm ended 1.8 ms off). The monitor reports `drift = R(A(m)) - (m + C)`; once it has been over 0.4 ms for 0.5 s, flag bit 1 is set for the rest of the capture and the receiver voids it. So a locked capture is inside 0.5 ms or void: a claim of shared clocks that is wrong by 1.5 ppm is flagged after 265 s at 0.40 ms; one wrong by 20 ppm is overridden at the start once the clocks have settled.
 - **Resampled** (different rate, separate clocks, or not yet known to be one): `SincResampler` reads the input at the position the clocks give for each integer engine frame. The kernel is centred on that position, so there is no group delay to subtract. `DriftController`: feed-forward from the two fitted rates, PI on the phase error (time constant 2 s), ratio change limited to 50 ppm per second while the phase error is under 50 microseconds and faster in proportion to the square of the error beyond (a flat limit left a capture started on young clocks 0.4 ms off for 8 s).
 
 Either way the JS side sees contiguous frames on the engine grid, so `CaptureCore` computes `startT` from integer positions as it does today.
 
 Drift budget: `measurement-budget.json` allows clock mapping 1 ms (laptop) and 2 ms (phone). Measured on the simulated device with 3 ms of callback jitter and stalls: locked path offset error 0 frames from 4 s after open (2 frames at 1.5 s); resampled path 0.02 ms over 120 s at +200 ppm, and 0.14 ms for a capture that starts 1.5 s after open with 10 ms input callbacks.
 
-If the output stream restarts (`EngineHandle::output_restarted`), engine time continues from `R(h)` so it never goes backwards; voices that lay wholly inside the gap end silently, longer ones carry on in place. A capture in progress sees a step of the output clock, and the app fires `device-change` or `interrupted`, which voids the try as today.
+If the output stream restarts (`EngineHandle::output_restarted`), engine time continues from `R(h)` so it never goes backwards; voices that lay wholly inside the gap end silently, longer ones carry on in place. A capture in progress ends (step flag on its last packet): the output clock is a single point after a restart and nothing can be placed on it. The next capture waits for the new clock as at open (measured: 2 to 6 s with 3 ms jitter, then 0.013 ms). The app also fires `device-change` or `interrupted`.
 
 ### What cpal reports, and how far to trust it
 
@@ -112,7 +112,7 @@ Packet, little-endian, 24-byte header then samples (24 is a multiple of 4, so `n
 | --- | --- | --- |
 | 0 | u8 | kind = 1 |
 | 1 | u8 | version = 1 |
-| 2 | u16 | flags: bit 0 resampled path, bit 1 drift over 1 ms, bit 2 input all zero, bit 3 last packet, bit 4 a clock stepped during this capture |
+| 2 | u16 | flags: bit 0 resampled path, bit 1 drift (0.4 ms for 0.5 s; stays set), bit 2 input all zero, bit 3 last packet, bit 4 a clock stepped and the capture ended |
 | 4 | u32 | `seq`, from 0 per capture; counts packets written (a dropped packet shows in `droppedBefore` and `firstFrame`, not in `seq`) |
 | 8 | f64 | `firstFrame`: engine frame of sample 0 (an integer value) |
 | 16 | u32 | `nFrames` |
@@ -122,6 +122,7 @@ Packet, little-endian, 24-byte header then samples (24 is a multiple of 4, so `n
 - **Batching**: a capture always ends with a packet carrying bit 3, possibly with no frames; the packet before a break in the grid is short. 512 frames per packet (10.7 ms at 48 kHz, about 2 KB, 94 packets per second, 192 KB/s). Configurable 256 to 2048. `CaptureCore` re-blocks to 256 frames, so the packet size never changes a `CaptureBlock`.
 - **Expected latency (estimate)**: packet fill 5 ms mean and 10.7 ms worst, pump and channel 1 to 3 ms on desktop, 2 to 6 ms on mobile. This adds to live feedback delay only; timestamps are unaffected. Task M0-1 measures it on all five platforms.
 - **Backpressure**: the audio callback never blocks. If the ring is full the aligner drops whole packets and counts the frames into the next header's `droppedBefore`. JS never asks Rust to slow down.
+- **Void flags in JS**: bit 1 or bit 4 on any packet, an `xrun` event while capturing, or a `late` event for a voice of the `take` group fire the same `capture-gap` fault as a gap, once per capture; the session voids the try on it. A calibration run does not listen for faults, so `stopCapture` throws when a capture in which calibration clicks were scheduled is void, and the run fails instead of storing a number.
 - **Gap detection in JS**: `seq` not previous + 1, or `droppedBefore > 0`, or `firstFrame` not previous end. The feed then pushes that many zero frames through `CaptureCore` (so `startT` of later blocks stays exact) and fires `onCaptureFault({ kind: 'capture-gap' })`, which voids the try as on the web. `CaptureBlock.seq` stays `CaptureCore`'s own counter.
 - **Backlog**: as in the web relay, `queueMs = now() - blockEnd` per delivered block; above `capture.backlogVoidMs` (120) it fires `backlog`.
 
@@ -169,7 +170,7 @@ interface ClockAnchor { engineSec: number; hostMs: number; rate: number }   // r
 interface LoopbackEstimate { found: number; scheduled: number; roundTripMs: number | null; madMs: number | null; snrDb: number | null; predictedMs: number | null }
 type AudioEvent =
   | { type: 'clock'; anchor: ClockAnchor }                       // every 250 ms
-  | { type: 'route'; route: OpenInfo['route']; latency: LatencyReport; engineRate: number }
+  | { type: 'route'; route: OpenInfo['route']; latency: LatencyReport; engineRate: number }   // after every device change, with the facts read again
   | { type: 'interruption'; reason: 'interrupted' | 'hidden' | 'track-ended' | 'device-change' }
   | { type: 'ended'; ids: number[] }
   | { type: 'late'; ids: number[] }                              // started late after `audio_schedule` had returned
@@ -222,13 +223,13 @@ Beyond-seam members the app already probes for: `setOutputMode`, `setInputEnable
 | Linux | buffer; cpal `playback - callback` (ALSA delay) only on `hw:` devices | buffer only | B on `hw:` devices; C through PipeWire or PulseAudio | implemented; `hw:` unverified |
 | Android | AAudio timestamp delay + burst | AAudio input timestamp delay when supported | B with the pro-audio or low-latency feature; else C | not built (M5) |
 
-A side's sum is null unless its buffer part and at least one of its device and stream parts are known; a part without a source stays null and nothing is estimated. Bluetooth, HDMI, network and unknown transports are trust C on every platform. Clock relation: macOS says `shared` for one device or one non-zero clock domain; Windows and Linux always say `unknown`.
+A side's sum is null unless its buffer part and at least one of its device and stream parts are known; a part without a source stays null and nothing is estimated. Bluetooth, HDMI, network and unknown transports are trust C on every platform. Clock relation: macOS says `shared` for one device or one non-zero clock domain; Windows and Linux always say `unknown`. The platform lookups use the platform's own device id (cpal's display form `<host>:<id>` is only the route key) and return nothing for an id they cannot find; there is no fallback to the default device. After a device change (`DeviceChange` from cpal; on CoreAudio an output opened as the default follows the system default by itself) the device layer reads the identity of the device behind the stream again and the app sends `route`, so the webview's route key and latency are those of the device that now plays, and the calibration of the old route stops applying.
 
 `predictedMs = (outputSec + inputSec) * 1000`. Bluetooth is known from the OS transport type, not guessed from labels.
 
 ### Native loopback measurement
 
-`audio_measure_loopback` (`LoopbackDriver`): `synth::render_click('tick')`, 8 clicks at random 150 to 250 ms gaps after 200 ms of silence, scheduled through `EngineHandle::schedule`; the run is a capture whose full-rate packets are read on the Rust side (the matched filter cannot run on the audio thread, so no webview capture can run at the same time); capture and click are high-passed at 5 kHz and matched; per-click lag by parabolic peak; a click counts when its peak stands 18 dB above its window and within 1 ms of the median; result median and MAD, null below 3 found. A clock step during the run restarts it once. About 2 s. It measures on the single engine clock, with no JS in the loop. It is a cross-check and a fast pre-check; it does not write a `Calibration`.
+`audio_measure_loopback` (`LoopbackDriver`): `synth::render_click('tick')`, 8 clicks at random 150 to 250 ms gaps after 200 ms of silence, scheduled through `EngineHandle::schedule`; the run is a capture whose full-rate packets are read on the Rust side (the matched filter cannot run on the audio thread, so no webview capture can run at the same time); capture and click are high-passed at 5 kHz and matched; per-click lag by parabolic peak; a click counts when its peak stands 18 dB above its window and within 1 ms of the median; result median and MAD, null below 3 found. A clock step during the run restarts it once. About 2 s, plus the wait for the clocks when the streams have just opened. It measures on the single engine clock, with no JS in the loop. It is a cross-check and a fast pre-check; it does not write a `Calibration`.
 
 ### Mapping to the existing record
 
@@ -320,7 +321,7 @@ Pure Rust: streams, mixing, clock, desktop latency properties, macOS permission.
 6. **Resampled path changes the input slightly.** Covered by test 4. Fallback: open the input at the engine rate wherever the OS allows, so only true cross-clock routes resample.
 7. **MP3 decode differences** between symphonia and browser decoders (priming, length). Only Listen playback alignment is affected and `onsetShift` absorbs it. Fallback: decode in the webview with `OfflineAudioContext` and upload PCM with `audio_put_buffer`.
 8. **Reported latency may be wrong on some models** (speaker DSP not included). It never ranks and only gates the short profile through the pre-check, so the cost is a normal-length calibration.
-9. **Sleep, wake and hot-plug.** Streams can die silently. The engine watches for 500 ms without callbacks and raises `interruption`.
+9. **Sleep, wake and hot-plug.** Streams can die silently. The app's poll loop watches the output callback count, and the input frame count while something captures: 500 ms without movement raises `interruption` (`interrupted`), once per stall.
 
 Open questions for the owner: items 4 and 5; whether rule 6 of section 5 (derived wired calibration) is wanted; whether the iOS onboarding Skip control should appear once latency is reported (R16's wording allows it).
 
@@ -368,9 +369,10 @@ Run the app from a terminal with `SR_AUDIO_STAMP_LOG=1`; built-in speakers and m
 
 1. First microphone use: the system prompt appears with the usage text, `audio_permission` goes `prompt` to `granted`, and the app is not killed. Repeat with a signed bundle (entitlement applied).
 2. `audio_open` reply: `outFrames` and `inFrames` (128 expected), `engineRate` and `inputRate`, `route` (both transports `built-in`), the eight latency parts, `trust` (A expected). Then `audio_capture_start` within 5 s of open: `path` is `locked` only if the two built-in devices report one clock domain (the relation itself is not in the reply); note which.
-3. Stamp log at close: callback interval minimum and maximum for both streams (the jitter the clock fit has to reject), and the spread of device stamp minus callback clock.
+3. Time from `audio_capture_start` to its reply right after open (the wait for the clocks: about 1.2 s expected with regular callbacks; note it if it is several seconds). Stamp log at close: callback interval minimum and maximum for both streams (the jitter the clock fit has to reject), and the spread of device stamp minus callback clock.
 4. `audio_clock_check({ durSec: 2 })` after 15 s: `error`, `consistent`, `inputDriftPpm` (under 1 ppm expected on one clock).
 5. `audio_measure_loopback` 20 times in one run and once after each of 5 restarts: `roundTripMs`, `madMs`, `found`, the capture path, `predictedMs`. Acceptance (M4-4): MAD at most 0.5 ms within a run, round trips within 1 ms across restarts. Note predicted minus measured.
 6. The same with `SR_AUDIO_STAMPS=device`. Expect a smaller round trip by roughly both buffers and safety offsets; compare the spread across restarts with step 5. Device stamps become the default only if they are clearly steadier.
 7. With a USB interface if one is at hand: steps 2 and 5 (one device: `shared`, locked path).
-8. Unplug or switch the default output during playback: an `interruption` event with `device-change` arrives and sound continues or the reopen works.
+8. Unplug or switch the default output during playback: an `interruption` event with `device-change` arrives, then a `route` event with the new device's UID, transport and latency parts, and the app asks for calibration of the new route instead of using the old one. During a capture: the capture ends with the step flag and the try is void.
+9. Does cpal report input xruns on CoreAudio at all (unverified)? Provoke one (heavy load, 128 frames) during a capture and check for an `xrun` event; losses below 0.5 ms are otherwise caught only as drift on the locked path once they add up to 0.4 ms.

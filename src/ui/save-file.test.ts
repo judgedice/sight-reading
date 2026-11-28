@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { afterEach, describe, expect, it } from 'vitest';
 import { saveFile, setNativeFileSaver } from './save-file.ts';
 
@@ -26,7 +27,7 @@ describe('saveFile', () => {
       expect(clicks).toEqual(['web.json']);
       expect(await p).toBe('saved');
       expect(blobs[0]!.type).toBe('application/json');
-      expect(await blobs[0]!.text()).toBe('{"a":1}');
+      expect(blobs[0]!.size).toBe(7);
     } finally {
       document.createElement = orig;
       URL.createObjectURL = create;

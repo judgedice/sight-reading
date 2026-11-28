@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import { classifyLink, createNativeFileSaver, encodeSaveRequest, installLinkHandler, NativeWakeLock, type LinkTarget } from './files.ts';
 
@@ -81,6 +82,8 @@ describe('classifyLink', () => {
 });
 
 describe('installLinkHandler', () => {
+  // The page jsdom serves is the app here; in the shell it is tauri://localhost.
+  const APP = `${window.location.protocol}//${window.location.host}`;
   function harness() {
     const sent: { cmd: string; args: unknown }[] = [];
     let handler: ((e: MouseEvent) => void) | null = null;
@@ -92,7 +95,7 @@ describe('installLinkHandler', () => {
         handler = null;
       },
     };
-    const undo = installLinkHandler(target, ORIGIN, async (cmd, args) => void sent.push({ cmd, args }));
+    const undo = installLinkHandler(target, APP, async (cmd, args) => void sent.push({ cmd, args }));
     const click = (href: string, init: MouseEventInit = {}): boolean => {
       const a = document.createElement('a');
       a.setAttribute('href', href);
@@ -114,7 +117,7 @@ describe('installLinkHandler', () => {
   });
   it('opens a licence text through the licence command', () => {
     const h = harness();
-    expect(h.click(`${ORIGIN}/LICENSES/CC-BY-4.0.txt`)).toBe(true);
+    expect(h.click(`${APP}/LICENSES/CC-BY-4.0.txt`)).toBe(true);
     expect(h.sent).toEqual([{ cmd: 'open_licence', args: { name: 'CC-BY-4.0.txt' } }]);
   });
   it('lets in-app links, other buttons and other schemes alone', () => {

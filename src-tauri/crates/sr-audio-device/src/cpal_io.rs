@@ -131,6 +131,10 @@ pub fn transport_of(interface: InterfaceType) -> Transport {
     }
 }
 
+/// The error callbacks send through a std channel, which allocates a node per message. They run on a backend
+/// thread that is not the data callback on every backend cpal has, and only when something has already gone
+/// wrong, so this is left as it is.
+///
 /// What the error callback of `stream` tells the owner. An input device that disappears ends its track
 /// (`track-ended`, as a removed microphone does on the web); a route change is `device-change`.
 fn event_for(kind: ErrorKind, stream: StreamKind) -> Option<DeviceEvent> {
@@ -172,6 +176,7 @@ struct Owner {
 
 enum Cmd {
     SetInput(bool, Sender<Result<OpenInfo, DeviceError>>),
+    Refresh(Sender<OpenInfo>),
     Close,
 }
 
@@ -228,6 +233,10 @@ impl DeviceIo for CpalIo {
                                 let r = if on { streams.open_input() } else { streams.close_input() };
                                 let _ = reply.send(r.map(|()| streams.info()));
                             }
+                            Cmd::Refresh(reply) => {
+                                streams.refresh();
+                                let _ = reply.send(streams.info());
+                            }
                             Cmd::Close => break,
                         }
                     }
@@ -273,6 +282,15 @@ impl DeviceIo for CpalIo {
         self.info.as_ref().map(|i| i.latency.parts).unwrap_or_default()
     }
 
+    fn refresh(&mut self) -> Option<OpenInfo> {
+        let owner = self.owner.as_ref()?;
+        let (tx, rx) = mpsc::channel();
+        owner.commands.send(Cmd::Refresh(tx)).ok()?;
+        let info = rx.recv().ok()?;
+        self.info = Some(info.clone());
+        Some(info)
+    }
+
     fn set_input(&mut self, enabled: bool) -> Result<OpenInfo, DeviceError> {
         let owner = self.owner.as_ref().ok_or_else(|| DeviceError::Backend("the device is not open".into()))?;
         let (tx, rx) = mpsc::channel();
@@ -313,6 +331,17 @@ fn buffer_range(b: &SupportedBufferSize) -> Option<(u32, u32)> {
         SupportedBufferSize::Range { min, max } => Some((*min, *max)),
         _ => None,
     }
+}
+
+/// The platform's own identifier out of cpal's device id: the CoreAudio device UID, the WASAPI endpoint id.
+/// (cpal's `Display` of a device id is `<host>:<id>`, which is right for the route key and wrong for a
+/// lookup in the platform's API.)
+pub fn native_id(id: &cpal::DeviceId) -> String {
+    id.id().to_string()
+}
+
+fn native_id_of(device: &cpal::Device) -> Option<String> {
+    device.id().ok().map(|i| native_id(&i)).filter(|s| !s.is_empty())
 }
 
 fn uid_of(device: &cpal::Device) -> String {
@@ -371,6 +400,8 @@ struct InputState {
     frames: u32,
     rate: u32,
     uid: String,
+    /// The platform's own id of the device (see [`native_id`]); `None` when cpal could not give one.
+    native: Option<String>,
     transport: Transport,
 }
 
@@ -383,6 +414,10 @@ struct Streams {
     _output: cpal::Stream,
     out_frames: u32,
     out_uid: String,
+    /// The platform's own id of the output device.
+    out_native: Option<String>,
+    /// The output was opened as "the default device": on CoreAudio the stream then follows the system default.
+    follows_default: bool,
     out_transport: Transport,
     direct_hardware: bool,
     delay: Option<Duration>,
@@ -448,6 +483,8 @@ impl Streams {
             _output: stream,
             out_frames,
             out_uid: uid_of(&device),
+            out_native: native_id_of(&device),
+            follows_default: cfg.output_device.is_none(),
             out_transport: transport_of_device(&device),
             // ALSA ids of raw hardware start with `hw:` (unverified on a real card; the container has none).
             direct_hardware: current_platform() == Platform::Linux && device.id().map(|i| i.id().starts_with("hw:")).unwrap_or(false),
@@ -522,7 +559,7 @@ impl Streams {
             return Err(backend(e));
         }
         let frames = settle_buffer_frames(&stream, used, &first_frames);
-        self.input = Some(InputState { _stream: stream, frames, rate: choice.rate, uid: uid_of(&device), transport: transport_of_device(&device) });
+        self.input = Some(InputState { _stream: stream, frames, rate: choice.rate, uid: uid_of(&device), native: native_id_of(&device), transport: transport_of_device(&device) });
         Ok(())
     }
 
@@ -542,8 +579,10 @@ impl Streams {
     /// what cpal says, and a latency part without a source stays null.
     fn info(&self) -> OpenInfo {
         let stream_in = self.input.as_ref().map(|i| (i.frames, i.rate));
-        let in_uid = self.input.as_ref().map(|i| i.uid.as_str());
-        let described = describe_route(&self.out_uid, in_uid, self.out_frames, self.engine_rate, stream_in, self.delay, self.direct_hardware);
+        // The platform lookups get the platform's own ids. Without one the facts stay unknown: no fallback to
+        // "the default device", which may be another device than the one the stream runs on.
+        let in_native = self.input.as_ref().map(|i| i.native.as_deref().unwrap_or(""));
+        let described = describe_route(self.out_native.as_deref().unwrap_or(""), in_native, self.out_frames, self.engine_rate, stream_in, self.delay, self.direct_hardware);
         let known = |t: Option<Transport>, fallback: Transport| t.filter(|t| *t != Transport::Unknown).unwrap_or(fallback);
         let facts = RouteFacts {
             output_uid: self.out_uid.clone(),
@@ -565,6 +604,20 @@ impl Streams {
             route: facts,
             latency,
             session_type: None,
+        }
+    }
+}
+
+impl Streams {
+    /// After a device change: on CoreAudio an output opened as the default device follows the system default
+    /// by itself, so the device behind the stream may be another one now. Reads its identity again.
+    fn refresh(&mut self) {
+        if cfg!(target_os = "macos") && self.follows_default {
+            if let Some(device) = self.host.default_output_device() {
+                self.out_uid = uid_of(&device);
+                self.out_native = native_id_of(&device);
+                self.out_transport = transport_of_device(&device);
+            }
         }
     }
 }
@@ -603,8 +656,8 @@ fn describe_route(out_uid: &str, in_uid: Option<&str>, out_frames: u32, engine_r
     #[cfg(target_os = "windows")]
     {
         use crate::latency_windows as win;
-        let out = win::query(out_uid, false);
-        let input = in_uid.and_then(|uid| win::query(uid, true));
+        let out = win::query(out_uid);
+        let input = in_uid.and_then(win::query);
         Described { parts: win::parts(out.as_ref(), input.as_ref()), relation: win::relation(out.as_ref(), input.as_ref()), out_transport: None, in_transport: None }
     }
     #[cfg(not(any(target_os = "macos", target_os = "windows")))]
@@ -809,6 +862,14 @@ mod tests {
 
     fn offer(channels: u16, lo: u32, hi: u32, format: SampleFormat) -> Offer {
         Offer { channels, min_rate: lo, max_rate: hi, format, buffer: None }
+    }
+
+    #[test]
+    fn platform_lookups_get_the_bare_id() {
+        let id = cpal::DeviceId::new(cpal::default_host().id(), "BuiltInSpeakerDevice");
+        assert_eq!(native_id(&id), "BuiltInSpeakerDevice");
+        assert_ne!(id.to_string(), native_id(&id), "cpal's display form carries the host name");
+        assert!(id.to_string().ends_with(":BuiltInSpeakerDevice"));
     }
 
     #[test]

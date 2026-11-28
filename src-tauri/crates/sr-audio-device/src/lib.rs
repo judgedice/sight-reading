@@ -208,6 +208,12 @@ pub trait DeviceIo: Send {
         let _ = enabled;
         Err(DeviceError::Unsupported("this device has no switchable input".into()))
     }
+    /// Reads the route again after a device change (the output device behind a stream that follows the system
+    /// default may be another one now) and returns the facts as they are; `None` when the device has nothing to
+    /// re-read or is not open.
+    fn refresh(&mut self) -> Option<OpenInfo> {
+        None
+    }
     /// Told by the app that a capture is about to be requested. Real devices ignore it; the fake device uses it
     /// to start its optional input signal.
     fn capture_requested(&mut self) {}

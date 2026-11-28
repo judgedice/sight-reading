@@ -13,9 +13,6 @@
 import type { SaveOutcome } from '../../core/save-file.ts';
 import type { Invoke } from './files-ipc.ts';
 
-/** The window title and the name the app shows. Matches `productName` and the window title in `src-tauri/tauri.conf.json`. */
-export const APP_NAME = 'Sightread';
-
 /** The error a platform without the service rejects with (`src-tauri/src/files.rs` `NOT_AVAILABLE`). */
 export const NOT_AVAILABLE = 'not-available';
 
@@ -89,6 +86,11 @@ export class NativeWakeLock {
 /** What a click on a link should do inside the shell. */
 export type LinkAction = { kind: 'external'; url: string } | { kind: 'licence'; name: string };
 
+/** `scheme//host[:port]`: `URL.origin` is the string "null" for a custom scheme such as `tauri:`, so it is built by hand. */
+export function originOf(u: { protocol: string; host: string }): string {
+  return `${u.protocol}//${u.host}`;
+}
+
 const LICENCE_PATH = /(?:^|\/)LICENSES\/([A-Za-z0-9][A-Za-z0-9.-]*\.txt)$/;
 
 /**
@@ -103,8 +105,9 @@ export function classifyLink(href: string, appOrigin: string): LinkAction | null
   } catch {
     return null;
   }
-  if ((url.protocol === 'http:' || url.protocol === 'https:') && url.origin !== appOrigin) return { kind: 'external', url: url.href };
-  if (url.origin === appOrigin) {
+  const sameApp = originOf(url) === appOrigin;
+  if ((url.protocol === 'http:' || url.protocol === 'https:') && !sameApp) return { kind: 'external', url: url.href };
+  if (sameApp) {
     const m = LICENCE_PATH.exec(url.pathname);
     if (m?.[1] && !m[1].includes('..')) return { kind: 'licence', name: m[1] };
   }

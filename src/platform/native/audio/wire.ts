@@ -20,13 +20,18 @@ export const PUT_BUFFER_MAGIC: readonly number[] = [0x53, 0x52, 0x42, 0x31];
 export const PACKET_FLAGS = {
   /** The samples came through the resampled path. */
   resampled: 1 << 0,
-  /** The locked path's drift monitor is over 1 ms. */
+  /** The capture has been 0.4 ms or more from where the engine's clocks put it for half a second; stays set. */
   drift: 1 << 1,
   /** Every input sample of the packet is exactly zero. */
   inputZero: 1 << 2,
   /** Last packet of the capture. */
   last: 1 << 3,
+  /** A stream clock stepped (an xrun, an output restart): the engine ended the capture with this packet. */
+  clockStep: 1 << 4,
 } as const;
+
+/** Flags that mean the capture's frame stamps cannot be trusted: the capture is void. */
+export const PACKET_VOID_FLAGS = PACKET_FLAGS.drift | PACKET_FLAGS.clockStep;
 
 /** Why a byte string is not a valid message. */
 export class WireError extends Error {

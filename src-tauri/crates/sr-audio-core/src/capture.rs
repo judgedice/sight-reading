@@ -39,12 +39,26 @@ pub const DEFAULT_PACKET_FRAMES: u32 = 512;
 /// Audio the packet ring holds, seconds.
 pub const RING_SECONDS: f64 = 2.0;
 /// The locked path is chosen on measurement only when the two clocks agree within this, with the
-/// uncertainty of both fits added (5 ppm).
-pub const LOCK_TOLERANCE: f64 = 5e-6;
-/// The drift flag is set while the capture is this far from where the clocks put it, seconds (1 ms).
-pub const DRIFT_FLAG_SEC: f64 = 0.001;
-/// Packet flag, bit 4: a clock stepped during this capture (an xrun on either stream, or an output restart)
-/// and the mapping was fixed again; the frame grid is broken at that point. Sticky until the capture ends.
+/// uncertainty of both fits added (0.5 ppm: 0.3 ms over a 10-minute capture).
+pub const LOCK_TOLERANCE: f64 = 0.5e-6;
+/// A claim of shared clocks from the device layer is not followed when the measured rate difference exceeds
+/// the uncertainty of both fits by more than this (2 ppm).
+pub const SHARED_OVERRIDE: f64 = 2e-6;
+/// The drift flag is set, for the rest of the capture, once the capture has been this far from where the
+/// clocks put it (0.4 ms) for [`DRIFT_HOLD_SEC`]. The receiver voids the capture, so no capture is used with
+/// a stamp error of 0.5 ms or more that the clocks can see.
+pub const DRIFT_FLAG_SEC: f64 = 0.0004;
+/// How long the drift must persist before it is flagged, seconds (clock refits move it for an instant).
+pub const DRIFT_HOLD_SEC: f64 = 0.5;
+/// A capture starts only when the two clock fits together place a frame within this, seconds (0.1 ms). With
+/// regular callbacks that is as soon as the clocks have a slope (1.2 s after a stream opens); with several
+/// milliseconds of callback jitter it can take until the long window of the fit is in use (about 9 s).
+pub const START_TOLERANCE_SEC: f64 = 0.0001;
+/// A start that has waited this long for [`START_TOLERANCE_SEC`] begins anyway, on the resampled path
+/// (which follows the clocks as they improve instead of freezing an offset), seconds.
+pub const MAX_START_WAIT_SEC: f64 = 12.0;
+/// Packet flag, bit 4: a clock stepped during this capture (an xrun on either stream, or an output restart).
+/// The capture ends there: the flag is on its last packet, with bit 3.
 pub const FLAG_CLOCK_STEP: u16 = 1 << 4;
 /// Input frames handled per inner block.
 const BLOCK: usize = 1024;
@@ -76,7 +90,9 @@ pub enum ClockRelation {
     #[default]
     Unknown,
     /// Both streams run from one clock (a duplex device, or one clock domain as the OS reports it): locked
-    /// when the nominal rates are equal.
+    /// when the nominal rates are equal, unless the measurement clearly says otherwise ([`SHARED_OVERRIDE`]).
+    /// A wrong claim that the clocks cannot contradict yet costs one capture: the drift flag voids it before
+    /// it is 0.5 ms off.
     Shared,
     /// Known to be separate clocks: resampled.
     Separate,
@@ -135,8 +151,8 @@ pub enum CaptureEvent {
     },
     /// The capture ended; the last packet (flag bit 3) is in the ring.
     Stopped(CaptureStats),
-    /// A clock stepped during the capture (the `xrun` event). The mapping was fixed again, the packets carry
-    /// [`FLAG_CLOCK_STEP`], and their `firstFrame` may jump.
+    /// A clock stepped during the capture (the `xrun` event): the stream lost or gained time, or the output
+    /// restarted. The capture has ended; its last packet carries [`FLAG_CLOCK_STEP`] and `Stopped` follows.
     ClockStep {
         /// The stream whose clock stepped.
         stream: StreamKind,
@@ -453,6 +469,8 @@ pub struct CaptureAligner {
     offset: i64,
     resampler: SincResampler,
     control: DriftController,
+    /// Input frames per engine frame at the nominal rates.
+    nominal_ratio: f64,
     /// Resampled: the next engine frame to produce, and the input position it is read at.
     out_frame: u64,
     in_pos: f64,
@@ -469,7 +487,8 @@ impl CaptureAligner {
             input_rate: input_rate as f64,
             offset: 0,
             resampler: SincResampler::for_rates(input_rate, engine_rate),
-            control: DriftController::new(input_rate as f64 / engine_rate as f64),
+            control: DriftController::bounded(input_rate as f64 / engine_rate as f64, input_rate as f64 / engine_rate as f64),
+            nominal_ratio: input_rate as f64 / engine_rate as f64,
             out_frame: 0,
             in_pos: 0.0,
             drift_sec: 0.0,
@@ -518,7 +537,7 @@ impl CaptureAligner {
                 }
                 self.out_frame = first as u64;
                 self.in_pos = view.input_pos(first)?;
-                self.control = DriftController::new(view.ratio()?);
+                self.control = DriftController::bounded(view.ratio()?, self.nominal_ratio);
                 self.resampler.reset(first_input_frame);
                 Some(self.out_frame)
             }
@@ -556,12 +575,15 @@ impl CaptureAligner {
                 }
             }
             CapturePath::Resampled => {
+                // The ratio is bounded to 1 % about nominal, so this budget is never reached by a sound
+                // state; it bounds the work of one call whatever the state.
+                let mut budget = (mono.len() as f64 / (self.nominal_ratio * 0.98)) as usize + 64;
                 for block in mono.chunks(MAX_PUSH.min(BLOCK)) {
                     self.resampler.push(block);
                     loop {
                         let ratio = self.control.ratio();
                         let mut k = 0;
-                        while k < self.out.len() && self.resampler.can_read(self.in_pos) {
+                        while k < self.out.len().min(budget) && self.resampler.can_read(self.in_pos) {
                             self.out[k] = self.resampler.at(self.in_pos);
                             self.in_pos += ratio;
                             k += 1;
@@ -571,6 +593,7 @@ impl CaptureAligner {
                         }
                         emit(self.out_frame, &self.out[..k]);
                         self.out_frame += k as u64;
+                        budget -= k;
                     }
                 }
             }
@@ -619,6 +642,10 @@ pub struct CaptureHalf {
     aligner: CaptureAligner,
     state: State,
     steps: u64,
+    /// Input frames delivered while a start has been waiting for the clocks.
+    waiting_frames: u64,
+    /// Input frames for which the drift has been over [`DRIFT_FLAG_SEC`] without a break.
+    drift_over_frames: u64,
     mono: Box<[f32]>,
 }
 
@@ -650,6 +677,8 @@ pub(crate) fn channel(clock: ClockReader) -> (CaptureHalf, CaptureReader) {
         aligner: CaptureAligner::new(rate, rate),
         state: State::Idle,
         steps: 0,
+        waiting_frames: 0,
+        drift_over_frames: 0,
         mono: vec![0f32; BLOCK].into(),
     };
     (half, CaptureReader { commands: cmd_tx, events: ev_rx, packets: reader, shared })
@@ -658,7 +687,19 @@ pub(crate) fn channel(clock: ClockReader) -> (CaptureHalf, CaptureReader) {
 impl CaptureHalf {
     /// Declares the input stream's nominal rate, Hz, and restarts its clock. Builds the resampler for that
     /// rate (allocates): call before the stream starts, not from the callback.
+    ///
+    /// A capture that is running or waiting ends here (last packet, `Stopped`): its frames were counted on
+    /// the stream that is being replaced.
     pub fn set_input_rate(&mut self, input_rate: u32) {
+        if self.state != State::Idle {
+            let stats = match self.state {
+                State::Running => CaptureStats { clock_steps: self.steps, ..self.packets.finish() },
+                _ => CaptureStats::default(),
+            };
+            let _ = self.events.push(CaptureEvent::Stopped(stats));
+            self.state = State::Idle;
+            self.shared.capture_running.store(0, Ordering::Relaxed);
+        }
         self.input_rate = input_rate.max(1);
         self.input_clock = StreamClock::new(self.input_rate as f64);
         self.aligner = CaptureAligner::new(self.input_rate, self.clock.engine_rate());
@@ -696,18 +737,24 @@ impl CaptureHalf {
     /// Chooses the path for a capture that starts now.
     fn choose_path(&self, relation: ClockRelation, view: &ClockView<'_>, output_uncertainty: f64) -> CapturePath {
         let same_rate = self.input_rate == self.clock.engine_rate();
-        match relation {
-            ClockRelation::Separate => CapturePath::Resampled,
-            ClockRelation::Shared if same_rate => CapturePath::Locked,
-            ClockRelation::Shared => CapturePath::Resampled,
-            ClockRelation::Unknown => {
-                let off = view.ratio().map_or(f64::INFINITY, |r| (r - 1.0).abs());
-                if same_rate && off + self.input_clock.rate_uncertainty() + output_uncertainty < LOCK_TOLERANCE {
-                    CapturePath::Locked
-                } else {
-                    CapturePath::Resampled
-                }
+        if !same_rate || relation == ClockRelation::Separate {
+            return CapturePath::Resampled;
+        }
+        let off = view.ratio().map_or(f64::INFINITY, |r| (r - 1.0).abs());
+        let uncertainty = self.input_clock.rate_uncertainty() + output_uncertainty;
+        let locked = match relation {
+            // Believed unless the measurement clearly contradicts it.
+            ClockRelation::Shared => {
+                let contradicted = off - uncertainty > SHARED_OVERRIDE;
+                !contradicted
             }
+            // Only when the measurement is sure.
+            _ => off + uncertainty < LOCK_TOLERANCE,
+        };
+        if locked {
+            CapturePath::Locked
+        } else {
+            CapturePath::Resampled
         }
     }
 
@@ -726,12 +773,14 @@ impl CaptureHalf {
         let first = self.frames;
         self.frames += n as u64;
         let update = self.input_clock.observe(host_ns, self.frames);
-        if let Ok(a) = self.clock.anchor_bounded(4) {
-            self.anchor = a;
-        }
+        // The count before the anchor (the render side publishes the anchor first): a step is never seen
+        // together with the line from before it.
         let output_steps = shared.output_steps.load(Ordering::Relaxed);
         let output_stepped = output_steps != self.seen_output_steps;
         self.seen_output_steps = output_steps;
+        if let Ok(a) = self.clock.anchor_bounded(4) {
+            self.anchor = a;
+        }
         let output_uncertainty = f64::from_bits(shared.output_uncertainty.load(Ordering::Relaxed));
         shared.input_frames.store(self.frames, Ordering::Relaxed);
 
@@ -740,6 +789,7 @@ impl CaptureHalf {
                 Ok(CaptureCommand::Start(config)) => {
                     if self.state == State::Idle {
                         self.state = State::Waiting(config);
+                        self.waiting_frames = 0;
                     } else {
                         let _ = self.events.push(CaptureEvent::StartIgnored);
                     }
@@ -773,27 +823,37 @@ impl CaptureHalf {
         }
 
         if let State::Waiting(config) = self.state {
+            self.waiting_frames += n as u64;
             if !settled {
                 return;
             }
-            let path = self.choose_path(config.relation, &view, output_uncertainty);
+            let uncertainty_sec = (self.input_clock.rate_uncertainty() + output_uncertainty) * crate::clock::POSITION_LEVER_SEC;
+            let waited_out = self.waiting_frames as f64 >= MAX_START_WAIT_SEC * self.input_rate as f64;
+            if uncertainty_sec > START_TOLERANCE_SEC && !waited_out {
+                return;
+            }
+            let path = if uncertainty_sec > START_TOLERANCE_SEC { CapturePath::Resampled } else { self.choose_path(config.relation, &view, output_uncertainty) };
             let Some(origin_frame) = self.aligner.start(path, first, &view) else { return };
             self.packets.begin(config.packet_frames, if path == CapturePath::Resampled { FLAG_RESAMPLED } else { 0 });
             self.steps = 0;
+            self.drift_over_frames = 0;
             self.origin_input_frame = Some(first);
             self.state = State::Running;
             shared.capture_running.store(1, Ordering::Relaxed);
             let _ = self.events.push(CaptureEvent::Started { origin_frame, engine_rate, path });
         } else if self.state == State::Running && (update.step || output_stepped) {
-            // The stream lost or gained time: fix the mapping again from here. The frame grid breaks, which
-            // the receiver sees as a gap.
+            // A stream lost or gained time, or the output restarted: where the frames of this capture belong
+            // is no longer known (after a restart the output clock is a single point). The capture ends
+            // here, flagged; the frames of this callback are not delivered.
             self.steps += 1;
-            self.packets.flush();
             self.packets.set_flags(FLAG_CLOCK_STEP);
-            let path = self.aligner.path();
-            let _ = self.aligner.start(path, first, &view);
-            self.origin_input_frame = Some(first);
+            let stats = CaptureStats { clock_steps: self.steps, ..self.packets.finish() };
             let _ = self.events.push(CaptureEvent::ClockStep { stream: if update.step { StreamKind::Input } else { StreamKind::Output } });
+            let _ = self.events.push(CaptureEvent::Stopped(stats));
+            self.state = State::Idle;
+            shared.capture_running.store(0, Ordering::Relaxed);
+            shared.capture_packets.store(stats.packets, Ordering::Relaxed);
+            shared.capture_frames.store(stats.frames, Ordering::Relaxed);
         }
         if self.state != State::Running {
             return;
@@ -801,9 +861,12 @@ impl CaptureHalf {
 
         self.aligner.steer(first, n as f64 / self.input_rate as f64, &view);
         if self.aligner.drift_sec().abs() > DRIFT_FLAG_SEC {
-            self.packets.set_flags(FLAG_DRIFT);
+            self.drift_over_frames += n as u64;
+            if self.drift_over_frames as f64 >= DRIFT_HOLD_SEC * self.input_rate as f64 {
+                self.packets.set_flags(FLAG_DRIFT); // stays for the rest of the capture
+            }
         } else {
-            self.packets.clear_flags(FLAG_DRIFT);
+            self.drift_over_frames = 0;
         }
 
         let (aligner, packets, mono) = (&mut self.aligner, &mut self.packets, &mut self.mono);
@@ -855,9 +918,11 @@ impl CaptureReader {
         self.commands.push(c).map_err(|_| CaptureError::QueueFull)
     }
 
-    /// Asks for a capture (`audio_capture_start`). It begins at the first input callback at which both
-    /// stream clocks have settled (about 1.2 s after the streams opened; at once later on) and is announced
-    /// by [`CaptureEvent::Started`], which carries the reply's `originFrame` and `path`.
+    /// Asks for a capture (`audio_capture_start`). It begins at the first input callback at which the two
+    /// stream clocks place a frame within [`START_TOLERANCE_SEC`]: at once on streams that have run a while;
+    /// about 1.2 s after a stream opened or the output restarted when callbacks are regular; up to
+    /// [`MAX_START_WAIT_SEC`] when they are very irregular. It is announced by [`CaptureEvent::Started`],
+    /// which carries the reply's `originFrame` and `path`.
     pub fn start(&mut self, config: CaptureConfig) -> Result<(), CaptureError> {
         if !(MIN_PACKET_FRAMES..=MAX_PACKET_FRAMES).contains(&config.packet_frames) {
             return Err(CaptureError::BadPacketFrames);
@@ -976,6 +1041,43 @@ mod tests {
             kept as f64 / 48.0, end.max_ring_ms, after.len()
         );
         assert!(end.max_ring_ms >= 2000.0 && end.max_ring_ms <= 2050.0);
+    }
+
+    #[test]
+    fn a_new_input_rate_ends_the_capture_and_leaves_the_half_idle() {
+        let (mut engine, mut handle) = crate::engine(crate::EngineConfig::new(48_000));
+        let mut reader = handle.take_capture_reader().unwrap();
+        let mut half = engine.split_capture().unwrap();
+        let (mut out, input) = (vec![0f32; 256], vec![0.25f32; 128]);
+        let mut run = |engine: &mut crate::Engine, half: &mut CaptureHalf, from: u64, callbacks: u64| {
+            for k in from..from + callbacks {
+                let ns = 1_000_000_000 + k * 128 * 1_000_000_000 / 48_000;
+                engine.render(ns, &mut out, 2);
+                half.capture(ns, &input, 1);
+            }
+        };
+        run(&mut engine, &mut half, 0, 600);
+        reader.start(CaptureConfig::default()).unwrap();
+        run(&mut engine, &mut half, 600, 100);
+        assert!(reader.is_running());
+        half.set_input_rate(44_100); // the device layer reopens the input at another rate
+        assert!(!reader.is_running());
+        let mut events = Vec::new();
+        while let Some(e) = reader.poll_event() {
+            events.push(e);
+        }
+        assert!(matches!(events[..], [CaptureEvent::Started { .. }, CaptureEvent::Stopped(_)]), "{events:?}");
+        let (mut bytes, mut samples, mut last_flags) = (Vec::new(), Vec::new(), 0);
+        while let Some(h) = reader.read_decoded(&mut bytes, &mut samples) {
+            last_flags = h.flags;
+        }
+        assert_eq!(last_flags & FLAG_LAST, FLAG_LAST);
+        // Idle: callbacks at the new rate produce nothing until a new start, which then works.
+        run(&mut engine, &mut half, 700, 50);
+        assert!(reader.poll_event().is_none() && !reader.read_packet(&mut bytes));
+        reader.start(CaptureConfig::default()).unwrap();
+        run(&mut engine, &mut half, 750, 800);
+        assert!(matches!(reader.poll_event(), Some(CaptureEvent::Started { path: CapturePath::Resampled, .. })));
     }
 
     #[test]

@@ -386,10 +386,14 @@ impl Engine {
     /// No allocation, no lock, no system call, no unbounded loop (`tests/rt_alloc.rs` counts allocator calls).
     pub fn render(&mut self, host_ns: u64, out: &mut [f32], channels: usize) {
         let mut sink = RingSink { out: &mut self.out, shared: &self.shared };
+        let mut output_stepped = false;
 
         for _ in 0..MAX_COMMANDS_PER_RENDER {
             if matches!(self.commands.peek(), Ok(Command::Schedule(_))) && !self.scheduler.has_room() {
-                break; // wait until the handle has collected garbage
+                // Wait until the handle has collected garbage. Commands behind it wait too, stops and cancels
+                // included: taking them out of turn would apply a stop before the voice it was meant for.
+                // This state needs a control side that has stopped polling, and then nothing it sends matters.
+                break;
             }
             match self.commands.pop() {
                 Ok(Command::Schedule(voice)) => {
@@ -411,7 +415,7 @@ impl Engine {
                         }
                     }
                     self.bridge.reset_output();
-                    self.shared.output_steps.fetch_add(1, Ordering::Relaxed);
+                    output_stepped = true;
                     self.shared.output_uncertainty.store(f64::INFINITY.to_bits(), Ordering::Relaxed);
                 }
                 Err(_) => break,
@@ -423,15 +427,19 @@ impl Engine {
         if let Some(point) = update.closed {
             sink.send(Out::Point(point));
         }
-        if update.step {
-            self.shared.output_steps.fetch_add(1, Ordering::Relaxed);
-        }
+        output_stepped |= update.step;
         if update.refit {
             self.shared.output_uncertainty.store(self.bridge.output().rate_uncertainty().to_bits(), Ordering::Relaxed);
             if let Some(anchor) = self.bridge.anchor_at(host_ns) {
                 self.shared.publish_anchor(anchor);
                 sink.send(Out::Note(Notification::Clock(anchor)));
             }
+        }
+
+        if output_stepped {
+            // After the new anchor: the capture side reads the count first and the anchor second, so it never
+            // pairs a new count with the line from before the step.
+            self.shared.output_steps.fetch_add(1, Ordering::Relaxed);
         }
 
         let clipped = self.scheduler.render(out, channels, &mut sink);

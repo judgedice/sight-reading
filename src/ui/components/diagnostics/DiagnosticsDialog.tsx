@@ -5,6 +5,7 @@ import { Sheet } from '../../primitives/Sheet.tsx';
 import { Button } from '../form/Button.tsx';
 import { Toggle } from '../form/Toggle.tsx';
 import { PHONE_QUERY, useMediaQuery } from '../sounds/media.ts';
+import type { SaveOutcome } from '../../../core/save-file.ts';
 import { canShareFile, downloadText, shareFile, sizeKb } from './file.ts';
 import type { DiagnosticsButtonServices, DiagnosticsExportView } from './types.ts';
 import './diagnostics.css';
@@ -61,15 +62,11 @@ export function DiagnosticsDialog({ open, onClose, services, tryId, layout = 'au
 
   const save = (): void => {
     if (!file) return;
-    // The file is written (or the dialog is cancelled, or it fails) after this returns on the native shell; on the web the link click happens here.
-    void (async () => {
-      try {
-        const outcome = await (services.download ?? downloadText)(file.fileName, file.text);
-        setSaved(outcome === 'cancelled' ? null : copy('diagnostics.saved', { file: file.fileName }));
-      } catch {
-        setSaved(copy('settings.data.exportFailed'));
-      }
-    })();
+    const done = (outcome: SaveOutcome | void): void => setSaved(outcome === 'cancelled' ? null : copy('diagnostics.saved', { file: file.fileName }));
+    const sent = (services.download ?? downloadText)(file.fileName, file.text);
+    // A download helper that answers at once (the web's link click) is shown at once; the native shell answers once the player has chosen or the save has failed.
+    if (sent instanceof Promise) sent.then(done, () => setSaved(copy('settings.data.exportFailed')));
+    else done();
   };
   const share = (): void => {
     if (!file) return;

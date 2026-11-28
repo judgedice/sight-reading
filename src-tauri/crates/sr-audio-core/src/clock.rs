@@ -28,10 +28,18 @@ pub const LONG_BUCKETS: usize = 32;
 /// The long window sets the slope once it holds this many points.
 pub const LONG_MIN_POINTS: usize = 8;
 /// A step is declared when the newest [`STEP_RECENT_BUCKETS`] buckets sit this far, in seconds of stream time,
-/// above or below the line through the older ones (an xrun: the stream lost or gained time for good).
+/// above or below the line through the older ones (an xrun: the stream lost or gained time for good), in two
+/// refits running. The distance must also exceed [`STEP_SCATTER_FACTOR`] times the scatter of the window.
 pub const STEP_SEC: f64 = 0.0005;
+/// The step threshold is at least this many times the mean distance of the older buckets below their line.
+/// With few callbacks per bucket and much jitter (480 frames and 5 ms: 0.45 ms mean) the newest half second
+/// alone sits 0.5 ms low once in a few hundred refits; three times the scatter makes that one in millions.
+pub const STEP_SCATTER_FACTOR: f64 = 3.0;
 /// Number of newest buckets compared with the older ones to find a step.
 pub const STEP_RECENT_BUCKETS: usize = 5;
+/// The distance in time over which a rate error turns into a position error near the present, seconds (from
+/// the middle of the 4 s window to a little past its end).
+pub const POSITION_LEVER_SEC: f64 = 2.5;
 /// A fitted slope further than this fraction from nominal is not believed.
 const MAX_SLOPE_DEVIATION: f64 = 0.25;
 
@@ -182,8 +190,9 @@ fn highest(pts: &[Pt], ds: f64) -> Option<Pt> {
     best
 }
 
-/// Slope of the edge of the upper convex hull of `pts` (in time order) that lies over their mean time.
-fn hull_slope<const N: usize>(pts: &[Pt]) -> f64 {
+/// Slope of the edge of the upper convex hull of `pts` (in time order) that lies over their mean time, and
+/// that edge's length in seconds.
+fn hull_slope<const N: usize>(pts: &[Pt]) -> (f64, f64) {
     let mut hull = [0usize; N];
     let mut n = 0usize;
     let mut mean_h = 0.0;
@@ -201,7 +210,7 @@ fn hull_slope<const N: usize>(pts: &[Pt]) -> f64 {
         n += 1;
     }
     if n < 2 {
-        return f64::NAN;
+        return (f64::NAN, 0.0);
     }
     mean_h /= pts.len().min(N) as f64;
     let mut k = 0;
@@ -209,7 +218,7 @@ fn hull_slope<const N: usize>(pts: &[Pt]) -> f64 {
         k += 1;
     }
     let (a, b) = (pts[hull[k]], pts[hull[k + 1]]);
-    (b.y - a.y) / (b.h - a.h)
+    ((b.y - a.y) / (b.h - a.h), b.h - a.h)
 }
 
 /// Least-squares slope of `y` against `h`, and its standard error.
@@ -250,9 +259,10 @@ fn lsq_slope(pts: &[Pt]) -> (f64, f64) {
 /// * Slope: least squares through the earliest observation of each 1 s bucket over the last 32 s, once 8 of
 ///   them exist. Before that (from 1 s on) the slope of the edge of the 4 s window's upper convex hull over its
 ///   centre, which is the best one-sided fit of so short a stretch; before 1 s, the nominal rate.
-/// * Step: when the newest 0.5 s lies more than 0.5 ms above or below the line through the rest of the window
-///   (an xrun shifts the stream against the clock for good), the older points are dropped, the long window
-///   starts again and the slope found so far is kept.
+/// * Step: when, in two refits running, the newest 0.5 s lies above or below the line through the rest of the
+///   window by more than 0.5 ms and more than three times that window's own scatter (an xrun shifts the stream
+///   against the clock for good), the older points are dropped, the long window starts again and the slope
+///   found so far is kept. A 10 ms xrun is found after 0.8 to 1.1 s. Shifts below the threshold are not seen.
 ///
 /// Accuracy with 0 to 3 ms of lateness on every callback and stalls of four callbacks (test
 /// `clock_fit_rejects_jitter`): under 0.02 ms from 10 s on for 128, 256 and 480-frame callbacks; from 2 s on,
@@ -275,6 +285,8 @@ pub struct StreamClock {
     line: Option<Line>,
     last_fit_ns: u64,
     steps: u64,
+    /// Direction of a jump seen at the last refit and not yet confirmed (-1, 0, 1).
+    step_pending: i8,
 }
 
 impl StreamClock {
@@ -292,6 +304,7 @@ impl StreamClock {
             line: None,
             last_fit_ns: 0,
             steps: 0,
+            step_pending: 0,
         }
     }
 
@@ -338,20 +351,38 @@ impl StreamClock {
         if self.slope_fitted && self.fine.len >= 2 * STEP_RECENT_BUCKETS {
             let (older, recent) = self.fine.pts().split_at(self.fine.len - STEP_RECENT_BUCKETS);
             if let (Some(a), Some(b)) = (highest(older, self.ds), highest(recent, self.ds)) {
-                let jump = (b.y - self.ds * b.h) - (a.y - self.ds * a.h);
-                if jump.abs() > STEP_SEC * self.nominal {
+                let top = a.y - self.ds * a.h;
+                let jump = (b.y - self.ds * b.h) - top;
+                // How far the older buckets lie below their own line, on average: the lateness left in a
+                // bucket's best callback. The newest half second can sit that low by chance.
+                let scatter = older.iter().map(|p| top - (p.y - self.ds * p.h)).sum::<f64>() / older.len() as f64;
+                let threshold = (STEP_SEC * self.nominal).max(STEP_SCATTER_FACTOR * scatter);
+                let direction = if jump > threshold {
+                    1
+                } else if jump < -threshold {
+                    -1
+                } else {
+                    0
+                };
+                if direction != 0 && direction == self.step_pending {
                     step = true;
                     self.steps += 1;
+                    self.step_pending = 0;
                     self.fine.keep_last(STEP_RECENT_BUCKETS);
                     self.long.clear();
+                } else {
+                    self.step_pending = direction;
                 }
             }
+        } else {
+            self.step_pending = 0;
         }
         let from_long = self.long.len >= LONG_MIN_POINTS;
-        let (slope, long_error) = if from_long {
+        // Second value: the long fit's standard error, or the length of the hull edge the slope came from.
+        let (slope, quality) = if from_long {
             lsq_slope(self.long.pts())
         } else if self.fine.span_sec() >= MIN_SLOPE_SPAN_SEC {
-            (hull_slope::<WINDOW_BUCKETS>(self.fine.pts()), 0.0)
+            hull_slope::<WINDOW_BUCKETS>(self.fine.pts())
         } else {
             (f64::NAN, 0.0)
         };
@@ -366,12 +397,13 @@ impl StreamClock {
             self.line = Some(Line { h0: t.h, y0: t.y, ds: self.ds });
             if fitted {
                 self.ds_error = if from_long {
-                    long_error
+                    quality
                 } else {
-                    // Hull slope: the mean distance of the points below the line, over the span.
+                    // Hull slope: the mean distance of the points below the line, over the length of the edge
+                    // the slope was taken from (two points close together give a poor slope).
                     let pts = self.fine.pts();
                     let slack: f64 = pts.iter().map(|p| t.y + self.ds * (p.h - t.h) - p.y).sum::<f64>() / pts.len() as f64;
-                    slack.max(0.0) / self.fine.span_sec().max(1e-3)
+                    slack.max(0.0) / quality.max(1e-3)
                 };
             }
         }
@@ -420,6 +452,12 @@ impl StreamClock {
     /// perfectly regular callbacks.
     pub fn rate_uncertainty(&self) -> f64 {
         self.ds_error / self.nominal
+    }
+
+    /// Rough error of a position mapped through this clock near the present, seconds of stream time: the
+    /// rate uncertainty over [`POSITION_LEVER_SEC`]. Infinite until settled, 0 for perfectly regular callbacks.
+    pub fn position_uncertainty_sec(&self) -> f64 {
+        self.rate_uncertainty() * POSITION_LEVER_SEC
     }
 
     /// Fitted rate, frames per host second. `None` before the first observation.
@@ -882,7 +920,7 @@ mod tests {
         // An xrun at 15 s: the device stalls and the stream is 10 ms behind the clock from then on.
         let mut dev = FakeCallbacks::new(31, 128, 48_000.0 * (1.0 + 60e-6), 3.0, 53);
         let mut clock = StreamClock::new(48_000.0);
-        let (mut stepped_at, mut after, mut before, mut lost) = (None, 0f64, 0f64, false);
+        let (mut stepped_at, mut after, mut settled, mut before, mut lost) = (None, 0f64, 0f64, 0f64, false);
         loop {
             let (ns, frames) = dev.next();
             let t = (ns - FakeCallbacks::HOST0_NS) as f64 * 1e-9;
@@ -901,14 +939,71 @@ mod tests {
             let err_ms = ((clock.frames_at(ns).unwrap() - dev.truth(ns)) / 48.0).abs();
             if (10.0..15.0).contains(&t) {
                 before = before.max(err_ms);
-            } else if t >= 16.0 {
+            } else if t >= 20.0 {
+                settled = settled.max(err_ms);
+            } else if t >= 16.5 {
                 after = after.max(err_ms);
             }
         }
         let at = stepped_at.expect("the step is found");
-        println!("stream clock step: 10 ms lost at 15 s, found at {at:.2} s; max error {before:.4} ms before, {after:.4} ms from 16 s on");
-        assert!(at < 16.0 && clock.steps() == 1);
-        assert!(before < 0.05 && after < 0.05);
+        println!("stream clock step: 10 ms lost at 15 s, found at {at:.2} s; max error {before:.4} ms before, {after:.4} ms from 16.5 to 20 s, {settled:.4} ms after");
+        assert!(at < 16.2 && clock.steps() == 1);
+        // Right after a step the fit stands on five buckets; captures do not start on it (they wait for
+        // 0.1 ms), and the one that was running has ended.
+        assert!(before < 0.05 && after < 0.1 && settled < 0.05);
+    }
+
+    #[test]
+    fn step_detector_ignores_jitter_without_xruns() {
+        // No xrun anywhere: only late callbacks. (quantum, jitter in ms, seed), 120 s each.
+        for (quantum, jitter_ms, seed) in [(480u64, 5.0, 1u64), (480, 5.0, 2), (1024, 5.0, 1), (1024, 5.0, 2), (128, 8.0, 1), (256, 5.0, 1)] {
+            let mut dev = FakeCallbacks::new(seed, quantum, 48_000.0, jitter_ms, u64::MAX);
+            let mut clock = StreamClock::new(48_000.0);
+            let (mut steps, mut worst) = (0u32, 0f64);
+            loop {
+                let (ns, frames) = dev.next();
+                let t = (ns - FakeCallbacks::HOST0_NS) as f64 * 1e-9;
+                if t > 120.0 {
+                    break;
+                }
+                steps += clock.observe(ns, frames).step as u32;
+                if t >= 30.0 {
+                    worst = worst.max(((clock.frames_at(ns).unwrap() - dev.truth(ns)) / 48.0).abs());
+                }
+            }
+            println!("step detector, no xrun, {quantum} frames, {jitter_ms} ms jitter, seed {seed}: {steps} false steps in 120 s, max R(h) error {worst:.3} ms from 30 s on");
+            assert_eq!(steps, 0, "{quantum} frames, {jitter_ms} ms jitter");
+            assert!(worst < 0.3, "{worst}");
+        }
+    }
+
+    #[test]
+    fn step_detector_still_finds_real_xruns() {
+        // A 10 ms xrun at 15 s, on clean and on rough callback timing. (quantum, jitter ms, seed)
+        for (quantum, jitter_ms, seed) in [(128u64, 0.3, 1u64), (128, 3.0, 2), (480, 5.0, 3), (1024, 5.0, 4)] {
+            let mut dev = FakeCallbacks::new(seed, quantum, 48_000.0, jitter_ms, u64::MAX);
+            let mut clock = StreamClock::new(48_000.0);
+            let (mut found, mut lost) = (None, false);
+            loop {
+                let (ns, frames) = dev.next();
+                let t = (ns - FakeCallbacks::HOST0_NS) as f64 * 1e-9;
+                if t > 25.0 {
+                    break;
+                }
+                if t >= 15.0 && !lost {
+                    dev.lose(10_000_000);
+                    lost = true;
+                    continue;
+                }
+                if clock.observe(ns, frames).step {
+                    assert!(found.is_none() && t > 15.0, "one step, after the xrun");
+                    found = Some(t - 15.0);
+                }
+            }
+            let delay = found.expect("the 10 ms xrun is found");
+            println!("step detector, 10 ms xrun, {quantum} frames, {jitter_ms} ms jitter: found after {delay:.2} s");
+            assert!(delay < 1.5);
+        }
     }
 
     #[test]

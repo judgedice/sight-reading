@@ -60,6 +60,17 @@ impl Rig {
         self.stop()
     }
 
+    /// Asks for a capture and runs until it has begun (it waits for the clocks); returns the delay in seconds.
+    fn start_and_wait(&mut self, config: CaptureConfig) -> f64 {
+        let asked = self.sim.time_sec();
+        self.reader.start(config).unwrap();
+        while !self.events.iter().any(|e| matches!(e, CaptureEvent::Started { .. })) {
+            assert!(self.sim.time_sec() < asked + 13.0, "a start never waits longer than MAX_START_WAIT_SEC");
+            self.run_until(self.sim.time_sec() + 0.01);
+        }
+        self.sim.time_sec() - asked
+    }
+
     fn stop(&mut self) -> CaptureStats {
         self.reader.stop().unwrap();
         let t = self.sim.time_sec() + 0.05;
@@ -119,43 +130,54 @@ fn bridge_locked_same_clock() {
 
 #[test]
 fn locked_path_with_jitter_and_a_shared_clock_hint() {
-    // Real callbacks are late and bursty. With the clocks declared shared the path is locked at once; the
-    // integer offset then carries the clock fits' error at the moment of the start.
-    for (start, seed) in [(1.5, 3u32), (4.0, 4), (12.0, 5), (12.0, 6)] {
+    // Real callbacks are late and bursty. The capture waits until the clocks place a frame within 0.1 ms, so
+    // the integer offset of the locked path is right whenever the start was asked for.
+    for (ask, seed) in [(1.5, 3u32), (4.0, 4), (12.0, 5), (12.0, 6), (0.2, 7)] {
         let mut rig = Rig::new(SimConfig { jitter_ms: 3.0, burst_every: 53, input_start_sec: 0.01, seed, ..SimConfig::ideal(48_000) });
         rig.sim.set_input_signal(|m, _| noise_at(m));
-        rig.capture(start, start + 1.0, CaptureConfig { relation: ClockRelation::Shared, ..CaptureConfig::default() });
+        rig.run_until(ask);
+        let waited = rig.start_and_wait(CaptureConfig { relation: ClockRelation::Shared, ..CaptureConfig::default() });
+        rig.run_until(rig.sim.time_sec() + 1.0);
+        rig.stop();
         let (origin, path) = rig.started();
         assert_eq!(path, CapturePath::Locked);
         let (_, samples) = rig.stream();
         let error = (-200i64..=200).find(|d| samples.iter().take(64).enumerate().all(|(i, s)| s.to_bits() == noise_at((origin as i64 + i as i64 - 480 - d) as u64).to_bits())).expect("an offset within 200 frames");
-        println!("locked with 3 ms jitter, start at {start} s: stamp error {error} frames ({:.3} ms)", error as f64 / 48.0);
-        assert!(error.abs() <= if start >= 10.0 { 2 } else { 10 });
-        // Unknown clocks with this much scatter are not declared locked early on.
-        if start < 2.0 {
-            let mut rig = Rig::new(SimConfig { jitter_ms: 3.0, burst_every: 53, seed, ..SimConfig::ideal(48_000) });
-            rig.capture(start, start + 0.2, CaptureConfig::default());
-            assert_eq!(rig.started().1, CapturePath::Resampled);
-        }
+        println!("locked with 3 ms jitter, asked at {ask} s: began {waited:.2} s later, stamp error {error} frames ({:.3} ms)", error as f64 / 48.0);
+        assert!(error.abs() <= 5, "within 0.1 ms");
     }
 }
 
 /// Largest stamp error of a captured 1 kHz tone, seconds: the phase of each packet against the tone at the
 /// true time of its engine frames.
 fn tone_stamp_error(rig: &Rig, f_out: f64) -> f64 {
-    let w = 2.0 * PI * 1000.0;
-    let mut worst = 0f64;
-    for (h, s) in rig.packets.iter().filter(|(_, s)| s.len() >= 256) {
+    packet_stamp_errors(rig, f_out, 1000.0).into_iter().map(|(_, e)| e.abs()).fold(0.0, f64::max)
+}
+
+/// The slow tone the long tests capture: 2 cycles per 512-frame packet at 48 kHz, unambiguous to 2.6 ms.
+const SLOW_HZ: f64 = 187.5;
+
+/// Signed stamp error of every full packet of a captured tone of `hz`, as (packet index, seconds).
+fn packet_stamp_errors(rig: &Rig, f_out: f64, hz: f64) -> Vec<(usize, f64)> {
+    packet_stamp_errors_shifted(rig, f_out, hz, 0.0)
+}
+
+/// As [`packet_stamp_errors`] when the engine's frame count is `shift` frames ahead of the device's (engine
+/// time jumped forward over a restart).
+fn packet_stamp_errors_shifted(rig: &Rig, f_out: f64, hz: f64, shift: f64) -> Vec<(usize, f64)> {
+    let w = 2.0 * PI * hz;
+    let mut out = Vec::new();
+    for (n, (h, s)) in rig.packets.iter().enumerate().filter(|(_, (_, s))| s.len() >= 256) {
         let (mut i, mut q) = (0f64, 0f64);
         for (k, y) in s.iter().enumerate() {
-            let (sin, cos) = (w * (h.first_frame + k as f64) / f_out).sin_cos();
+            let (sin, cos) = (w * (h.first_frame - shift + k as f64) / f_out).sin_cos();
             i += *y as f64 * sin;
             q += *y as f64 * cos;
         }
         assert!((i * i + q * q).sqrt() / s.len() as f64 > 0.1, "the tone is there");
-        worst = worst.max((q.atan2(i) / w).abs());
+        out.push((n, q.atan2(i) / w));
     }
-    worst
+    out
 }
 
 #[test]
@@ -175,7 +197,7 @@ fn bridge_tracks_drift() {
             "bridge_tracks_drift, {name}: resampled, {:.1} s, max stamp error {:.4} ms (limit 0.2), no gap, measured input drift {drift:+.2} ppm, ring max {:.1} ms",
             samples.len() as f64 / 48_000.0, worst * 1e3, stats.max_ring_ms
         );
-        assert!(samples.len() > 119 * 48_000);
+        assert!(samples.len() > 105 * 48_000, "with jitter the start waits for the clocks: {}", samples.len());
         assert!(worst < 0.2e-3, "stamp error {worst}");
         assert!((drift - 200.0).abs() < 3.0);
         assert!(rig.packets.iter().all(|(h, _)| h.flags & FLAG_RESAMPLED != 0 && h.flags & (FLAG_DRIFT | FLAG_CLOCK_STEP) == 0));
@@ -219,7 +241,7 @@ fn bridge_rate_convert() {
 }
 
 #[test]
-fn clock_step_breaks_the_grid_and_fixes_the_mapping_again() {
+fn clock_step_ends_the_capture() {
     let mut rig = Rig::new(SimConfig { input_start_sec: 0.01, ..SimConfig::ideal(48_000) });
     rig.sim.set_input_signal(|m, _| noise_at(m));
     rig.run_until(1.5);
@@ -227,30 +249,22 @@ fn clock_step_breaks_the_grid_and_fixes_the_mapping_again() {
     rig.run_until(3.0);
     rig.sim.lose_input(0.01); // an input xrun: 480 frames of time are gone
     rig.run_until(5.0);
-    let stats = rig.stop();
     let (origin, path) = rig.started();
     assert_eq!(path, CapturePath::Locked);
+    assert!(!rig.reader.is_running(), "the capture ended by itself");
+    let stopped = rig.events.iter().find_map(|e| if let CaptureEvent::Stopped(s) = e { Some(*s) } else { None }).expect("stopped");
     assert_eq!(rig.events.iter().filter(|e| matches!(e, CaptureEvent::ClockStep { stream: StreamKind::Input })).count(), 1);
-    assert_eq!(stats.clock_steps, 1);
-    // Before the step: offset 480. After the mapping was fixed again: 960, flagged, and the grid jumps.
-    let first_flagged = rig.packets.iter().position(|(h, _)| h.flags & FLAG_CLOCK_STEP != 0).expect("flagged packets");
-    let mut expect = origin;
-    let mut jumps = Vec::new();
-    for (i, (h, s)) in rig.packets.iter().enumerate() {
-        let first = h.first_frame as u64;
-        if first != expect {
-            jumps.push((i, first as i64 - expect as i64));
-        }
-        let offset = if i >= first_flagged { 960 } else { 480 };
-        assert!(s.iter().enumerate().all(|(k, v)| v.to_bits() == noise_at(first + k as u64 - offset).to_bits()), "packet {i}");
-        assert_eq!(h.flags & FLAG_CLOCK_STEP != 0, i >= first_flagged);
-        expect = first + s.len() as u64;
-    }
-    println!("clock step: 10 ms input xrun at 3.0 s, grid jump {:?} (packet, frames), found {:.2} s later", jumps, (rig.packets[first_flagged].0.first_frame - 480.0) / 48_000.0 - 3.0);
-    assert_eq!(jumps, vec![(first_flagged, 480)]);
-    // Until the step is found (about 0.5 s) the frames keep their old stamps: the input clock still holds
-    // the line from before the stall, so the drift monitor cannot see it either. After it, no drift.
-    assert!(rig.packets.iter().all(|(h, _)| h.flags & FLAG_DRIFT == 0));
+    assert_eq!(stopped.clock_steps, 1);
+    // Every packet is on the grid and carries what was captured; the last one has the step flag.
+    let (_, samples) = rig.stream();
+    assert!(samples.iter().enumerate().all(|(k, v)| v.to_bits() == noise_at(origin + k as u64 - 480).to_bits()));
+    let (last, body) = rig.packets.split_last().unwrap();
+    assert_eq!(last.0.flags, FLAG_LAST | FLAG_CLOCK_STEP);
+    assert!(body.iter().all(|(h, _)| h.flags == 0));
+    let found = (origin as f64 + samples.len() as f64 - 480.0) / 48_000.0 - 3.0;
+    println!("clock step: 10 ms input xrun at 3.0 s ends the capture {found:.2} s later (frames of that stretch are stamped 10 ms early; the step flag voids the capture)");
+    assert!(found > 0.5 && found < 1.2);
+    assert_eq!(stopped.frames as usize, samples.len());
 }
 
 #[test]
@@ -288,20 +302,6 @@ fn capture_control_flags_and_errors() {
     assert!(rig.stream().1.len() > 8000);
     assert_eq!(rig.handle.rate_check(1.0).input_drift_ppm.map(|p| p.abs() < 0.01), Some(true));
 
-    // An output restart during a capture is a step of the output clock: reported, flagged, mapping fixed again.
-    rig.events.clear();
-    rig.packets.clear();
-    let t = rig.sim.time_sec();
-    rig.run_until(t + 0.1);
-    rig.reader.start(CaptureConfig::default()).unwrap();
-    rig.run_until(t + 0.4);
-    rig.handle.output_restarted().unwrap();
-    rig.run_until(t + 0.8);
-    let stats = rig.stop();
-    assert_eq!(stats.clock_steps, 1);
-    assert!(rig.events.contains(&CaptureEvent::ClockStep { stream: StreamKind::Output }));
-    let flagged = rig.packets.iter().filter(|(h, _)| h.flags & FLAG_CLOCK_STEP != 0).count();
-    assert!(flagged > 10 && flagged < rig.packets.len() - 10 && rig.packets.last().unwrap().0.flags & FLAG_CLOCK_STEP != 0);
 }
 
 /// Runs a loopback measurement on a simulated device.
@@ -395,12 +395,12 @@ fn whole_engine_click_arrivals() {
         rig.handle.put_buffer(1, AudioBuffer::new(click, 48_000));
         rig.handle.put_buffer(2, AudioBuffer::new(accent, 48_000));
         // 24 clicks at 132 bpm from an off-grid time, every fourth accented; capture starts 0.5 s before.
-        let t0 = 2.000_123;
-        let specs: Vec<VoiceSpec> = (0..24).map(|k| VoiceSpec { gain: 0.8, ..VoiceSpec::new(k, if k % 4 == 0 { 2 } else { 1 }, t0 + k as f64 * 60.0 / 132.0) }).collect();
         rig.run_until(1.5);
-        rig.reader.start(CaptureConfig::default()).unwrap();
+        let waited = rig.start_and_wait(CaptureConfig::default());
+        let t0 = rig.sim.frames().0 as f64 / 48_000.0 + 0.500_123;
+        let specs: Vec<VoiceSpec> = (0..24).map(|k| VoiceSpec { gain: 0.8, ..VoiceSpec::new(k, if k % 4 == 0 { 2 } else { 1 }, t0 + k as f64 * 60.0 / 132.0) }).collect();
         assert!(rig.handle.schedule(Group::Take, &specs).unwrap().late.is_empty());
-        rig.run_until(t0 + 24.0 * 60.0 / 132.0 + 0.3);
+        rig.run_until(rig.sim.time_sec() + 0.5 + 24.0 * 60.0 / 132.0 + 0.4);
         rig.stop();
         assert_eq!(rig.started().1, want_path);
         assert_eq!(rig.sim.underruns(), 0);
@@ -419,7 +419,7 @@ fn whole_engine_click_arrivals() {
             worst = worst.max((a.lag_sec - delay).abs());
         }
         assert_eq!(rig.notes.iter().filter(|n| matches!(n, Notification::Ended { .. })).count(), 24);
-        println!("whole_engine_click_arrivals, {name}: 24 clicks, max arrival error {:.4} ms (limit {limit_ms})", worst * 1e3);
+        println!("whole_engine_click_arrivals, {name}: capture began {waited:.2} s after it was asked for at 1.5 s; 24 clicks, max arrival error {:.4} ms (limit {limit_ms})", worst * 1e3);
         assert!(worst * 1e3 < limit_ms);
     }
 }
@@ -485,4 +485,142 @@ fn accessors_for_a_device_wrapper() {
     rig2.handle.schedule(Group::Sounds, &[VoiceSpec::new(1, 1, 0.0)]).unwrap();
     rig2.run_until(0.5);
     assert!(rig2.sim.last_output().iter().all(|x| *x == 0.25), "the last rendered buffer, interleaved");
+}
+
+fn slow_tone(rig: &mut Rig) {
+    rig.sim.set_input_signal(|_, t| (0.5 * (2.0 * PI * SLOW_HZ * t).sin()) as f32);
+}
+
+/// Index of the first packet that carries the drift or the step flag.
+fn first_void_flag(rig: &Rig) -> Option<usize> {
+    rig.packets.iter().position(|(h, _)| h.flags & (FLAG_DRIFT | FLAG_CLOCK_STEP) != 0)
+}
+
+#[test]
+fn ten_minute_capture_stays_inside_half_a_millisecond_or_is_flagged() {
+    // Unknown clocks, ideal callbacks, the input 3 ppm fast: a 10-minute capture.
+    let mut rig = Rig::new(SimConfig { in_ppm: 3.0, input_start_sec: 0.0137, seed: 7, ..SimConfig::ideal(48_000) });
+    slow_tone(&mut rig);
+    rig.capture(30.0, 630.0, CaptureConfig::default());
+    let errors = packet_stamp_errors(&rig, 48_000.0, SLOW_HZ);
+    let flagged = first_void_flag(&rig);
+    let unflagged_worst = errors.iter().filter(|(n, _)| flagged.is_none_or(|f| *n < f)).map(|(_, e)| e.abs()).fold(0.0, f64::max);
+    let end = errors.last().unwrap().1;
+    println!(
+        "10-minute capture, unknown clocks, input +3 ppm: path {:?}, stamp error at the end {:+.3} ms, largest before any drift or step flag {:.3} ms, first flag at {:?} s",
+        rig.started().1, end * 1e3, unflagged_worst * 1e3, flagged.map(|n| (n as f64 * 512.0 / 48_000.0).round())
+    );
+    assert!(unflagged_worst < 0.5e-3, "inside 0.5 ms or flagged: {unflagged_worst}");
+    assert_eq!(rig.started().1, CapturePath::Resampled, "3 ppm apart is not one clock");
+    assert!(flagged.is_none() && end.abs() < 0.05e-3);
+}
+
+#[test]
+fn small_rate_differences_are_not_locked() {
+    for (ppm, jitter_ms) in [(2.0, 0.0), (4.0, 0.0), (2.0, 0.05), (-1.0, 0.0), (0.7, 0.0)] {
+        let mut rig = Rig::new(SimConfig { in_ppm: ppm, jitter_ms, seed: 7, ..SimConfig::ideal(48_000) });
+        rig.capture(30.0, 30.3, CaptureConfig::default());
+        println!("unknown clocks, input {ppm:+} ppm, jitter {jitter_ms} ms, start at 30 s: {:?}", rig.started().1);
+        assert_eq!(rig.started().1, CapturePath::Resampled);
+    }
+    // One clock, clean callbacks: still locked by measurement.
+    for jitter_ms in [0.0, 0.02] {
+        let mut rig = Rig::new(SimConfig { jitter_ms, seed: 8, ..SimConfig::ideal(48_000) });
+        rig.capture(40.0, 40.3, CaptureConfig::default());
+        println!("unknown clocks, one clock, jitter {jitter_ms} ms, start at 40 s: {:?}", rig.started().1);
+        assert_eq!(rig.started().1, CapturePath::Locked);
+    }
+}
+
+#[test]
+fn a_wrong_shared_claim_is_overridden_or_flagged() {
+    // The device layer says "one clock"; the input really runs 20 ppm fast.
+    // (a) Settled, clean clocks: the measurement contradicts the claim and wins.
+    let mut rig = Rig::new(SimConfig { in_ppm: 20.0, seed: 7, ..SimConfig::ideal(48_000) });
+    slow_tone(&mut rig);
+    rig.capture(30.0, 90.0, CaptureConfig { relation: ClockRelation::Shared, ..CaptureConfig::default() });
+    let worst = packet_stamp_errors(&rig, 48_000.0, SLOW_HZ).into_iter().map(|(_, e)| e.abs()).fold(0.0, f64::max);
+    println!("wrong shared claim (+20 ppm), settled clocks, 60 s: path {:?}, max stamp error {:.3} ms, first flag {:?}", rig.started().1, worst * 1e3, first_void_flag(&rig));
+    assert_eq!(rig.started().1, CapturePath::Resampled);
+    assert!(worst < 0.05e-3);
+
+    // (b) A difference the clocks cannot tell from none (1.5 ppm): locked, and the drift flag comes before
+    // the capture is 0.5 ms off, and stays.
+    let mut rig = Rig::new(SimConfig { in_ppm: 1.5, seed: 7, ..SimConfig::ideal(48_000) });
+    slow_tone(&mut rig);
+    rig.capture(30.0, 430.0, CaptureConfig { relation: ClockRelation::Shared, ..CaptureConfig::default() });
+    let errors = packet_stamp_errors(&rig, 48_000.0, SLOW_HZ);
+    let flagged = first_void_flag(&rig);
+    let before_flag = errors.iter().filter(|(n, _)| flagged.is_none_or(|f| *n < f)).map(|(_, e)| e.abs()).fold(0.0, f64::max);
+    println!(
+        "shared claim with the input 1.5 ppm fast, 400 s: path {:?}, error at the end {:+.3} ms, largest before the flag {:.3} ms, drift flag after {:?} s",
+        rig.started().1, errors.last().unwrap().1 * 1e3, before_flag * 1e3, flagged.map(|n| (n as f64 * 512.0 / 48_000.0).round())
+    );
+    assert_eq!(rig.started().1, CapturePath::Locked);
+    let at = flagged.expect("the drift is flagged");
+    assert!(before_flag < 0.5e-3, "{before_flag}");
+    assert!(rig.packets[at..].iter().all(|(h, _)| h.flags & FLAG_DRIFT != 0), "the flag stays");
+}
+
+#[test]
+fn output_restart_ends_a_running_capture() {
+    for seed in 1..=6 {
+        let mut rig = Rig::new(SimConfig { jitter_ms: 3.0, burst_every: 53, input_start_sec: 0.0137, seed, ..SimConfig::ideal(48_000) });
+        slow_tone(&mut rig);
+        rig.run_until(12.0);
+        rig.reader.start(CaptureConfig { relation: ClockRelation::Shared, ..CaptureConfig::default() }).unwrap();
+        rig.run_until(15.0);
+        rig.handle.output_restarted().unwrap();
+        rig.run_until(15.4);
+        let ended = rig.events.iter().any(|e| matches!(e, CaptureEvent::Stopped(_)));
+        let errors = packet_stamp_errors(&rig, 48_000.0, SLOW_HZ);
+        let after: f64 = errors.iter().filter(|(n, _)| rig.packets[*n].0.first_frame > 15.5 * 48_000.0).map(|(_, e)| e.abs()).fold(0.0, f64::max);
+        println!(
+            "output restart during a locked capture, seed {seed}: capture ended by itself: {ended}; packets after the restart: {}; largest stamp error in them {:.3} ms",
+            rig.packets.iter().filter(|(h, _)| h.first_frame > 15.5 * 48_000.0).count(), after * 1e3
+        );
+        assert!(ended, "the capture ends instead of going on with a mapping from a one-point clock");
+        assert!(!rig.reader.is_running());
+        let (last, _) = rig.packets.last().unwrap();
+        assert_eq!(last.flags & (FLAG_LAST | FLAG_CLOCK_STEP), FLAG_LAST | FLAG_CLOCK_STEP);
+        assert!(last.first_frame < 15.3 * 48_000.0);
+        assert!(after == 0.0);
+        assert!(rig.events.contains(&CaptureEvent::ClockStep { stream: StreamKind::Output }));
+        // A new capture waits for the output clock to settle again, then is right.
+        rig.events.clear();
+        rig.packets.clear();
+        rig.reader.start(CaptureConfig { relation: ClockRelation::Shared, ..CaptureConfig::default() }).unwrap();
+        rig.run_until(22.0);
+        rig.stop();
+        let origin_sec = rig.started().0 as f64 / 48_000.0;
+        // Engine time jumped forward over the restart by what the late callback added; the device's own
+        // frame count did not, so the truth is shifted by the difference.
+        let shift = rig.sim.engine().head() as f64 - rig.sim.frames().0 as f64;
+        let worst = packet_stamp_errors_shifted(&rig, 48_000.0, SLOW_HZ, shift).into_iter().map(|(_, e)| e.abs()).fold(0.0, f64::max);
+        println!("    next capture, asked for 0.4 s after the restart: began {:.2} s after it, max stamp error {:.3} ms (engine time jumped {shift} frames at the restart)", origin_sec - 15.0, worst * 1e3);
+        assert!(origin_sec > 16.0, "not before the new output clock has run a second: {origin_sec}");
+        assert!(worst < 0.15e-3, "seed {seed}: {worst}");
+    }
+}
+
+#[test]
+fn small_input_losses_cannot_add_up_unnoticed() {
+    // Four input losses of 0.4 ms each, every one below what the step detector can see.
+    let mut rig = Rig::new(SimConfig { input_start_sec: 0.0137, seed: 3, ..SimConfig::ideal(48_000) });
+    slow_tone(&mut rig);
+    rig.run_until(30.0);
+    rig.reader.start(CaptureConfig { relation: ClockRelation::Shared, ..CaptureConfig::default() }).unwrap();
+    for k in 0..4 {
+        rig.run_until(33.0 + 3.0 * k as f64);
+        rig.sim.lose_input(0.0004);
+    }
+    rig.run_until(52.0);
+    rig.stop();
+    let errors = packet_stamp_errors(&rig, 48_000.0, SLOW_HZ);
+    let flagged = first_void_flag(&rig);
+    println!(
+        "four 0.4 ms input losses, locked: stamp error at the end {:+.3} ms; first drift or step flag after {:?} s of capture",
+        errors.last().unwrap().1 * 1e3, flagged.map(|n| (n as f64 * 512.0 / 48_000.0 * 10.0).round() / 10.0)
+    );
+    assert!(flagged.is_some(), "0.8 ms and more of lost input is flagged");
 }

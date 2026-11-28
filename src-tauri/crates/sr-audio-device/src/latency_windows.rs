@@ -54,11 +54,17 @@ pub fn relation(_out: Option<&EndpointFacts>, _input: Option<&EndpointFacts>) ->
     ClockRelation::Unknown
 }
 
-/// The facts of the endpoint with this id (as cpal's device id gives it), else of the default endpoint of
-/// that direction. `None` when there is none or COM is unavailable.
+/// The facts of the endpoint with this id (`IMMDevice::GetId`, the bare id of cpal's device id). `None` when
+/// no endpoint has that id or COM is unavailable: there is no fallback to the default endpoint.
 #[cfg(target_os = "windows")]
-pub fn query(id: &str, input: bool) -> Option<EndpointFacts> {
-    wasapi::query(id, input)
+pub fn query(id: &str) -> Option<EndpointFacts> {
+    wasapi::query(Some(id), false)
+}
+
+/// The facts of the default endpoint of one direction (diagnostics and tests).
+#[cfg(target_os = "windows")]
+pub fn query_default(input: bool) -> Option<EndpointFacts> {
+    wasapi::query(None, input)
 }
 
 #[cfg(target_os = "windows")]
@@ -84,22 +90,20 @@ mod wasapi {
         }
     }
 
-    pub(super) fn query(id: &str, input: bool) -> Option<EndpointFacts> {
+    pub(super) fn query(id: Option<&str>, input: bool) -> Option<EndpointFacts> {
         // SAFETY: plain COM initialisation of the calling thread. A failure (the thread already runs another
         // apartment model) still leaves COM usable for these calls, so it is not an error here; only a
         // success is balanced by the guard.
         let _com = ComGuard(unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) }.is_ok());
         // SAFETY: standard activation of the device enumerator; the result is an owned interface pointer.
         let enumerator: IMMDeviceEnumerator = unsafe { CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL) }.ok()?;
-        let by_id = if id.is_empty() {
-            None
-        } else {
-            let wide = HSTRING::from(id);
-            // SAFETY: `wide` is a valid, NUL-terminated wide string that outlives the call.
-            unsafe { enumerator.GetDevice(PCWSTR(wide.as_ptr())) }.ok()
-        };
-        let device: IMMDevice = match by_id {
-            Some(d) => d,
+        let device: IMMDevice = match id {
+            Some("") => return None,
+            Some(id) => {
+                let wide = HSTRING::from(id);
+                // SAFETY: `wide` is a valid, NUL-terminated wide string that outlives the call.
+                unsafe { enumerator.GetDevice(PCWSTR(wide.as_ptr())) }.ok()?
+            }
             // SAFETY: plain COM call on a live enumerator.
             None => unsafe { enumerator.GetDefaultAudioEndpoint(if input { eCapture } else { eRender }, eConsole) }.ok()?,
         };
@@ -168,7 +172,7 @@ mod tests {
     #[cfg(target_os = "windows")]
     #[test]
     fn windows_default_endpoints_report_sane_values() {
-        let (out, input) = (query("", false), query("", true));
+        let (out, input) = (query_default(false), query_default(true));
         println!("Windows default render endpoint: {out:?}");
         println!("Windows default capture endpoint: {input:?}");
         let p = parts(out.as_ref(), input.as_ref());
@@ -176,10 +180,13 @@ mod tests {
         for part in [p.out_buffer, p.out_stream, p.in_buffer, p.in_stream].into_iter().flatten() {
             assert!(part.is_finite() && (0.0..=10.0).contains(&part));
         }
-        // An endpoint that exists is found again by its id; an unknown id falls back to the default.
+        // An endpoint that exists is found again by its id; an unknown id, the empty id and cpal's display
+        // form of a known id find nothing (no fallback to the default).
         if let Some(id) = out.as_ref().and_then(|o| o.id.clone()) {
-            assert_eq!(query(&id, false).and_then(|o| o.id), Some(id));
+            assert_eq!(query(&id).and_then(|o| o.id), Some(id.clone()));
+            assert_eq!(query(&format!("wasapi:{id}")), None);
         }
-        assert_eq!(query("no-such-endpoint", false).is_some(), out.is_some());
+        assert_eq!(query("no-such-endpoint"), None);
+        assert_eq!(query(""), None);
     }
 }

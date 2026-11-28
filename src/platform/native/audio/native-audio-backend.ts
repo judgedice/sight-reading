@@ -110,6 +110,8 @@ interface CaptureState {
   feed: NativeCaptureFeed;
   /** From the engine's reply to `audio_capture_start`; the first packet's `firstFrame` replaces it if it differs. */
   originFrame: number | null;
+  /** Calibration clicks were scheduled during this capture: a void capture then makes `stopCapture` throw. */
+  calibration: boolean;
 }
 
 export class NativeAudioBackend implements AudioBackend {
@@ -145,6 +147,8 @@ export class NativeAudioBackend implements AudioBackend {
   private takeEndsAt = 0;
   private clockRateError: number | null = null;
   private xruns = 0;
+  /** A click of the scheduled take started late (see `onLate` in the constructor). */
+  private takeLate = false;
 
   private cap: CaptureState | null = null;
   /** Delivery delay of every capture packet since `resetPacketDelays`, ms (diagnostics; capped). */
@@ -167,6 +171,13 @@ export class NativeAudioBackend implements AudioBackend {
     this.perfNow = opts.perfNow ?? (() => performance.now());
     this.clock = new EngineClock(this.perfNow);
     this.host = new NativeVoiceHost(this.ipc, () => this.clock.now());
+    // A take click the engine started late sounded at another time than the grader holds for it: the take is
+    // void, by the same fault as a gap in the capture (the session voids on it).
+    this.host.onLate = (_ids, group) => {
+      if (group !== 'take') return;
+      this.takeLate = true;
+      this.cap?.feed.voidCapture();
+    };
     this.takeCtx = new NativeVoiceContext(this.host, 'take');
     this.soundCtx = new NativeVoiceContext(this.host, 'sounds');
     this.buildMetronomes();
@@ -201,7 +212,7 @@ export class NativeAudioBackend implements AudioBackend {
     this.closing = false;
     const wantInput = this.inputEnabled;
     if (wantInput) await this.requireMicPermission();
-    if (this.cap) this.stopCapture();
+    if (this.cap) this.endCapture();
     // The engine drops its buffers and voices when it is reopened; so does every handle here.
     const session = ++this.session;
     this.host.newGeneration();
@@ -296,7 +307,7 @@ export class NativeAudioBackend implements AudioBackend {
    * opens the input again (`audio_set_input`, no new engine session).
    */
   releaseInput(): void {
-    if (this.cap) this.stopCapture();
+    if (this.cap) this.endCapture();
     this.inputOpen = false;
     void this.serial(() => this.ipc.releaseInput()).catch(() => undefined);
   }
@@ -306,7 +317,7 @@ export class NativeAudioBackend implements AudioBackend {
    * input already open it is closed and opened again, so a device that restarts its source does so.
    */
   async reopenInput(): Promise<AudioRouteInfo> {
-    if (this.cap) this.stopCapture();
+    if (this.cap) this.endCapture();
     this.inputEnabled = true;
     if (this.opened && this.inputOpen) {
       this.inputOpen = false;
@@ -319,7 +330,7 @@ export class NativeAudioBackend implements AudioBackend {
   async close(): Promise<void> {
     this.closing = true;
     this.session++;
-    this.stopCapture();
+    this.endCapture();
     this.takeEndsAt = 0;
     this.takeCtx.cancelGroupLocal();
     this.soundCtx.cancelGroupLocal();
@@ -370,6 +381,8 @@ export class NativeAudioBackend implements AudioBackend {
         break;
       case 'xrun':
         this.xruns += e.count;
+        // Frames were lost or a stream slipped against its clock: what is being captured cannot be placed.
+        this.cap?.feed.voidCapture();
         break;
     }
   }
@@ -427,6 +440,7 @@ export class NativeAudioBackend implements AudioBackend {
 
   async scheduleTake(p: TakeSchedule): Promise<{ t0: ClockSeconds; clicks: ClickSpec[] }> {
     this.requireOpen();
+    this.takeLate = false;
     const r = this.metronome.scheduleTake(p);
     this.takeEndsAt = Math.max(0, ...r.clicks.map((c) => c.t)) + 0.1;
     try {
@@ -448,6 +462,7 @@ export class NativeAudioBackend implements AudioBackend {
   async playCalibrationClicks(times: ClockSeconds[], timbre: ClickTimbre): Promise<void> {
     this.requireOpen();
     this.soundMetronome.scheduleClicks(times, timbre);
+    if (this.cap) this.cap.calibration = true;
     await this.soundCtx.flush();
   }
 
@@ -539,7 +554,7 @@ export class NativeAudioBackend implements AudioBackend {
 
   async startCapture(sink: MessagePortLike | ((m: WorkerMessage) => void)): Promise<void> {
     this.requireOpen();
-    if (this.cap) this.stopCapture();
+    if (this.cap) this.endCapture();
     const info = this.info as OpenInfo;
     const feed = new NativeCaptureFeed({
       engineRate: info.engineRate,
@@ -548,8 +563,10 @@ export class NativeAudioBackend implements AudioBackend {
       backlogVoidMs: this.budget.backlogVoidMs,
       onFault: (f) => this.faultCbs.forEach((cb) => cb(f)),
     });
-    const cap: CaptureState = { feed, originFrame: null };
+    const cap: CaptureState = { feed, originFrame: null, calibration: false };
     this.cap = cap;
+    // A click of the take still to be played was already started late before this capture began.
+    if (this.takeLate && this.clock.now() < this.takeEndsAt) feed.voidCapture();
     try {
       const r = await this.serial(() => this.ipc.captureStart({ packetFrames: this.opts.packetFrames ?? DEFAULT_PACKET_FRAMES, onPacket: (b) => this.onPacket(feed, b) }));
       cap.originFrame = r.originFrame;
@@ -582,9 +599,19 @@ export class NativeAudioBackend implements AudioBackend {
     this.packetDelays = [];
   }
 
+  /**
+   * Ends the capture. A calibration run does not listen for capture faults; it only calls this. A capture whose
+   * frame stamps the engine withdrew (gap, drift, clock step, xrun) must not become a calibration, so for a
+   * capture in which calibration clicks were scheduled this throws when the capture is void, and the run fails.
+   */
   stopCapture(): void {
+    const cap = this.endCapture();
+    if (cap?.calibration && cap.feed.voided) throw new Error('NativeAudioBackend: the calibration capture was interrupted (frames lost or a stream clock slipped); run it again');
+  }
+
+  private endCapture(): CaptureState | null {
     const cap = this.cap;
-    if (!cap) return;
+    if (!cap) return null;
     this.cap = null;
     this.lastStats = cap.feed.stop();
     const stats = this.lastStats;
@@ -595,6 +622,7 @@ export class NativeAudioBackend implements AudioBackend {
         if (this.lastStats === stats) this.lastStats = { ...stats, droppedBlocks: Math.max(stats.droppedBlocks, Math.ceil(r.droppedFrames / 256)) };
       })
       .catch(() => undefined);
+    return cap;
   }
 
   /** Counters of the current capture, or of the last one after `stopCapture` (AudioEnv.droppedBlocks, maxQueueMs). */

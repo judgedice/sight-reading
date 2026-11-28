@@ -129,6 +129,8 @@ export class FakeNativeIpc implements NativeIpc {
   loopback: LoopbackEstimate;
   /** Input of the open capture, engine frame to sample; zeros when absent. */
   inputSignal: ((frame: number) => number) | null = null;
+  /** Header flags of the packets cut from now on (the engine sets drift, bit 1, and clock step, bit 4, when its clocks say so). */
+  packetFlags = 0;
   /** While true, packets wait in `held` instead of being delivered (a main thread that is busy). */
   holdPackets = false;
   readonly held: ArrayBuffer[] = [];
@@ -570,7 +572,7 @@ export class FakeNativeIpc implements NativeIpc {
   private flushPacket(c: NonNullable<FakeNativeIpc['capture']>): void {
     const samples = Float32Array.from(c.pending);
     c.pending = [];
-    const packet = encodeCapturePacket({ seq: c.seq++, firstFrame: c.first, droppedBefore: c.droppedBefore }, samples);
+    const packet = encodeCapturePacket({ flags: this.packetFlags, seq: c.seq++, firstFrame: c.first, droppedBefore: c.droppedBefore }, samples);
     if (this.holdPackets) this.held.push(packet);
     else c.onPacket(packet);
     c.packets++;

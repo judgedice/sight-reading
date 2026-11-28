@@ -18,7 +18,7 @@
 import type { CaptureBlock, MessagePortLike, WorkerMessage } from '../../../core/platform.ts';
 import { CaptureCore, type CorePort } from '../../shared/audio/capture-processor.ts';
 import { FRAMES_PER_BLOCK, type FromWorklet, type ToWorklet } from '../../shared/audio/protocol.ts';
-import { parseCapturePacket } from './wire.ts';
+import { PACKET_VOID_FLAGS, parseCapturePacket } from './wire.ts';
 
 /** Capture problems that void a take (01 §7.9): the same shape the web backend reports. */
 export type CaptureFault = { kind: 'backlog'; queueMs: number } | { kind: 'capture-gap'; seq: number };
@@ -106,6 +106,9 @@ export class NativeCaptureFeed {
       this.noteGap(this.nextSeq ?? 0);
       return;
     }
+    // The engine says the stamps of this capture are not to be trusted (drift against its clocks, or a clock
+    // step): the same fault as a gap, which voids the try.
+    if ((p.flags & PACKET_VOID_FLAGS) !== 0) this.noteGap(p.seq);
     let samples = p.samples;
     let first = p.firstFrame;
     if (this.nextFrame === null) {
@@ -124,6 +127,19 @@ export class NativeCaptureFeed {
     this.nextSeq = p.seq + 1;
     this.nextFrame = first + samples.length;
     this.process(first, samples);
+  }
+
+  /**
+   * Voids the capture from outside the packet stream (an xrun the engine reported, a take click that started
+   * late): one `capture-gap` fault, as for a gap in the packets.
+   */
+  voidCapture(): void {
+    this.noteGap(this.nextSeq ?? 0);
+  }
+
+  /** True once a `capture-gap` fault has fired for this capture. */
+  get voided(): boolean {
+    return this.gapFired;
   }
 
   /** Ends the capture. The partial block of fewer than 256 frames is dropped, as in the worklet. */

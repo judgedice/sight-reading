@@ -10,7 +10,7 @@ import { NativeAudioBackend } from './audio/native-audio-backend.ts';
 import { TauriNativeIpc, type DebugHooks, type NativeIpc } from './audio/ipc.ts';
 import { nativeCapabilities } from './capabilities.ts';
 import { NativeCalibration } from './calibration.ts';
-import { APP_NAME, createNativeFileSaver, installLinkHandler, NativeWakeLock } from './files.ts';
+import { createNativeFileSaver, installLinkHandler, NativeWakeLock, originOf } from './files.ts';
 import { tauriInvoke, type Invoke } from './files-ipc.ts';
 import type { FileSaver } from '../../core/save-file.ts';
 
@@ -46,7 +46,7 @@ export interface NativeFiles {
   saveFile: FileSaver;
   /** For the keep-awake controller: the engine's sleep lock in place of `navigator.wakeLock`. */
   wakeLock: NativeWakeLock;
-  /** Names the page after the app and sends http(s) and licence links to the engine. Call once, with the document. Returns the undo. */
+  /** Sends http(s) and licence links to the engine. Call once, with the document. Returns the undo. */
   attach(doc: Document): () => void;
 }
 
@@ -79,9 +79,7 @@ export function bootNative(o: NativeBootOptions): NativeBoot {
       saveFile: createNativeFileSaver(invoke),
       wakeLock: new NativeWakeLock(invoke),
       attach(doc) {
-        // The window's own title is `productName`; the page's <title> is the web build's and would show in a driver or an accessibility tree.
-        doc.title = APP_NAME;
-        return installLinkHandler(doc, doc.location.origin, invoke, (e) => console.error('link', e));
+        return installLinkHandler(doc, originOf(doc.location), invoke, (e) => console.error('link', e));
       },
     },
     audio,

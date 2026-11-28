@@ -215,6 +215,29 @@ describe('gaps (design section 8, test 3)', () => {
     expect(faults).toEqual([{ kind: 'capture-gap', seq: 2 }]);
   });
 
+  it('the drift flag (bit 1) and clock-step flag (bit 4) void the capture: one capture-gap fault; other flags do not', () => {
+    for (const [flags, voids] of [[PACKET_FLAGS.drift, true], [PACKET_FLAGS.clockStep, true], [PACKET_FLAGS.clockStep | PACKET_FLAGS.last, true], [PACKET_FLAGS.resampled | PACKET_FLAGS.inputZero | PACKET_FLAGS.last, false]] as const) {
+      const faults: CaptureFault[] = [];
+      const feed = new NativeCaptureFeed({ engineRate: rate, sink: () => undefined, now: () => 0, backlogVoidMs: 120, onFault: (f) => faults.push(f) });
+      feed.push(encodeCapturePacket({ seq: 0, firstFrame: 0 }, noise(512, 1)));
+      expect(feed.voided).toBe(false);
+      feed.push(encodeCapturePacket({ flags, seq: 1, firstFrame: 512 }, noise(512, 2)));
+      feed.push(encodeCapturePacket({ flags, seq: 2, firstFrame: 1024 }, noise(512, 3)));
+      expect(faults).toEqual(voids ? [{ kind: 'capture-gap', seq: 1 }] : []);
+      expect(feed.voided).toBe(voids);
+    }
+    expect(PACKET_FLAGS.clockStep).toBe(16);
+  });
+
+  it('voidCapture (an xrun, a late take click) is the same single fault', () => {
+    const faults: CaptureFault[] = [];
+    const feed = new NativeCaptureFeed({ engineRate: rate, sink: () => undefined, now: () => 0, backlogVoidMs: 120, onFault: (f) => faults.push(f) });
+    feed.push(encodeCapturePacket({ seq: 0, firstFrame: 0 }, noise(512, 1)));
+    feed.voidCapture();
+    feed.voidCapture();
+    expect(faults).toEqual([{ kind: 'capture-gap', seq: 1 }]);
+  });
+
   it('a skipped sequence number alone is a gap; contiguous frames then add no zeros', () => {
     const faults: CaptureFault[] = [];
     const blocks: CaptureBlock[] = [];

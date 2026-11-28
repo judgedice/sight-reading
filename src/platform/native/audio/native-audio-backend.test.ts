@@ -567,6 +567,89 @@ describe('metronome on the backend (W9)', () => {
     expect(ipc.buffers.has(id)).toBe(false);
   });
 
+  const tone = (frame: number): number => 0.3 * Math.sin((2 * Math.PI * 440 * frame) / 48000);
+
+  it('packets the engine flags (drift, clock step) and xrun events void the capture: one capture-gap fault each capture', async () => {
+    for (const cause of ['drift', 'step', 'xrun-in', 'xrun-out'] as const) {
+      const { ipc, be } = setup();
+      ipc.inputSignal = tone;
+      await be.unlock();
+      const faults: CaptureFault[] = [];
+      be.onCaptureFault((f) => faults.push(f));
+      await be.startCapture(() => undefined);
+      ipc.advance(0.2);
+      expect(faults).toEqual([]);
+      if (cause === 'drift') ipc.packetFlags = 1 << 1;
+      else if (cause === 'step') ipc.packetFlags = 1 << 4;
+      else ipc.emit({ type: 'xrun', stream: cause === 'xrun-in' ? 'input' : 'output', count: 1 });
+      ipc.advance(0.3);
+      expect(faults.map((f) => f.kind)).toEqual(['capture-gap']);
+      be.stopCapture();
+      // An xrun with no capture running voids nothing.
+      ipc.emit({ type: 'xrun', stream: 'input', count: 1 });
+      expect(faults).toHaveLength(1);
+    }
+  });
+
+  it('a take click the engine starts late voids the take (capture-gap fault); a late sound does not', async () => {
+    const { ipc, be } = setup();
+    await be.unlock();
+    const faults: CaptureFault[] = [];
+    be.onCaptureFault((f) => faults.push(f));
+    await be.scheduleTake(takeParams());
+    await be.startCapture(() => undefined);
+    const takeVoice = ipc.voices.find((v) => v.group === 'take');
+    expect(takeVoice).toBeDefined();
+    ipc.emit({ type: 'late', ids: [999_999] }); // not a voice of the take
+    expect(faults).toEqual([]);
+    ipc.emit({ type: 'late', ids: [takeVoice!.spec.id] });
+    expect(faults.map((f) => f.kind)).toEqual(['capture-gap']);
+    be.stopCapture();
+
+    // Late before the capture begins: the capture of that take is void from its start.
+    await be.scheduleTake(takeParams());
+    const next = ipc.voices.filter((v) => v.group === 'take').at(-1);
+    ipc.emit({ type: 'late', ids: [next!.spec.id] });
+    faults.length = 0;
+    await be.startCapture(() => undefined);
+    expect(faults.map((f) => f.kind)).toEqual(['capture-gap']);
+    be.stopCapture();
+    // A new take starts clean.
+    await be.scheduleTake(takeParams());
+    faults.length = 0;
+    await be.startCapture(() => undefined);
+    ipc.advance(0.1);
+    expect(faults).toEqual([]);
+  });
+
+  it('a calibration capture that went void makes stopCapture throw (the calibration run then fails); a clean one and a void take do not', async () => {
+    const { ipc, be } = setup();
+    ipc.inputSignal = tone;
+    await be.unlock();
+    // Clean calibration capture.
+    await be.startCapture(() => undefined);
+    await be.playCalibrationClicks([(be.now() + 0.2) as never], 'tick');
+    ipc.advance(0.5);
+    expect(() => be.stopCapture()).not.toThrow();
+    // A clock step during a calibration capture.
+    await be.startCapture(() => undefined);
+    await be.playCalibrationClicks([(be.now() + 0.2) as never], 'tick');
+    ipc.packetFlags = 1 << 4;
+    ipc.advance(0.5);
+    expect(() => be.stopCapture()).toThrow(/calibration capture was interrupted/);
+    expect(() => be.stopCapture()).not.toThrow(); // already ended (the run's `finally`)
+    // A void capture without calibration clicks (a take) ends quietly: the session has the fault.
+    ipc.packetFlags = 1 << 1;
+    await be.startCapture(() => undefined);
+    ipc.advance(0.3);
+    expect(() => be.stopCapture()).not.toThrow();
+    // Closing with a void calibration capture open does not throw either.
+    await be.startCapture(() => undefined);
+    await be.playCalibrationClicks([(be.now() + 0.2) as never], 'tick');
+    ipc.advance(0.3);
+    await expect(be.close()).resolves.toBeUndefined();
+  });
+
   it('a voice already behind the render head is reported late (starts at once)', async () => {
     const { ipc, be } = setup();
     await be.unlock();
@@ -595,6 +678,7 @@ describe('void paths and route changes (01 §7.9, W4, W7)', () => {
 
   it('a route event with a new device recomputes the route and notifies; during capture it is a device-change void', async () => {
     const { ipc, be, got } = await live();
+    const routeKeyBefore = (await be.unlock()).routeKey;
     const routes: string[] = [];
     be.onRouteChange((r) => routes.push(r.inputKind));
     ipc.changeRoute({ inputTransport: 'bluetooth', inputUid: 'airpods' }, { trust: 'C' });
@@ -606,6 +690,10 @@ describe('void paths and route changes (01 §7.9, W4, W7)', () => {
     expect(routes).toEqual(['bluetooth', 'built-in']);
     expect(got).toEqual(['device-change']);
     expect(be.capabilities.outputLatencyReported).toBe(true);
+    // The route `unlock` hands out is the refreshed one: the calibration of the device that is gone is not looked up.
+    ipc.changeRoute({ outputTransport: 'usb', outputUid: 'usb-dac' }, { trust: 'A' });
+    const again = await be.unlock();
+    expect(again.routeKey).not.toBe(routeKeyBefore);
   });
 
   it('a route event that keeps the key does not notify', async () => {

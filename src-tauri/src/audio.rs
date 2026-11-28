@@ -11,7 +11,7 @@
 use std::collections::HashSet;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver};
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::{Arc, Mutex, MutexGuard, Weak};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
@@ -33,7 +33,11 @@ use tauri::State;
 /// How often the poll thread runs `EngineHandle::poll` and the packet pump.
 const POLL_PERIOD: Duration = Duration::from_millis(5);
 /// How long `audio_capture_start` waits for the engine to announce the capture.
-const CAPTURE_START_WAIT: Duration = Duration::from_secs(3);
+/// A capture begins when the two stream clocks place a frame within 0.1 ms: at once on settled streams, 1.2 s
+/// after open with regular callbacks, at most 12 s with very irregular ones (the core then starts anyway).
+const CAPTURE_START_WAIT: Duration = Duration::from_secs(14);
+/// A stream whose callbacks have stopped for this long is reported as interrupted (design section 9, item 9).
+const CALLBACK_WATCHDOG: Duration = Duration::from_millis(500);
 /// How long `audio_capture_stop` waits for the last packet.
 const CAPTURE_STOP_WAIT: Duration = Duration::from_secs(3);
 /// How long `audio_open` waits for the first clock anchor.
@@ -329,7 +333,7 @@ pub enum AudioEvent {
         /// The anchor.
         anchor: ClockAnchorJson,
     },
-    /// Route or latency changed (not emitted yet).
+    /// Route or latency changed: sent after a device change, with the facts read again from the device.
     Route {
         /// The route.
         route: RouteJson,
@@ -587,7 +591,10 @@ impl AudioHost {
             let (shared, stop) = (Arc::clone(&shared), Arc::clone(&stop));
             std::thread::Builder::new()
                 .name("sr-audio-poll".into())
-                .spawn(move || poll_loop(shared, events_rx, sink, stop))
+                .spawn({
+                    let host = Arc::downgrade(&self.inner);
+                    move || poll_loop(shared, host, events_rx, sink, stop)
+                })
                 .map_err(|e| DeviceError::Backend(e.to_string()))?
         };
         let json = open_info_json(&info, anchor_now(&clock));
@@ -683,7 +690,7 @@ impl AudioHost {
         r.map_err(|e| format!("audio_cancel: {e}"))
     }
 
-    /// `audio_capture_start`: asks for a capture and waits (up to 3 s) for the engine to announce it.
+    /// `audio_capture_start`: asks for a capture and waits for the engine to announce it (see `CAPTURE_START_WAIT`).
     pub fn capture_start(&self, packet_frames: u32, sink: PacketSink) -> Result<CaptureStartReply, String> {
         let (shared, relation) = self.session(|s| {
             if !s.input_open() {
@@ -711,7 +718,7 @@ impl AudioHost {
             _ => {
                 let _ = c.reader.stop();
                 c.mode = Mode::Idle;
-                Err("audio_capture_start: the capture did not start within 3 s (are input callbacks running?)".into())
+                Err("audio_capture_start: the capture did not start within 14 s (are input callbacks running?)".into())
             }
         }
     }
@@ -722,7 +729,12 @@ impl AudioHost {
         {
             let mut c = lock(&shared.capture);
             if !matches!(c.mode, Mode::Webview(_)) {
-                return Err("audio_capture_stop: no capture is running".into());
+                // A capture that the engine ended by itself (a clock step, an output restart) has already
+                // delivered its last packet; its counters are waiting here.
+                return match c.stopped.take() {
+                    Some(s) => Ok(CaptureStopReply { packets: s.packets, frames: s.frames, dropped_frames: s.dropped_frames, max_ring_ms: s.max_ring_ms }),
+                    None => Err("audio_capture_stop: no capture is running".into()),
+                };
             }
             c.stopped = None;
             c.reader.stop().map_err(|e| format!("audio_capture_stop: {e}"))?;
@@ -793,9 +805,40 @@ fn open_info_json(info: &OpenInfo, clock: ClockAnchorJson) -> OpenInfoJson {
     }
 }
 
+/// Fires once when a counter that should keep moving has stood still for [`CALLBACK_WATCHDOG`]; arms again when
+/// it moves.
+#[derive(Debug)]
+pub struct Watchdog {
+    last: u64,
+    since: Instant,
+    fired: bool,
+}
+
+impl Watchdog {
+    /// A watchdog that starts counting at `now`.
+    pub fn new(now: Instant) -> Self {
+        Watchdog { last: u64::MAX, since: now, fired: false }
+    }
+
+    /// Feeds the counter's current value; `watched` false pauses the watch. True when the stall is reported now.
+    pub fn check(&mut self, counter: u64, watched: bool, now: Instant) -> bool {
+        if counter != self.last || !watched {
+            self.last = counter;
+            self.since = now;
+            self.fired = false;
+            return false;
+        }
+        if !self.fired && now.duration_since(self.since) >= CALLBACK_WATCHDOG {
+            self.fired = true;
+            return true;
+        }
+        false
+    }
+}
+
 /// One poll tick: engine notifications, device events, capture events and packets. Packets are sent after the
-/// locks are released.
-fn tick(shared: &Shared, device_events: &Receiver<DeviceEvent>, sink: &EventSink, notes: &mut Vec<Notification>) {
+/// locks are released. Returns whether a device change was among the device events.
+fn tick(shared: &Shared, device_events: &Receiver<DeviceEvent>, sink: &EventSink, notes: &mut Vec<Notification>) -> bool {
     notes.clear();
     let dev: Vec<DeviceEvent> = device_events.try_iter().collect();
     let mut extra = Vec::new();
@@ -842,6 +885,9 @@ fn tick(shared: &Shared, device_events: &Receiver<DeviceEvent>, sink: &EventSink
                 }
                 packet_sink = Some(Arc::clone(s));
             }
+            // Known cost: the driver's final poll runs the matched filter (some tens of milliseconds) on this
+            // thread with both locks held, so commands and other polling wait that long once per measurement.
+            // No capture or take can run during a loopback measurement, so nothing timed is delayed.
             Mode::Loopback(driver) => match driver.poll(&mut h, reader) {
                 LoopbackStatus::Running => {}
                 LoopbackStatus::Done(e) => {
@@ -870,11 +916,29 @@ fn tick(shared: &Shared, device_events: &Receiver<DeviceEvent>, sink: &EventSink
     for e in events {
         sink(e);
     }
+    dev.iter().any(|d| matches!(d, DeviceEvent::Interruption { reason: InterruptionReason::DeviceChange, .. }))
+}
+
+/// After a device change: has the device read its route again, keeps the session's facts in step and tells the
+/// webview (`route`), so that the route key and latency of the device that is gone stop being used. False when
+/// the session is busy (a command holds it); the caller tries again on the next tick.
+fn refresh_route(host: &Weak<HostInner>, shared: &Arc<Shared>, sink: &EventSink) -> bool {
+    let Some(inner) = host.upgrade() else { return true };
+    let Ok(mut guard) = inner.session.try_lock() else { return false };
+    if let Some(s) = guard.as_mut().filter(|s| Arc::ptr_eq(&s.shared, shared)) {
+        if let Some(info) = s.device.refresh() {
+            s.info = info;
+        }
+        sink(AudioEvent::Route { route: RouteJson::from(&s.info.route), latency: s.info.latency.into(), engine_rate: s.info.engine_rate });
+    }
+    true
 }
 
 /// Runs `EngineHandle::poll` and the capture pump every 5 ms and turns what they find into events.
-fn poll_loop(shared: Arc<Shared>, device_events: Receiver<DeviceEvent>, sink: EventSink, stop: Arc<AtomicBool>) {
+fn poll_loop(shared: Arc<Shared>, host: Weak<HostInner>, device_events: Receiver<DeviceEvent>, sink: EventSink, stop: Arc<AtomicBool>) {
     let mut notes = Vec::with_capacity(256);
+    let mut route_stale = false;
+    let (mut output_watch, mut input_watch) = (Watchdog::new(Instant::now()), Watchdog::new(Instant::now()));
     let mut next = Instant::now() + POLL_PERIOD;
     while !stop.load(Ordering::Relaxed) {
         let now = Instant::now();
@@ -885,7 +949,18 @@ fn poll_loop(shared: Arc<Shared>, device_events: Receiver<DeviceEvent>, sink: Ev
         if next < Instant::now() {
             next = Instant::now() + POLL_PERIOD; // do not try to catch up after a stall
         }
-        tick(&shared, &device_events, &sink, &mut notes);
+        route_stale |= tick(&shared, &device_events, &sink, &mut notes);
+        if route_stale && refresh_route(&host, &shared, &sink) {
+            route_stale = false;
+        }
+        // Streams can die without an error (sleep, a device that vanished): no callbacks for 500 ms is an
+        // interruption. The input is watched only while something captures.
+        let stats = lock(&shared.handle).stats();
+        let capturing = !matches!(lock(&shared.capture).mode, Mode::Idle);
+        let now = Instant::now();
+        if output_watch.check(stats.callbacks, true, now) | input_watch.check(stats.input_frames, capturing, now) {
+            sink(AudioEvent::Interruption { reason: InterruptionJson::Interrupted });
+        }
     }
 }
 

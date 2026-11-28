@@ -116,12 +116,12 @@ pub fn relation(out: Option<&DeviceFacts>, input: Option<&DeviceFacts>) -> Clock
     }
 }
 
-/// The facts of the device with this UID (as cpal's device id gives it) for one direction; when no device has
-/// that UID, of the system default device of that direction. `None` when neither exists.
+/// The facts of the device with this UID (`kAudioDevicePropertyDeviceUID`, the bare id of cpal's device id)
+/// for one direction. `None` when no device has that UID: there is no fallback to the default device, whose
+/// facts would be reported for a stream that may run on another one.
 #[cfg(target_os = "macos")]
 pub fn query(uid: &str, input: bool) -> Option<DeviceFacts> {
-    let id = hal::device_by_uid(uid).or_else(|| hal::default_device(input))?;
-    Some(hal::facts(id, input))
+    hal::device_by_uid(uid).map(|id| hal::facts(id, input))
 }
 
 /// The facts of the system default device of one direction.
@@ -359,7 +359,11 @@ mod tests {
         for part in [p.out_buffer, p.out_device, p.out_safety, p.out_stream, p.in_buffer, p.in_device, p.in_safety, p.in_stream].into_iter().flatten() {
             assert!(part.is_finite() && (0.0..10.0).contains(&part), "null or finite and not negative: {part}");
         }
-        // An unknown UID falls back to the default device of the direction (or to nothing, without devices).
-        assert_eq!(query("no-such-device-uid", false).is_some(), out.is_some());
+        // An unknown UID, and cpal's display form of a known one, find nothing: no fallback to the default.
+        assert_eq!(query("no-such-device-uid", false), None);
+        assert_eq!(query("", true), None);
+        if let Some(uid) = out.as_ref().and_then(|o| o.uid.clone()) {
+            assert_eq!(query(&format!("coreaudio:{uid}"), false), None);
+        }
     }
 }

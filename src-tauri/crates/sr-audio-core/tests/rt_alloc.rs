@@ -182,9 +182,12 @@ fn capture_does_not_allocate() {
         let (mut calls, mut steps, mut packets, mut path, mut stepped, mut dropped) = (0u64, 0u64, 0u64, None, false, 0u64);
         let mut lost = false;
         reader.start(CaptureConfig::default()).unwrap();
-        while sim.time_sec() < 9.0 {
-            let t = sim.time_sec();
-            if t > 4.0 && !lost {
+        let mut began: Option<f64> = None;
+        while began.is_none_or(|b| sim.time_sec() < b + 8.0) {
+            assert!(sim.time_sec() < 30.0, "the capture begins");
+            // Time since the capture began (it waits for the clocks first).
+            let t = began.map_or(0.0, |b| sim.time_sec() - b);
+            if t > 6.0 && !lost {
                 sim.lose_input(0.01);
                 lost = true;
             }
@@ -192,17 +195,21 @@ fn capture_does_not_allocate() {
                 sim.step();
             });
             steps += 1;
-            // The pump: stalled from 5.5 s to 8 s, so the 2 s ring overflows.
+            // The pump: stalled from 2 s to 4.5 s into the capture, so the 2 s ring overflows. The clock step
+            // at 6 s then ends the capture.
             notes.clear();
             handle.poll(&mut notes);
             while let Some(event) = reader.poll_event() {
                 match event {
-                    CaptureEvent::Started { path: p, .. } => path = Some(p),
+                    CaptureEvent::Started { path: p, .. } => {
+                        path = Some(p);
+                        began = Some(sim.time_sec());
+                    }
                     CaptureEvent::ClockStep { .. } => stepped = true,
                     _ => {}
                 }
             }
-            if !(5.5..8.0).contains(&t) {
+            if !(2.0..4.5).contains(&t) {
                 while reader.read_packet(&mut packet) {
                     packets += 1;
                 }
@@ -211,7 +218,7 @@ fn capture_does_not_allocate() {
         }
         println!("capture_does_not_allocate {want:?}: {calls} allocator calls in {steps} callbacks ({packets} packets read, {dropped} frames dropped while the pump stalled, clock step seen: {stepped})");
         assert_eq!(path, Some(want));
-        assert!(steps > 3000 && packets > 300 && dropped > 10_000 && stepped, "the run exercised every path");
+        assert!(steps > 3000 && packets > 250 && dropped > 10_000 && stepped, "the run exercised every path");
         assert_eq!(calls, 0, "the audio callbacks called the allocator");
     }
 }

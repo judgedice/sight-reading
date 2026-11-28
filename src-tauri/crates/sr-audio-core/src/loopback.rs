@@ -263,7 +263,8 @@ pub struct LoopbackConfig {
     pub relation: ClockRelation,
     /// The round trip the reported latencies predict, milliseconds; copied into the estimate.
     pub predicted_ms: Option<f64>,
-    /// An attempt fails when it has not finished after this much engine time, seconds (6).
+    /// An attempt fails when it has not finished after this much engine time, seconds (16: a capture start
+    /// can wait up to 12 s for irregular clocks, and the clicks take 2 s).
     pub timeout_sec: f64,
     /// How many times the run starts again after a clock step (an xrun) broke the capture (1). The voice ids
     /// of attempt `k` are `first_voice_id + k * clicks` onwards.
@@ -283,7 +284,7 @@ impl Default for LoopbackConfig {
             first_voice_id: 0xffff_ff00,
             relation: ClockRelation::Unknown,
             predicted_ms: None,
-            timeout_sec: 6.0,
+            timeout_sec: 16.0,
             retries: 1,
         }
     }

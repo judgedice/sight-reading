@@ -287,8 +287,10 @@ export class NativeVoiceHost {
   private readonly sounding = new Map<number, { from: number; to: number }>();
   private readonly toDrop: number[] = [];
   private dropScheduled = false;
-  /** Called with the ids of late voices (diagnostics). */
-  onLate: ((ids: readonly number[]) => void) | null = null;
+  /** The group each sent voice belongs to, until it ends. */
+  private readonly groupOf = new Map<number, VoiceGroup>();
+  /** Called with the ids of voices the engine started late, grouped (a late `take` click voids the take). */
+  onLate: ((ids: readonly number[], group: VoiceGroup | null) => void) | null = null;
 
   constructor(ipc: NativeIpc, clockNow: () => number) {
     this.ipc = ipc;
@@ -375,7 +377,8 @@ export class NativeVoiceHost {
     return peak;
   }
 
-  markSent(s: NativeSource, span: { from: number; to: number }): void {
+  markSent(s: NativeSource, span: { from: number; to: number }, group: VoiceGroup): void {
+    this.groupOf.set(s.id, group);
     this.live.set(s.id, s);
     this.sounding.set(s.id, span);
   }
@@ -385,6 +388,7 @@ export class NativeVoiceHost {
     for (const id of ids) {
       const s = this.live.get(id);
       this.live.delete(id);
+      this.groupOf.delete(id);
       this.sounding.delete(id);
       if (!s || s.state === 'ended') continue;
       this.stats.ended++;
@@ -394,7 +398,11 @@ export class NativeVoiceHost {
 
   voicesLate(ids: readonly number[]): void {
     this.stats.late += ids.length;
-    this.onLate?.(ids);
+    if (!this.onLate) return;
+    for (const group of ['take', 'sounds', null] as const) {
+      const of = ids.filter((id) => (this.groupOf.get(id) ?? null) === group);
+      if (of.length > 0) this.onLate(of, group);
+    }
   }
 
   voicesRejected(ids: readonly number[]): void {
@@ -574,7 +582,7 @@ export class NativeVoiceContext {
       if (peak > MAX_SOUNDING_VOICES) throw new NativeVoiceError(`${peak} voices would sound at once; the engine holds ${MAX_SOUNDING_VOICES}`);
       sendable.forEach((s, k) => {
         s.state = 'sent';
-        this.host.markSent(s, spans[k]!);
+        this.host.markSent(s, spans[k]!, this.group);
       });
       this.host.stats.scheduleCalls++;
       this.host.stats.voices += specs.length;

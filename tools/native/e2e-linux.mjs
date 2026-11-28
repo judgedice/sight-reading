@@ -14,14 +14,14 @@
 // The app must have been started with SR_AUDIO_DEVICE=fake SR_E2E_HOOKS=1 SR_E2E_SEED=<n> SR_FAKE_LOOP_MS=<loop ms> (the shell
 // script does this). Writes <artifact dir>/e2e-<scenario>.json and screenshots; exits 1 when a check fails.
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const [app, outDir, workDir, scenario, loopMsArg] = process.argv.slice(2);
 const loopMs = Number(loopMsArg);
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
-const BASE = 'http://127.0.0.1:4444';
+const BASE = `http://127.0.0.1:${process.env.SR_E2E_PORT ?? 4444}`;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const log = (...a) => process.stdout.write(`${a.join(' ')}\n`);
 mkdirSync(outDir, { recursive: true });
@@ -154,7 +154,267 @@ async function finish(failure) {
   log(`E2E ${scenario} PASSED`);
 }
 
+// ---- scenario `data`: export, import, storage, links, keep-awake (the shell's non-audio services) ------------------------
+// Three starts of the app on one profile (the XDG directories of the shell script): onboarding and facts, then a relaunch
+// that must find everything again, exports a backup through the UI, and deletes all data; a last start imports the backup.
+// Under WebDriver a native save dialog cannot be clicked: SR_E2E_HOOKS=1 with SR_E2E_SAVE_DIR makes `save_file` write to
+// that directory without a dialog (src-tauri/src/files.rs).
+async function dataScenario() {
+  const saveDir = process.env.SR_E2E_SAVE_DIR;
+  if (!saveDir) throw new Error('the data scenario needs SR_E2E_SAVE_DIR (e2e-linux.sh sets it)');
+  const stable = (v) => JSON.stringify(v, (_k, x) => (x && typeof x === 'object' && !Array.isArray(x) ? Object.fromEntries(Object.entries(x).sort(([a], [b]) => (a < b ? -1 : 1))) : x));
+
+  function bind(id, tag) {
+    const S = (script, args = []) => wd('POST', `/session/${id}/execute/sync`, { script, args });
+    const A = (script, args = []) => wd('POST', `/session/${id}/execute/async`, { script, args });
+    const inv = (cmd, args = {}) =>
+      A(`const done = arguments[arguments.length - 1]; window.__TAURI_INTERNALS__.invoke(arguments[0], arguments[1]).then((v) => done({ ok: true, v }), (e) => done({ ok: false, e: String(e) }));`, [cmd, args]);
+    const pg = (body, args = []) =>
+      A(`const done = arguments[arguments.length - 1]; const args = arguments; (async () => { const sr = window.__sr; ${body} })().then((v) => done({ ok: true, v }), (e) => done({ ok: false, e: String((e && e.stack) || e) }));`, args).then((r) => {
+        if (!r.ok) throw new Error(`page: ${r.e}`);
+        return r.v;
+      });
+    const wf = async (expr, what, timeoutMs = 30000) => {
+      const t0 = Date.now();
+      for (;;) {
+        const v = await S(`try { return (${expr}) || false; } catch (e) { return false; }`);
+        if (v) return v;
+        if (Date.now() - t0 > timeoutMs) throw new Error(`[${tag}] timeout (${timeoutMs} ms) waiting for ${what}; page: ${JSON.stringify(await S(`return { url: location.href, text: document.body.innerText.slice(0, 300) };`).catch(() => null))}`);
+        await sleep(150);
+      }
+    };
+    const btn = async (name, { scope = 'body', timeoutMs = 30000, radio = false } = {}) => {
+      const script = `
+        const [name, scope, radio] = arguments;
+        const root = document.querySelector(scope);
+        if (!root) return false;
+        const norm = (s) => (s || '').replace(/\\s+/g, ' ').trim();
+        const sel = radio ? '[role=radio], input[type=radio], button' : 'button, [role=button]';
+        const el = [...root.querySelectorAll(sel)].find((b) => (norm(b.getAttribute('aria-label')) === name || norm(b.textContent) === name || norm(b.textContent).startsWith(name + ' ') || (radio && norm(b.textContent).startsWith(name))) && !b.disabled && b.getAttribute('aria-disabled') !== 'true');
+        if (!el) return false;
+        el.click();
+        return true;`;
+      const t0 = Date.now();
+      for (;;) {
+        if (await S(script, [name, scope, radio])) return;
+        if (Date.now() - t0 > timeoutMs) throw new Error(`[${tag}] no enabled button "${name}"; page: ${JSON.stringify(await S(`return document.body.innerText.slice(0, 300);`).catch(() => null))}`);
+        await sleep(150);
+      }
+    };
+    const shotAs = async (name) => {
+      const file = join(outDir, `${scenario}-${tag}-${name}.png`);
+      writeFileSync(file, Buffer.from(await wd('GET', `/session/${id}/screenshot`), 'base64'));
+    };
+    return { id, S, A, inv, pg, wf, btn, shotAs };
+  }
+
+  async function start(tag, session) {
+    const id = session ?? (await wd('POST', '/session', { capabilities: { alwaysMatch: { 'tauri:options': { application: app } } } })).sessionId;
+    const s = bind(id, tag);
+    await s.wf(`${testid('screen-welcome')} || ${testid('screen-home')} || ${testid('boot-error')}`, 'the first screen', 60000);
+    check(!(await s.S(`return !!${testid('boot-error')}`)), `[${tag}] the app booted without a boot error`);
+    await s.wf('window.__sr', 'window.__sr (SR_E2E_HOOKS=1)', 10000);
+    return s;
+  }
+  async function quit(s) {
+    await wd('DELETE', `/session/${s.id}`).catch(() => undefined);
+    await sleep(2500); // the webview flushes IndexedDB and localStorage as the process ends
+  }
+
+  const state = (s) =>
+    s.pg(`return {
+      profile: (await sr.repos.profile.get()) ?? null,
+      calibrations: await sr.repos.calibrations.all(),
+      attempts: (await sr.repos.attempts.all()).length,
+      kvMarker: (await sr.kv.get('e2e:marker')) ?? null,
+      lsMarker: localStorage.getItem('e2e-ls'),
+      installMirror: localStorage.getItem('srt.installId'),
+      origin: location.origin,
+    };`);
+  const files = () => (existsSync(saveDir) ? readdirSync(saveDir).filter((f) => f.startsWith('sightread-backup-')) : []);
+
+  // ---- launch 1: facts about the webview, onboarding, markers ----------------------------------------------------------
+  let s = await start('1', sid);
+  const facts = await s.pg(`
+    const nav = navigator;
+    const out = {
+      origin: location.origin, href: location.href, protocol: location.protocol, isSecureContext: window.isSecureContext,
+      randomUUID: typeof crypto.randomUUID, getRandomValues: typeof crypto.getRandomValues,
+      storage: typeof nav.storage, persist: typeof nav.storage?.persist, persisted: typeof nav.storage?.persisted, estimate: typeof nav.storage?.estimate,
+      wakeLock: 'wakeLock' in nav, wakeLockRequest: typeof nav.wakeLock?.request, indexedDB: typeof indexedDB, localStorage: typeof localStorage, title: document.title,
+    };
+    out.wakeLockResult = nav.wakeLock?.request ? await nav.wakeLock.request('screen').then((l) => { l.release(); return 'granted'; }, (e) => 'rejected: ' + (e && e.name)) : 'absent';
+    out.persistResult = nav.storage?.persist ? await nav.storage.persist().then((v) => v, (e) => 'throws: ' + e) : 'absent';
+    out.persistedResult = nav.storage?.persisted ? await nav.storage.persisted().then((v) => v, (e) => 'throws: ' + e) : 'absent';
+    out.estimateResult = nav.storage?.estimate ? await nav.storage.estimate().then((v) => ({ usage: v.usage ?? null, quota: v.quota ?? null }), (e) => 'throws: ' + e) : 'absent';
+    return out;`);
+  R.storage = facts;
+  log(`     webview: origin ${facts.origin}, secure context ${facts.isSecureContext}, randomUUID ${facts.randomUUID}, storage ${facts.storage}, persist ${facts.persist} -> ${JSON.stringify(facts.persistResult)}, navigator.wakeLock.request ${facts.wakeLockRequest} -> ${facts.wakeLockResult}, title "${facts.title}"`);
+  check(facts.origin === 'tauri://localhost' || facts.protocol === 'tauri:', `the bundle is served from tauri://localhost (${facts.origin})`);
+  check(facts.indexedDB === 'object' && facts.localStorage === 'object', 'IndexedDB and localStorage exist in the shell');
+  check(/Sightread$/.test(facts.title), `the page title names the app (${facts.title})`);
+  check(typeof (await s.pg(`return sr.session.view.getState().state;`)) === 'string', 'the app exposes its session (hooks on)');
+
+  if (await s.S(`return !!${testid('screen-welcome')}`)) {
+    await s.btn('Get started');
+    await s.wf(testid('ob-instrument'), 'the instrument step');
+    await s.btn('Flute', { radio: true });
+    await sleep(300);
+    await s.btn('Next: sound check');
+    await s.wf(testid('ob-mic'), 'the microphone stage');
+    await s.btn('Allow microphone');
+    await s.wf(`${testid('ob-hear')} || ${testid('calibration-card')}`, 'the stage after the microphone', 30000);
+    if (await s.S(`return !!${testid('ob-hear')}`)) await s.btn('Skip this check');
+    await s.wf(testid('calibration-card'), 'the timing stage');
+    await s.btn('Start timing check');
+    await s.wf(`['measured', 'loopback-failed', 'playalong-failed'].includes(${testid('calibration-card')}?.dataset.step)`, 'the timing check to end', 90000);
+    check((await s.S(`return ${testid('calibration-card')}.dataset.step`)) === 'measured', 'onboarding: calibration measured');
+    await s.btn('Yes');
+    await sleep(300);
+    await s.btn('Next');
+    await s.wf(testid('ob-ready'), 'the Ready step');
+    await s.btn('Go to Home');
+    await s.wf(testid('screen-home'), 'Home', 20000);
+  }
+  await s.pg(`await sr.kv.set('e2e:marker', { n: 41, s: 'kept' }); localStorage.setItem('e2e-ls', 'kept');`);
+  const s1 = await state(s);
+  check(s1.profile !== null && s1.calibrations.length === 1, `launch 1: a profile (${s1.profile?.id}) and one calibration (${s1.calibrations[0]?.roundTripMs?.toFixed(3)} ms) are stored`);
+  check(s1.installMirror !== null, 'launch 1: the localStorage install mirror is written');
+  R.measurements.launch1 = { origin: s1.origin, profileId: s1.profile?.id, calibration: s1.calibrations[0] };
+  await s.shotAs('home');
+  await quit(s);
+
+  // ---- launch 2: persistence, external services, export, delete ----------------------------------------------------------
+  s = await start('2');
+  const s2 = await state(s);
+  check(s2.origin === s1.origin, `launch 2: same origin (${s2.origin})`);
+  check(stable(s2.profile) === stable(s1.profile), 'launch 2: the profile is the same after a relaunch (IndexedDB persisted)');
+  check(stable(s2.calibrations) === stable(s1.calibrations), 'launch 2: the stored calibration is the same after a relaunch');
+  check(stable(s2.kvMarker) === stable({ n: 41, s: 'kept' }), 'launch 2: the key-value marker is still there');
+  check(s2.lsMarker === 'kept' && s2.installMirror === s1.installMirror, 'launch 2: localStorage (marker and install mirror) persisted');
+  check(await s.S(`return !!${testid('screen-home')}`), 'launch 2: opens on Home, not onboarding (the profile counts)');
+  const storageLostBanner = await s.S(`return /storage|lost|cleared/i.test(document.body.innerText);`);
+  R.measurements.launch2StorageNotice = storageLostBanner;
+
+  // Keep awake: the engine's lock (D-Bus on Linux; a headless box may have none, which the page treats as "could not").
+  const awakeOn = await s.inv('keep_awake', { on: true });
+  const awakeOff = await s.inv('keep_awake', { on: false });
+  R.measurements.keepAwake = { on: awakeOn, off: awakeOff };
+  log(`     keep_awake on: ${JSON.stringify(awakeOn)}; off: ${JSON.stringify(awakeOff)}`);
+  check(awakeOff.ok, 'keep_awake(false) is always accepted');
+
+  // The opener grant is a strict pattern: http(s) only.
+  const denied = {};
+  for (const url of ['file:///etc/passwd', 'mailto:someone@example.org', 'ftp://example.org/x', 'javascript:alert(1)']) {
+    denied[url] = await s.inv('plugin:opener|open_url', { url });
+  }
+  R.measurements.openerDenied = denied;
+  check(Object.values(denied).every((r) => !r.ok && /not allowed|scope|permission/i.test(r.e)), `the opener refuses everything but http(s): ${JSON.stringify(Object.fromEntries(Object.entries(denied).map(([k, v]) => [k, v.e?.slice(0, 60)])))}`);
+  check(!(await s.inv('plugin:opener|open_path', { path: '/etc/passwd' })).ok, 'the opener open_path command is not granted');
+  const allowed = await s.inv('plugin:opener|open_url', { url: 'https://example.org/' });
+  R.measurements.openerAllowed = allowed;
+  check(allowed.ok || !/not allowed|scope|permission/i.test(allowed.e), `an https URL passes the allow pattern (${allowed.ok ? 'opened' : allowed.e?.slice(0, 80)})`);
+  check(!(await s.inv('save_file', { bytes: [1] })).ok, 'save_file refuses a request that is not a raw body');
+
+  // Licence text: the credits page links ./LICENSES/<name>.txt with target=_blank; a click opens the window.
+  await s.S(`location.hash = '#/credits';`);
+  await s.wf(`document.querySelector('a[href$="LICENSES/CC0-1.0.txt"]')`, 'a licence link on the credits page', 20000);
+  const handlesBefore = (await wd('GET', `/session/${s.id}/window/handles`)).length;
+  const linkId = Object.values(await wd('POST', `/session/${s.id}/element`, { using: 'css selector', value: 'a[href$="LICENSES/CC0-1.0.txt"]' }))[0];
+  await wd('POST', `/session/${s.id}/element/${linkId}/click`, {});
+  let handles = handlesBefore;
+  for (let i = 0; i < 30 && handles === handlesBefore; i++) {
+    await sleep(200);
+    handles = (await wd('GET', `/session/${s.id}/window/handles`)).length;
+  }
+  check(handles === handlesBefore + 1, `a click on a licence link opens a window of its own (${handlesBefore} -> ${handles} windows)`);
+  const stillHere = await s.S(`return location.hash`);
+  check(stillHere === '#/credits', `the app window stays on the credits page (${stillHere})`);
+  const bad = await s.inv('open_licence', { name: '../src-tauri/Cargo.toml' });
+  check(!bad.ok, `open_licence refuses a name that is not a licence text (${bad.e?.slice(0, 70)})`);
+  if (handles === handlesBefore + 1) {
+    const list = await wd('GET', `/session/${s.id}/window/handles`);
+    const current = await wd('GET', `/session/${s.id}/window`);
+    const other = list.find((h) => h !== current);
+    await wd('POST', `/session/${s.id}/window`, { handle: other });
+    const licenceText = await wd('POST', `/session/${s.id}/execute/sync`, { script: 'return { href: location.href, text: document.body.innerText.slice(0, 120) };', args: [] });
+    R.measurements.licenceWindow = licenceText;
+    check(/LICENSES\/CC0-1\.0\.txt$/.test(licenceText.href) && licenceText.text.length > 20, `the licence window shows the text of the file (${JSON.stringify(licenceText.text.slice(0, 50))})`);
+    await wd('DELETE', `/session/${s.id}/window`).catch(() => undefined); // closes the licence window
+    await wd('POST', `/session/${s.id}/window`, { handle: current });
+  }
+
+  // Export a backup through the UI.
+  await s.S(`location.hash = '#/settings/data';`);
+  await s.wf(`document.querySelector('[data-testid="import-file"]')`, 'Settings > Data', 20000);
+  const before = new Set(files());
+  await s.btn('Export all data (JSON)');
+  let saved = null;
+  for (let i = 0; i < 50 && !saved; i++) {
+    await sleep(200);
+    saved = files().find((f) => !before.has(f)) ?? null;
+  }
+  if (!check(saved !== null, `the export button wrote a backup file through save_file (${saved})`)) throw new Error('no backup file');
+  check(/^sightread-backup-\d{4}-\d{2}-\d{2}\.json$/.test(saved), `the file has the dated backup name (${saved})`);
+  await s.wf(`/Saved/.test(document.body.innerText)`, 'the "Saved" toast', 5000).then(
+    () => check(true, 'the "Saved" toast shows after the file is written'),
+    () => check(false, 'the "Saved" toast shows after the file is written'),
+  );
+  await s.shotAs('exported');
+  const backupPath = join(saveDir, saved);
+  const verdict = JSON.parse(execFileSync('pnpm', ['exec', 'tsx', 'tools/native/validate-backup.ts', backupPath], { cwd: ROOT, stdio: ['ignore', 'pipe', 'inherit'] }).toString());
+  R.measurements.backup = { file: saved, bytes: statSync(backupPath).size, verdict };
+  check(verdict.ok === true, `the backup passes the app's own import validator (${JSON.stringify(verdict).slice(0, 160)})`);
+  check(verdict.profileId === s1.profile.id && verdict.calibrations.length === 1 && Math.abs(verdict.calibrations[0].roundTripMs - s1.calibrations[0].roundTripMs) < 1e-9, 'the backup holds the profile and the calibration');
+  const raw = JSON.parse(readFileSync(backupPath, 'utf8'));
+  check(stable(raw.kv['e2e:marker']) === stable({ n: 41, s: 'kept' }), 'the backup holds the key-value marker');
+
+  // Delete all data in Settings.
+  await s.btn('Delete all data');
+  await s.wf(`document.querySelector('#set-delete-confirm')`, 'the delete confirmation', 10000);
+  await s.S(`const el = document.querySelector('#set-delete-confirm'); const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; set.call(el, 'delete'); el.dispatchEvent(new Event('input', { bubbles: true }));`);
+  await s.btn('Delete everything', { scope: '[role=dialog]' });
+  await s.wf(`window.__sr && ${testid('screen-welcome')} || document.body.innerText.includes('deleted')`, 'the app after deleting', 20000);
+  await sleep(500);
+  const afterDelete = await state(s);
+  check(afterDelete.profile === null && afterDelete.calibrations.length === 0 && afterDelete.kvMarker === null, 'after "Delete all data" the profile, calibrations and key-value entries are gone');
+  await s.shotAs('deleted');
+  await quit(s);
+
+  // ---- launch 3: empty after a relaunch, then import the backup ---------------------------------------------------------------
+  s = await start('3');
+  const s3 = await state(s);
+  check(s3.profile === null && s3.calibrations.length === 0, 'launch 3: the deletion persisted across the relaunch');
+  await s.S(`location.hash = '#/settings/data';`);
+  await s.wf(`document.querySelector('[data-testid="import-file"]')`, 'Settings > Data on an empty install', 20000);
+  const inputId = Object.values(await wd('POST', `/session/${s.id}/element`, { using: 'css selector', value: '[data-testid="import-file"]' }))[0];
+  await wd('POST', `/session/${s.id}/element/${inputId}/value`, { text: backupPath });
+  await s.wf(`[...document.querySelectorAll('[role=dialog] button')].some((b) => b.textContent.trim() === 'Import backup')`, 'the import confirmation (the file input delivered the file)', 15000);
+  check(true, 'the file input accepted the chosen path and the page read the file (no open-file command needed)');
+  await s.shotAs('import-confirm');
+  await s.btn('Import backup', { scope: '[role=dialog]' });
+  await s.wf(`window.__sr`, 'the app after the import', 20000);
+  await sleep(1000);
+  const s4 = await state(s);
+  check(s4.profile !== null && stable(s4.profile) === stable(s1.profile), 'after the import the profile is back, field for field');
+  check(s4.calibrations.length === 1 && stable(s4.calibrations[0]) === stable(s1.calibrations[0]), `after the import the stored calibration is back (${s4.calibrations[0]?.roundTripMs?.toFixed(3)} ms)`);
+  check(stable(s4.kvMarker) === stable({ n: 41, s: 'kept' }), 'after the import the key-value marker is back');
+  await s.shotAs('imported');
+  await quit(s);
+
+  // ---- launch 4: the import itself persisted ---------------------------------------------------------------------------------
+  s = await start('4');
+  const s5 = await state(s);
+  check(stable(s5.profile) === stable(s1.profile) && stable(s5.calibrations) === stable(s1.calibrations), 'launch 4: the imported data persisted across another relaunch');
+  await wd('DELETE', `/session/${s.id}`).catch(() => undefined);
+}
+
 try {
+  if (scenario === 'data') {
+    await dataScenario();
+    await finish(null);
+    process.exit(R.failures.length > 0 ? 1 : 0);
+  }
   // ---- boot --------------------------------------------------------------------------------------------------------------
   await waitFor(`${testid('screen-welcome')} || ${testid('boot-error')}`, 'the first screen', 60000);
   check(!(await sync(`return !!${testid('boot-error')}`)), 'the app booted without a boot error');

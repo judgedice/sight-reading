@@ -379,7 +379,14 @@ impl Voice {
                 Some(f) => f.gain_at(n),
                 None => 1.0,
             };
-            out[(n - chunk_start) as usize * channels] += sample_at(x, pos) * (self.gain * env * fade);
+            let sample = match self.loop_frames {
+                // Close to the end of the buffer the taps ahead of the position fall off it; in a loop they
+                // belong to the loop start. (Elsewhere the taps read the buffer as it is: just past a loop
+                // end that is not the buffer's end, the recorded continuation is the better neighbour.)
+                Some((ls, le)) if pos + 2.0 >= x.len() as f64 => sample_at_looped(x, pos, (le - ls).round() as i64),
+                _ => sample_at(x, pos),
+            };
+            out[(n - chunk_start) as usize * channels] += sample * (self.gain * env * fade);
         }
     }
 }
@@ -416,6 +423,24 @@ pub fn sample_at(x: &[f32], pos: f64) -> f32 {
         return tap(x, i);
     }
     let (y0, y1, y2, y3) = (tap(x, i - 1), tap(x, i), tap(x, i + 1), tap(x, i + 2));
+    let c1 = 0.5 * (y2 - y0);
+    let c2 = y0 - 2.5 * y1 + 2.0 * y2 - 0.5 * y3;
+    let c3 = 0.5 * (y3 - y0) + 1.5 * (y1 - y2);
+    ((c3 * fr + c2) * fr + c1) * fr + y1
+}
+
+/// As [`sample_at`] for a looping voice near the end of the buffer: a tap past the last sample reads the
+/// sample `loop_len` frames earlier.
+#[inline]
+fn sample_at_looped(x: &[f32], pos: f64, loop_len: i64) -> f32 {
+    let wrapped = |i: i64| if i >= x.len() as i64 { tap(x, i - loop_len) } else { tap(x, i) };
+    let fl = pos.floor();
+    let i = fl as i64;
+    let fr = (pos - fl) as f32;
+    if fr == 0.0 {
+        return wrapped(i);
+    }
+    let (y0, y1, y2, y3) = (wrapped(i - 1), wrapped(i), wrapped(i + 1), wrapped(i + 2));
     let c1 = 0.5 * (y2 - y0);
     let c2 = y0 - 2.5 * y1 + 2.0 * y2 - 0.5 * y3;
     let c3 = 0.5 * (y3 - y0) + 1.5 * (y1 - y2);
@@ -894,6 +919,23 @@ mod tests {
         assert!(env_err < 1e-4);
         assert!(wave_err < 2e-3);
         assert!(shaped[(2.7 * rate as f64) as usize..].iter().all(|x| *x == 0.0));
+    }
+
+    #[test]
+    fn loop_that_ends_with_the_buffer_has_no_hole() {
+        // A loop whose end is the end of the buffer: the interpolation taps past the end must come from the
+        // loop start, not be zeros. 441 Hz at 44.1 kHz, loop of 30 whole periods ending with the buffer.
+        let rate = 48_000u32;
+        let note = tone(441.0, 0.2, 44_100);
+        assert_eq!(note.samples.len(), 8820);
+        let spec = VoiceSpec { loop_sec: Some((0.2 - 3000.0 / 44_100.0, 0.2)), ..VoiceSpec::new(1, 0, 0.0) };
+        let mut s = Scheduler::new(rate, 4, 4);
+        let mut ev = Vec::new();
+        s.add(voice(&spec, Group::Sounds, &note, rate), &mut ev).unwrap();
+        let out = render_mono(&mut s, rate as usize, &[256], 1, &mut ev);
+        let worst = out.iter().enumerate().map(|(n, x)| (*x as f64 - (2.0 * PI * 441.0 * n as f64 / rate as f64).sin()).abs()).fold(0.0, f64::max);
+        println!("loop ending with the buffer: max deviation from the continuous tone {worst:.2e} over 1 s (5 wraps)");
+        assert!(worst < 1e-3, "{worst}");
     }
 
     #[test]

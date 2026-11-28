@@ -178,12 +178,25 @@ const MAX_INTEGRAL: f64 = 300e-6;
 pub struct DriftController {
     ratio: f64,
     integral: f64,
+    /// The ratio is kept inside these bounds whatever the clocks say.
+    bounds: (f64, f64),
 }
 
+/// The ratio never leaves the nominal ratio by more than this fraction (1 %): no real pair of audio clocks
+/// is further apart, so anything beyond is a broken clock fit and must not run the resampler away.
+pub const MAX_RATIO_DEVIATION: f64 = 0.01;
+
 impl DriftController {
-    /// Starts at `ratio` (input frames per engine frame).
+    /// Starts at `ratio` (input frames per engine frame), without bounds.
     pub fn new(ratio: f64) -> Self {
-        DriftController { ratio, integral: 0.0 }
+        DriftController { ratio, integral: 0.0, bounds: (0.0, f64::INFINITY) }
+    }
+
+    /// Starts at `ratio`, kept within [`MAX_RATIO_DEVIATION`] of `nominal` (the ratio of the nominal rates)
+    /// from the first step on.
+    pub fn bounded(ratio: f64, nominal: f64) -> Self {
+        let bounds = (nominal * (1.0 - MAX_RATIO_DEVIATION), nominal * (1.0 + MAX_RATIO_DEVIATION));
+        DriftController { ratio: if ratio.is_finite() { ratio.clamp(bounds.0, bounds.1) } else { nominal }, integral: 0.0, bounds }
     }
 
     /// The ratio in use, input frames per engine frame.
@@ -211,6 +224,7 @@ impl DriftController {
         } else {
             self.ratio += max_step.copysign(step);
         }
+        self.ratio = self.ratio.clamp(self.bounds.0, self.bounds.1);
         self.ratio
     }
 }
@@ -338,5 +352,18 @@ mod tests {
             assert_eq!(c.update(0.91875, 0.0, dt), 0.91875);
         }
         assert_eq!(c.update(f64::NAN, 0.0, dt), 0.91875);
+        // Bounded: a clock fit gone wrong cannot run the ratio away, at the start or later.
+        let nominal = 44_100.0 / 48_000.0;
+        assert_eq!(DriftController::bounded(2.0, nominal).ratio(), nominal * 1.01);
+        assert_eq!(DriftController::bounded(f64::NAN, nominal).ratio(), nominal);
+        let mut c = DriftController::bounded(nominal, nominal);
+        let (mut lo, mut hi) = (f64::INFINITY, 0f64);
+        for k in 0..20_000 {
+            let r = c.update(if k < 10_000 { nominal * 3.0 } else { nominal * 0.2 }, if k < 10_000 { 0.5 } else { -0.5 }, dt);
+            lo = lo.min(r);
+            hi = hi.max(r);
+        }
+        println!("drift controller with absurd inputs: ratio stays within {:+.2} % to {:+.2} % of nominal", (lo / nominal - 1.0) * 100.0, (hi / nominal - 1.0) * 100.0);
+        assert!(lo >= nominal * 0.99 && hi <= nominal * 1.01 && lo < nominal * 0.995 && hi > nominal * 1.005);
     }
 }

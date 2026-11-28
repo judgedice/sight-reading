@@ -797,3 +797,68 @@ fn a_hooked_signal_lands_on_the_engine_frame_it_was_asked_for() {
     std::env::remove_var("SR_AUDIO_DEVICE");
     std::env::remove_var("SR_E2E_HOOKS");
 }
+
+#[test]
+fn watchdog_fires_once_per_stall() {
+    let t0 = Instant::now();
+    let ms = |n: u64| t0 + Duration::from_millis(n);
+    let mut w = Watchdog::new(t0);
+    assert!(!w.check(10, true, ms(0)));
+    assert!(!w.check(11, true, ms(100)));
+    assert!(!w.check(11, true, ms(400)), "300 ms without a callback is not yet a stall");
+    assert!(w.check(11, true, ms(600)), "500 ms without a callback");
+    assert!(!w.check(11, true, ms(900)), "reported once");
+    assert!(!w.check(12, true, ms(1000)), "callbacks are back");
+    assert!(w.check(12, true, ms(1500)), "and stop again");
+    // Not watched (no capture running): never fires, and the time does not count.
+    let mut w = Watchdog::new(t0);
+    assert!(!w.check(5, false, ms(0)) && !w.check(5, false, ms(2000)));
+    assert!(!w.check(5, true, ms(2100)) && !w.check(5, true, ms(2400)) && w.check(5, true, ms(2700)));
+}
+
+/// A fake device whose output "moves to another device" when told: `refresh` then reports the new one.
+struct MovingDevice {
+    inner: FakeIo,
+    events: Arc<Mutex<Option<mpsc::Sender<DeviceEvent>>>>,
+}
+
+impl DeviceIo for MovingDevice {
+    fn open(&mut self, cfg: OpenConfig, make_engine: EngineFactory, events: mpsc::Sender<DeviceEvent>) -> Result<OpenInfo, DeviceError> {
+        *self.events.lock().unwrap() = Some(events.clone());
+        self.inner.open(cfg, make_engine, events)
+    }
+    fn close(&mut self) {
+        self.inner.close()
+    }
+    fn route(&self) -> RouteFacts {
+        self.inner.route()
+    }
+    fn latency(&self) -> LatencyParts {
+        self.inner.latency()
+    }
+    fn refresh(&mut self) -> Option<OpenInfo> {
+        let mut info = self.inner.set_input(false).ok()?;
+        info.route.output_uid = "fake:headphones".into();
+        info.route.output_transport = Transport::Bluetooth;
+        info.latency = LatencyReport::new(LatencyParts::default(), &info.route.trust_facts());
+        Some(info)
+    }
+}
+
+#[test]
+fn device_change_refreshes_the_route_and_tells_the_webview() {
+    let host = AudioHost::default();
+    let (sink, rx) = collecting_sink();
+    let events = Arc::new(Mutex::new(None));
+    let device = MovingDevice { inner: FakeIo::new(FakeConfig::default()), events: Arc::clone(&events) };
+    let opened = host.open_with(Box::new(device), OpenConfig::default(), sink).unwrap();
+    assert_ne!(js(&opened)["route"]["outputUid"], "fake:headphones");
+    // The system default output changes: the stream follows it, cpal reports a device change.
+    let tx = events.lock().unwrap().clone().expect("the device was opened");
+    tx.send(DeviceEvent::Interruption { stream: StreamKind::Output, reason: InterruptionReason::DeviceChange }).unwrap();
+    let route = wait_for(&rx, Duration::from_secs(3), |e| if let AudioEvent::Route { .. } = e { Some(js(e)) } else { None }).expect("a route event follows the device change");
+    assert_eq!(route["route"]["outputUid"], "fake:headphones");
+    assert_eq!(route["route"]["outputTransport"], "bluetooth");
+    assert_eq!(route["latency"]["trust"], "C");
+    host.close();
+}
