@@ -158,6 +158,10 @@ Round 3 spec `docs/redesign/round3/03-pitch-steadiness.md`. Numbered after R74 t
 
 81. **Match a note judges the centre of the held note; the needle's steadiness is a display setting.** The in-tune state on Match a note is decided on a median of the held note (over 400, 300 or 200 ms by preset), entered within band − 5 c for 100 ms and left beyond band + 5 c for 150 ms, or at once when the short centre is beyond twice the band for 60 ms. A **hit** is 800 ms in tune without a break (gaps up to 120 ms bridged) **and** the median of those 800 ms within the band. This replaces 01-ux §3.1's "in the band 800 ms in a row" (every 40 ms mean within the band). The band is the grading good band: difficulty 1 in onboarding, the player's difficulty on Practice › Match a note (the chosen difficulty, else their level). Settings › Display › **Pitch needle: Steady / Balanced / Quick** (`display.pitchSteadiness`, absent = Steady for voices, Balanced for instruments; also offered as "Needle moving too much? Make it steadier" under the meter) changes only how the needle moves and how long the in-tune median is; the band and the hit test are the same in every preset. Display only: the setting and the needle's filter are never an input to a try (segmenter, follower, live marks, grading and their thresholds are unchanged; `pitch-steadiness-guard.test.ts`). Match a note still stores nothing but this setting, and only when the player chooses it. Status: proposed, owner to confirm.
 
+## Size limit (R82)
+
+82. **The total size limit is 5 MB.** JavaScript and CSS together may be up to 5 MB gzip (was 560 KB in ruling 66). The initial chunk stays at 150 KB. Owner decision.
+
 ## What the owner should know
 
 - Early, late, and wrong-note marks appear within about 150 ms of the note. Sharp and flat marks appear about 260 to 350 ms after the note starts, because pitch needs roughly 100 ms of steady tone after the attack before it can be measured to the cent.
