@@ -15,7 +15,7 @@ Branch `claude/native-tauri`, started from `claude/modest-hopper-enh3o5` at `4b8
 
 ## In progress
 
-- Senior audio engineer: writing `docs/native/AUDIO-DESIGN.md` (design only).
+- Senior audio engineer: design done (`docs/native/AUDIO-DESIGN.md`). Now building `src-tauri/crates/sr-audio-core` (mixer, clock, wire, latency maths, MP3 decode, engine render).
 - Mid-level engineer: `src-tauri/` scaffold, Linux debug build, smoke test (`tools/native/smoke-linux.sh`), `.github/workflows/native.yml` for Linux, macOS and Windows.
 
 ## Next step
