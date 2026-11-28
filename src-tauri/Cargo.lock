@@ -2984,6 +2984,8 @@ version = "0.1.0"
 dependencies = [
  "serde",
  "serde_json",
+ "sr-audio-core",
+ "sr-audio-device",
  "tauri",
  "tauri-build",
 ]

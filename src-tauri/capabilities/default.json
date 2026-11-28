@@ -1,7 +1,23 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Minimal permissions for the main window. Custom commands (app_info) need no entry here.",
-  "windows": ["main"],
-  "permissions": ["core:default"]
+  "description": "Main window: core defaults plus an explicit grant for each app command (app_info and the audio_* commands).",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "core:default",
+    "allow-app-info",
+    "allow-audio-open",
+    "allow-audio-close",
+    "allow-audio-permission",
+    "allow-audio-clock-sync",
+    "allow-audio-clock-check",
+    "allow-audio-put-buffer",
+    "allow-audio-decode",
+    "allow-audio-drop-buffers",
+    "allow-audio-schedule",
+    "allow-audio-stop-voices",
+    "allow-audio-cancel"
+  ]
 }

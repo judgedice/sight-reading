@@ -28,6 +28,8 @@ pub mod clock;
 pub mod decode;
 pub mod latency;
 pub mod mixer;
+pub mod resample;
+pub mod synth;
 pub mod wire;
 
 #[cfg(test)]

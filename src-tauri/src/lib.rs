@@ -1,3 +1,5 @@
+pub mod audio;
+
 use serde::Serialize;
 
 /// Static facts about the running build. Used by the native smoke test to prove IPC works.
@@ -24,7 +26,21 @@ fn app_info() -> AppInfo {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![app_info])
+        .manage(audio::AudioHost::default())
+        .invoke_handler(tauri::generate_handler![
+            app_info,
+            audio::audio_open,
+            audio::audio_close,
+            audio::audio_permission,
+            audio::audio_clock_sync,
+            audio::audio_clock_check,
+            audio::audio_put_buffer,
+            audio::audio_decode,
+            audio::audio_drop_buffers,
+            audio::audio_schedule,
+            audio::audio_stop_voices,
+            audio::audio_cancel,
+        ])
         .run(tauri::generate_context!())
         .expect("error while running Sightread");
 }

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-audio-schedule"
+description = "Enables the audio_schedule command without any pre-configured scope."
+commands.allow = ["audio_schedule"]
+
+[[permission]]
+identifier = "deny-audio-schedule"
+description = "Denies the audio_schedule command without any pre-configured scope."
+commands.deny = ["audio_schedule"]
