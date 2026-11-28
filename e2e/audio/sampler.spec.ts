@@ -15,7 +15,7 @@ const SOUNDS = join(ROOT, 'public', 'sounds');
 
 /** Page-side harness: the app's sampler and a YIN pitch estimate (the demo page's self-test, ported). */
 const ENTRY = `
-import { Sampler, startSampleNote } from './src/platform/web/audio/sampler.ts';
+import { Sampler, startSampleNote } from './src/platform/shared/audio/sampler.ts';
 import { WebAudioBackend } from './src/platform/web/audio/web-audio-backend.ts';
 
 const caps = { platform: 'web', outputLatencyReported: true, wakeLock: true, serviceWorker: true, persistentStorage: 'best-effort', osFamily: 'linux', displayMode: 'browser' };

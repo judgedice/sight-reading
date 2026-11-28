@@ -19,7 +19,7 @@ const SR = 48000;
 const sha = (x: Float32Array): string => createHash('sha256').update(new Uint8Array(x.buffer, x.byteOffset, x.byteLength)).digest('hex');
 
 /**
- * SHA-256 of the pre-redesign `renderClick` output (src/platform/web/audio/metronome.ts at the redesign checkpoint),
+ * SHA-256 of the pre-redesign `renderClick` output (src/platform/shared/audio/metronome.ts at the redesign checkpoint),
  * Float32 bytes. Tick and Wood must stay bit-identical: the testkit, the dsp tests and stored templates rely on them.
  */
 const LEGACY_SHA: Record<string, string> = {

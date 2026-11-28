@@ -18,7 +18,7 @@ import { createRng } from '../core/rng.ts';
 import { loadManifest } from '../corpus/index.ts';
 import { WebAudioBackend } from '../platform/web/audio/index.ts';
 import { CAPTURE_WORKLET_URL } from '../platform/web/audio/worklet-url.ts';
-import { createDspWorker } from '../platform/web/audio/dsp-worker-factory.ts';
+import { createDspWorker } from '../platform/shared/audio/dsp-worker-factory.ts';
 import { readBrowserCapabilities } from '../platform/web/capabilities.ts';
 import { registerServiceWorker } from '../platform/web/sw/register.ts';
 import { iosBetaLabelKey } from '../platform/web/ios/hints.ts';

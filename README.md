@@ -163,7 +163,9 @@ The service worker caches the app shell and every corpus file it has fetched, so
 | `src/grade/`, `src/tips/` | scoring, XP and rank, error patterns, tips |
 | `src/corpus/`, `src/notation/` | excerpt selection and transposition, VexFlow rendering and the feedback overlay |
 | `src/session/`, `src/calibration/` | the try state machine, the Match a note service, latency calibration and gates |
-| `src/platform/web/` | Web Audio backend, DSP worker, storage, service worker, iOS accommodations |
+| `src/platform/web/` | Web Audio backend, storage, service worker, iOS accommodations |
+| `src/platform/shared/` | Platform-neutral audio: metronome, sampler, Listen voice, capture core, DSP worker, route keys |
+| `src/platform/native/` | Native (Tauri) platform seam, not yet implemented |
 | `src/ui/`, `src/app/` | components, design tokens, copy, screens and the composition root |
 | `config/`, `schemas/`, `fixtures/` | tolerances and level data, JSON schemas, test fixtures |
 | `tools/` | corpus pipeline, corpus check, accuracy gates, size check, bare-runtime check |

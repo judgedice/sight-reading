@@ -11,7 +11,7 @@ import type { Meter, PreparedExcerpt, SelectionResult } from '../../../core/type
 import { makeMeter } from '../../../core/time.ts';
 import { fixtureDoc } from '../../../notation/testing/corpus-node.ts';
 import { preparedFromDoc } from '../../../notation/testing/prepared.ts';
-import { Metronome, planTakeClicks } from '../../../platform/web/audio/metronome.ts';
+import { Metronome, planTakeClicks } from '../../../platform/shared/audio/metronome.ts';
 import { FakeAudioWorld } from '../../../platform/web/audio/testing/fake-web-audio.ts';
 import { planTake } from '../../../session/take-plan.ts';
 import { FakeAudioBackend } from '../../../testkit/fake-backend.ts';

@@ -3,7 +3,7 @@
  * real `CaptureCore` behind a real `MessageChannel`), MediaStream, devices, document and a manual wall clock.
  * Test-only; no browser globals are touched.
  */
-import { CaptureCore, type CorePort } from '../capture-processor.ts';
+import { CaptureCore, type CorePort } from '../../../shared/audio/capture-processor.ts';
 import type {
   AudioContextLike,
   AudioNodeLike,
@@ -17,8 +17,8 @@ import type {
   WebAudioDeps,
   WorkletNodeLike,
 } from '../deps.ts';
-import type { ClickBuffer } from '../metronome.ts';
-import type { TrackSettingsLike } from '../route.ts';
+import type { ClickBuffer } from '../../../shared/audio/metronome.ts';
+import type { TrackSettingsLike } from '../../../shared/audio/route.ts';
 
 type Listener = (ev: unknown) => void;
 

@@ -3,8 +3,8 @@
  * against a scripted fake. `browserAudioDeps()` binds them to the real globals; it is the only place in this
  * folder that reads `AudioContext`, `AudioWorkletNode`, `navigator.*`, `document` or `performance`.
  */
-import type { ClickBuffer, ClickSource } from './metronome.ts';
-import type { TrackSettingsLike } from './route.ts';
+import type { ClickBuffer, ClickSource } from '../../shared/audio/metronome.ts';
+import type { TrackSettingsLike } from '../../shared/audio/route.ts';
 
 export interface EventTargetLike {
   addEventListener(type: string, cb: (ev: unknown) => void): void;

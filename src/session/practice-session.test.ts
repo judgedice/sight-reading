@@ -19,7 +19,7 @@ import { buildExpectedNotes, loadManifest } from '../corpus/index.ts';
 import { createRng } from '../core/rng.ts';
 import { createEmitter } from '../core/events.ts';
 import { midiToFreq, toMidi, tonicOf } from '../theory/index.ts';
-import { DspWorkerCore } from '../platform/web/audio/dsp-worker-core.ts';
+import { DspWorkerCore } from '../platform/shared/audio/dsp-worker-core.ts';
 import { FakeAudioBackend, type FakeBackendOptions } from '../testkit/fake-backend.ts';
 import { renderPerformance, type SynthNoteSpec } from '../testkit/synth/index.ts';
 import { MemoryKv, makeCalibration, memoryRepos } from '../store/test-data.ts';

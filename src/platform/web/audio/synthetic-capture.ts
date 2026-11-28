@@ -26,7 +26,7 @@
  * run at a context rate the track agrees with, so no recreation happens.
  */
 import type { AudioContextLike, AudioNodeLike, MediaDevicesLike, MediaStreamLike, WebAudioDeps } from './deps.ts';
-import { renderClick } from './metronome.ts';
+import { renderClick } from '../../shared/audio/metronome.ts';
 
 /** Unique string for the production-bundle grep (`dist/` must not contain it). */
 export const SYNTHETIC_CAPTURE_MARKER = 'sr-synthetic-capture-test-only-7f3a';

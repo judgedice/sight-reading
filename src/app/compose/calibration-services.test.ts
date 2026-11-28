@@ -8,7 +8,7 @@ import type { Calibration } from '../../core/types.ts';
 import { defaultAppSettings } from '../../store/defaults.ts';
 import { MemoryKv, makeCalibration, memoryRepos } from '../../store/test-data.ts';
 import { FakeAudioBackend } from '../../testkit/fake-backend.ts';
-import { routeKeyAliasesOf, routeKeyOf } from '../../platform/web/audio/route.ts';
+import { routeKeyAliasesOf, routeKeyOf } from '../../platform/shared/audio/route.ts';
 import { appConfigs } from './configs.ts';
 import { calibrationStatus, KV_CAL_LAST_FAILURE, type CalFailure } from './calibration-status.ts';
 import { adoptLegacyCalibrations, adoptingLegacyCalibrations, createCalibrationServices, type CalibrationBackendExtras } from './calibration-services.ts';

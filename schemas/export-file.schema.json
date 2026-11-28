@@ -864,7 +864,7 @@
       "properties": {
         "platform": {
           "$ref": "#/definitions/PlatformKind",
-          "description": "'ios' = the later native target."
+          "description": "'ios', 'desktop' and 'android' are the native shell (PLAN R85); the web build reports 'web'."
         },
         "osFamily": {
           "$ref": "#/definitions/OsFamily"
@@ -2193,9 +2193,11 @@
       "type": "string",
       "enum": [
         "web",
-        "ios"
+        "ios",
+        "desktop",
+        "android"
       ],
-      "description": "Runtime platform: the web app, or the later native iOS target (01 §5.2, 05 §5.2)."
+      "description": "Runtime platform: the web app, or a native shell (01 §5.2, 05 §5.2; PLAN R85: 'desktop', 'ios' and 'android' are native)."
     },
     "PlayerProfile": {
       "type": "object",

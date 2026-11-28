@@ -40,13 +40,14 @@ import type {
 } from '../../../core/platform.ts';
 import budgetJson from '../../../../config/measurement-budget.json';
 import { browserAudioDeps, type AudioContextLike, type GainNodeLike, type TrackLike, type WebAudioDeps, type WorkletNodeLike, type MediaStreamLike, type AudioNodeLike } from './deps.ts';
-import type { ClickBuffer } from './metronome.ts';
-import { ListenVoiceCache, LISTEN_BUS_GAIN } from './listen-voice.ts';
-import { isSamplerContext, midiOfHz, playSampledNotes, Sampler, SAMPLE_GAIN, type Decoder, type FetchLike, type SamplerNode } from './sampler.ts';
-import { CALIBRATION_ACCENT_DB, Metronome } from './metronome.ts';
-import { fitClockWindow, median, type ClockFit, type ClockSample } from './clock-fit.ts';
-import { CAPTURE_PROCESSOR_NAME, FRAMES_PER_BLOCK, type FromWorklet, type ToWorklet } from './protocol.ts';
-import { appliedProcessingOf, inputKindOf, normalizeInputLabel, routeKeyAliasesOf, routeKeyOf } from './route.ts';
+import type { ClickBuffer } from '../../shared/audio/metronome.ts';
+import { renderTone } from '../../shared/audio/render-tone.ts';
+import { ListenVoiceCache, LISTEN_BUS_GAIN } from '../../shared/audio/listen-voice.ts';
+import { isSamplerContext, midiOfHz, playSampledNotes, Sampler, SAMPLE_GAIN, type Decoder, type FetchLike, type SamplerNode } from '../../shared/audio/sampler.ts';
+import { CALIBRATION_ACCENT_DB, Metronome } from '../../shared/audio/metronome.ts';
+import { fitClockWindow, median, type ClockFit, type ClockSample } from '../../shared/audio/clock-fit.ts';
+import { CAPTURE_PROCESSOR_NAME, FRAMES_PER_BLOCK, type FromWorklet, type ToWorklet } from '../../shared/audio/protocol.ts';
+import { appliedProcessingOf, inputKindOf, normalizeInputLabel, routeKeyAliasesOf, routeKeyOf } from '../../shared/audio/route.ts';
 
 export type InterruptionReason = 'interrupted' | 'hidden' | 'track-ended' | 'device-change';
 
@@ -728,17 +729,9 @@ export class WebAudioBackend implements AudioBackend {
   private startTone(hz: number, durSec: number, at: ClockSeconds, peak: number): void {
     const ctx = this.requireContext();
     const sr = ctx.sampleRate;
-    const n = Math.max(1, Math.round(durSec * sr));
-    const fade = Math.min(Math.round(0.01 * sr), Math.floor(n / 2));
-    const buf = ctx.createBuffer(1, n, sr);
-    const d = buf.getChannelData(0);
-    const w = (2 * Math.PI * hz) / sr;
-    for (let i = 0; i < n; i++) {
-      let env = 1;
-      if (i < fade) env = 0.5 - 0.5 * Math.cos((Math.PI * i) / fade);
-      else if (i >= n - fade) env = 0.5 - 0.5 * Math.cos((Math.PI * (n - 1 - i)) / fade);
-      d[i] = peak * env * Math.sin(w * i);
-    }
+    const data = renderTone(hz, durSec, sr, peak);
+    const buf = ctx.createBuffer(1, data.length, sr);
+    buf.getChannelData(0).set(data);
     this.startSource(buf, this.clickBus as GainNodeLike, at);
   }
 

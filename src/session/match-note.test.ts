@@ -3,7 +3,7 @@
 import { describe, expect, it } from 'vitest';
 import type { MessagePortLike, WorkerLike, WorkerMessage, WorkerReply } from '../core/platform.ts';
 import { configs } from '../../fixtures/follow/gen/io.ts';
-import { DspWorkerCore } from '../platform/web/audio/dsp-worker-core.ts';
+import { DspWorkerCore } from '../platform/shared/audio/dsp-worker-core.ts';
 import { FakeAudioBackend, type FakeBackendOptions } from '../testkit/fake-backend.ts';
 import type { PitchSteadiness } from '../core/types.ts';
 import { MATCH_NOTE, MatchNoteService, pitchModeConfigFor, type MatchFrame, type MatchTimers } from './match-note.ts';

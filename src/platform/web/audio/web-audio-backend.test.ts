@@ -5,8 +5,8 @@ import { renderMin } from '../../../testkit/synth-min.ts';
 import { WebAudioBackend, type CaptureFault, type InterruptionReason, type WebAudioBackendOptions } from './web-audio-backend.ts';
 import type { FakeGain, FakeSourceNode, FakeWorkletNode} from './testing/fake-web-audio.ts';
 import { FakeAudioWorld, flush, type WorldOptions } from './testing/fake-web-audio.ts';
-import { routeKeyOf } from './route.ts';
-import { MAX_LEAD_SEC } from './sampler.ts';
+import { routeKeyOf } from '../../shared/audio/route.ts';
+import { MAX_LEAD_SEC } from '../../shared/audio/sampler.ts';
 
 const caps: PlatformCapabilities = {
   platform: 'web', outputLatencyReported: true, wakeLock: true, serviceWorker: true, persistentStorage: 'best-effort', osFamily: 'linux', displayMode: 'browser',

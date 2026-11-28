@@ -1,0 +1,17 @@
+[package]
+name = "sr-audio-device"
+version = "0.1.0"
+description = "Device layer of the native audio engine: the DeviceIo trait, the cpal output implementation, and a thread-driven fake device for tests."
+edition = "2021"
+rust-version = "1.77"
+publish = false
+
+[features]
+default = []
+# Thread-driven fake output device (tests, CI, headless smoke test).
+fake = []
+
+[dependencies]
+sr-audio-core = { path = "../sr-audio-core" }
+# Exact pin: stream timing, buffer-size handling and the error callback behaviour are part of what we rely on.
+cpal = "=0.18.2"

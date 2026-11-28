@@ -6,8 +6,8 @@
  * The node must be built with one input and one output and connected to the destination through a zero gain so
  * that WebKit pulls it (05 Q3). The output stays silent.
  */
-import { CaptureCore, type CorePort } from './capture-processor.ts';
-import { CAPTURE_PROCESSOR_NAME } from './protocol.ts';
+import { CaptureCore, type CorePort } from '../../shared/audio/capture-processor.ts';
+import { CAPTURE_PROCESSOR_NAME } from '../../shared/audio/protocol.ts';
 
 interface WorkletScope {
   AudioWorkletProcessor: new () => { readonly port: MessagePort };

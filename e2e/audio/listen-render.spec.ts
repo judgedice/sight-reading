@@ -40,8 +40,8 @@ const CASES: Plans.CaseSpec[] = [
 
 /** Page side: the sampler, the Listen bus gain and the analysis, bundled from src. */
 const ENTRY = `
-import { Sampler, playSampledNotes, midiOfHz, SAMPLE_GAIN } from './src/platform/web/audio/sampler.ts';
-import { LISTEN_BUS_GAIN } from './src/platform/web/audio/listen-voice.ts';
+import { Sampler, playSampledNotes, midiOfHz, SAMPLE_GAIN } from './src/platform/shared/audio/sampler.ts';
+import { LISTEN_BUS_GAIN } from './src/platform/shared/audio/listen-voice.ts';
 import { LISTEN } from './src/session/listen-plan.ts';
 
 function yin(x, sr, fmin, fmax) {

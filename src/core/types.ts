@@ -57,8 +57,8 @@ export type PitchSteadiness = 'steady' | 'balanced' | 'quick';
 /** Metronome mode. `'visual'` is later (01 §7.6, 02 §5.2). */
 export type MetronomeMode = 'audible' | 'countInOnly';
 
-/** Runtime platform: the web app, or the later native iOS target (01 §5.2, 05 §5.2). */
-export type PlatformKind = 'web' | 'ios';
+/** Runtime platform: the web app, or a native shell (01 §5.2, 05 §5.2; PLAN R85: 'desktop', 'ios' and 'android' are native). */
+export type PlatformKind = 'web' | 'ios' | 'desktop' | 'android';
 
 /** OS family, for labels, copy and diagnostics only; never a grading branch (05 §5.1). */
 export type OsFamily = 'ios' | 'ipados' | 'macos' | 'android' | 'windows' | 'linux' | 'other';
@@ -1957,7 +1957,7 @@ export type GateId =
 
 /** Audio environment of an attempt; platform-neutral, JSON only, never identifies the person or device (05 §5.2). */
 export interface AudioEnv {
-  /** 'ios' = the later native target. */
+  /** 'ios', 'desktop' and 'android' are the native shell (PLAN R85); the web build reports 'web'. */
   platform: PlatformKind;
   osFamily: OsFamily;
   displayMode: DisplayMode;

@@ -19,7 +19,7 @@ import { HiBandEnergy } from '../../dsp/hiband.ts';
 import { buildClickTemplate } from '../../dsp/click.ts';
 import { withOwnPlayback } from '../../follow/index.ts';
 import { gradeWithPatterns } from '../../grade/index.ts';
-import { DspWorkerCore } from '../../platform/web/audio/dsp-worker-core.ts';
+import { DspWorkerCore } from '../../platform/shared/audio/dsp-worker-core.ts';
 import { resolveOneNote, resolveTolerances } from '../../rules/index.ts';
 import { scenarioConfigs, type ScenarioBase, type ScenarioRender } from '../scenarios/index.ts';
 import { applyConditions, type CaptureConditions, type SynthRender } from '../synth/index.ts';

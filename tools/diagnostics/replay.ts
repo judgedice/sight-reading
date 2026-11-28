@@ -22,7 +22,7 @@ import type { ClockSeconds, DetectedNote, DspConfig, FinalAlignment, FollowConfi
 import { configs } from '../../fixtures/follow/gen/io.ts';
 import { LiveFollower, alignFinal, ignoredNote, liveOutcomeOf, playerNotes } from '../../src/follow/index.ts';
 import { resolveOneNote } from '../../src/rules/index.ts';
-import { DspWorkerCore } from '../../src/platform/web/audio/dsp-worker-core.ts';
+import { DspWorkerCore } from '../../src/platform/shared/audio/dsp-worker-core.ts';
 import { decodePcm16, type DiagnosticsFile, type TryTrace } from '../../src/session/diagnostics.ts';
 
 const NAMES = ['C', 'C♯', 'D', 'E♭', 'E', 'F', 'F♯', 'G', 'A♭', 'A', 'B♭', 'B'];

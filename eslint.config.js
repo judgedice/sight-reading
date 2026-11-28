@@ -32,7 +32,7 @@ const restrictedNavigatorProps = [
   'userAgent', // 05 section on the seam: only detectCapabilities and the backend may read it
 ];
 const restrictedGlobalMessage = (name) =>
-  `${name} is banned outside src/platform/web, src/app/main.tsx and testkit (01 section 4.3). Inject it through PlatformServices.`;
+  `${name} is banned outside src/platform (web, shared, native), src/app/main.tsx and testkit (01 section 4.3). Inject it through PlatformServices.`;
 
 /** @param {string[]} names */
 const globalEntries = (names) => names.map((name) => ({ name, message: restrictedGlobalMessage(name) }));
@@ -53,12 +53,12 @@ const restrictedPropertyEntries = [
 
 const navigatorSelectors = restrictedNavigatorProps.map((prop) => ({
   selector: `MemberExpression[object.name='navigator'][property.name='${prop}']`,
-  message: `navigator.${prop} is banned outside src/platform/web, src/app/main.tsx and testkit (01 section 4.3).`,
+  message: `navigator.${prop} is banned outside src/platform (web, shared, native), src/app/main.tsx and testkit (01 section 4.3).`,
 }));
 const globalHolderNavigatorSelectors = globalHolders.flatMap((holder) =>
   restrictedNavigatorProps.map((prop) => ({
     selector: `MemberExpression[object.type='MemberExpression'][object.object.name='${holder}'][object.property.name='navigator'][property.name='${prop}']`,
-    message: `navigator.${prop} is banned outside src/platform/web, src/app/main.tsx and testkit (01 section 4.3).`,
+    message: `navigator.${prop} is banned outside src/platform (web, shared, native), src/app/main.tsx and testkit (01 section 4.3).`,
   })),
 );
 
@@ -85,6 +85,8 @@ const elementTypes = [
   'store',
   'session',
   'platform-web',
+  'platform-shared',
+  'platform-native',
   'notation',
   'ui',
   'app',
@@ -104,7 +106,9 @@ const allowedImports = {
   tips: ['core'],
   store: ['core'],
   session: ['core', 'theory', 'instruments', 'rules', 'corpus', 'dsp', 'calibration', 'follow', 'grade', 'tips', 'store'],
-  'platform-web': ['core', 'dsp', 'calibration', 'store'],
+  'platform-shared': ['core', 'dsp', 'calibration', 'store'],
+  'platform-web': ['core', 'dsp', 'calibration', 'store', 'platform-shared'],
+  'platform-native': ['core', 'dsp', 'calibration', 'store', 'platform-shared'],
   notation: ['core', 'theory', 'instruments'],
   ui: ['core'],
   app: ['session', 'notation', 'ui', 'store', 'core', 'instruments'],
@@ -184,6 +188,8 @@ export default tseslint.config(
         { type: 'store', pattern: '**/src/store' },
         { type: 'session', pattern: '**/src/session' },
         { type: 'platform-web', pattern: '**/src/platform/web' },
+        { type: 'platform-shared', pattern: '**/src/platform/shared' },
+        { type: 'platform-native', pattern: '**/src/platform/native' },
         { type: 'notation', pattern: '**/src/notation' },
         { type: 'ui', pattern: '**/src/ui' },
         { type: 'app', pattern: '**/src/app' },
@@ -197,8 +203,8 @@ export default tseslint.config(
             '**/src/app/main.tsx',
             '**/src/main.tsx',
             '**/src/app/compose/**',
-            '**/src/platform/web/audio/dsp-worker-core.ts',
-            '**/src/platform/web/audio/dsp.worker.ts',
+            '**/src/platform/shared/audio/dsp-worker-core.ts',
+            '**/src/platform/shared/audio/dsp.worker.ts',
           ],
           category: 'composition-root',
         },
@@ -226,7 +232,7 @@ export default tseslint.config(
   },
   // Where the platform globals are allowed.
   {
-    files: ['**/src/platform/web/**', '**/src/app/main.tsx', '**/src/main.tsx', '**/src/testkit/**'],
+    files: ['**/src/platform/web/**', '**/src/platform/shared/**', '**/src/platform/native/**', '**/src/app/main.tsx', '**/src/main.tsx', '**/src/testkit/**'],
     rules: {
       'no-restricted-globals': 'off',
       'no-restricted-properties': 'off',

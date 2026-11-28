@@ -3,7 +3,7 @@
 import { describe, expect, it } from 'vitest';
 import type { WorkerMessage, WorkerReply } from '../../src/core/platform.ts';
 import type { ClockSeconds } from '../../src/core/types.ts';
-import { DspWorkerCore } from '../../src/platform/web/audio/dsp-worker-core.ts';
+import { DspWorkerCore } from '../../src/platform/shared/audio/dsp-worker-core.ts';
 import { encodePcm16, TRACE_FORMAT, type TryTrace } from '../../src/session/diagnostics.ts';
 import { captureBlocks, gateDspConfig } from '../../src/testkit/gates/run-take.ts';
 import { renderUntrained, untrainedPlans } from '../../src/testkit/untrained/run.ts';

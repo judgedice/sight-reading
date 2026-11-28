@@ -5,8 +5,8 @@ import { defaultAppSettings } from '../../../store/defaults.ts';
 import { normaliseSettings, readMetronomeSound } from '../../../store/settings-read.ts';
 import { clickBurst } from '../../../testkit/synth-min.ts';
 import { CALIBRATION_ACCENT_DB, Metronome, planTakeClicks, renderClick, takeT0 } from './metronome.ts';
-import type { FakeBufferSource } from './testing/fake-web-audio.ts';
-import { FakeAudioWorld } from './testing/fake-web-audio.ts';
+import type { FakeBufferSource } from '../../web/audio/testing/fake-web-audio.ts';
+import { FakeAudioWorld } from '../../web/audio/testing/fake-web-audio.ts';
 
 const take = (over: Partial<TakeSchedule> = {}): TakeSchedule => ({
   leadSec: 0.5, bpm: 96, beatsPerBar: 4, countInBeats: 4, totalBeats: 32, mode: 'audible', timbre: 'tick', accentDb: 5, ...over,

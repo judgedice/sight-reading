@@ -13,7 +13,7 @@ import type { AudioRouteInfo, WorkerLike, WorkerMessage, WorkerReply } from '../
 import type { AudioEnv, AttemptRecord, AttemptScore, ClockSeconds, Configs, FinalAlignment, FollowerEvent, OutputMode } from '../../core/types.ts';
 import { WebAudioBackend } from '../../platform/web/audio/index.ts';
 import { CAPTURE_WORKLET_URL } from '../../platform/web/audio/worklet-url.ts';
-import { createDspWorker } from '../../platform/web/audio/dsp-worker-factory.ts';
+import { createDspWorker } from '../../platform/shared/audio/dsp-worker-factory.ts';
 import { readBrowserCapabilities } from '../../platform/web/capabilities.ts';
 import { openStore } from '../../platform/web/store/index.ts';
 import { SLICE, analysisRateFor, sliceAttemptRecord, sliceDspConfig, sliceFollowConfig, sliceGrade, type SliceTake } from './slice-take.ts';

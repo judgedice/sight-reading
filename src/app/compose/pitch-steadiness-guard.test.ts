@@ -141,7 +141,7 @@ describe('T15: structure', () => {
   });
 
   it('inside the DSP worker only the pitch mode (Match a note) builds the filter', () => {
-    const core = readFileSync(join(ROOT, 'src', 'platform', 'web', 'audio', 'dsp-worker-core.ts'), 'utf8');
+    const core = readFileSync(join(ROOT, 'src', 'platform', 'shared', 'audio', 'dsp-worker-core.ts'), 'utf8');
     const tracker = core.slice(core.indexOf('export class PitchModeTracker'), core.indexOf('export class DspWorkerCore'));
     const take = core.slice(core.indexOf('export class DspWorkerCore'));
     expect(tracker).toMatch(/new SteadinessFilter\(STEADINESS_PRESETS\[cfg\.steadiness\]\)/);

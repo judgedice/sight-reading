@@ -14,7 +14,7 @@ import { perform } from '../../fixtures/follow/gen/perform.ts';
 import { buildExpectedNotes, loadManifest, loadScales, scaleExcerptId } from '../corpus/index.ts';
 import { createRng } from '../core/rng.ts';
 import { createEmitter } from '../core/events.ts';
-import { DspWorkerCore } from '../platform/web/audio/dsp-worker-core.ts';
+import { DspWorkerCore } from '../platform/shared/audio/dsp-worker-core.ts';
 import { FakeAudioBackend } from '../testkit/fake-backend.ts';
 import { renderPerformance, type SynthNoteSpec } from '../testkit/synth/index.ts';
 import { MemoryKv, makeCalibration, memoryRepos } from '../store/test-data.ts';

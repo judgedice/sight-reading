@@ -13,7 +13,7 @@
  *   the end and is peak-normalised to 1; every sound is 60 ms or shorter;
  * - partials at or above 0.475 x the sample rate are dropped (low capture rates cannot carry them).
  * These are sums of damped sinusoids written into a buffer once per sample rate; nothing here is an oscillator node.
- * On speakers the metronome accents the new sounds by level with the offbeat recipe (src/platform/web/audio/
+ * On speakers the metronome accents the new sounds by level with the offbeat recipe (src/platform/shared/audio/
  * metronome.ts explains why); the accent recipes play in headphone modes.
  */
 import { createRng } from './rng.ts';
@@ -26,13 +26,13 @@ export const DEFAULT_METRONOME_SOUND: MetronomeSound = 'classic';
 export const METRONOME_SOUNDS: readonly MetronomeSound[] = ['classic', 'woodblock', 'beep'];
 
 /**
- * The speaker gate of 06 section 9.5, decided by CI and not by a person: src/platform/web/audio/
+ * The speaker gate of 06 section 9.5, decided by CI and not by a person: src/platform/shared/audio/
  * metronome-sounds.gate.test.ts runs the launch timbres with each sound's bleed at -20 and -10 dB, and a sound is
  * offered on speakers only if every run keeps onset F1 >= 0.97 (phone mic: not below the no-bleed reference) with
  * zero click-induced extras. Otherwise it is offered in headphone modes only. Classic, the default, must pass.
  *
  * Generated: the gate test fails when these values disagree with the measurement. Regenerate with
- * `CLICK_GATE_WRITE=1 pnpm vitest run src/platform/web/audio/metronome-sounds.gate.test.ts`.
+ * `CLICK_GATE_WRITE=1 pnpm vitest run src/platform/shared/audio/metronome-sounds.gate.test.ts`.
  */
 export const SOUND_ON_SPEAKERS: Readonly<Record<MetronomeSound, boolean>> = { classic: true, woodblock: false, beep: false };
 
