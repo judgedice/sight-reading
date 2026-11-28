@@ -9,6 +9,10 @@
  * (`&testClockSec=` overrides it), the RTL is 0, and each take reopens the microphone right before capture starts,
  * so Chromium's fake capture file plays from its start at the capture origin. `window.__sr` then exposes the session
  * and the audio backend for the Playwright specs (e2e/loop/, e2e/design/beat-line.spec.ts).
+ *
+ * Inside the Tauri shell (`__TAURI_INTERNALS__` on the window) the native backend replaces the web one: `platform/native/
+ * boot.ts` is imported on demand (its own chunk, never loaded in a browser) and supplies the backend, the capabilities,
+ * the configs with the native calibration floor (PLAN R86) and the capture channel. `?testClock=1` is a web-only hook.
  */
 import { StrictMode, useSyncExternalStore } from 'react';
 import type { Root } from 'react-dom/client';
@@ -29,7 +33,7 @@ import { defaultAppSettings } from '../store/defaults.ts';
 import { acknowledgeStorageLoss, checkStorage } from '../store/storage-loss.ts';
 import { App } from './App.tsx';
 import { appearanceFromSettings } from './appearance.tsx';
-import { composeApp, type AppRuntime } from './compose/app-services.ts';
+import { composeApp, type AppBackend, type AppRuntime } from './compose/app-services.ts';
 import { appConfigs, appScales } from './compose/configs.ts';
 import { createValue } from './compose/values.ts';
 import { testClockRequested } from './dev/slice-url.ts';
@@ -92,8 +96,9 @@ function bootError(root: Root, e: unknown): void {
 
 export async function boot(root: Root): Promise<void> {
   try {
-    const testClock = testClockRequested(window.location.search, window.location.hash);
-    const configs = appConfigs();
+    const native = '__TAURI_INTERNALS__' in window;
+    const testClock = !native && testClockRequested(window.location.search, window.location.hash);
+    let configs = appConfigs();
     const store = await openStore();
     const { repos, kv } = store;
     const mirror = new LocalStorageMirror();
@@ -108,7 +113,10 @@ export async function boot(root: Root): Promise<void> {
     ]);
 
     const persistedNow = typeof navigator.storage?.persisted === 'function' ? await navigator.storage.persisted().catch(() => false) : false;
-    const capabilities = readBrowserCapabilities(persistedNow);
+    const browserCaps = readBrowserCapabilities(persistedNow);
+    const nat = native ? (await import('../platform/native/boot.ts')).bootNative({ base: browserCaps, configs, outputMode: savedSettings.practice.outputMode }) : null;
+    if (nat) configs = nat.configs;
+    const capabilities = nat?.capabilities ?? browserCaps;
     const t0After = Number(hashQuery('testClockSec') ?? 2);
     const backendOpts = {
       capabilities,
@@ -116,7 +124,7 @@ export async function boot(root: Root): Promise<void> {
       outputMode: savedSettings.practice.outputMode,
       ...(testClock ? { testClockT0AfterCaptureSec: Number.isFinite(t0After) ? t0After : 2 } : {}),
     };
-    const audio = testClock ? new TestClockBackend(backendOpts) : new WebAudioBackend(backendOpts);
+    const audio: AppBackend = nat?.audio ?? (testClock ? new TestClockBackend(backendOpts) : new WebAudioBackend(backendOpts));
 
     const timers = {
       setTimeout: (fn: () => void, ms: number): unknown => setTimeout(fn, ms),
@@ -127,7 +135,7 @@ export async function boot(root: Root): Promise<void> {
     const wakeLockFailed = createValue(false);
     const keepAwake = new KeepAwakeController({ wakeLock: wakeLockFromNavigator(navigator as unknown as Parameters<typeof wakeLockFromNavigator>[0]), timers });
     const persist = createPersistTrigger(kv, navigator.storage);
-    const platform: PlatformServices & { audio: WebAudioBackend } = {
+    const platform: PlatformServices & { audio: AppBackend } = {
       audio,
       repos,
       kv,
@@ -175,6 +183,7 @@ export async function boot(root: Root): Promise<void> {
       scales: appScales(configs),
       manifest: corpus.manifest,
       workerFactory: (): WorkerLike => createDspWorker(),
+      ...(nat ? { createCaptureChannel: nat.createCaptureChannel } : {}),
       settings: { ...defaultAppSettings(), ...savedSettings },
       profile,
       storageLost: storage.status === 'lost',
@@ -193,6 +202,7 @@ export async function boot(root: Root): Promise<void> {
       idle,
       micBrowser: pickMicBrowser(capabilities, /firefox/i.test(navigator.userAgent) ? 'firefox' : undefined),
       async inputDevices() {
+        if (nat) return nat.inputDevices();
         const md = navigator.mediaDevices;
         if (!md?.enumerateDevices) return [];
         const all = await md.enumerateDevices();

@@ -1,0 +1,58 @@
+/**
+ * Native composition (PLAN R83; docs/native/AUDIO-DESIGN.md section 4). `src/app/main.tsx` imports this file on demand
+ * when it runs inside the Tauri shell, so it is its own chunk and a browser never loads it (or `@tauri-apps/api`).
+ * It builds the backend over the engine's commands, the capabilities, the capture channel the session hands the DSP
+ * worker, and the configs with the native calibration floor.
+ */
+import type { MessagePortLike, PlatformCapabilities } from '../../core/platform.ts';
+import type { Configs, OutputMode } from '../../core/types.ts';
+import { NativeAudioBackend } from './audio/native-audio-backend.ts';
+import { TauriNativeIpc, type NativeIpc } from './audio/ipc.ts';
+import { nativeCapabilities } from './capabilities.ts';
+
+/**
+ * `calibration.loopback.minRtlMs` on native, ms (PLAN R86): routes with an interface can measure below the web's 15.
+ * Owner to confirm after the first measurements on real hardware.
+ */
+export const NATIVE_LOOPBACK_MIN_RTL_MS = 3;
+
+/** A copy of the configs whose loopback calibration floor is the native one; `config/*.json` and the web values stay as they are. */
+export function nativeConfigs(configs: Configs): Configs {
+  const cal = configs.budget.calibration;
+  return { ...configs, budget: { ...configs.budget, calibration: { ...cal, loopback: { ...cal.loopback, minRtlMs: NATIVE_LOOPBACK_MIN_RTL_MS } } } };
+}
+
+export interface NativeBootOptions {
+  /** What `readBrowserCapabilities` found: OS family, display mode, wake lock, storage grant. */
+  base: Pick<PlatformCapabilities, 'osFamily' | 'displayMode' | 'wakeLock' | 'persistentStorage'>;
+  configs: Configs;
+  outputMode: OutputMode;
+  /** Tests inject `FakeNativeIpc`; the app uses the Tauri one. */
+  ipc?: NativeIpc;
+}
+
+export interface NativeBoot {
+  audio: NativeAudioBackend;
+  /** The backend's own object: `outputLatencyReported` follows the engine's trust once it has opened. */
+  capabilities: PlatformCapabilities;
+  configs: Configs;
+  /** The session's capture channel: blocks go from the main thread straight to the DSP worker. */
+  createCaptureChannel: () => { port1: MessagePortLike; port2: unknown };
+  /** The engine opens the OS default input; there is no device list to offer. */
+  inputDevices(): Promise<{ id: string; label: string }[]>;
+}
+
+export function bootNative(o: NativeBootOptions): NativeBoot {
+  const capabilities = nativeCapabilities(o.base, null);
+  const audio = new NativeAudioBackend({ ipc: o.ipc ?? new TauriNativeIpc(), capabilities, outputMode: o.outputMode });
+  return {
+    audio,
+    capabilities,
+    configs: nativeConfigs(o.configs),
+    createCaptureChannel: () => {
+      const c = new MessageChannel();
+      return { port1: c.port1 as unknown as MessagePortLike, port2: c.port2 };
+    },
+    inputDevices: async () => [],
+  };
+}

@@ -87,13 +87,21 @@ export default defineConfig({
         // The shell: HTML, the build's JS and CSS, fonts, images and the manifest. The corpus is excluded: it is
         // cached at run time by policy.ts, not in the install step.
         globPatterns: ['**/*.{js,css,html,woff2,png,svg}', 'manifest.webmanifest'],
-        globIgnores: ['corpus/**', 'sw.js'],
+        // The native shell's chunk (platform/native/boot.ts) is never loaded in a browser: it is not precached.
+        globIgnores: ['corpus/**', 'sw.js', 'assets/native-*.js'],
       },
     }),
   ],
   build: {
     target: 'es2022',
     sourcemap: true,
+    rollupOptions: {
+      output: {
+        // The Tauri shell's own chunk (src/app/main.tsx imports platform/native/boot.ts on demand) gets a name the
+        // service worker's precache list can leave out.
+        chunkFileNames: (chunk) => (chunk.facadeModuleId?.includes('/src/platform/native/boot.') ? 'assets/native-[hash].js' : 'assets/[name]-[hash].js'),
+      },
+    },
   },
   worker: {
     format: 'es',

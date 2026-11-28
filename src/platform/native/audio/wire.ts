@@ -128,15 +128,13 @@ export function decodeDecodeRequest(bytes: Uint8Array): { bufferId: number; file
   return { bufferId: new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength).getUint32(0, true), file: bytes.subarray(4) };
 }
 
-/** Reads the `audio_decode` reply: u32 sampleRate, u32 nFrames, f32 samples. The samples are copied (the reply's buffer is not 4-aligned for them in every runtime). */
+/** Reads the `audio_decode` reply: u32 sampleRate, u32 nFrames, f32 samples (copied out of the reply). */
 export function parseDecodeReply(buf: ArrayBuffer): { sampleRate: number; samples: Float32Array } {
   if (buf.byteLength < 8) throw new WireError('too-short', 'decode reply shorter than its header');
   const v = new DataView(buf);
   const n = v.getUint32(4, true);
   if (buf.byteLength !== 8 + n * 4) throw new WireError('length-mismatch', 'decode reply length does not match its frame count');
-  const samples = new Float32Array(n);
-  for (let i = 0; i < n; i++) samples[i] = v.getFloat32(8 + i * 4, true);
-  return { sampleRate: v.getUint32(0, true), samples };
+  return { sampleRate: v.getUint32(0, true), samples: new Float32Array(buf.slice(8)) };
 }
 
 /** Writes the `audio_decode` reply (the fake engine). */
