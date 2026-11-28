@@ -2,28 +2,26 @@
 //! the allocator at all (no allocation, no reallocation, no free).
 //!
 //! The counting allocator needs `unsafe`, which the library forbids for itself; it lives here, in a test
-//! binary of its own. Only calls made by the test thread while it is "armed" are counted, so the test
-//! harness's other threads cannot disturb the count.
+//! binary of its own. Each thread counts its own calls, and only while it is "armed", so tests running side
+//! by side and the test harness's own threads cannot disturb a count.
 
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::cell::Cell;
-use std::sync::atomic::{AtomicU64, Ordering};
 
 use sr_audio_core::mixer::{AudioBuffer, Group, VoiceSpec};
 use sr_audio_core::{engine, EngineConfig, Notification};
 
 struct Counting;
 
-static CALLS: AtomicU64 = AtomicU64::new(0);
-
 thread_local! {
     static ARMED: Cell<bool> = const { Cell::new(false) };
+    static CALLS: Cell<u64> = const { Cell::new(0) };
 }
 
 fn count() {
-    // `try_with`: the allocator may run while the thread-local is being torn down.
+    // `try_with`: the allocator may run while the thread-locals are being torn down.
     if ARMED.try_with(Cell::get).unwrap_or(false) {
-        CALLS.fetch_add(1, Ordering::Relaxed);
+        let _ = CALLS.try_with(|c| c.set(c.get() + 1));
     }
 }
 
@@ -51,11 +49,11 @@ static GLOBAL: Counting = Counting;
 
 /// Runs `f` with the counter armed and returns the number of allocator calls it made.
 fn counted(f: impl FnOnce()) -> u64 {
-    let before = CALLS.load(Ordering::Relaxed);
+    let before = CALLS.with(Cell::get);
     ARMED.with(|a| a.set(true));
     f();
     ARMED.with(|a| a.set(false));
-    CALLS.load(Ordering::Relaxed) - before
+    CALLS.with(Cell::get) - before
 }
 
 #[test]
@@ -159,4 +157,61 @@ fn render_does_not_allocate() {
     assert_eq!(stats.notifications_dropped, 0);
     assert_eq!(stats.rejected_voices, 0);
     assert_eq!(allocator_calls, 0, "the audio callbacks called the allocator");
+}
+
+/// The capture path on the simulated device: both paths, a clock step, and a stalled pump (ring overflow).
+/// The simulation's own callbacks are counted too; they do not allocate either.
+#[cfg(feature = "sim")]
+#[test]
+fn capture_does_not_allocate() {
+    use sr_audio_core::capture::{CaptureConfig, CaptureEvent, CapturePath};
+    use sr_audio_core::sim::{SimConfig, SimDuplex};
+
+    let locked = SimConfig { delay_sec: 0.0234, loop_gain: 0.5, in_channels: 2, ..SimConfig::ideal(48_000) };
+    let resampled = SimConfig { input_rate: 44_100, in_frames: 441, in_ppm: 200.0, jitter_ms: 3.0, burst_every: 53, ..locked.clone() };
+    for (config, want) in [(locked, CapturePath::Locked), (resampled, CapturePath::Resampled)] {
+        let (engine, mut handle) = engine(EngineConfig::new(48_000));
+        let mut reader = handle.take_capture_reader().unwrap();
+        handle.put_buffer(1, AudioBuffer::new(vec![0.5f32; 2400], 48_000));
+        let specs: Vec<VoiceSpec> = (0..40).map(|k| VoiceSpec::new(k, 1, 1.0 + k as f64 * 0.2)).collect();
+        handle.schedule(Group::Take, &specs).unwrap();
+        let mut sim = SimDuplex::new(config, engine);
+        sim.set_input_signal(|m, _| (m % 97) as f32 / 97.0 - 0.5);
+        let mut notes = Vec::with_capacity(4096);
+        let mut packet = Vec::with_capacity(16_384);
+        let (mut calls, mut steps, mut packets, mut path, mut stepped, mut dropped) = (0u64, 0u64, 0u64, None, false, 0u64);
+        let mut lost = false;
+        reader.start(CaptureConfig::default()).unwrap();
+        while sim.time_sec() < 9.0 {
+            let t = sim.time_sec();
+            if t > 4.0 && !lost {
+                sim.lose_input(0.01);
+                lost = true;
+            }
+            calls += counted(|| {
+                sim.step();
+            });
+            steps += 1;
+            // The pump: stalled from 5.5 s to 8 s, so the 2 s ring overflows.
+            notes.clear();
+            handle.poll(&mut notes);
+            while let Some(event) = reader.poll_event() {
+                match event {
+                    CaptureEvent::Started { path: p, .. } => path = Some(p),
+                    CaptureEvent::ClockStep { .. } => stepped = true,
+                    _ => {}
+                }
+            }
+            if !(5.5..8.0).contains(&t) {
+                while reader.read_packet(&mut packet) {
+                    packets += 1;
+                }
+            }
+            dropped = dropped.max(reader.stats().dropped_frames);
+        }
+        println!("capture_does_not_allocate {want:?}: {calls} allocator calls in {steps} callbacks ({packets} packets read, {dropped} frames dropped while the pump stalled, clock step seen: {stepped})");
+        assert_eq!(path, Some(want));
+        assert!(steps > 3000 && packets > 300 && dropped > 10_000 && stepped, "the run exercised every path");
+        assert_eq!(calls, 0, "the audio callbacks called the allocator");
+    }
 }

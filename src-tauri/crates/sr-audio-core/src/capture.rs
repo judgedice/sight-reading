@@ -283,6 +283,13 @@ impl Packetizer {
         }
     }
 
+    /// Closes the packet in progress short, if it holds any frames (before a break in the grid).
+    pub fn flush(&mut self) {
+        if self.fill > 0 {
+            self.emit(false);
+        }
+    }
+
     /// Ends the capture: writes what is pending as the last packet (flag bit 3), even when that is no frames
     /// at all, and returns the statistics.
     pub fn finish(&mut self) -> CaptureStats {
@@ -373,6 +380,34 @@ impl PacketReader {
     pub fn pending_bytes(&self) -> usize {
         self.ring.slots()
     }
+}
+
+/// Seed of the samples in the golden packet stream.
+pub const GOLDEN_SEED: u32 = 0x5eed;
+/// Engine frame of the first sample in the golden packet stream.
+pub const GOLDEN_ORIGIN_FRAME: u64 = 48_000;
+
+/// The fixed capture behind `fixtures/native/capture-48k.bin` (the `capture_golden` example writes it, the
+/// TypeScript packet parser and `packet_roundtrip` read it): the input samples and the packet stream.
+///
+/// Input: 48 000 samples, sample `i` = `fround((rng.next() * 2 - 1) * 0.5)` from the generator of
+/// `src/core/rng.ts` seeded with [`GOLDEN_SEED`]; samples 4096 to 4607 are 0 instead (one all-zero packet).
+/// Stream: 512-frame packets from engine frame [`GOLDEN_ORIGIN_FRAME`], written in 480-frame callbacks; 93
+/// full packets and a last one of 384 frames with flag bit 3. 194 256 bytes.
+pub fn golden_packet_stream() -> (Vec<f32>, Vec<u8>) {
+    let mut rng = crate::synth::Rng::new(GOLDEN_SEED);
+    let input: Vec<f32> = (0..48_000).map(|i| { let v = ((rng.next_f64() * 2.0 - 1.0) * 0.5) as f32; if (4096..4608).contains(&i) { 0.0 } else { v } }).collect();
+    let (mut packetizer, mut reader) = packet_ring(48_000, RING_SECONDS);
+    packetizer.begin(DEFAULT_PACKET_FRAMES, 0);
+    for (k, block) in input.chunks(480).enumerate() {
+        packetizer.write(GOLDEN_ORIGIN_FRAME + k as u64 * 480, block);
+    }
+    packetizer.finish();
+    let (mut stream, mut packet) = (Vec::new(), Vec::new());
+    while reader.read_packet(&mut packet) {
+        stream.extend_from_slice(&packet);
+    }
+    (input, stream)
 }
 
 // ---------------------------------------------------------------------------------------------------------
@@ -739,6 +774,7 @@ impl CaptureHalf {
             // The stream lost or gained time: fix the mapping again from here. The frame grid breaks, which
             // the receiver sees as a gap.
             self.steps += 1;
+            self.packets.flush();
             self.packets.set_flags(FLAG_CLOCK_STEP);
             let path = self.aligner.path();
             let _ = self.aligner.start(path, first, &view);

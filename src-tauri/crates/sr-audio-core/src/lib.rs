@@ -9,6 +9,7 @@
 //! | [`wire`] | Binary layouts shared with the webview |
 //! | [`capture`] | Input to packets on the engine grid: [`CaptureHalf`], [`CaptureReader`], aligner, packetizer |
 //! | [`resample`] | Windowed-sinc resampler and the drift controller of the resampled capture path |
+//! | [`loopback`] | Round-trip measurement: estimator and the driver that plays and captures the clicks |
 //! | [`synth`] | Ports of the TypeScript click, Listen note and tone renderers |
 //!
 //! This file ties them together for a device layer:
@@ -31,11 +32,16 @@ pub mod capture;
 pub mod clock;
 pub mod decode;
 pub mod latency;
+pub mod loopback;
 pub mod mixer;
 pub mod resample;
+#[cfg(any(test, feature = "sim"))]
+pub mod sim;
 pub mod synth;
 pub mod wire;
 
+#[cfg(test)]
+mod sim_tests;
 #[cfg(test)]
 mod testutil;
 

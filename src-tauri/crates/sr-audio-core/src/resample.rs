@@ -62,7 +62,7 @@ pub fn sinc(x: f64) -> f64 {
     }
 }
 
-/// Windowed-sinc interpolator over the last [`HISTORY`] input samples.
+/// Windowed-sinc interpolator over the last 4096 input samples.
 #[derive(Debug, Clone)]
 pub struct SincResampler {
     /// `(PHASES + 1) * TAPS` coefficients; row `p` is the kernel for a fractional position of `p / PHASES`.
@@ -159,8 +159,10 @@ impl SincResampler {
     }
 }
 
-/// Largest change of the ratio per second, as a fraction of the ratio (50 ppm per second).
+/// Largest change of the ratio per second while tracking, as a fraction of the ratio (50 ppm per second).
 pub const MAX_RATIO_SLEW_PER_SEC: f64 = 50e-6;
+/// Phase error up to which [`MAX_RATIO_SLEW_PER_SEC`] holds, seconds (50 microseconds).
+pub const ACQUIRE_PHASE_SEC: f64 = 50e-6;
 /// Proportional gain: ratio correction (fraction) per second of phase error.
 const KP: f64 = 1.0;
 /// Integral gain: ratio correction (fraction) per second of phase error, per second.
@@ -170,6 +172,8 @@ const MAX_INTEGRAL: f64 = 300e-6;
 
 /// PI control of the resampling ratio with a slew limit. The loop is critically damped with a time constant
 /// of 2 s, so a phase error left by a clock refit (some tens of microseconds) is taken out slowly and smoothly.
+/// While the phase error is within [`ACQUIRE_PHASE_SEC`] the ratio changes by at most
+/// [`MAX_RATIO_SLEW_PER_SEC`]; beyond it the limit grows with the square of the error (acquisition).
 #[derive(Debug, Clone)]
 pub struct DriftController {
     ratio: f64,
@@ -189,14 +193,16 @@ impl DriftController {
 
     /// One control step. `feed_forward` is the ratio the clock fits give; `phase_error_sec` is how far the
     /// position being read is behind the position the clocks ask for, in seconds (positive: read faster);
-    /// `dt_sec` is the time since the last step. Returns the new ratio, moved by at most
-    /// [`MAX_RATIO_SLEW_PER_SEC`] `* dt_sec` of its value.
+    /// `dt_sec` is the time since the last step. Returns the new ratio.
     pub fn update(&mut self, feed_forward: f64, phase_error_sec: f64, dt_sec: f64) -> f64 {
         if !(feed_forward.is_finite() && phase_error_sec.is_finite() && dt_sec > 0.0) {
             return self.ratio;
         }
         let target = feed_forward * (1.0 + KP * phase_error_sec + self.integral);
-        let max_step = MAX_RATIO_SLEW_PER_SEC * dt_sec * self.ratio;
+        // Acquisition: beyond 50 us of phase error the limit rises with the square of the error, so a poor
+        // first estimate of the ratio (young clocks) is corrected in a second or two, not in ten.
+        let slew = MAX_RATIO_SLEW_PER_SEC * (phase_error_sec.abs() / ACQUIRE_PHASE_SEC).max(1.0).powi(2);
+        let max_step = slew * dt_sec * self.ratio;
         let step = target - self.ratio;
         if step.abs() <= max_step {
             self.ratio = target;
@@ -306,19 +312,23 @@ mod tests {
         let true_ratio = 1.0002;
         let mut c = DriftController::new(1.0);
         let dt = 128.0 / 48_000.0;
-        let (mut phase, mut worst_slew, mut worst_phase) = (0f64, 0f64, 0f64);
+        let (mut phase, mut worst_slew, mut worst_phase, mut worst_acquire) = (0f64, 0f64, 0f64, 0f64);
         let mut prev = c.ratio();
         for k in 0..(60.0 / dt) as usize {
             // Phase error grows by the ratio error, in seconds per second.
             phase += (true_ratio - c.ratio()) * dt;
             let r = c.update(1.0, phase, dt);
-            worst_slew = worst_slew.max((r - prev).abs() / dt);
+            if phase.abs() <= ACQUIRE_PHASE_SEC {
+                worst_slew = worst_slew.max((r - prev).abs() / dt);
+            }
+            worst_acquire = worst_acquire.max(phase.abs());
             prev = r;
             if k as f64 * dt > 30.0 {
                 worst_phase = worst_phase.max(phase.abs());
             }
         }
-        println!("drift controller: 200 ppm unknown offset, ratio error {:+.3} ppm after 60 s, phase error {:.1} us after 30 s, largest slew {:.1} ppm/s", (c.ratio() / true_ratio - 1.0) * 1e6, worst_phase * 1e6, worst_slew * 1e6);
+        println!("drift controller: 200 ppm unknown offset, ratio error {:+.3} ppm after 60 s, phase error at most {:.1} us (after 30 s {:.1} us), largest slew while tracking {:.1} ppm/s", (c.ratio() / true_ratio - 1.0) * 1e6, worst_acquire * 1e6, worst_phase * 1e6, worst_slew * 1e6);
+        assert!(worst_acquire < 250e-6);
         assert!((c.ratio() / true_ratio - 1.0).abs() < 1e-6);
         assert!(worst_phase < 20e-6);
         assert!(worst_slew <= MAX_RATIO_SLEW_PER_SEC * 1.0003);

@@ -313,7 +313,7 @@ pub fn listen_envelope(t: f64, dur_sec: f64) -> f64 {
     if t < 0.0 {
         return 0.0;
     }
-    let decay_sec = dur_sec.min(LISTEN_DECAY_MAX_SEC).max(1e-3);
+    let decay_sec = dur_sec.clamp(1e-3, LISTEN_DECAY_MAX_SEC);
     let held = |u: f64| 10f64.powf((LISTEN_DECAY_DB / 20.0) * u.min(decay_sec) / decay_sec);
     let attack = if t < LISTEN_ATTACK_SEC { 0.5 - 0.5 * ((PI * t) / LISTEN_ATTACK_SEC).cos() } else { 1.0 };
     if t < dur_sec {

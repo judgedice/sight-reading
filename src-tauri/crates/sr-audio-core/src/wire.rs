@@ -278,6 +278,30 @@ mod tests {
             total += n;
         }
         assert!(total > 100_000);
+
+        // The checked-in capture stream (written by the `capture_golden` example, read by the TypeScript
+        // parser too): every packet decodes, re-encodes to the same bytes and carries the fixed input.
+        let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../fixtures/native/capture-48k.bin");
+        let file = std::fs::read(&path).unwrap_or_else(|e| panic!("{}: {e} (run `cargo run -p sr-audio-core --example capture_golden`)", path.display()));
+        let (input, stream) = crate::capture::golden_packet_stream();
+        assert!(file == stream, "the fixture is the stream the packetizer writes today");
+        let (mut at, mut samples, mut again, mut packets) = (0usize, Vec::new(), Vec::new(), 0u32);
+        while at < file.len() {
+            let h = PacketHeader::read(&file[at..]).expect("header");
+            let bytes = &file[at..at + h.packet_bytes()];
+            let before = samples.len();
+            assert_eq!(decode_packet(bytes, &mut samples), Ok(h));
+            assert_eq!((h.seq, h.first_frame, h.dropped_before), (packets, (crate::capture::GOLDEN_ORIGIN_FRAME + before as u64) as f64, 0));
+            encode_packet(&h, &samples[before..], &mut again);
+            let last = at + bytes.len() == file.len();
+            assert_eq!(h.flags, if last { FLAG_LAST } else if before == 4096 { FLAG_INPUT_ZERO } else { 0 });
+            assert_eq!(h.n_frames, if last { 384 } else { 512 });
+            at += bytes.len();
+            packets += 1;
+        }
+        assert!(again == file, "re-encoded fixture bytes identical");
+        assert!(samples.len() == input.len() && samples.iter().zip(&input).all(|(a, b)| a.to_bits() == b.to_bits()));
+        println!("packet_roundtrip: 500 random packets and the fixture ({packets} packets, {} bytes), bytes identical", file.len());
     }
 
     #[test]

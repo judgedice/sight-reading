@@ -6,7 +6,15 @@ edition = "2021"
 rust-version = "1.77"
 publish = false
 
+[features]
+# A simulated duplex device in virtual time (`sr_audio_core::sim`), for the device crate's fake backend and for
+# tests elsewhere. The crate's own tests always build it.
+sim = []
+
 [dependencies]
 # Exact pins: the realtime behaviour of the rings and the decoder's gapless trimming are part of what the tests check.
 rtrb = "=0.4.1"
 symphonia = { version = "=0.5.5", default-features = false, features = ["mp3"] }
+
+[[example]]
+name = "capture_golden"
