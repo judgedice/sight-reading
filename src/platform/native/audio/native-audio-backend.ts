@@ -370,7 +370,13 @@ export class NativeAudioBackend implements AudioBackend {
     this.requireOpen();
     const r = this.metronome.scheduleTake(p);
     this.takeEndsAt = Math.max(0, ...r.clicks.map((c) => c.t)) + 0.1;
-    await this.takeCtx.flush();
+    try {
+      await this.takeCtx.flush();
+    } catch (e) {
+      // A take whose clicks the engine did not take is not scheduled: leave nothing half-scheduled behind.
+      this.cancelTake();
+      throw e;
+    }
     return r;
   }
 

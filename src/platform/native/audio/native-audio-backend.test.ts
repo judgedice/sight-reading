@@ -439,6 +439,17 @@ describe('metronome on the backend (W9)', () => {
     }
   }
 
+  it('a take the engine refuses is not left half scheduled: the error comes back and sounds are allowed again', async () => {
+    const { ipc, be } = setup();
+    await be.unlock();
+    ipc.failNext('schedule:take', 'audio_schedule: boom');
+    await expect(be.scheduleTake(takeParams())).rejects.toThrow(/boom/);
+    await tick();
+    await be.playClicks([9 as never], 'classic', [true]);
+    expect(ipc.voices.filter((v) => v.group === 'sounds')).toHaveLength(1);
+    expect(ipc.calls).toContain('cancel:take');
+  });
+
   it('a declared output mode change is used by the next take', async () => {
     const { ipc, be } = setup();
     await be.unlock();
