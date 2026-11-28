@@ -90,6 +90,11 @@ export interface ScenarioRender {
 }
 
 export interface RenderOverrides {
+  /**
+   * Rate of the dry render, Hz (default `RENDER_RATE`). The gates on the resampled path
+   * (tools/native/gates-resampled.ts) render at the capture device's own rate and set `capture.captureRateHz` to it.
+   */
+  renderRateHz?: number;
   capture?: Partial<CaptureConditions>;
   performance?: Partial<PerformanceConditions>;
   click?: Partial<ClickPlan>;
@@ -209,7 +214,7 @@ export function renderScenario(plan: ScenarioPlan, o: RenderOverrides = {}): Sce
   const dry = renderPerformance({
     timbre,
     notes,
-    sampleRate: RENDER_RATE,
+    sampleRate: o.renderRateHz ?? RENDER_RATE,
     durationSec: tl.durationSec + (plan.capture.room ? Math.min(1.2, plan.capture.room.rt60Sec) : 0),
     ...(perf.vibrato !== undefined ? { vibrato: perf.vibrato } : {}),
     ...(perf.breathDb !== undefined ? { breathDb: perf.breathDb } : {}),

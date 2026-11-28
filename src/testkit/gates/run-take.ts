@@ -31,6 +31,18 @@ const GATE_CLICK_SOUND_SEC = 0.04;
 /** Capture block size in input frames (the worklet posts 2 render quanta; the offline runner uses the same). */
 export const GATE_BLOCK_FRAMES = 256;
 
+/**
+ * A capture route that puts the microphone signal through a converter before the capture and analysis path sees it
+ * (default off; tools/native/gates-resampled.ts passes the native capture path's resampler here). `convert` returns
+ * the signal on the engine grid at `engineRateHz`. With `deviceRateHz` set, the render and the capture are made at that
+ * rate (the device's own); with null the render is made as in the direct run and `convert` is given its rate.
+ */
+export interface CaptureRoute {
+  deviceRateHz: number | null;
+  engineRateHz: number;
+  convert(samples: Float32Array, rateHz: number): Float32Array;
+}
+
 /** A follower event with the input time of the block whose analysis produced it. */
 export interface TimedEvent {
   t: number;
@@ -53,8 +65,7 @@ export interface TakeRun {
   hopP95Ms: number | null;
 }
 
-const silence = (sec: number, levelDb: number): SynthRender => {
-  const sr = 48000;
+const silence = (sec: number, levelDb: number, sr = 48000): SynthRender => {
   return { samples: new Float32Array(Math.round(sec * sr)), sampleRate: sr, truth: [], envelope: { startT: 0, hopSec: 0.002, values: [] }, floorDb: -120, levelDb, pitchAt: () => null };
 };
 
@@ -70,15 +81,16 @@ function decimate(samples: Float32Array, inputRate: number): { low: Float32Array
  * averaged with buildClickTemplate), measured in the take's capture conditions without the instrument. Noise and AGC
  * are left out, as the calibration averages them away (the P4d acceptance suite does the same).
  */
-export function calibrationTemplate(cond: CaptureConditions, timbre: SynthClickTimbre, bleedDb: number): Float32Array {
+export function calibrationTemplate(cond: CaptureConditions, timbre: SynthClickTimbre, bleedDb: number, route?: CaptureRoute): Float32Array {
   const clicks = Array.from({ length: 8 }, (_, k) => ({ t: 0.5 + 0.5 * k, accent: k % 2 === 0 }));
-  const cap = applyConditions(silence(5, -18), { ...cond, noiseDbfs: null, agc: null, clickBleed: { clicks, timbre, bleedDb } });
-  const { low, rate } = decimate(cap.samples, cap.sampleRate);
+  const cap = applyConditions(silence(5, -18, route?.deviceRateHz ?? undefined), { ...cond, noiseDbfs: null, agc: null, clickBleed: { clicks, timbre, bleedDb } });
+  // The calibration runs through the same capture route as the take.
+  const { low, rate } = route ? decimate(route.convert(cap.samples, cap.sampleRate), route.engineRateHz) : decimate(cap.samples, cap.sampleRate);
   return buildClickTemplate(low, 0, rate, clicks.map((c) => ({ arrival: c.t, accent: c.accent })));
 }
 
 /** DspConfig as the session builds it (src/session/take-plan.ts dspConfigFor), with RTL 0. */
-export function gateDspConfig(r: ScenarioRender, tolerances: readonly ResolvedTolerance[], analysisRate: number, cfg: Configs): DspConfig {
+export function gateDspConfig(r: ScenarioRender, tolerances: readonly ResolvedTolerance[], analysisRate: number, cfg: Configs, route?: CaptureRoute): DspConfig {
   const { base } = r.plan;
   const d = base.inst.detection;
   const cond = r.capture.conditions;
@@ -91,7 +103,7 @@ export function gateDspConfig(r: ScenarioRender, tolerances: readonly ResolvedTo
   });
   let clickTemplate: Float32Array | null = null;
   if (bleed) {
-    const tpl = calibrationTemplate(cond, bleed.timbre, bleed.bleedDb);
+    const tpl = calibrationTemplate(cond, bleed.timbre, bleed.bleedDb, route);
     // The calibration runs at the device rate, so its template has the take's analysis rate.
     clickTemplate = tpl;
   }
@@ -137,15 +149,20 @@ export function* captureBlocks(samples: Float32Array, inputRate: number, frames 
 export interface RunTakeOptions {
   /** Tuning-note offset for winds, brass and strings (default: no tuning note). */
   tuningCents?: number | null;
+  /** Put the microphone signal through a converter first (see `CaptureRoute`); default: the render as it is. */
+  route?: CaptureRoute;
 }
 
 /** Run one rendered scenario through the DSP worker core, the final alignment and the grader. */
 export function runTake(r: ScenarioRender, o: RunTakeOptions = {}): TakeRun {
   const cfg = scenarioConfigs();
   const base = r.plan.base;
-  const analysisRate = new PhaseDecimator(r.sampleRate).analysisRate;
+  const route = o.route;
+  const samples = route ? route.convert(r.samples, r.sampleRate) : r.samples;
+  const sampleRate = route ? route.engineRateHz : r.sampleRate;
+  const analysisRate = new PhaseDecimator(sampleRate).analysisRate;
   const tolerances = resolveTolerances(base.expected, { instrument: base.inst, level: base.level, bpm: base.bpm, meter: base.meter }, cfg);
-  const dspCfg = gateDspConfig(r, tolerances, analysisRate, cfg);
+  const dspCfg = gateDspConfig(r, tolerances, analysisRate, cfg, route);
   const tuning = base.inst.family !== 'voice' && base.inst.pitchKind === 'continuous' ? { used: o.tuningCents !== null && o.tuningCents !== undefined, offsetCents: o.tuningCents ?? 0 } : null;
   // As the session builds it: notes count from the first written note's window, the clicks are the app's own sounds
   // (src/follow/own-playback.ts).
@@ -181,7 +198,7 @@ export function runTake(r: ScenarioRender, o: RunTakeOptions = {}): TakeRun {
   send({ v: 1, type: 'config', cfg: dspCfg, follow: config });
   // R14: the take ends one beat after the last note's written end.
   const endT = r.t0Sec + r.plan.timeline.endScoreSec;
-  for (const block of captureBlocks(r.samples, r.sampleRate)) {
+  for (const block of captureBlocks(samples, sampleRate)) {
     if ((block.startT as number) >= endT) break;
     now = (block.startT as number) + block.lowband.length / block.analysisRate;
     send({ v: 1, type: 'block', block });

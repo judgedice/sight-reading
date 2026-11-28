@@ -2,11 +2,11 @@
  * The gate suite as a list of independent jobs (one take each), so the runner can spread them over worker threads.
  * `runJob` is a pure function of the job: renders are deterministic (P3) and so is the analysis path.
  */
-import { createScenarioSet, GOLDEN_CASES, planGoldenDisplacement, renderScenario, type ScenarioPlan, type ScenarioSet } from '../scenarios/index.ts';
+import { createScenarioSet, GOLDEN_CASES, planGoldenDisplacement, renderScenario, type RenderOverrides, type ScenarioPlan, type ScenarioSet } from '../scenarios/index.ts';
 import { conditionOverrides } from './conditions.ts';
 import { measureTake } from './measure.ts';
 import { planInjected, planPerfect } from './recipes.ts';
-import { runTake } from './run-take.ts';
+import { runTake, type CaptureRoute } from './run-take.ts';
 import { CONDITIONS, INJECTED_PATTERNS, LAUNCH_TIMBRES, type ConditionId, type Job, type TakeRecord } from './types.ts';
 
 export interface SuiteScale {
@@ -45,28 +45,34 @@ export function listJobs(s: SuiteScale): Job[] {
 let set: ScenarioSet | null = null;
 const scenarioSet = (): ScenarioSet => (set ??= createScenarioSet());
 
-function runPlan(job: Job, plan: ScenarioPlan, condition: ConditionId, k: number): TakeRecord {
-  const r = renderScenario(plan, conditionOverrides(condition, k));
-  return measureTake(r, runTake(r), { job, condition });
+/** Render overrides of a capture route: the render and the capture are at the device's own rate. */
+function routeOverrides(o: RenderOverrides, route: CaptureRoute | undefined): RenderOverrides {
+  return route && route.deviceRateHz !== null ? { ...o, renderRateHz: route.deviceRateHz, capture: { ...o.capture, captureRateHz: route.deviceRateHz } } : o;
 }
 
-export function runJob(job: Job): TakeRecord {
+function runPlan(job: Job, plan: ScenarioPlan, condition: ConditionId, k: number, route?: CaptureRoute): TakeRecord {
+  const r = renderScenario(plan, routeOverrides(conditionOverrides(condition, k), route));
+  return measureTake(r, runTake(r, route ? { route } : {}), { job, condition });
+}
+
+/** One take of the suite. `route` (default: none, the render goes in as it is) is for the gates on the resampled path. */
+export function runJob(job: Job, route?: CaptureRoute): TakeRecord {
   switch (job.kind) {
     case 'scenario': {
       const plan = scenarioSet().plan(job.index);
-      return runPlan(job, plan, job.condition, Math.floor(job.index / 9));
+      return runPlan(job, plan, job.condition, Math.floor(job.index / 9), route);
     }
     case 'golden': {
       const plan = planGoldenDisplacement(job.case, job.r);
-      const r = renderScenario(plan);
-      return measureTake(r, runTake(r), { job, condition: 'planned', expectedDisplaced: plan.perturbation.displaced });
+      const r = renderScenario(plan, routeOverrides({}, route));
+      return measureTake(r, runTake(r, route ? { route } : {}), { job, condition: 'planned', expectedDisplaced: plan.perturbation.displaced });
     }
     case 'perfect':
-      return runPlan(job, planPerfect(job.r), 'device', job.r);
+      return runPlan(job, planPerfect(job.r), 'device', job.r, route);
     case 'tip': {
       const plan = planInjected(job.pattern, job.r);
       if (!plan) return skippedRecord(job, `no fixture-corpus excerpt fits the ${job.pattern} recipe`);
-      return runPlan(job, plan, 'device', job.r);
+      return runPlan(job, plan, 'device', job.r, route);
     }
   }
 }
