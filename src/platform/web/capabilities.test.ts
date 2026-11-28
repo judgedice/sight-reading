@@ -206,6 +206,12 @@ describe('detectCapabilities: individual rules', () => {
   const plain = (nav: Partial<NavigatorLike>, win?: WindowLike) =>
     detectCapabilities({ userAgent: UA.chromeWindows, ...nav }, win ?? tab());
 
+  it('serviceWorker is off inside the Tauri shell, even with the API and a secure context', () => {
+    const inTauri: WindowLike = { isSecureContext: true, __TAURI_INTERNALS__: {} };
+    expect(plain({ serviceWorker: {} }, inTauri).serviceWorker).toBe(false);
+    expect(plain({ serviceWorker: {} }, { isSecureContext: true }).serviceWorker).toBe(true);
+  });
+
   it('wakeLock needs request(), not just the property', () => {
     expect(plain({ wakeLock: undefined }).wakeLock).toBe(false);
     expect(plain({ wakeLock: wakeLock }).wakeLock).toBe(true);

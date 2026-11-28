@@ -28,6 +28,8 @@ export interface WindowLike {
   matchMedia?(query: string): { readonly matches: boolean };
   /** Service workers need a secure context; absent means secure. */
   readonly isSecureContext?: boolean;
+  /** Injected by the Tauri webview before any page script runs; absent in a browser. */
+  readonly __TAURI_INTERNALS__?: unknown;
 }
 
 type Engine = 'webkit' | 'blink' | 'gecko' | 'other';
@@ -72,7 +74,8 @@ function displayModeOf(nav: NavigatorLike, win: WindowLike): DisplayMode {
  * - `persistentStorage` is `'granted'` only when the caller has already awaited
  *   `navigator.storage.persisted()` and passes `storagePersisted: true`. The grant is heuristic on
  *   Safari, so the default is `'best-effort'`.
- * - `serviceWorker` needs the API and a secure context (when the window says so).
+ * - `serviceWorker` needs the API and a secure context (when the window says so), and is false inside the Tauri
+ *   shell (`__TAURI_INTERNALS__` on the window).
  */
 export function detectCapabilities(
   nav: NavigatorLike,
@@ -84,11 +87,14 @@ export function detectCapabilities(
   const osFamily = osFamilyOf(userAgent, maxTouchPoints);
   const engine = engineOf(userAgent, osFamily);
   const secure = win.isSecureContext !== false;
+  // Inside the Tauri shell the page is served from the app's own asset origin: no service worker there (the shell
+  // is bundled, so there is nothing to cache offline).
+  const nativeShell = win.__TAURI_INTERNALS__ !== undefined;
   return {
     platform: 'web',
     outputLatencyReported: engine === 'blink',
     wakeLock: typeof nav.wakeLock?.request === 'function',
-    serviceWorker: nav.serviceWorker !== undefined && nav.serviceWorker !== null && secure,
+    serviceWorker: nav.serviceWorker !== undefined && nav.serviceWorker !== null && secure && !nativeShell,
     persistentStorage: storagePersisted ? 'granted' : 'best-effort',
     osFamily,
     displayMode: displayModeOf(nav, win),

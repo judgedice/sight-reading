@@ -1,0 +1,105 @@
+name: native
+
+# Unsigned Tauri 2 builds of the desktop shell (src-tauri/). Signing, notarization and store uploads come later.
+on:
+  push:
+    branches: [claude/native-tauri]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: native-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - name: System libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev \
+            libasound2-dev libpulse-dev libxdo-dev xvfb webkit2gtk-driver
+      - run: pnpm install --frozen-lockfile
+      - run: cargo install tauri-driver --locked --version '^2'
+      - name: Build debug binary
+        run: pnpm tauri build --debug --no-bundle
+      - name: Smoke test
+        run: pnpm native:smoke:linux
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: smoke-linux
+          path: tools/native/artifacts/
+          if-no-files-found: warn
+      - name: Bundle (deb, AppImage)
+        run: pnpm tauri build --debug --bundles deb,appimage
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sightread-linux
+          path: src-tauri/target/debug/bundle/**/*
+          if-no-files-found: error
+
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - run: pnpm install --frozen-lockfile
+      - name: Build universal .app and .dmg (unsigned)
+        run: pnpm tauri build --debug --target universal-apple-darwin --bundles app,dmg
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sightread-macos
+          path: src-tauri/target/universal-apple-darwin/debug/bundle/**/*
+          if-no-files-found: error
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - run: pnpm install --frozen-lockfile
+      - name: Build NSIS and MSI installers (unsigned)
+        run: pnpm tauri build --debug --bundles nsis,msi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sightread-windows
+          path: src-tauri/target/debug/bundle/**/*
+          if-no-files-found: error
+
+  # PLACEHOLDER (later milestone): iOS job. Needs macos-latest, `pnpm tauri ios init` (generates src-tauri/gen/apple),
+  # the aarch64-apple-ios Rust target, and signing secrets. Not added in this milestone.
+
+  # PLACEHOLDER (later milestone): Android job. Needs JDK 17, the Android SDK/NDK, `pnpm tauri android init`
+  # (generates src-tauri/gen/android) and the Android Rust targets. Not added in this milestone.
