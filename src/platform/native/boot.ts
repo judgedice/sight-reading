@@ -7,7 +7,7 @@
 import type { MessagePortLike, PlatformCapabilities } from '../../core/platform.ts';
 import type { Configs, OutputMode } from '../../core/types.ts';
 import { NativeAudioBackend } from './audio/native-audio-backend.ts';
-import { TauriNativeIpc, type NativeIpc } from './audio/ipc.ts';
+import { TauriNativeIpc, type DebugHooks, type NativeIpc } from './audio/ipc.ts';
 import { nativeCapabilities } from './capabilities.ts';
 
 /**
@@ -40,11 +40,17 @@ export interface NativeBoot {
   createCaptureChannel: () => { port1: MessagePortLike; port2: unknown };
   /** The engine opens the OS default input; there is no device list to offer. */
   inputDevices(): Promise<{ id: string; label: string }[]>;
+  /**
+   * End-to-end hooks (the fake device started with `SR_E2E_HOOKS=1`): `enabled` lets the composition root expose its test
+   * handles, `seed` fixes the session's excerpt choice. Off (and `seed` null) in every other run, and on any failure.
+   */
+  debugHooks(): Promise<DebugHooks>;
 }
 
 export function bootNative(o: NativeBootOptions): NativeBoot {
   const capabilities = nativeCapabilities(o.base, null);
-  const audio = new NativeAudioBackend({ ipc: o.ipc ?? new TauriNativeIpc(), capabilities, outputMode: o.outputMode });
+  const ipc = o.ipc ?? new TauriNativeIpc();
+  const audio = new NativeAudioBackend({ ipc, capabilities, outputMode: o.outputMode });
   return {
     audio,
     capabilities,
@@ -54,5 +60,6 @@ export function bootNative(o: NativeBootOptions): NativeBoot {
       return { port1: c.port1 as unknown as MessagePortLike, port2: c.port2 };
     },
     inputDevices: async () => [],
+    debugHooks: () => ipc.debugHooks().catch((): DebugHooks => ({ enabled: false, seed: null })),
   };
 }

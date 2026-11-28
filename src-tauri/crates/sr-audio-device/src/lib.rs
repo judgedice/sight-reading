@@ -21,6 +21,10 @@ use sr_audio_core::Engine;
 pub mod cpal_io;
 pub mod host_clock;
 pub mod latency_linux;
+pub mod latency_macos;
+pub mod latency_windows;
+pub mod permission;
+pub mod stamps;
 
 #[cfg(feature = "fake")]
 pub mod fake_io;

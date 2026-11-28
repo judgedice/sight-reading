@@ -31,9 +31,13 @@ describe('TauriNativeIpc', () => {
     await ipc.schedule({ group: 'sounds', voices: [{ id: 1, buffer: 2, t: 3, gain: 1 }] });
     await ipc.close();
     await ipc.releaseInput();
+    await ipc.setInput({ enabled: true });
     await ipc.clockSync();
     await ipc.captureStop();
     await ipc.measureLoopback({ clicks: 8, timbre: 'tick' });
+    await ipc.debugHooks();
+    await ipc.debugSignal({ path: '/tmp/x.f32', engineSec: 3.5 });
+    await ipc.debugSignal({ path: null, engineSec: 0 });
     expect(invoke.mock.calls).toEqual([
       ['audio_cancel', { group: 'take', fadeSec: 0.005 }],
       ['audio_stop_voices', { ids: [1, 2], fadeSec: 0.015 }],
@@ -43,9 +47,13 @@ describe('TauriNativeIpc', () => {
       ['audio_schedule', { group: 'sounds', voices: [{ id: 1, buffer: 2, t: 3, gain: 1 }] }],
       ['audio_close', undefined],
       ['audio_release_input', undefined],
+      ['audio_set_input', { enabled: true }],
       ['audio_clock_sync', undefined],
       ['audio_capture_stop', undefined],
       ['audio_measure_loopback', { clicks: 8, timbre: 'tick' }],
+      ['audio_debug_hooks', undefined],
+      ['audio_debug_signal', { path: '/tmp/x.f32', engineSec: 3.5 }],
+      ['audio_debug_signal', { path: null, engineSec: 0 }],
     ]);
   });
 

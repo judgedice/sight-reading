@@ -25,6 +25,11 @@ function setup(o: FakeNativeIpcOptions = {}, b: Partial<NativeAudioBackendOption
 
 const tick = (): Promise<void> => new Promise((r) => setTimeout(r, 0));
 
+/** Ticks until `done()` (message-port deliveries can straddle a macrotask), at most 200. */
+async function until(done: () => boolean): Promise<void> {
+  for (let i = 0; i < 200 && !done(); i++) await tick();
+}
+
 const takeParams = (over: Partial<TakeSchedule> = {}): TakeSchedule => ({
   leadSec: 0.5, bpm: 120, beatsPerBar: 4, countInBeats: 4, totalBeats: 16, mode: 'audible', timbre: 'tick', accentDb: 5, ...over,
 });
@@ -225,7 +230,7 @@ describe('capture (section 3)', () => {
     expect(be.captureOrigin()).toBeCloseTo(origin, 9);
     ipc.advance(2);
     be.stopCapture();
-    await tick();
+    await until(() => port.blocks.length > 370);
     expect(be.captureOrigin()).toBeNull();
     expect(port.blocks.length).toBeGreaterThan(370);
     expect(port.blocks[0]?.startT).toBeGreaterThanOrEqual(origin);
@@ -233,6 +238,19 @@ describe('capture (section 3)', () => {
     expect(be.captureStats()).toMatchObject({ droppedBlocks: 0, relay: true });
     expect(be.captureStats().postedBlocks).toBe(port.blocks.length);
     expect(ipc.calls).toContain('captureStop');
+  });
+
+  it('records the delivery delay of every packet (engine clock at arrival minus the packet\'s last frame) until reset', async () => {
+    const { ipc, be } = setup();
+    await be.unlock();
+    await be.startCapture(() => undefined);
+    for (let i = 0; i < 20; i++) ipc.advance(0.01);
+    expect(be.packetDelaysMs().length).toBeGreaterThan(10);
+    for (const d of be.packetDelaysMs()) expect(d).toBeGreaterThanOrEqual(-1e-6);
+    for (const d of be.packetDelaysMs()) expect(d).toBeLessThan(20);
+    be.resetPacketDelays();
+    expect(be.packetDelaysMs()).toHaveLength(0);
+    be.stopCapture();
   });
 
   it('a callback sink receives copies it may keep', async () => {
@@ -320,7 +338,7 @@ describe('capture (section 3)', () => {
 });
 
 describe('input switching (R13 practise without listening)', () => {
-  it('setInputEnabled(false): unlock opens the output without the microphone; turning it on reopens with it', async () => {
+  it('setInputEnabled(false): unlock opens the output without the microphone; turning it on switches the input on in the same engine session', async () => {
     const { ipc, be } = setup();
     be.setInputEnabled(false);
     const route = await be.unlock();
@@ -332,26 +350,43 @@ describe('input switching (R13 practise without listening)', () => {
     await be.unlock();
     expect(ipc.openCalls).toHaveLength(1);
     be.setInputEnabled(true);
-    await be.unlock();
-    expect(ipc.openCalls).toEqual([
-      { input: false, outputMode: 'speakers' },
-      { input: true, outputMode: 'speakers' },
-    ]);
+    const on = await be.unlock();
+    expect(ipc.openCalls).toEqual([{ input: false, outputMode: 'speakers' }]);
+    expect(ipc.setInputCalls).toEqual([true]);
+    expect(ipc.permissionCalls).toEqual([true]);
+    expect(on.trackSampleRate).toBe(48000);
+    expect(on.routeKey).toBe(routeKeyOf('fake-in>fake-out@128/128', 'speakers', 48000, 'linux'));
+    await be.startCapture(() => undefined);
+    expect(be.captureOrigin()).not.toBeNull();
   });
 
-  it('reopening restarts engine time and the next take uploads its clicks again', async () => {
+  it('switching the input on keeps the engine session: engine time continues and the take clicks stay uploaded and scheduled', async () => {
     const { ipc, be } = setup();
     be.setInputEnabled(false);
     await be.unlock();
     await be.scheduleTake(takeParams());
     const uploads = ipc.calls.filter((c) => c === 'putBuffer').length;
+    const before = be.now();
+    ipc.advance(0.5);
     be.cancelTake();
     be.setInputEnabled(true);
     await be.unlock();
-    expect(be.now()).toBeLessThan(0.1);
+    expect(be.now()).toBeGreaterThanOrEqual(before + 0.5 - 1e-6);
     await be.scheduleTake(takeParams());
-    expect(ipc.calls.filter((c) => c === 'putBuffer').length).toBeGreaterThan(uploads);
-    expect(ipc.liveVoices.every((v) => v.session === 2)).toBe(true);
+    expect(ipc.calls.filter((c) => c === 'putBuffer').length).toBe(uploads);
+    expect(ipc.liveVoices.every((v) => v.session === 1)).toBe(true);
+    expect(ipc.openCalls).toHaveLength(1);
+  });
+
+  it('a denied microphone rejects the input switch with NotAllowedError and leaves the output running', async () => {
+    const { ipc, be } = setup({ permission: 'prompt' });
+    be.setInputEnabled(false);
+    await be.unlock();
+    ipc.permissionState = 'denied';
+    be.setInputEnabled(true);
+    await expect(be.unlock()).rejects.toMatchObject({ name: 'NotAllowedError' });
+    expect(ipc.setInputCalls).toEqual([]);
+    expect(ipc.isOpen).toBe(true);
   });
 
   it('releaseInput stops capture and the microphone, keeps the output; the next unlock opens it again', async () => {
@@ -365,17 +400,60 @@ describe('input switching (R13 practise without listening)', () => {
     expect(ipc.calls).toContain('releaseInput');
     expect(ipc.isOpen).toBe(true);
     await be.unlock();
-    expect(ipc.openCalls).toHaveLength(2);
-    expect(ipc.openCalls[1]?.input).toBe(true);
+    expect(ipc.openCalls).toHaveLength(1);
+    expect(ipc.setInputCalls).toEqual([true]);
+    await be.startCapture(port.sink);
+    expect(be.captureOrigin()).not.toBeNull();
   });
 
-  it('reopenInput stops capture and opens the input afresh', async () => {
+  it('releaseInput right after stopCapture waits for the capture to stop (the engine refuses the switch while it runs)', async () => {
     const { ipc, be } = setup();
     await be.unlock();
     await be.startCapture(() => undefined);
+    be.stopCapture();
+    be.releaseInput();
+    await tick();
+    expect(ipc.calls.slice(-2)).toEqual(['captureStop', 'releaseInput']);
+    await be.unlock();
+    expect(ipc.setInputCalls).toEqual([true]);
+  });
+
+  it('a new capture right after stopCapture starts only once the old one has stopped', async () => {
+    const { ipc, be } = setup();
+    await be.unlock();
+    for (let i = 0; i < 3; i++) {
+      await be.startCapture(() => undefined);
+      ipc.advance(0.05);
+      be.stopCapture();
+    }
+    await be.startCapture(() => undefined);
+    expect(ipc.calls.filter((c) => c === 'captureStart' || c === 'captureStop')).toEqual(['captureStart', 'captureStop', 'captureStart', 'captureStop', 'captureStart', 'captureStop', 'captureStart']);
+  });
+
+  it('a capture stopped while its start is still in flight is stopped once the start has returned', async () => {
+    const { ipc, be } = setup();
+    await be.unlock();
+    const started = be.startCapture(() => undefined);
+    be.stopCapture();
+    await started;
+    await tick();
+    expect(ipc.captureRunning).toBe(false);
+  });
+
+  it('reopenInput stops capture and closes and opens the input stream, keeping the engine session', async () => {
+    const { ipc, be } = setup();
+    await be.unlock();
+    await be.startCapture(() => undefined);
+    ipc.advance(0.3);
+    const before = be.now();
     await be.reopenInput();
-    expect(ipc.openCalls).toHaveLength(2);
+    expect(ipc.openCalls).toHaveLength(1);
+    expect(ipc.calls.slice(-4)).toEqual(['captureStop', 'releaseInput', 'permission', 'setInput']);
+    expect(ipc.setInputCalls).toEqual([true]);
     expect(be.captureOrigin()).toBeNull();
+    expect(be.now()).toBeGreaterThanOrEqual(before);
+    await be.startCapture(() => undefined);
+    expect(be.captureOrigin()).not.toBeNull();
   });
 });
 
@@ -782,10 +860,9 @@ describe('sampled notes (round 2, 02-sounds.md)', () => {
   it('a decoded set survives an engine reopen: its PCM is registered again when a voice needs it', async () => {
     const sf = soundFetch();
     const { ipc, be } = setup({ decoder }, { fetchSound: sf.f });
-    be.setInputEnabled(false);
     await be.unlock();
     await be.prepareSound('flute');
-    be.setInputEnabled(true);
+    await be.close();
     await be.unlock();
     const puts = ipc.calls.filter((c) => c === 'putBuffer').length;
     await be.playNotes([note(440, 0, 0.5)], { at: 1 as never, peak: 1, sound: 'flute' });

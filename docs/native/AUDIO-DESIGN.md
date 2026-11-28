@@ -1,6 +1,6 @@
 # Native audio design
 
-Status: design for review. Scope: the Rust audio layer of the Tauri 2 app and the TypeScript backend that drives it. Nothing here changes `src/dsp`, `src/follow`, `src/grade`, `src/notation` or any screen. Section numbers match the brief.
+Status: as built for the Rust side (sections 1 to 3, 5, 6 and 8 describe the code in `src-tauri/`; where the first design was changed the text says so). Platform code for macOS and Windows is compile-checked and unit-tested but **not yet verified on hardware**; section 11 lists what must be measured. Scope: the Rust audio layer of the Tauri 2 app and the TypeScript backend that drives it. Nothing here changes `src/dsp`, `src/follow`, `src/grade`, `src/notation` or any screen. Section numbers match the brief.
 
 ## 0. Decisions in one page
 
@@ -21,30 +21,32 @@ All under `src-tauri/crates/` (the workspace glob already covers it).
 
 | Module | Main types | Purpose |
 | --- | --- | --- |
-| `clock` | `StreamClock`, `ClockBridge`, `ClockAnchor`, `RateCheck` | Host time to frame fits, input frame to engine frame map, clock-rate check (port of `clock-fit.ts`) |
-| `resample` | `SincResampler`, `DriftController` | Variable-ratio windowed-sinc resampler (32 taps, 64 phases, Kaiser), PI ratio control |
-| `capture` | `CaptureAligner`, `Packetizer`, `PacketHeader` | Downmix, locked or resampled path, fixed-size packets with headers and gap counts |
-| `mixer` | `Scheduler`, `VoiceSpec`, `Voice`, `BufferStore`, `Envelope` | Sample-accurate voices: start frame, rate (4-point cubic), loop, linear gain segments, stop with fade; fixed capacity (1024 pending, 64 sounding), no allocation in `render` |
-| `synth` | `render_click`, `render_listen_note`, `render_tone`, `Rng` | Ports of `core/click-sounds.ts`, `listen-voice.ts`, the sanity tone. Used by the loopback estimator, device-free tests and headless tools; production buffers come from TypeScript (decision 2) |
+| `clock` | `StreamClock`, `ClockBridge`, `ClockAnchor`, `RateCheck` | Host time to frame fits, the output clock, clock-rate check (port of `clock-fit.ts`) |
+| `resample` | `SincResampler`, `DriftController` | Windowed-sinc interpolator (32 taps, 64 phases with linear interpolation between them, Kaiser beta 11), PI ratio control |
+| `capture` | `CaptureHalf`, `CaptureReader`, `CaptureAligner`, `Packetizer` | Downmix, locked or resampled path, packets with headers and gap counts, start and stop |
+| `mixer` | `Scheduler`, `VoiceSpec`, `Voice`, `BufferStore`, `Envelope` | Sample-accurate voices: start frame, rate (4-point cubic), loop, linear gain segments (at most 8 points), stop with fade; fixed capacity (1024 pending, 64 sounding), no allocation in `render` |
+| `synth` | `render_click`, `render_listen_note`, `render_tone`, `Rng` | Bit-exact ports of `core/click-sounds.ts`, `listen-voice.ts`, `render-tone.ts`, `rng.ts`. Used by the loopback driver, tests and tools; production buffers come from TypeScript (decision 2) |
 | `latency` | `LatencyParts`, `LatencyReport`, `TrustClass` | Sums reported parts, classifies trust, predicts round trip |
-| `loopback` | `LoopbackEstimator`, `LoopbackEstimate` | Matched filter of a known click against captured input on the engine clock; median lag, MAD, SNR |
-| `decode` | `decode_mp3_mono` | symphonia wrapper (pure Rust, so it lives here) |
-| `wire` | `encode_packet`, `decode_put_buffer` | Binary layouts of section 3, shared with tests |
+| `loopback` | `LoopbackEstimator`, `LoopbackDriver` | Matched filter of a known click against captured input on the engine clock; median lag, MAD, SNR; the driver that plays and captures |
+| `decode` | `decode_mp3_mono` | symphonia 0.5.5 wrapper |
+| `wire` | `encode_packet_into`, `decode_put_buffer` | Binary layouts of section 3 |
+| `sim` (feature) | `SimDuplex` | A duplex device in virtual time: rates, buffers, loop delay, drift, jitter, stalls. The fake device and the tests run on it |
 
-`Engine` (in `lib.rs`) owns `Scheduler`, `ClockBridge`, `CaptureAligner`. Its two entry points are plain functions the device layer calls from the callbacks: `render(&mut self, host_ns: u64, out: &mut [f32], channels: usize)` and `capture(&mut self, host_ns: u64, input: &[f32], channels: usize)`. Control reaches it through two `rtrb` single-producer rings (commands in, garbage and notifications out), so the callbacks never lock, allocate or free.
+`engine(config)` returns the two halves. `Engine` (realtime) owns the `Scheduler` and the output `ClockBridge`; the device layer calls `render(&mut self, host_ns, out, channels)` from the output callback. The capture side is a separate `CaptureHalf` (`engine.split_capture()`), because with two cpal streams the input callback runs on another thread: it owns the input `StreamClock` and reads the output clock through an anchor the render side publishes with a sequence lock of atomics. `EngineHandle` (control) holds the `BufferStore`: a scheduled voice carries its own reference to the samples, so putting and dropping buffers never touches the audio thread. Three `rtrb` rings join the halves (commands in; notifications out; buffers of ended voices out, freed by `EngineHandle::poll`), plus a command, an event and a 2 s packet ring for capture. The callbacks never lock, allocate or free (`tests/rt_alloc.rs` counts allocator calls: 0).
 
 ### `sr-audio-device` (thin, platform code allowed)
 
-- `trait DeviceIo { fn open(&mut self, cfg: OpenConfig, engine: EngineHandle) -> Result<OpenInfo>; fn close(&mut self); fn route(&self) -> RouteFacts; fn latency(&self) -> LatencyParts; }`
-- `cpal_io.rs`: the default implementation for all five platforms. Requests 48 kHz (falls back to the device default), mono or stereo f32, fixed buffer of 128 frames on Apple, 256 on Android, the device period on WASAPI, 256 on ALSA. Reads `Instant::now()` as the first statement of each callback and passes it as `host_ns`.
-- `latency_macos.rs` (CoreAudio properties), `latency_windows.rs` (`IAudioClient`), `latency_linux.rs`, and on mobile the values the plugin hands in.
-- `fake_io.rs` (feature `fake`): a simulated duplex device with configurable rates, buffer sizes, output-to-input delay, drift in ppm, callback jitter and bursts. CI and the Linux smoke test use it; it is the only way to test the whole engine without hardware.
+- `trait DeviceIo { open(cfg, make_engine: EngineFactory, events) -> OpenInfo; close(); route(); latency(); set_input(bool) -> OpenInfo; }`. The engine rate is only known once the device has negotiated, so `open` takes an `EngineFactory` (`FnOnce(rate) -> Engine`) and calls it once. `OpenInfo` carries rates, buffer sizes, route facts, the latency report and the `ClockRelation` of the two streams.
+- `cpal_io.rs`: cpal 0.18.2 on all desktop platforms. Requests 48 kHz (falls back to the device default), stereo out and mono in as f32 (other formats converted), fixed buffer of 128 frames on Apple, 256 on Linux and Android, the device period on WASAPI. Both streams live on one owner thread.
+- `stamps.rs`, `host_clock.rs`: the callback stamp. Default: the monotonic clock read as the callback's first statement. CoreAudio only, opt-in with `SR_AUDIO_STAMPS=device`: the buffer's `mHostTime` (see section 2). `SR_AUDIO_STAMP_LOG=1` prints callback interval and stamp statistics at close.
+- `latency_macos.rs` (CoreAudio properties, clock domain), `latency_windows.rs` (`IAudioClient`), `latency_linux.rs`; `permission.rs` (microphone permission). All `unsafe` is in these, each in one small inner module.
+- `fake_io.rs` (feature `fake`): paces a `SimDuplex` in real time. Environment: `SR_AUDIO_DEVICE=fake` selects it (`SR_AUDIO_ALLOW_FAKE=1` allows it as a fallback when no device opens); `SR_FAKE_LOOP_MS`, `SR_FAKE_LOOP_GAIN`, `SR_FAKE_IN_RATE`, `SR_FAKE_PPM`, `SR_FAKE_INPUT_F32` set the loop and the input signal. CI and the Linux smoke test use it.
 
 Why cpal: it is pure Rust, builds for every target Tauri builds for, and covers CoreAudio (macOS and iOS, RemoteIO), WASAPI, ALSA (PipeWire and PulseAudio through the ALSA plugin) and AAudio. Alternatives: miniaudio needs a C toolchain for five targets and still leaves session work to us; rodio is playback only on top of cpal; oboe and coreaudio-rs are single-platform. What cpal lacks (device latency properties, session configuration, Android input preset) is small and isolated behind `DeviceIo`, so a platform can get a direct backend (`ndk::audio` AAudio, a RemoteIO unit through `coreaudio-rs`) without touching the core.
 
 ### App crate (`src-tauri/src/audio.rs`) and plugin
 
-- Tauri commands and channels of section 3, a pump thread that drains the capture ring into the channel, state in `tauri::State<Mutex<AudioHost>>`.
+- Tauri commands and channels of section 3, a pump thread that polls the handle and drains the capture ring into the channel, state in `tauri::State<AudioHost>`. Test hooks `audio_debug_hooks` and `audio_debug_signal` exist only with the fake device and `SR_E2E_HOOKS=1`.
 - `tauri-plugin-sr-audio-session` (`src-tauri/plugins/`): Swift for iOS, Kotlin for Android, a no-op on desktop. Section 7 lists what it does.
 
 ## 2. Clock model
@@ -64,30 +66,35 @@ cpal's `StreamInstant` has a per-stream origin and cannot be compared across str
 
 - Output `StreamClock`: observation `(host_ns, framesRenderedBeforeThisCallback)`. Fit `R(h)`, the render head at host time `h`.
 - Input `StreamClock`: observation `(host_ns, framesDeliveredIncludingThisCallback)`. Fit `A(m)`, the host time input frame `m` arrived.
-- A callback can be late, never early. Each fit is a least-squares line through the earliest observation of each 100 ms bucket over a 4 s sliding window, refitted every 250 ms. This removes wake-up jitter and back-to-back bursts (the same reason the worklet stamps only the first quantum of a burst).
+- A callback can be late, never early, so the truth lies on or above every observation. Per 100 ms bucket only the earliest observation is kept, over a 4 s window. The line, refitted every 250 ms: its offset touches those points from above; its slope is a least-squares fit through the earliest observation of each 1 s bucket over 32 s once 8 exist, before that (from 1 s on) the edge of the 4 s window's upper convex hull over its centre, before 1 s the nominal rate. A plain least-squares line through the bucket points, as first designed, sits 0.14 to 0.43 ms below the truth with 3 ms of jitter. Measured: under 0.02 ms from 10 s on for 128, 256 and 480-frame callbacks; from 2 s on under 0.05 ms at 128 frames and up to 0.13 ms at 480.
+- Step: when the newest 0.5 s lies more than 0.5 ms off the line through the rest (an xrun), the older points are dropped and `ClockUpdate.step` is set. A capture in progress fixes its mapping again and flags its packets (bit 4); the grid breaks there, which the receiver sees as a gap.
 - Engine position of input frame `m`: `p(m) = R(A(m))`, in output frames. Ratio `r = dp/dm`.
 
-`CaptureAligner` then picks a path when capture starts (both streams must have run for 1 s; they open at `unlock`):
+A capture starts at the first input callback at which both clocks have a fitted slope (about 1.2 s after open, at once later) and is announced by a `Started` event; `audio_capture_start` waits for it. `CaptureAligner` then picks a path:
 
-- **Locked** (input rate equals engine rate and `|r - 1| < 5 ppm`, the usual built-in and single-interface case): samples pass through untouched. `p(m) = m + C`, `C` an integer fixed at capture start. The monitor reports `driftFrames = R(A(m)) - (m + C)`; above 1 ms it sets a flag in the packet header and the try keeps going (diagnostics, `clockRateError`).
-- **Resampled** (different rate or clock domain): `SincResampler` produces samples at integer engine frames, ratio steered by `DriftController` (PI on the phase error, change limited to 50 ppm per second). Its group delay is subtracted from the frame stamps.
+- **Locked**: samples pass through untouched. `p(m) = m + C`, `C = round(R(A(m)) - m)` fixed at capture start. Chosen when the device layer says the clocks are shared (`ClockRelation::Shared`: one device, or one non-zero CoreAudio clock domain) and the rates are equal; or, with unknown clocks, when the rates are equal and the measured rate difference plus the uncertainty of both fits is under 5 ppm (with jittery callbacks that takes about 9 s; until then the choice is resampled). The monitor reports `drift = R(A(m)) - (m + C)`; above 1 ms it sets flag bit 1.
+- **Resampled** (different rate, separate clocks, or not yet known to be one): `SincResampler` reads the input at the position the clocks give for each integer engine frame. The kernel is centred on that position, so there is no group delay to subtract. `DriftController`: feed-forward from the two fitted rates, PI on the phase error (time constant 2 s), ratio change limited to 50 ppm per second while the phase error is under 50 microseconds and faster in proportion to the square of the error beyond (a flat limit left a capture started on young clocks 0.4 ms off for 8 s).
 
 Either way the JS side sees contiguous frames on the engine grid, so `CaptureCore` computes `startT` from integer positions as it does today.
 
-Drift budget: `measurement-budget.json` allows clock mapping 1 ms (laptop) and 2 ms (phone). Locked path error is bounded by the 1 ms monitor; resampled path target is under 0.2 ms.
+Drift budget: `measurement-budget.json` allows clock mapping 1 ms (laptop) and 2 ms (phone). Measured on the simulated device with 3 ms of callback jitter and stalls: locked path offset error 0 frames from 4 s after open (2 frames at 1.5 s); resampled path 0.02 ms over 120 s at +200 ppm, and 0.14 ms for a capture that starts 1.5 s after open with 10 ms input callbacks.
 
-If the output stream restarts (device change, interruption), engine time continues from `R(h)` so it never goes backwards; any capture in progress fires `device-change` or `interrupted`, which voids the try as today.
+If the output stream restarts (`EngineHandle::output_restarted`), engine time continues from `R(h)` so it never goes backwards; voices that lay wholly inside the gap end silently, longer ones carry on in place. A capture in progress sees a step of the output clock, and the app fires `device-change` or `interrupted`, which voids the try as today.
 
 ### What cpal reports, and how far to trust it
 
-To be confirmed against the pinned cpal version in task M0-2; used only as within-stream differences.
+Read from cpal 0.18.2 for CoreAudio; the other rows are still to be confirmed. Used only as within-stream differences, except the opt-in CoreAudio device stamps below.
 
 | Backend | Source of `callback` and `capture`/`playback` | Use |
 | --- | --- | --- |
-| CoreAudio (macOS, iOS) | `mHostTime`; the difference is one buffer duration, computed, not device latency | Ignore the difference; latency from device properties or `AVAudioSession` |
+| CoreAudio (macOS, iOS) | `callback` is the buffer's `mHostTime` converted to nanoseconds; `playback`/`capture` add or subtract buffer + device latency + safety offset, read once at stream start | Ignore the difference; latency from device properties or `AVAudioSession` |
 | WASAPI | Output: device position and QPC plus queued padding. Input: QPC position of the packet | Good for buffer delay; excludes driver and enhancement latency |
 | ALSA | `snd_pcm_status` timestamp and delay | Good on `hw:` devices; an estimate through the PipeWire or PulseAudio plugin |
 | AAudio | `AAudioStream_getTimestamp` (frame, `CLOCK_MONOTONIC`) | Good for output on most devices; input timestamps are missing on some, then callback time |
+
+**CoreAudio in cpal 0.18.2 (read from source, unverified on hardware).** A fixed buffer size is checked against `kAudioDevicePropertyBufferFrameSizeRange` (out of range is an error; we clamp first and fall back to the default size) and then set as `kAudioDevicePropertyBufferFrameSize`, a device-level property, through the stream's audio unit. Input and output are separate HAL audio units; on one device the second request sets the same property, on two devices (the built-in microphone and speakers of a Mac are two) each gets its own. The default output uses the `DefaultOutput` unit, which follows a change of the system default device by itself; cpal then reports `DeviceChanged`, which the app maps to `device-change`. Callback sizes can differ from the device buffer when the unit converts rates, so the core never assumes a size.
+
+**Which stamp.** `mHostTime` comes from the system's model of the device clock and has no wake-up jitter; it is on the clock Rust's monotonic clock also reads, so mapping it is one constant measured at open. But it means something else: when the buffer's first frame reaches (output) or left (input) the device, not when the callback ran. With it engine time becomes device time and a measured round trip loses the two IO buffers and safety offsets, so a calibration made with one stamp source is void with the other. CoreAudio IO threads are realtime threads and the fit already rejects late callbacks, so callback stamps are expected to be good on a Mac. Decision: callback stamps stay the default; device stamps are built behind `SR_AUDIO_STAMPS=device` with a plausibility guard (250 ms, then one switch back) and are to be judged by measurement (section 11).
 
 ## 3. IPC
 
@@ -105,14 +112,14 @@ Packet, little-endian, 24-byte header then samples (24 is a multiple of 4, so `n
 | --- | --- | --- |
 | 0 | u8 | kind = 1 |
 | 1 | u8 | version = 1 |
-| 2 | u16 | flags: bit 0 resampled path, bit 1 drift over 1 ms, bit 2 input all zero, bit 3 last packet |
-| 4 | u32 | `seq`, from 0 per capture |
+| 2 | u16 | flags: bit 0 resampled path, bit 1 drift over 1 ms, bit 2 input all zero, bit 3 last packet, bit 4 a clock stepped during this capture |
+| 4 | u32 | `seq`, from 0 per capture; counts packets written (a dropped packet shows in `droppedBefore` and `firstFrame`, not in `seq`) |
 | 8 | f64 | `firstFrame`: engine frame of sample 0 (an integer value) |
 | 16 | u32 | `nFrames` |
 | 20 | u32 | `droppedBefore`: engine frames lost before this packet (ring overflow) |
 | 24 | f32 × nFrames | mono samples, full scale ±1 |
 
-- **Batching**: 512 frames per packet (10.7 ms at 48 kHz, about 2 KB, 94 packets per second, 192 KB/s). Configurable 256 to 2048. `CaptureCore` re-blocks to 256 frames, so the packet size never changes a `CaptureBlock`.
+- **Batching**: a capture always ends with a packet carrying bit 3, possibly with no frames; the packet before a break in the grid is short. 512 frames per packet (10.7 ms at 48 kHz, about 2 KB, 94 packets per second, 192 KB/s). Configurable 256 to 2048. `CaptureCore` re-blocks to 256 frames, so the packet size never changes a `CaptureBlock`.
 - **Expected latency (estimate)**: packet fill 5 ms mean and 10.7 ms worst, pump and channel 1 to 3 ms on desktop, 2 to 6 ms on mobile. This adds to live feedback delay only; timestamps are unaffected. Task M0-1 measures it on all five platforms.
 - **Backpressure**: the audio callback never blocks. If the ring is full the aligner drops whole packets and counts the frames into the next header's `droppedBefore`. JS never asks Rust to slow down.
 - **Gap detection in JS**: `seq` not previous + 1, or `droppedBefore > 0`, or `firstFrame` not previous end. The feed then pushes that many zero frames through `CaptureCore` (so `startT` of later blocks stays exact) and fires `onCaptureFault({ kind: 'capture-gap' })`, which voids the try as on the web. `CaptureBlock.seq` stays `CaptureCore`'s own counter.
@@ -124,10 +131,11 @@ Packet, little-endian, 24-byte header then samples (24 is a multiple of 4, so `n
 audio_open(a: { input: boolean; outputMode: OutputMode; events: Channel<AudioEvent> }): OpenInfo
 audio_close(): void
 audio_release_input(): void
+audio_set_input(a: { enabled: boolean }): OpenInfo   // closes or reopens the input stream only; the output keeps running
 audio_permission(a: { request: boolean }): 'granted' | 'denied' | 'prompt' | 'unknown'
 audio_clock_sync(): { engineSec: number; hostMs: number }
 audio_clock_check(a: { durSec: number }): { error: number | null; consistent: boolean; framesPerSec: number; expected: number; inputDriftPpm: number | null }
-audio_put_buffer(raw): void            // header u32 magic 'SRB1', u32 bufferId, u32 sampleRate, u32 nFrames, then f32 samples
+audio_put_buffer(raw): void            // header: the bytes 'S','R','B','1', u32 bufferId, u32 sampleRate, u32 nFrames, then f32 samples
 audio_decode(raw): raw                 // request: u32 bufferId, then the MP3 file bytes. Reply: u32 sampleRate, u32 nFrames, then f32 samples. Rust keeps the buffer under bufferId
 audio_drop_buffers(a: { ids: number[] }): void
 audio_schedule(a: { group: 'take' | 'sounds'; voices: VoiceSpec[] }): { late: number[] }
@@ -164,10 +172,12 @@ type AudioEvent =
   | { type: 'route'; route: OpenInfo['route']; latency: LatencyReport; engineRate: number }
   | { type: 'interruption'; reason: 'interrupted' | 'hidden' | 'track-ended' | 'device-change' }
   | { type: 'ended'; ids: number[] }
+  | { type: 'late'; ids: number[] }                              // started late after `audio_schedule` had returned
+  | { type: 'rejected'; ids: number[] }                          // refused for capacity; no sound, no `ended`
   | { type: 'xrun'; stream: 'input' | 'output'; count: number };
 ```
 
-Scheduling rules in Rust: start frame `round(t * engineRate)`; a voice whose start is already behind the render head starts at once from its given offset (as a Web Audio source does), and its id is returned in `late`. Group `take` is only cancelled by `audio_cancel('take')`, group `sounds` by `stopSounds`. Output is hard-limited to ±1 and clipped frames are counted. JSON commands cost about 1 ms; every sound is scheduled at least 50 ms ahead (takes 500 ms), so that never matters.
+Scheduling rules in Rust: start frame `round(t * engineRate)`; a voice whose start is already behind the render head starts at once from its given offset (as a Web Audio source does). `audio_schedule` returns in `late` the voices already behind the head when the call was made; one that falls behind in the few milliseconds before the audio thread takes it arrives in a `late` event. A call is all or nothing (unknown buffer, bad field, full queue). An envelope has at most 8 points (two at one time make a step). With 64 voices sounding a new one is `rejected`, not stolen. Stopping a voice that has not started removes it and sends `ended`. Group `take` is only cancelled by `audio_cancel('take')`, group `sounds` by `stopSounds`. Output is hard-limited to ±1 and clipped frames are counted. JSON commands cost about 1 ms; every sound is scheduled at least 50 ms ahead (takes 500 ms), so that never matters.
 
 JS maps host time to `performance.now()` once per `audio_clock_sync` round trip (midpoint of the call, keep the sample with the shortest round trip of 5), then follows `clock` events.
 
@@ -204,19 +214,21 @@ Beyond-seam members the app already probes for: `setOutputMode`, `setInputEnable
 
 ### What each platform reports
 
-| Platform | Output parts | Input parts | Trust |
-| --- | --- | --- | --- |
-| macOS | buffer frames + `kAudioDevicePropertyLatency` + `SafetyOffset` + `kAudioStreamPropertyLatency` (output scope) | same in input scope | A for built-in, wired, USB; C for Bluetooth, AirPlay, HDMI |
-| iOS, iPadOS | `AVAudioSession.outputLatency` + `ioBufferDuration` | `inputLatency` + `ioBufferDuration` | A for built-in, wired, USB; C for Bluetooth, AirPlay |
-| Windows | `IAudioClient::GetStreamLatency` + device period (queried on our own client for the same endpoint and format) | same on the capture endpoint | B (driver and enhancement delay not included); C for Bluetooth |
-| Linux | cpal `playback - callback` (ALSA delay) + buffer | cpal `callback - capture` + buffer | B on `hw:` devices; C through PipeWire or PulseAudio |
-| Android | AAudio timestamp delay (`playback - callback`) + burst | AAudio input timestamp delay when supported | B with `FEATURE_AUDIO_PRO` or low-latency feature; else C; C for Bluetooth |
+| Platform | Output parts | Input parts | Trust | State |
+| --- | --- | --- | --- | --- |
+| macOS | buffer frames + `kAudioDevicePropertyLatency` + `SafetyOffset` + `kAudioStreamPropertyLatency` (output scope), at the device's nominal rate | same in input scope | A for built-in, wired, USB; C otherwise | implemented, unverified on hardware |
+| iOS, iPadOS | `AVAudioSession.outputLatency` + `ioBufferDuration` | `inputLatency` + `ioBufferDuration` | A for built-in, wired, USB; C otherwise | not built (plugin, M5) |
+| Windows | `IAudioClient::GetStreamLatency` + device period, on a client of our own for the same endpoint, never started | same on the capture endpoint | B (driver and enhancement delay not included); C for Bluetooth | implemented, unverified on hardware |
+| Linux | buffer; cpal `playback - callback` (ALSA delay) only on `hw:` devices | buffer only | B on `hw:` devices; C through PipeWire or PulseAudio | implemented; `hw:` unverified |
+| Android | AAudio timestamp delay + burst | AAudio input timestamp delay when supported | B with the pro-audio or low-latency feature; else C | not built (M5) |
+
+A side's sum is null unless its buffer part and at least one of its device and stream parts are known; a part without a source stays null and nothing is estimated. Bluetooth, HDMI, network and unknown transports are trust C on every platform. Clock relation: macOS says `shared` for one device or one non-zero clock domain; Windows and Linux always say `unknown`.
 
 `predictedMs = (outputSec + inputSec) * 1000`. Bluetooth is known from the OS transport type, not guessed from labels.
 
 ### Native loopback measurement
 
-`audio_measure_loopback`: `synth::render_click('tick')`, 8 clicks at random 150 to 250 ms gaps after 200 ms of silence, scheduled through the same `Scheduler`; the full-rate captured input (before packetizing) is high-passed at 5 kHz and matched against the click; per-click lag by parabolic peak, result median and MAD. About 2 s. It measures on the single engine clock, with no JS in the loop. It is a cross-check and a fast pre-check; it does not write a `Calibration`.
+`audio_measure_loopback` (`LoopbackDriver`): `synth::render_click('tick')`, 8 clicks at random 150 to 250 ms gaps after 200 ms of silence, scheduled through `EngineHandle::schedule`; the run is a capture whose full-rate packets are read on the Rust side (the matched filter cannot run on the audio thread, so no webview capture can run at the same time); capture and click are high-passed at 5 kHz and matched; per-click lag by parabolic peak; a click counts when its peak stands 18 dB above its window and within 1 ms of the median; result median and MAD, null below 3 found. A clock step during the run restarts it once. About 2 s. It measures on the single engine clock, with no JS in the loop. It is a cross-check and a fast pre-check; it does not write a `Calibration`.
 
 ### Mapping to the existing record
 
@@ -255,10 +267,10 @@ Checked: `public/sounds/` holds 148 MP3 files (MPEG-1 Layer III, 44.1 kHz, mono,
 
 ## 7. Permissions and entitlements (list only)
 
-- **macOS**: `NSMicrophoneUsageDescription`; entitlement `com.apple.security.device.audio-input` (hardened runtime); with the sandbox also `com.apple.security.app-sandbox`. Permission state and request through `AVCaptureDevice` (audio).
+- **macOS** (built, unverified on hardware): `NSMicrophoneUsageDescription` in `src-tauri/Info.plist` (merged into the bundle, and embedded in the binary by `tauri dev`); entitlement `com.apple.security.device.audio-input` in `src-tauri/Entitlements.plist`, referenced from `bundle.macOS.entitlements` and applied when the bundle is signed (if an unsigned bundle build ever trips on it, remove that one line; the file stays); minimum system 11.0. Permission state and request through `AVCaptureDevice` (audio) in `permission.rs`: `audio_permission({ request: true })` waits for the user's answer on a worker thread, never on the main thread. With the sandbox also `com.apple.security.app-sandbox`.
 - **iOS, iPadOS**: `NSMicrophoneUsageDescription`. No background audio mode. Plugin: record permission; `AVAudioSession` category `playAndRecord`, mode `measurement`, options `defaultToSpeaker` and `allowBluetoothA2DP` (not `allowBluetooth`, to avoid the hands-free profile unless chosen), preferred rate 48000, preferred IO buffer 5 ms, `setActive`; reads `inputLatency`, `outputLatency`, `ioBufferDuration`, `sampleRate`, `currentRoute`; forwards interruption, route-change and media-services-reset notifications.
 - **Android**: `RECORD_AUDIO` (runtime, requested by the plugin from the activity), `MODIFY_AUDIO_SETTINGS`; `uses-feature` `android.hardware.microphone` (required), `android.hardware.audio.low_latency` and `android.hardware.audio.pro` (not required). Plugin: permission, `AudioManager` device list and types, `AudioDeviceCallback`, audio focus, the two feature flags.
-- **Windows**: nothing in an unpackaged app (the system microphone privacy switch for desktop apps applies); MSIX needs the `microphone` device capability.
+- **Windows**: `audio_permission` is `granted` when an input device enumerates. Nothing in an unpackaged app (the system microphone privacy switch for desktop apps applies); MSIX needs the `microphone` device capability.
 - **Linux**: none natively; Flatpak needs the PipeWire or PulseAudio socket, Snap the `audio-record` and `audio-playback` plugs.
 - **Tauri**: the plugin's permission set in `capabilities/default.json`. The CSP already allows `ipc:`.
 
@@ -274,7 +286,7 @@ Pure Rust: streams, mixing, clock, desktop latency properties, macOS permission.
 | `scheduler_chunking_invariant` | a take of clicks rendered in 128, 441 and 1024-frame callbacks | outputs bit-identical |
 | `voice_rate_loop_envelope` | 440 Hz buffer, rate 2^(3/12), loop, linear envelope | pitch within 0.5 cent; envelope within 1e-4 of the linear ideal |
 | `late_voice_reported` | voice 10 ms behind the head | starts in the next callback from its given offset, id in `late` |
-| `clock_fit_rejects_jitter` | callbacks with 0 to 3 ms late jitter and bursts of 4 | `R(h)` error under 0.05 ms after 2 s |
+| `clock_fit_rejects_jitter` | callbacks with 0 to 3 ms late jitter and bursts of 4 | `R(h)` error under 0.05 ms from 2 s on at 128 frames, from 10 s on at 256 and 480 (under 0.2 ms before) |
 | `bridge_locked_same_clock` | fake duplex, 0 ppm, 128 and 256-frame buffers | locked path; samples bit-identical to input; stamp error 0 frames |
 | `bridge_tracks_drift` | input 48 kHz + 200 ppm, 120 s | resampled path; stamp error under 0.2 ms throughout; no gap |
 | `bridge_rate_convert` | input 44.1 kHz, output 48 kHz, impulse train | each impulse stamped within 0.05 ms |
@@ -282,8 +294,9 @@ Pure Rust: streams, mixing, clock, desktop latency properties, macOS permission.
 | `rate_check_matches_ts` | the vectors of `clock-fit.test.ts` | same `consistent` and `error` within 1e-9 |
 | `synth_click_golden`, `synth_listen_golden` | vectors written by `tools/native/golden.ts` from `renderClick` and `renderListenNote` at 44.1 and 48 kHz | max difference 1e-6 |
 | `loopback_estimator_delay` | fake device, 23.4 ms delay, 20 dB SNR noise | within 0.1 ms, MAD under 0.1 ms, 8 of 8 |
+| `whole_engine_click_arrivals` | 24 clicks through the simulated device at 23.4 ms | arrival error under 0.02 ms locked, 0.2 ms resampled with jitter |
 | `loopback_estimator_rejects_silence` | no path from output to input | `found = 0`, `roundTripMs = null` |
-| `decode_mp3_fixture` | three files from `public/sounds` | 44.1 kHz mono, length within 1 frame of the reference, onset within 1 ms of the manifest plus priming |
+| `decode_mp3_fixture` | three files from `public/sounds` | 44.1 kHz mono, length within 1 frame of an ffmpeg gapless decode, onset within 1 ms of that decode and not later than the manifest plus 1 ms (38 of the 148 files start more than 1 ms off their manifest onset in any decoder) |
 | `packet_roundtrip`, `ring_overflow_counts` | random packets; pump stalled 3 s | bytes identical; `droppedBefore` equals frames lost, later `firstFrame` exact |
 
 ### TypeScript and Rust equivalence of the capture path
@@ -348,3 +361,16 @@ Sizes are working days for one mid-level engineer. (S) needs the senior audio en
 - M5-2 (4 d) Android plugin (Kotlin): permission, devices, focus, features; device run; (S) decision on a direct AAudio backend.
 - M5-3 (2 d) Sleep, wake, hot-plug and background handling on all platforms.
 - M5-4 (S, 2 d) Per-platform go or fallback decision against risk 1, with the M4-4 method on each platform.
+
+## 11. To measure on the owner's Mac (nothing below has run on hardware)
+
+Run the app from a terminal with `SR_AUDIO_STAMP_LOG=1`; built-in speakers and microphone unless noted.
+
+1. First microphone use: the system prompt appears with the usage text, `audio_permission` goes `prompt` to `granted`, and the app is not killed. Repeat with a signed bundle (entitlement applied).
+2. `audio_open` reply: `outFrames` and `inFrames` (128 expected), `engineRate` and `inputRate`, `route` (both transports `built-in`), the eight latency parts, `trust` (A expected). Then `audio_capture_start` within 5 s of open: `path` is `locked` only if the two built-in devices report one clock domain (the relation itself is not in the reply); note which.
+3. Stamp log at close: callback interval minimum and maximum for both streams (the jitter the clock fit has to reject), and the spread of device stamp minus callback clock.
+4. `audio_clock_check({ durSec: 2 })` after 15 s: `error`, `consistent`, `inputDriftPpm` (under 1 ppm expected on one clock).
+5. `audio_measure_loopback` 20 times in one run and once after each of 5 restarts: `roundTripMs`, `madMs`, `found`, the capture path, `predictedMs`. Acceptance (M4-4): MAD at most 0.5 ms within a run, round trips within 1 ms across restarts. Note predicted minus measured.
+6. The same with `SR_AUDIO_STAMPS=device`. Expect a smaller round trip by roughly both buffers and safety offsets; compare the spread across restarts with step 5. Device stamps become the default only if they are clearly steadier.
+7. With a USB interface if one is at hand: steps 2 and 5 (one device: `shared`, locked path).
+8. Unplug or switch the default output during playback: an `interruption` event with `device-change` arrives and sound continues or the reopen works.

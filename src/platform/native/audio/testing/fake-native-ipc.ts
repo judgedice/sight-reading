@@ -10,6 +10,9 @@
  *   most 8 envelope points per voice and 64 sounding voices (a refused voice is reported as `rejected`); `stopVoices`
  *   and `cancel` end voices, `ended` is reported once per voice.
  * - Buffers: `putBuffer` and `decode` register mono buffers; the model refuses voices on unknown buffers.
+ * - Input: `open({ input })` opens it or not; `setInput` and `releaseInput` switch it with the output running (engine
+ *   time, buffers and voices continue) and are refused while a capture runs, as the engine refuses them; capture needs
+ *   it open.
  * - Capture: while started, input frames come from `inputSignal` (or `queueInput`), are cut into packets of the
  *   requested size on the engine frame grid and delivered as `ArrayBuffer`s. `dropInput(n)` loses frames: the next
  *   packet carries the jump and `droppedBefore`.
@@ -22,6 +25,7 @@ import type {
   CaptureStopInfo,
   ClockAnchor,
   ClockCheckReply,
+  DebugHooks,
   LatencyReport,
   LoopbackEstimate,
   NativeIpc,
@@ -114,7 +118,12 @@ export class FakeNativeIpc implements NativeIpc {
   readonly permissionCalls: boolean[] = [];
   /** What `open` was asked for, per call. */
   readonly openCalls: { input: boolean; outputMode: OutputMode }[] = [];
+  /** The `enabled` flag of every `setInput` call. */
+  readonly setInputCalls: boolean[] = [];
   readonly loopbackCalls: { clicks: number; timbre: string }[] = [];
+  /** What `debugHooks` answers (off by default). */
+  debug: DebugHooks = { enabled: false, seed: null };
+  readonly debugSignals: { path: string | null; engineSec: number }[] = [];
   permissionState: PermissionState;
   clockError: number | null;
   loopback: LoopbackEstimate;
@@ -134,6 +143,7 @@ export class FakeNativeIpc implements NativeIpc {
   private head = 0;
   private session = 0;
   private opened = false;
+  private inputOn = false;
   private sink: ((e: AudioEvent) => void) | null = null;
   private live: Live[] = [];
   private syncCalls = 0;
@@ -282,20 +292,26 @@ export class FakeNativeIpc implements NativeIpc {
         this.head = 0;
         this.nextClockEventAt = CLOCK_EVENT_SEC;
         this.capture = null;
-        const inFrames = a.input ? (this.o.inFrames === undefined ? 128 : this.o.inFrames) : null;
-        return {
-          engineRate: this.engineRate,
-          outFrames: this.o.outFrames ?? 128,
-          inFrames,
-          inputRate: inFrames === null ? null : this.engineRate,
-          route: this.route,
-          latency: this.latency,
-          clock: this.anchor(),
-          sessionType: null,
-        };
+        this.inputOn = a.input && this.o.inFrames !== null;
+        return this.openInfo();
       },
       false,
     );
+  }
+
+  /** The reply of `open` and `setInput`: the input fields follow the input switch. */
+  private openInfo(): OpenInfo {
+    const inFrames = this.inputOn ? (this.o.inFrames ?? 128) : null;
+    return {
+      engineRate: this.engineRate,
+      outFrames: this.o.outFrames ?? 128,
+      inFrames,
+      inputRate: inFrames === null ? null : this.engineRate,
+      route: this.route,
+      latency: this.latency,
+      clock: this.anchor(),
+      sessionType: null,
+    };
   }
 
   close(): Promise<void> {
@@ -314,8 +330,21 @@ export class FakeNativeIpc implements NativeIpc {
 
   releaseInput(): Promise<void> {
     return this.call('releaseInput', () => {
-      this.capture = null;
+      this.switchInput(false);
     });
+  }
+
+  setInput(a: { enabled: boolean }): Promise<OpenInfo> {
+    return this.call('setInput', () => {
+      this.setInputCalls.push(a.enabled);
+      this.switchInput(a.enabled);
+      return this.openInfo();
+    });
+  }
+
+  private switchInput(enabled: boolean): void {
+    if (this.capture) throw new Error('a capture or loopback measurement is running: stop it before changing the input');
+    this.inputOn = enabled && this.o.inFrames !== null;
   }
 
   permission(a: { request: boolean }): Promise<PermissionState> {
@@ -433,6 +462,8 @@ export class FakeNativeIpc implements NativeIpc {
 
   captureStart(a: { packetFrames: number; onPacket: (packet: ArrayBuffer) => void }): Promise<CaptureStartInfo> {
     return this.call('captureStart', () => {
+      if (!this.inputOn) throw new Error('audio_capture_start: no input is open (open with input: true, or audio_set_input)');
+      if (this.capture) throw new Error('audio_capture_start: a capture is already running');
       this.capture = { onPacket: a.onPacket, packetFrames: a.packetFrames, originFrame: this.head, seq: 0, first: this.head, droppedBefore: 0, lost: 0, pending: [], packets: 0, frames: 0, dropped: 0 };
       return { originFrame: this.head, engineRate: this.engineRate, path: 'locked' as const };
     });
@@ -441,8 +472,20 @@ export class FakeNativeIpc implements NativeIpc {
   captureStop(): Promise<CaptureStopInfo> {
     return this.call('captureStop', () => {
       const c = this.capture;
+      if (!c) throw new Error('audio_capture_stop: no capture is running');
       this.capture = null;
-      return { packets: c?.packets ?? 0, frames: c?.frames ?? 0, droppedFrames: c?.dropped ?? 0, maxRingMs: 0 };
+      return { packets: c.packets, frames: c.frames, droppedFrames: c.dropped, maxRingMs: 0 };
+    });
+  }
+
+  debugHooks(): Promise<DebugHooks> {
+    return this.call('debugHooks', () => this.debug, false);
+  }
+
+  debugSignal(a: { path: string | null; engineSec: number }): Promise<void> {
+    return this.call('debugSignal', () => {
+      if (!this.debug.enabled) throw new Error('audio_debug_signal: the test hooks are off (they need SR_AUDIO_DEVICE=fake and SR_E2E_HOOKS=1)');
+      this.debugSignals.push(a);
     });
   }
 

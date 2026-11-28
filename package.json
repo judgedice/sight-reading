@@ -36,7 +36,8 @@
     "tauri": "tauri",
     "native:dev": "tauri dev",
     "native:build": "tauri build",
-    "native:smoke:linux": "bash tools/native/smoke-linux.sh"
+    "native:smoke:linux": "bash tools/native/smoke-linux.sh",
+    "native:e2e:linux": "bash tools/native/e2e-linux.sh"
   },
   "dependencies": {
     "@tauri-apps/api": "2.13.0",

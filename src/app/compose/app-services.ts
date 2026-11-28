@@ -67,6 +67,8 @@ export interface AppRuntime {
   /** Local day of an ISO time (the device's time zone). */
   localDayOf(iso: string): string;
   rng: Rng;
+  /** The practice session's own generator (excerpt choice); `rng` when absent. The end-to-end tests seed it. */
+  sessionRng?: Rng;
   timers: { setTimeout(fn: () => void, ms: number): unknown; clearTimeout(h: unknown): void; setInterval(fn: () => void, ms: number): unknown; clearInterval(h: unknown): void };
   idle(run: () => void): void;
   micBrowser: MicBrowser;
@@ -164,7 +166,7 @@ export function composeApp(rt: AppRuntime): ComposedApp {
     appVersion: rt.versions.app,
     coreVersion: rt.versions.core,
     appBuild: rt.versions.build,
-    rng: rt.rng,
+    rng: rt.sessionRng ?? rt.rng,
     timers: rt.timers,
     dev: rt.dev,
     ...(rt.createCaptureChannel ? { createCaptureChannel: rt.createCaptureChannel } : {}),

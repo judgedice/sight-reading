@@ -131,7 +131,8 @@ try {
            const first = d.getFloat64(8, true), n = d.getUint32(16, true);
            if (kind !== 1 || version !== 1) throw new Error('packet ' + i + ' bad kind/version ' + kind + '/' + version);
            if (seq !== i) throw new Error('packet ' + i + ' has seq ' + seq);
-           if (buf.byteLength !== 24 + n * 4 || n < 1) throw new Error('packet ' + i + ' bad length ' + buf.byteLength + ' for ' + n + ' frames');
+           // The last packet may carry no frames (header only, flag bit 3) when the capture stops on a packet boundary.
+           if (buf.byteLength !== 24 + n * 4 || (n < 1 && (flags & 8) === 0)) throw new Error('packet ' + i + ' bad length ' + buf.byteLength + ' for ' + n + ' frames');
            if (i === 0 && first !== cs.originFrame) throw new Error('first packet frame ' + first + ' != originFrame ' + cs.originFrame);
            if (prevEnd !== null && first !== prevEnd) throw new Error('packet ' + i + ' not contiguous: ' + first + ' vs ' + prevEnd);
            if (i === packets.length - 1 && (flags & 8) === 0) throw new Error('last packet lacks the last flag');

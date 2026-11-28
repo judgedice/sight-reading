@@ -45,6 +45,8 @@ pub fn run() {
             audio::audio_capture_start,
             audio::audio_capture_stop,
             audio::audio_measure_loopback,
+            audio::audio_debug_hooks,
+            audio::audio_debug_signal,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Sightread");

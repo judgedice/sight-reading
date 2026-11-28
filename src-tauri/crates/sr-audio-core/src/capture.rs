@@ -600,6 +600,11 @@ enum State {
 /// drives it.
 pub struct CaptureHalf {
     clock: ClockReader,
+    /// The state shared with the control side (the same allocation `clock` points to). A field of its own so
+    /// that the callback borrows it next to the other fields instead of cloning the `Arc` on every call.
+    shared: Arc<Shared>,
+    /// Input frame index of the first frame of the running (or last) capture.
+    origin_input_frame: Option<u64>,
     input_rate: u32,
     /// `A(m)`: the input stream's clock.
     input_clock: StreamClock,
@@ -632,6 +637,8 @@ pub(crate) fn channel(clock: ClockReader) -> (CaptureHalf, CaptureReader) {
     let shared = Arc::clone(&clock.shared);
     let half = CaptureHalf {
         clock,
+        shared: Arc::clone(&shared),
+        origin_input_frame: None,
         input_rate: rate,
         input_clock: StreamClock::new(rate as f64),
         frames: 0,
@@ -678,9 +685,12 @@ impl CaptureHalf {
         self.frames
     }
 
-    fn send(&mut self, event: CaptureEvent) {
-        // A full event ring loses the event; the packet stream and the statistics still tell the story.
-        let _ = self.events.push(event);
+    /// Index (in input frames delivered since the stream opened) of the first input frame of the running
+    /// capture, or of the last one when none is running; `None` before the first capture. A simulated device
+    /// uses it to line a test signal up with the capture. After a clock step it is the first frame after the
+    /// mapping was fixed again.
+    pub fn capture_origin_input_frame(&self) -> Option<u64> {
+        self.origin_input_frame
     }
 
     /// Chooses the path for a capture that starts now.
@@ -709,7 +719,9 @@ impl CaptureHalf {
         if channels == 0 {
             return;
         }
-        let shared = Arc::clone(&self.clock.shared); // a reference-count increment, no allocation
+        // Disjoint field borrows: nothing below needs `&mut self` as a whole. (An `Arc::clone` here would be
+        // an atomic read-modify-write per callback on the cache line the control thread reads.)
+        let shared: &Shared = &self.shared;
         let n = input.len() / channels;
         let first = self.frames;
         self.frames += n as u64;
@@ -729,7 +741,7 @@ impl CaptureHalf {
                     if self.state == State::Idle {
                         self.state = State::Waiting(config);
                     } else {
-                        self.send(CaptureEvent::StartIgnored);
+                        let _ = self.events.push(CaptureEvent::StartIgnored);
                     }
                 }
                 Ok(CaptureCommand::Stop) => {
@@ -738,7 +750,8 @@ impl CaptureHalf {
                         _ => CaptureStats::default(),
                     };
                     if self.state != State::Idle {
-                        self.send(CaptureEvent::Stopped(stats));
+                        // A full event ring loses the event; the packets and the statistics still tell it.
+                        let _ = self.events.push(CaptureEvent::Stopped(stats));
                     }
                     self.state = State::Idle;
                     shared.capture_running.store(0, Ordering::Relaxed);
@@ -767,6 +780,7 @@ impl CaptureHalf {
             let Some(origin_frame) = self.aligner.start(path, first, &view) else { return };
             self.packets.begin(config.packet_frames, if path == CapturePath::Resampled { FLAG_RESAMPLED } else { 0 });
             self.steps = 0;
+            self.origin_input_frame = Some(first);
             self.state = State::Running;
             shared.capture_running.store(1, Ordering::Relaxed);
             let _ = self.events.push(CaptureEvent::Started { origin_frame, engine_rate, path });
@@ -778,6 +792,7 @@ impl CaptureHalf {
             self.packets.set_flags(FLAG_CLOCK_STEP);
             let path = self.aligner.path();
             let _ = self.aligner.start(path, first, &view);
+            self.origin_input_frame = Some(first);
             let _ = self.events.push(CaptureEvent::ClockStep { stream: if update.step { StreamKind::Input } else { StreamKind::Output } });
         }
         if self.state != State::Running {

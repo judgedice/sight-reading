@@ -102,8 +102,10 @@ export interface CaptureStopInfo {
 }
 
 /**
- * Events on the engine's channel. `late` and `rejected` are additions to the design: `late` lists voices found behind
- * the render head after `audio_schedule` returned, `rejected` lists voices the engine refused (64 sounding at most).
+ * Events on the engine's channel. `late` and `rejected` are additions to the design: `late` lists voices that started
+ * behind the render head after `audio_schedule` returned (voices already late in the reply are not repeated),
+ * `rejected` lists voices the engine refused (64 sounding at most, or the pending queue was full); a rejected voice
+ * gets no `ended`.
  */
 export type AudioEvent =
   | { type: 'clock'; anchor: ClockAnchor }
@@ -114,6 +116,13 @@ export type AudioEvent =
   | { type: 'rejected'; ids: number[] }
   | { type: 'xrun'; stream: 'input' | 'output'; count: number };
 
+/** Reply of `audio_debug_hooks`: the end-to-end hooks work only on the fake device with `SR_E2E_HOOKS=1`. */
+export interface DebugHooks {
+  enabled: boolean;
+  /** `SR_E2E_SEED`: the seed of the session's excerpt choice. */
+  seed: number | null;
+}
+
 export type PermissionState = 'granted' | 'denied' | 'prompt' | 'unknown';
 
 /** Every engine command. Methods reject with an `Error` carrying the engine's message. */
@@ -121,6 +130,8 @@ export interface NativeIpc {
   open(a: { input: boolean; outputMode: OutputMode; onEvent: (e: AudioEvent) => void }): Promise<OpenInfo>;
   close(): Promise<void>;
   releaseInput(): Promise<void>;
+  /** Closes or reopens the input stream; the output keeps playing and engine time continues. Refused while a capture or a loopback measurement runs. */
+  setInput(a: { enabled: boolean }): Promise<OpenInfo>;
   permission(a: { request: boolean }): Promise<PermissionState>;
   clockSync(): Promise<{ engineSec: number; hostMs: number }>;
   clockCheck(a: { durSec: number }): Promise<ClockCheckReply>;
@@ -136,6 +147,13 @@ export interface NativeIpc {
   captureStart(a: { packetFrames: number; onPacket: (packet: ArrayBuffer) => void }): Promise<CaptureStartInfo>;
   captureStop(): Promise<CaptureStopInfo>;
   measureLoopback(a: { clicks: number; timbre: 'tick' }): Promise<LoopbackEstimate>;
+  /** End-to-end test hook: whether the hooks are on (never, in a build that was not started for them). */
+  debugHooks(): Promise<DebugHooks>;
+  /**
+   * End-to-end test hook (fake device with hooks on only): the input carries the raw mono f32 file at `path` with its
+   * sample 0 at engine second `engineSec`; `path: null` removes it.
+   */
+  debugSignal(a: { path: string | null; engineSec: number }): Promise<void>;
 }
 
 function asError(e: unknown): Error {
@@ -163,6 +181,10 @@ export class TauriNativeIpc implements NativeIpc {
 
   async releaseInput(): Promise<void> {
     await call<void>('audio_release_input');
+  }
+
+  setInput(a: { enabled: boolean }): Promise<OpenInfo> {
+    return call<OpenInfo>('audio_set_input', { enabled: a.enabled });
   }
 
   permission(a: { request: boolean }): Promise<PermissionState> {
@@ -212,5 +234,13 @@ export class TauriNativeIpc implements NativeIpc {
 
   measureLoopback(a: { clicks: number; timbre: 'tick' }): Promise<LoopbackEstimate> {
     return call<LoopbackEstimate>('audio_measure_loopback', { clicks: a.clicks, timbre: a.timbre });
+  }
+
+  debugHooks(): Promise<DebugHooks> {
+    return call<DebugHooks>('audio_debug_hooks');
+  }
+
+  async debugSignal(a: { path: string | null; engineSec: number }): Promise<void> {
+    await call<void>('audio_debug_signal', { path: a.path, engineSec: a.engineSec });
   }
 }

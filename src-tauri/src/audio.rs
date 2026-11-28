@@ -25,7 +25,7 @@ use sr_audio_core::mixer::{AudioBuffer, Group, VoiceSpec as CoreVoiceSpec};
 use sr_audio_core::wire;
 use sr_audio_core::{engine, CaptureReader, ClockReader, EngineConfig, EngineHandle, Notification};
 use sr_audio_device::cpal_io::CpalIo;
-use sr_audio_device::fake_io::{FakeConfig, FakeIo};
+use sr_audio_device::fake_io::{FakeConfig, FakeIo, SignalControl};
 use sr_audio_device::{host_clock, DeviceError, DeviceEvent, DeviceIo, EngineFactory, InterruptionReason, OpenConfig, OpenInfo, RouteFacts, StreamKind};
 use tauri::ipc::{Channel, InvokeBody, InvokeResponseBody, Request, Response};
 use tauri::State;
@@ -318,7 +318,8 @@ pub enum StreamName {
     Output,
 }
 
-/// `AudioEvent` of the design. `Late` is an addition (see the report): later `Late` notifications of the engine.
+/// `AudioEvent` of the design. `Late` and `Rejected` are additions: voices that started behind the render head, and
+/// voices the engine refused.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[allow(clippy::large_enum_variant)] // events are built and sent one at a time; boxing would only add noise
 #[serde(tag = "type", rename_all = "camelCase", rename_all_fields = "camelCase")]
@@ -342,8 +343,13 @@ pub enum AudioEvent {
         /// Why.
         reason: InterruptionJson,
     },
-    /// Voices that will make no more sound (ran out, stopped, cancelled, or were rejected by a capacity).
+    /// Voices that will make no more sound (ran out, stopped, cancelled). Rejected voices are not listed here.
     Ended {
+        /// Their ids.
+        ids: Vec<u32>,
+    },
+    /// Voices the engine refused (64 sounding, or its pending queue was full). They make no sound and get no `Ended`.
+    Rejected {
         /// Their ids.
         ids: Vec<u32>,
     },
@@ -485,6 +491,8 @@ impl Session {
 #[derive(Default)]
 struct HostInner {
     session: Mutex<Option<Session>>,
+    /// The fake device's replaceable input signal (debug hook `audio_debug_signal`); unused by real devices.
+    signal: SignalControl,
 }
 
 impl Drop for HostInner {
@@ -882,19 +890,22 @@ fn poll_loop(shared: Arc<Shared>, device_events: Receiver<DeviceEvent>, sink: Ev
 }
 
 /// One tick's notifications and device events, as events in a fixed order: interruptions first, then voices
-/// (`late`, `ended`), then xruns, then the latest clock anchor. A `Late` notification for an id that the
+/// (`late`, `rejected`, `ended`), then xruns, then the latest clock anchor. A `Late` notification for an id that the
 /// `audio_schedule` reply already listed is dropped (and forgotten); an `Ended` forgets its id.
 pub fn events_from(notes: &[Notification], device_events: &[DeviceEvent], late_seen: &mut HashSet<u32>) -> Vec<AudioEvent> {
     let mut out = Vec::new();
-    let (mut ended, mut late, mut clock) = (Vec::new(), Vec::new(), None);
+    let (mut ended, mut late, mut rejected, mut clock) = (Vec::new(), Vec::new(), Vec::new(), None);
     for n in notes {
         match *n {
             Notification::Ended { id } => {
                 late_seen.remove(&id);
                 ended.push(id);
             }
-            // A rejected voice makes no sound and gets no `Ended`; JS waits for `ended`, so it is reported as one.
-            Notification::Rejected { id, .. } => ended.push(id),
+            // A rejected voice makes no sound and gets no `Ended`: it is its own event (the TypeScript side ends it).
+            Notification::Rejected { id, .. } => {
+                late_seen.remove(&id);
+                rejected.push(id);
+            }
             Notification::Late { id, .. } => {
                 if !late_seen.remove(&id) {
                     late.push(id);
@@ -915,6 +926,9 @@ pub fn events_from(notes: &[Notification], device_events: &[DeviceEvent], late_s
     if !late.is_empty() {
         out.push(AudioEvent::Late { ids: late });
     }
+    if !rejected.is_empty() {
+        out.push(AudioEvent::Rejected { ids: rejected });
+    }
     if !ended.is_empty() {
         out.push(AudioEvent::Ended { ids: ended });
     }
@@ -930,8 +944,8 @@ pub fn events_from(notes: &[Notification], device_events: &[DeviceEvent], late_s
     out
 }
 
-fn fake_device() -> Result<Box<dyn DeviceIo>, String> {
-    Ok(Box::new(FakeIo::new(FakeConfig::from_env()?)))
+fn fake_device(host: &AudioHost) -> Result<Box<dyn DeviceIo>, String> {
+    Ok(Box::new(FakeIo::new(FakeConfig { signal_control: host.inner.signal.clone(), ..FakeConfig::from_env()? })))
 }
 
 /// Which device to open: `SR_AUDIO_DEVICE=fake` forces the fake; otherwise cpal, and when cpal cannot open and
@@ -939,30 +953,90 @@ fn fake_device() -> Result<Box<dyn DeviceIo>, String> {
 pub fn open_selected(host: &AudioHost, cfg: OpenConfig, sink: EventSink) -> Result<OpenInfoJson, String> {
     let env = |k: &str| std::env::var(k).ok();
     if env("SR_AUDIO_DEVICE").as_deref() == Some("fake") {
-        return host.open_with(fake_device()?, cfg, sink).map_err(|e| e.to_string());
+        return host.open_with(fake_device(host)?, cfg, sink).map_err(|e| e.to_string());
     }
     match host.open_with(Box::new(CpalIo::new()), cfg.clone(), Arc::clone(&sink)) {
         Ok(info) => Ok(info),
         Err(e @ DeviceError::PermissionDenied) => Err(e.to_string()),
         Err(e) if env("SR_AUDIO_ALLOW_FAKE").as_deref() == Some("1") => {
             eprintln!("audio: {e}; SR_AUDIO_ALLOW_FAKE=1, using the fake device");
-            host.open_with(fake_device()?, cfg, sink).map_err(|e| e.to_string())
+            host.open_with(fake_device(host)?, cfg, sink).map_err(|e| e.to_string())
         }
         Err(e) => Err(format!("{e} (set SR_AUDIO_ALLOW_FAKE=1 to run on a silent fake device, or SR_AUDIO_DEVICE=fake to force it)")),
     }
 }
 
-/// `audio_permission`: `'granted'` when an input device can be enumerated (Linux, Windows, and the fake device),
-/// else `'unknown'`. macOS is `'unknown'` until the authorization-status binding is written (TODO, see the
-/// report): without it the first capture is what triggers the system prompt.
+/// Whether the end-to-end test hooks are on: only on the fake device and only with `SR_E2E_HOOKS=1`. A release build
+/// without both variables answers no to every hook command.
+pub fn debug_hooks_enabled() -> bool {
+    std::env::var("SR_AUDIO_DEVICE").as_deref() == Ok("fake") && std::env::var("SR_E2E_HOOKS").as_deref() == Ok("1")
+}
+
+/// Reply of `audio_debug_hooks`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+pub struct DebugHooks {
+    /// The hook commands work and the page may expose its test handles.
+    pub enabled: bool,
+    /// `SR_E2E_SEED` (a 32-bit integer): the seed of the session's excerpt choice; `null` when unset or the hooks are off.
+    pub seed: Option<u32>,
+}
+
+/// `audio_debug_hooks` without a host: the state of the environment.
+pub fn debug_hooks() -> DebugHooks {
+    let enabled = debug_hooks_enabled();
+    DebugHooks { enabled, seed: if enabled { std::env::var("SR_E2E_SEED").ok().and_then(|v| v.trim().parse().ok()) } else { None } }
+}
+
+impl AudioHost {
+    /// `audio_debug_signal`: the fake device's input carries the raw little-endian mono `f32` file at `path` (at the
+    /// input rate) with sample 0 at engine second `engine_sec`; `None` removes it. Refused unless the hooks are on.
+    pub fn debug_signal(&self, path: Option<&str>, engine_sec: f64) -> Result<(), String> {
+        if !debug_hooks_enabled() {
+            return Err("audio_debug_signal: the test hooks are off (they need SR_AUDIO_DEVICE=fake and SR_E2E_HOOKS=1)".into());
+        }
+        match path {
+            None => self.inner.signal.clear(),
+            Some(p) => {
+                if !engine_sec.is_finite() {
+                    return Err("audio_debug_signal: engineSec must be a finite number".into());
+                }
+                let bytes = std::fs::read(p).map_err(|e| format!("audio_debug_signal: {p}: {e}"))?;
+                if bytes.len() % 4 != 0 {
+                    return Err(format!("audio_debug_signal: {p}: length is not a multiple of 4 bytes"));
+                }
+                let data: Arc<[f32]> = bytes.chunks_exact(4).map(|b| f32::from_le_bytes([b[0], b[1], b[2], b[3]])).collect();
+                self.inner.signal.set(data, engine_sec);
+            }
+        }
+        Ok(())
+    }
+}
+
+/// `audio_permission` without a request: the microphone permission as the platform reports it, never prompting.
+/// macOS: the capture authorization status (`granted`, `denied`, `prompt`). Linux and Windows: `granted` when an
+/// input device can be enumerated, else `unknown`. The fake device is always `granted`.
 pub fn permission_state() -> &'static str {
     if std::env::var("SR_AUDIO_DEVICE").as_deref() == Ok("fake") {
         return "granted";
     }
-    if cfg!(any(target_os = "linux", target_os = "windows")) && sr_audio_device::cpal_io::input_device_available() {
-        "granted"
-    } else {
-        "unknown"
+    sr_audio_device::permission::microphone_state().as_str()
+}
+
+/// `audio_permission` with `request: true`: where the state is still `prompt` (macOS), asks the system to show
+/// its prompt and waits for the answer, up to two minutes; elsewhere the same as [`permission_state`]. It blocks
+/// the calling thread, so the command runs it on a worker thread, never on the main thread (the system delivers
+/// the answer on a queue of its own).
+pub fn permission_request() -> &'static str {
+    if std::env::var("SR_AUDIO_DEVICE").as_deref() == Ok("fake") {
+        return "granted";
+    }
+    let (tx, rx) = std::sync::mpsc::channel();
+    sr_audio_device::permission::request_microphone(move |p| {
+        let _ = tx.send(p);
+    });
+    match rx.recv_timeout(std::time::Duration::from_secs(120)) {
+        Ok(p) => p.as_str(),
+        Err(_) => permission_state(),
     }
 }
 
@@ -1004,6 +1078,8 @@ pub const COMMANDS: &[&str] = &[
     "audio_capture_start",
     "audio_capture_stop",
     "audio_measure_loopback",
+    "audio_debug_hooks",
+    "audio_debug_signal",
 ];
 
 async fn blocking<T: Send + 'static>(f: impl FnOnce() -> Result<T, String> + Send + 'static) -> Result<T, String> {
@@ -1049,8 +1125,7 @@ pub async fn audio_set_input(host: State<'_, AudioHost>, enabled: bool) -> Resul
 /// `audio_permission({ request })`.
 #[tauri::command]
 pub async fn audio_permission(request: bool) -> Result<&'static str, String> {
-    let _ = request;
-    blocking(|| Ok(permission_state())).await
+    blocking(move || Ok(if request { permission_request() } else { permission_state() })).await
 }
 
 /// `audio_clock_sync()`.
@@ -1126,6 +1201,19 @@ pub async fn audio_capture_stop(host: State<'_, AudioHost>) -> Result<CaptureSto
 pub async fn audio_measure_loopback(host: State<'_, AudioHost>, clicks: u32, timbre: String) -> Result<LoopbackEstimateJson, String> {
     let host = (*host).clone();
     blocking(move || host.measure_loopback(clicks, &timbre)).await
+}
+
+/// `audio_debug_hooks()`: whether the test hooks are on (`SR_AUDIO_DEVICE=fake` and `SR_E2E_HOOKS=1`) and the excerpt seed.
+#[tauri::command]
+pub async fn audio_debug_hooks() -> Result<DebugHooks, String> {
+    Ok(debug_hooks())
+}
+
+/// `audio_debug_signal({ path, engineSec })`: test hook, see [`AudioHost::debug_signal`].
+#[tauri::command]
+pub async fn audio_debug_signal(host: State<'_, AudioHost>, path: Option<String>, engine_sec: f64) -> Result<(), String> {
+    let host = (*host).clone();
+    blocking(move || host.debug_signal(path.as_deref(), engine_sec)).await
 }
 
 #[cfg(test)]

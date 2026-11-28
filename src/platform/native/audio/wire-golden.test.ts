@@ -1,7 +1,8 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import type { CaptureBlock } from '../../../core/platform.ts';
+import { createRng } from '../../../core/rng.ts';
 import { NativeCaptureFeed, type CaptureFault } from './capture-feed.ts';
 import {
   decodeDecodeRequest,
@@ -159,6 +160,21 @@ function splitPackets(file: Uint8Array): ArrayBuffer[] {
   return out;
 }
 
+/** `capture::golden_packet_stream` of sr-audio-core: seed, origin frame and the all-zero stretch. */
+const GOLDEN_SEED = 0x5eed;
+const GOLDEN_ORIGIN_FRAME = 48000;
+
+/** The engine's golden input: 48 000 samples of `createRng(0x5eed)`, `(r * 2 - 1) * 0.5` as f32, samples 4096 to 4607 zero. */
+function goldenInput(): Float32Array {
+  const r = createRng(GOLDEN_SEED);
+  const input = new Float32Array(48000);
+  for (let i = 0; i < input.length; i++) {
+    const v = (r.next() * 2 - 1) * 0.5;
+    input[i] = i >= 4096 && i < 4608 ? 0 : v;
+  }
+  return input;
+}
+
 const FIXTURE = fileURLToPath(new URL('../../../../fixtures/native/capture-48k.bin', import.meta.url));
 
 describe('wire golden (design section 8, test 2)', () => {
@@ -186,32 +202,40 @@ describe('wire golden (design section 8, test 2)', () => {
     for (let i = 1; i < packets.length; i++) expect((packets[i] as { firstFrame: number }).firstFrame).toBe((packets[i - 1] as { firstFrame: number }).firstFrame + (packets[i - 1] as { nFrames: number }).nFrames);
   });
 
-  if (existsSync(FIXTURE)) {
-    it('fixtures/native/capture-48k.bin (written by the engine): contiguous packets that re-encode to the same bytes and run through the feed without a gap', () => {
-      const file = new Uint8Array(readFileSync(FIXTURE));
-      const raw = splitPackets(file);
-      expect(raw.length).toBeGreaterThan(0);
-      const packets = raw.map(parseCapturePacket);
-      expect(packets.map((p) => p.seq)).toEqual(packets.map((_, i) => packets[0]!.seq + i));
-      for (let i = 1; i < packets.length; i++) {
-        const prev = packets[i - 1]!;
-        expect(packets[i]!.firstFrame, `firstFrame of packet ${i}`).toBe(prev.firstFrame + prev.nFrames);
-        expect(packets[i]!.droppedBefore).toBe(0);
-      }
-      // The encoder here and the engine's agree on every byte (flags and all).
-      packets.forEach((p, i) => {
-        const again = encodeCapturePacket({ flags: p.flags, seq: p.seq, firstFrame: p.firstFrame, droppedBefore: p.droppedBefore }, p.samples);
-        expect(new Uint8Array(again), `packet ${i}`).toEqual(new Uint8Array(raw[i] as ArrayBuffer));
-      });
-      const faults: CaptureFault[] = [];
-      const blocks: CaptureBlock[] = [];
-      const feed = new NativeCaptureFeed({ engineRate: 48000, sink: (m) => void (m.type === 'block' && blocks.push(m.block)), now: () => 0, backlogVoidMs: 120, onFault: (f) => faults.push(f) });
-      for (const r of raw) feed.push(r.slice(0));
-      expect(faults).toEqual([]);
-      const frames = packets.reduce((a, p) => a + p.nFrames, 0);
-      expect(blocks).toHaveLength(Math.floor(frames / 256));
+  it('fixtures/native/capture-48k.bin (written by the engine): contiguous packets that re-encode to the same bytes and run through the feed without a gap', () => {
+    const file = new Uint8Array(readFileSync(FIXTURE));
+    const raw = splitPackets(file);
+    expect(raw.length).toBeGreaterThan(0);
+    const packets = raw.map(parseCapturePacket);
+    expect(packets.map((p) => p.seq)).toEqual(packets.map((_, i) => packets[0]!.seq + i));
+    for (let i = 1; i < packets.length; i++) {
+      const prev = packets[i - 1]!;
+      expect(packets[i]!.firstFrame, `firstFrame of packet ${i}`).toBe(prev.firstFrame + prev.nFrames);
+      expect(packets[i]!.droppedBefore).toBe(0);
+    }
+    // The encoder here and the engine's agree on every byte (flags and all).
+    packets.forEach((p, i) => {
+      const again = encodeCapturePacket({ flags: p.flags, seq: p.seq, firstFrame: p.firstFrame, droppedBefore: p.droppedBefore }, p.samples);
+      expect(new Uint8Array(again), `packet ${i}`).toEqual(new Uint8Array(raw[i] as ArrayBuffer));
     });
-  } else {
-    console.warn('wire-golden: fixtures/native/capture-48k.bin is not present (the engine example capture_golden writes it); the fixture case is not defined in this run.');
-  }
+    // Layout of the stream: 93 packets of 512 frames, one of 384, from engine frame 48000, the last one flagged.
+    expect(file.length).toBe(194256);
+    expect(raw.map((r) => r.byteLength)).toEqual([...Array<number>(93).fill(2072), 1560]);
+    expect(packets[0]!.firstFrame).toBe(GOLDEN_ORIGIN_FRAME);
+    expect(packets.map((p) => (p.flags & PACKET_FLAGS.last) !== 0)).toEqual(packets.map((_, i) => i === packets.length - 1));
+    // The samples are the ones the documented seed generates, bit for bit (including the all-zero packet).
+    const out = new Float32Array(packets.reduce((a, p) => a + p.nFrames, 0));
+    packets.reduce((at, p) => (out.set(p.samples, at), at + p.nFrames), 0);
+    const input = goldenInput();
+    expect(out.length).toBe(input.length);
+    expect(bitsOf(out)).toEqual(bitsOf(input));
+    expect(packets[8]!.flags & PACKET_FLAGS.inputZero).toBe(PACKET_FLAGS.inputZero);
+    const faults: CaptureFault[] = [];
+    const blocks: CaptureBlock[] = [];
+    const feed = new NativeCaptureFeed({ engineRate: 48000, sink: (m) => void (m.type === 'block' && blocks.push(m.block)), now: () => 0, backlogVoidMs: 120, onFault: (f) => faults.push(f) });
+    for (const r of raw) feed.push(r.slice(0));
+    expect(faults).toEqual([]);
+    const frames = packets.reduce((a, p) => a + p.nFrames, 0);
+    expect(blocks).toHaveLength(Math.floor(frames / 256));
+  });
 });

@@ -3,7 +3,7 @@ import type { CaptureBlock, WorkerMessage } from '../../../core/platform.ts';
 import { CaptureCore, type CorePort } from '../../shared/audio/capture-processor.ts';
 import type { FromWorklet, ToWorklet } from '../../shared/audio/protocol.ts';
 import { NativeCaptureFeed, type CaptureFault } from './capture-feed.ts';
-import { encodeCapturePacket } from './wire.ts';
+import { encodeCapturePacket, PACKET_FLAGS, PACKET_HEADER_BYTES } from './wire.ts';
 
 /** A reproducible pseudo-random signal in [-1, 1), float32. */
 function noise(n: number, seed: number): Float32Array {
@@ -252,6 +252,25 @@ describe('gaps (design section 8, test 3)', () => {
     feed.push(encodeCapturePacket({ seq: 0, firstFrame: 0 }, sig.subarray(0, 1024)));
     feed.push(encodeCapturePacket({ seq: 1, firstFrame: 512 }, sig.subarray(512, 2048)));
     expectBlocksEqual(webBlocks(sig, rate, 0), blocks);
+  });
+
+  it('a last packet of zero frames (24 bytes, header only) makes no block and no fault, and the stream before it is unchanged', () => {
+    const signal = noise(256 * 6 + 100, 21);
+    const base = nativeRun(signal, 48000, 5000, [512]);
+    const blocks: CaptureBlock[] = [];
+    const faults: CaptureFault[] = [];
+    const feed = new NativeCaptureFeed({ engineRate: 48000, sink: (m) => void (m.type === 'block' && blocks.push(m.block)), now: () => 0, backlogVoidMs: 120, onFault: (f) => faults.push(f) });
+    let seq = 0;
+    for (let at = 0; at < signal.length; at += 512) {
+      const part = signal.subarray(at, Math.min(signal.length, at + 512));
+      feed.push(encodeCapturePacket({ seq: seq++, firstFrame: 5000 + at }, part));
+    }
+    const last = encodeCapturePacket({ flags: PACKET_FLAGS.last, seq: seq++, firstFrame: 5000 + signal.length }, new Float32Array(0));
+    expect(last.byteLength).toBe(PACKET_HEADER_BYTES);
+    feed.push(last);
+    expect(faults).toEqual([]);
+    expect(blocks).toHaveLength(base.blocks.length);
+    expect(feed.malformedPackets).toBe(0);
   });
 
   it('packets after stop are ignored', () => {

@@ -6,9 +6,14 @@
  * (`captureRelay` is true) and faults, route changes and interruptions reach the same callbacks.
  *
  * Differences from the web backend, all deliberate:
- * - `unlock` needs no gesture. It opens the engine once (`audio_open`) and reuses it; a later `unlock` reopens it only
- *   when the input is wanted and was not opened (`setInputEnabled`, `releaseInput`). Reopening restarts engine time
- *   at 0 and drops every buffer and voice in the engine, as recreating an `AudioContext` does on the web.
+ * - `unlock` needs no gesture. It opens the engine once (`audio_open`) and reuses it; a later `unlock` that finds the
+ *   input wanted but closed (`setInputEnabled`, `releaseInput`) switches it on with `audio_set_input`: the output keeps
+ *   running, engine time continues and no buffer or voice is lost. Only `close` followed by `unlock` opens a new
+ *   engine session, which restarts engine time at 0 and drops every buffer and voice, as recreating an `AudioContext`
+ *   does on the web.
+ * - Commands that change what the engine's capture reader is doing (`audio_capture_start`, `audio_capture_stop`,
+ *   `audio_release_input`, `audio_set_input`) run one after another: the engine refuses an input switch while a
+ *   capture runs and a capture start while one is still stopping.
  * - The clock is the engine's: `now()` follows the engine's anchors (`EngineClock`), `audibleNow()` subtracts the
  *   reported output latency.
  * - The clock-rate check is the engine's own (`audio_clock_check`); it never recreates anything.
@@ -40,7 +45,11 @@ import { NativeCaptureFeed, type CaptureFault, type CaptureStats } from './captu
 import { EngineClock, syncHostClock, type PerfNow } from './engine-clock.ts';
 import type { AudioEvent, LatencyReport, LoopbackEstimate, NativeIpc, OpenInfo } from './ipc.ts';
 import { nativeAudioRoute } from './route.ts';
+import { PACKET_HEADER_BYTES } from './wire.ts';
 import { NativeVoiceContext, NativeVoiceHost, type NativeGain, type VoiceHostStats } from './voice-context.ts';
+
+/** The most packet delays kept (about 3 hours at 512 frames per packet). */
+const MAX_PACKET_DELAYS = 1_000_000;
 
 export type InterruptionReason = 'interrupted' | 'hidden' | 'track-ended' | 'device-change';
 
@@ -138,6 +147,10 @@ export class NativeAudioBackend implements AudioBackend {
   private xruns = 0;
 
   private cap: CaptureState | null = null;
+  /** Delivery delay of every capture packet since `resetPacketDelays`, ms (diagnostics; capped). */
+  private packetDelays: number[] = [];
+  /** Tail of the serialised capture and input commands (see `serial`). */
+  private ops: Promise<unknown> = Promise.resolve();
   private lastStats: CaptureStats = { postedBlocks: 0, droppedBlocks: 0, maxQueueMs: 0, relay: true };
 
   private readonly routeCbs = new Set<(r: AudioRouteInfo) => void>();
@@ -170,20 +183,23 @@ export class NativeAudioBackend implements AudioBackend {
   unlock(): Promise<AudioRouteInfo> {
     if (this.unlocking) return this.unlocking;
     if (this.opened && (this.inputOpen || !this.inputEnabled)) return Promise.resolve(this.currentRoute());
-    const p = this.openEngine().finally(() => {
+    const p = (this.opened ? this.enableInput() : this.openEngine()).finally(() => {
       this.unlocking = null;
     });
     this.unlocking = p;
     return p;
   }
 
+  /** `audio_permission({ request: true })`; a denial rejects with `NotAllowedError` (the session reads `mic-denied`). */
+  private async requireMicPermission(): Promise<void> {
+    const perm = await this.ipc.permission({ request: true }).catch(() => 'unknown' as const);
+    if (perm === 'denied') throw Object.assign(new Error('microphone permission denied'), { name: 'NotAllowedError' });
+  }
+
   private async openEngine(): Promise<AudioRouteInfo> {
     this.closing = false;
     const wantInput = this.inputEnabled;
-    if (wantInput) {
-      const perm = await this.ipc.permission({ request: true }).catch(() => 'unknown' as const);
-      if (perm === 'denied') throw Object.assign(new Error('microphone permission denied'), { name: 'NotAllowedError' });
-    }
+    if (wantInput) await this.requireMicPermission();
     if (this.cap) this.stopCapture();
     // The engine drops its buffers and voices when it is reopened; so does every handle here.
     const session = ++this.session;
@@ -204,6 +220,34 @@ export class NativeAudioBackend implements AudioBackend {
     this.inputOpen = wantInput;
     this.capabilities.outputLatencyReported = info.latency.trust !== 'C';
     return this.currentRoute();
+  }
+
+  /** The engine is open without its input: `audio_set_input` opens it. Voices, buffers and engine time are untouched. */
+  private async enableInput(): Promise<AudioRouteInfo> {
+    await this.requireMicPermission();
+    const session = this.session;
+    const info = await this.serial(() => this.ipc.setInput({ enabled: true }));
+    if (session !== this.session || !this.opened) throw new Error('NativeAudioBackend: closed while opening the input');
+    this.takeInfo(info);
+    this.inputOpen = true;
+    return this.currentRoute();
+  }
+
+  /** Adopts the engine's reply to `audio_set_input`: route, buffer sizes and latency of the stream set, and a fresh clock anchor. */
+  private takeInfo(info: OpenInfo): void {
+    this.info = info;
+    this.clock.setAnchor(info.clock);
+    this.capabilities.outputLatencyReported = info.latency.trust !== 'C';
+  }
+
+  /**
+   * Runs `fn` after every earlier serialised command has settled (whether it succeeded or not). A rejection reaches
+   * only this call's caller.
+   */
+  private serial<T>(fn: () => Promise<T>): Promise<T> {
+    const p = this.ops.then(fn, fn);
+    this.ops = p.catch(() => undefined);
+    return p;
   }
 
   /** Fresh schedulers (and click buffers at the engine's rate) for each engine session, as the web builds them per graph. */
@@ -248,19 +292,25 @@ export class NativeAudioBackend implements AudioBackend {
 
   /**
    * Stops capture and releases the microphone, keeping the output (core/platform `releaseInput`). The next `unlock`
-   * opens the input again.
+   * opens the input again (`audio_set_input`, no new engine session).
    */
   releaseInput(): void {
     if (this.cap) this.stopCapture();
     this.inputOpen = false;
-    void this.ipc.releaseInput().catch(() => undefined);
+    void this.serial(() => this.ipc.releaseInput()).catch(() => undefined);
   }
 
-  /** Stops capture and opens the engine again with the input (test clock and diagnostics; restarts engine time). */
+  /**
+   * Stops capture and opens the input stream afresh (test clock and diagnostics). Engine time continues; with the
+   * input already open it is closed and opened again, so a device that restarts its source does so.
+   */
   async reopenInput(): Promise<AudioRouteInfo> {
     if (this.cap) this.stopCapture();
-    this.inputOpen = false;
     this.inputEnabled = true;
+    if (this.opened && this.inputOpen) {
+      this.inputOpen = false;
+      await this.serial(() => this.ipc.releaseInput());
+    }
     return this.unlock();
   }
 
@@ -492,7 +542,7 @@ export class NativeAudioBackend implements AudioBackend {
     const cap: CaptureState = { feed, originFrame: null };
     this.cap = cap;
     try {
-      const r = await this.ipc.captureStart({ packetFrames: this.opts.packetFrames ?? DEFAULT_PACKET_FRAMES, onPacket: (b) => feed.push(b) });
+      const r = await this.serial(() => this.ipc.captureStart({ packetFrames: this.opts.packetFrames ?? DEFAULT_PACKET_FRAMES, onPacket: (b) => this.onPacket(feed, b) }));
       cap.originFrame = r.originFrame;
     } catch (e) {
       if (this.cap === cap) this.cap = null;
@@ -501,14 +551,36 @@ export class NativeAudioBackend implements AudioBackend {
     }
   }
 
+  private onPacket(feed: NativeCaptureFeed, buf: ArrayBuffer): void {
+    if (this.packetDelays.length < MAX_PACKET_DELAYS && buf.byteLength >= PACKET_HEADER_BYTES && this.info) {
+      const v = new DataView(buf);
+      const endSec = (v.getFloat64(8, true) + v.getUint32(16, true)) / this.info.engineRate;
+      this.packetDelays.push((this.clock.now() - endSec) * 1000);
+    }
+    feed.push(buf);
+  }
+
+  /**
+   * Delivery delay of each capture packet since the last reset: the engine clock at its arrival here minus the engine
+   * time of its last frame, ms (diagnostics: the engine's input buffer, its poll period, the channel and the main
+   * thread, plus the clock's own error of about 1 ms).
+   */
+  packetDelaysMs(): readonly number[] {
+    return this.packetDelays;
+  }
+
+  resetPacketDelays(): void {
+    this.packetDelays = [];
+  }
+
   stopCapture(): void {
     const cap = this.cap;
     if (!cap) return;
     this.cap = null;
     this.lastStats = cap.feed.stop();
     const stats = this.lastStats;
-    void this.ipc
-      .captureStop()
+    // After a capture start still in flight and before the next start or input switch: the engine refuses them while a capture runs.
+    void this.serial(() => this.ipc.captureStop())
       .then((r) => {
         // Frames the engine dropped before they reached the feed count as dropped blocks too.
         if (this.lastStats === stats) this.lastStats = { ...stats, droppedBlocks: Math.max(stats.droppedBlocks, Math.ceil(r.droppedFrames / 256)) };

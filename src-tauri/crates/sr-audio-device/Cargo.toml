@@ -15,3 +15,18 @@ fake = ["sr-audio-core/sim"]
 sr-audio-core = { path = "../sr-audio-core" }
 # Exact pin: stream timing, buffer-size handling and the error callback behaviour are part of what we rely on.
 cpal = "=0.18.2"
+
+# Platform bindings. Exact pins, at the versions cpal 0.18.2 already brings in (no second copy to build or link).
+# All are pure Rust declarations, so `cargo check --target <apple or windows target>` type-checks the gated code
+# from any host.
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "=0.6.5"
+block2 = "=0.6.2"
+mach2 = "=0.6.0"
+objc2-core-audio = { version = "=0.3.2", default-features = false, features = ["std", "AudioHardware"] }
+objc2-core-foundation = { version = "=0.3.2", default-features = false, features = ["std", "CFBase", "CFString"] }
+objc2-foundation = { version = "=0.3.2", default-features = false, features = ["std", "NSString"] }
+objc2-av-foundation = { version = "=0.3.2", default-features = false, features = ["std", "block2", "AVCaptureDevice", "AVMediaFormat"] }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+windows = { version = "=0.62.2", features = ["Win32_Foundation", "Win32_Media_Audio", "Win32_System_Com"] }

@@ -332,6 +332,17 @@ impl SimDuplex {
         self.in_timer.pending = None;
     }
 
+    /// The interleaved buffer the last output callback rendered (`out_frames * out_channels` samples; silence
+    /// before the first output callback). For a device wrapper that plays or inspects what was rendered.
+    pub fn last_output(&self) -> &[f32] {
+        &self.out_buf
+    }
+
+    /// [`CaptureHalf::capture_origin_input_frame`] of the capture half inside.
+    pub fn capture_origin_input_frame(&self) -> Option<u64> {
+        self.capture.capture_origin_input_frame()
+    }
+
     /// The engine (render half).
     pub fn engine(&self) -> &Engine {
         &self.engine

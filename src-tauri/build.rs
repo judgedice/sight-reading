@@ -18,6 +18,8 @@ const COMMANDS: &[&str] = &[
     "audio_capture_start",
     "audio_capture_stop",
     "audio_measure_loopback",
+    "audio_debug_hooks",
+    "audio_debug_signal",
 ];
 
 fn main() {

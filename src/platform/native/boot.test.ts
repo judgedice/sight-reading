@@ -62,6 +62,17 @@ describe('bootNative', () => {
     expect(boot.capabilities.outputLatencyReported).toBe(true);
   });
 
+  it('debug hooks: off by default and when the command fails; on with the seed when the engine says so', async () => {
+    const off = new FakeNativeIpc();
+    expect(await bootNative({ base, configs: appConfigs(), outputMode: 'speakers', ipc: off }).debugHooks()).toEqual({ enabled: false, seed: null });
+    const on = new FakeNativeIpc();
+    on.debug = { enabled: true, seed: 9 };
+    expect(await bootNative({ base, configs: appConfigs(), outputMode: 'speakers', ipc: on }).debugHooks()).toEqual({ enabled: true, seed: 9 });
+    const broken = new FakeNativeIpc();
+    broken.failNext('debugHooks', 'unknown command');
+    expect(await bootNative({ base, configs: appConfigs(), outputMode: 'speakers', ipc: broken }).debugHooks()).toEqual({ enabled: false, seed: null });
+  });
+
   it('hands the session a capture channel whose port1 reaches port2', async () => {
     const boot = bootNative({ base, configs: appConfigs(), outputMode: 'speakers', ipc: new FakeNativeIpc() });
     const ch = boot.createCaptureChannel();

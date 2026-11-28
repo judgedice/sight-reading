@@ -23,6 +23,8 @@
     "allow-audio-cancel",
     "allow-audio-capture-start",
     "allow-audio-capture-stop",
-    "allow-audio-measure-loopback"
+    "allow-audio-measure-loopback",
+    "allow-audio-debug-hooks",
+    "allow-audio-debug-signal"
   ]
 }

@@ -25,7 +25,7 @@ use sr_audio_core::capture::ClockRelation;
 use sr_audio_core::{CaptureHalf, Engine};
 
 use crate::{
-    current_platform, host_clock, latency_linux, DeviceError, DeviceEvent, DeviceIo, EngineFactory, InterruptionReason, OpenConfig, OpenInfo, RouteFacts,
+    current_platform, host_clock, stamps, DeviceError, DeviceEvent, DeviceIo, EngineFactory, InterruptionReason, OpenConfig, OpenInfo, RouteFacts,
     StreamKind,
 };
 
@@ -212,6 +212,9 @@ impl DeviceIo for CpalIo {
             return Err(DeviceError::AlreadyOpen);
         }
         host_clock::init();
+        stamps::init();
+        stamps::OUTPUT.reset();
+        stamps::INPUT.reset();
         let (ready_tx, ready_rx) = mpsc::channel::<Result<OpenInfo, DeviceError>>();
         let (cmd_tx, cmd_rx) = mpsc::channel::<Cmd>();
         let join = std::thread::Builder::new()
@@ -229,6 +232,8 @@ impl DeviceIo for CpalIo {
                         }
                     }
                     // The streams drop here, on the thread that made them.
+                    drop(streams);
+                    stamps::log_summary();
                 }
                 Err(e) => {
                     let _ = ready_tx.send(Err(e));
@@ -532,32 +537,83 @@ impl Streams {
         Ok(())
     }
 
-    /// The facts of the open route.
+    /// The facts of the open route. Latency parts, transports and the clock relation come from the platform's
+    /// own module where there is one (CoreAudio properties, WASAPI); a value the platform does not give keeps
+    /// what cpal says, and a latency part without a source stays null.
     fn info(&self) -> OpenInfo {
-        let mut parts = latency_linux::output_parts(self.out_frames, self.engine_rate, self.delay, self.direct_hardware);
-        if let Some(i) = &self.input {
-            parts = latency_linux::with_input(parts, i.frames, i.rate);
-        }
+        let stream_in = self.input.as_ref().map(|i| (i.frames, i.rate));
+        let in_uid = self.input.as_ref().map(|i| i.uid.as_str());
+        let described = describe_route(&self.out_uid, in_uid, self.out_frames, self.engine_rate, stream_in, self.delay, self.direct_hardware);
+        let known = |t: Option<Transport>, fallback: Transport| t.filter(|t| *t != Transport::Unknown).unwrap_or(fallback);
         let facts = RouteFacts {
             output_uid: self.out_uid.clone(),
             input_uid: self.input.as_ref().map(|i| i.uid.clone()),
-            output_transport: self.out_transport,
-            input_transport: self.input.as_ref().map(|i| i.transport),
+            output_transport: known(described.out_transport, self.out_transport),
+            input_transport: self.input.as_ref().map(|i| known(described.in_transport, i.transport)),
             platform: current_platform(),
             direct_hardware: self.direct_hardware,
             low_latency_feature: false,
         };
-        let latency = LatencyReport::new(parts, &facts.trust_facts());
+        let latency = LatencyReport::new(described.parts, &facts.trust_facts());
+        let by_uid = self.input.as_ref().map_or(ClockRelation::Unknown, |i| relation_of(&self.out_uid, &i.uid));
         OpenInfo {
             engine_rate: self.engine_rate,
             out_frames: self.out_frames,
             in_frames: self.input.as_ref().map(|i| i.frames),
             input_rate: self.input.as_ref().map(|i| i.rate),
-            clock_relation: self.input.as_ref().map_or(ClockRelation::Unknown, |i| relation_of(&self.out_uid, &i.uid)),
+            clock_relation: if self.input.is_none() { ClockRelation::Unknown } else { merge_relation(described.relation, by_uid) },
             route: facts,
             latency,
             session_type: None,
         }
+    }
+}
+
+/// What the platform's own module says about a route.
+struct Described {
+    parts: LatencyParts,
+    relation: ClockRelation,
+    out_transport: Option<Transport>,
+    in_transport: Option<Transport>,
+}
+
+/// `Shared` when either source knows it; nothing here ever claims `Separate`.
+pub fn merge_relation(platform: ClockRelation, by_uid: ClockRelation) -> ClockRelation {
+    if platform == ClockRelation::Shared || by_uid == ClockRelation::Shared {
+        ClockRelation::Shared
+    } else {
+        ClockRelation::Unknown
+    }
+}
+
+#[allow(unused_variables)]
+fn describe_route(out_uid: &str, in_uid: Option<&str>, out_frames: u32, engine_rate: u32, stream_in: Option<(u32, u32)>, delay: Option<Duration>, direct_hardware: bool) -> Described {
+    #[cfg(target_os = "macos")]
+    {
+        use crate::latency_macos as mac;
+        let out = mac::query(out_uid, false);
+        let input = in_uid.and_then(|uid| mac::query(uid, true));
+        Described {
+            parts: mac::parts(out.as_ref(), input.as_ref(), out_frames, engine_rate, stream_in),
+            relation: mac::relation(out.as_ref(), input.as_ref()),
+            out_transport: out.as_ref().map(|o| o.transport()),
+            in_transport: input.as_ref().map(|i| i.transport()),
+        }
+    }
+    #[cfg(target_os = "windows")]
+    {
+        use crate::latency_windows as win;
+        let out = win::query(out_uid, false);
+        let input = in_uid.and_then(|uid| win::query(uid, true));
+        Described { parts: win::parts(out.as_ref(), input.as_ref()), relation: win::relation(out.as_ref(), input.as_ref()), out_transport: None, in_transport: None }
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        let mut parts = crate::latency_linux::output_parts(out_frames, engine_rate, delay, direct_hardware);
+        if let Some((frames, rate)) = stream_in {
+            parts = crate::latency_linux::with_input(parts, frames, rate);
+        }
+        Described { parts, relation: ClockRelation::Unknown, out_transport: None, in_transport: None }
     }
 }
 
@@ -583,7 +639,7 @@ fn build_output(
             device.build_output_stream::<f32, _, _>(
                 config,
                 move |data, info| {
-                    let host_ns = host_clock::now_ns();
+                    let host_ns = stamps::output(host_clock::now_ns(), info.timestamp().callback.as_nanos());
                     note_output(info, &first_frames, &delay_ns, data.len() / channels.max(1));
                     match engine.value.as_mut() {
                         Some(e) => e.render(host_ns, data, channels),
@@ -634,7 +690,7 @@ where
     device.build_output_stream::<T, _, _>(
         config,
         move |data, info| {
-            let host_ns = host_clock::now_ns();
+            let host_ns = stamps::output(host_clock::now_ns(), info.timestamp().callback.as_nanos());
             note_output(info, &first_frames, &delay_ns, data.len() / channels);
             let Some(e) = engine.value.as_mut() else {
                 data.fill(T::EQUILIBRIUM);
@@ -682,8 +738,8 @@ fn build_input(
             let mut half = half;
             device.build_input_stream::<f32, _, _>(
                 config,
-                move |data, _| {
-                    let host_ns = host_clock::now_ns();
+                move |data, info| {
+                    let host_ns = stamps::input(host_clock::now_ns(), info.timestamp().callback.as_nanos(), data.len() / channels.max(1), rate);
                     if first_frames.load(Ordering::Relaxed) == 0 {
                         first_frames.store((data.len() / channels.max(1)) as u32, Ordering::Relaxed);
                     }
@@ -721,8 +777,8 @@ where
     let mut scratch = vec![0f32; SCRATCH_SAMPLES - SCRATCH_SAMPLES % channels];
     device.build_input_stream::<T, _, _>(
         config,
-        move |data, _| {
-            let host_ns = host_clock::now_ns();
+        move |data, info| {
+            let host_ns = stamps::input(host_clock::now_ns(), info.timestamp().callback.as_nanos(), data.len() / channels, rate);
             if first_frames.load(Ordering::Relaxed) == 0 {
                 first_frames.store((data.len() / channels) as u32, Ordering::Relaxed);
             }

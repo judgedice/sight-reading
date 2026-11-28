@@ -22,6 +22,12 @@
 //! samples of the file are not in the capture). It plays once and is followed by silence; it is added to the
 //! looped-back output. An exact end-to-end test should therefore find a marker in the packets rather than assume
 //! an offset, or start the file with that much silence.
+//!
+//! For an end-to-end test that must place a signal on a take's timeline, [`SignalControl`] (the
+//! `signal_control` field of the configuration) replaces the signal while the device runs and says at which
+//! **engine second** sample 0 lands: input frame `m`, sampled at true time `t` seconds (which is engine time, the
+//! simulated output clock having no error), carries `data[round((t - start) * input_rate)]`. The signal is added to
+//! the looped-back output like the file's.
 
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -67,6 +73,8 @@ pub struct FakeConfig {
     pub in_ppm: f64,
     /// Duplex only: mono samples at `input_rate`, see the module text for sample 0 (`SR_FAKE_INPUT_F32`).
     pub input_signal: Option<Arc<[f32]>>,
+    /// Duplex only: replaces the signal while running and places it by engine time (test hook, see the module text).
+    pub signal_control: SignalControl,
 }
 
 impl Default for FakeConfig {
@@ -84,6 +92,7 @@ impl Default for FakeConfig {
             loop_gain: 0.5,
             in_ppm: 0.0,
             input_signal: None,
+            signal_control: SignalControl::default(),
         }
     }
 }
@@ -117,6 +126,56 @@ impl FakeConfig {
             c.input_signal = Some(bytes.chunks_exact(4).map(|b| f32::from_le_bytes([b[0], b[1], b[2], b[3]])).collect());
         }
         Ok(c)
+    }
+}
+
+/// A signal that can be replaced while the device runs, and the engine second at which its sample 0 lands.
+/// Clones share one slot; two controls are equal when they are the same slot.
+#[derive(Debug, Clone, Default)]
+pub struct SignalControl {
+    inner: Arc<ControlInner>,
+}
+
+#[derive(Debug, Default)]
+struct ControlInner {
+    active: AtomicBool,
+    slot: Mutex<Option<ControlSlot>>,
+}
+
+#[derive(Debug)]
+struct ControlSlot {
+    data: Arc<[f32]>,
+    start_sec: f64,
+}
+
+impl PartialEq for SignalControl {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.inner, &other.inner)
+    }
+}
+
+impl SignalControl {
+    /// From now on the input carries `data` (mono, at the input rate) with sample 0 at `start_engine_sec`.
+    pub fn set(&self, data: Arc<[f32]>, start_engine_sec: f64) {
+        *self.inner.slot.lock().unwrap_or_else(|p| p.into_inner()) = Some(ControlSlot { data, start_sec: start_engine_sec });
+        self.inner.active.store(true, Ordering::Release);
+    }
+
+    /// Back to the signal of the file (or none).
+    pub fn clear(&self) {
+        self.inner.active.store(false, Ordering::Release);
+        *self.inner.slot.lock().unwrap_or_else(|p| p.into_inner()) = None;
+    }
+
+    /// The value at input time `t` seconds: `None` while no signal is set (or the setter holds the slot, one sample).
+    fn at(&self, t: f64, input_rate: f64) -> Option<f32> {
+        if !self.inner.active.load(Ordering::Acquire) {
+            return None;
+        }
+        let g = self.inner.slot.try_lock().ok()?;
+        let slot = g.as_ref()?;
+        let idx = ((t - slot.start_sec) * input_rate).round();
+        Some(if idx < 0.0 { 0.0 } else { slot.data.get(idx as usize).copied().unwrap_or(0.0) })
     }
 }
 
@@ -334,6 +393,8 @@ fn run(cfg: FakeConfig, mut engine: Engine, recorder: Option<Recorder>, stop: Ar
 }
 
 fn run_duplex(cfg: FakeConfig, engine: Engine, signal: Option<Arc<SignalState>>, stop: Arc<AtomicBool>) {
+    let control = cfg.signal_control.clone();
+    let input_rate = cfg.input_rate as f64;
     let frames = cfg.buffer_frames as usize;
     let sim_config = SimConfig {
         engine_rate: cfg.rate,
@@ -350,19 +411,21 @@ fn run_duplex(cfg: FakeConfig, engine: Engine, signal: Option<Arc<SignalState>>,
     };
     let start = Instant::now();
     let mut sim = SimDuplex::new(sim_config, engine);
-    if let Some(sig) = signal {
-        sim.set_input_signal(move |m, _t| {
-            let mut from = sig.from.load(Ordering::Relaxed);
-            if from == u64::MAX {
-                if !sig.armed.load(Ordering::Relaxed) {
-                    return 0.0;
-                }
-                sig.from.store(m, Ordering::Relaxed);
-                from = m;
+    sim.set_input_signal(move |m, t| {
+        if let Some(v) = control.at(t, input_rate) {
+            return v;
+        }
+        let Some(sig) = signal.as_ref() else { return 0.0 };
+        let mut from = sig.from.load(Ordering::Relaxed);
+        if from == u64::MAX {
+            if !sig.armed.load(Ordering::Relaxed) {
+                return 0.0;
             }
-            sig.data.get((m - from) as usize).copied().unwrap_or(0.0)
-        });
-    }
+            sig.from.store(m, Ordering::Relaxed);
+            from = m;
+        }
+        sig.data.get((m - from) as usize).copied().unwrap_or(0.0)
+    });
     while !stop.load(Ordering::Relaxed) {
         let t = sim.next_time_sec();
         sleep_until(start + Duration::from_secs_f64(t));

@@ -261,6 +261,10 @@ export interface VoiceHostStats {
   late: number;
   /** Voices the engine refused. */
   rejected: number;
+  /** Voices sent to the engine (`audio_schedule` voices). */
+  voices: number;
+  /** Voices the engine reported ended (ran out, stopped or cancelled). */
+  ended: number;
   /** Buffers registered with `audio_put_buffer`. */
   uploads: number;
   /** `audio_schedule` calls. */
@@ -270,7 +274,7 @@ export interface VoiceHostStats {
 /** Everything the contexts of one backend share: ids, buffers, the engine generation, live voices. */
 export class NativeVoiceHost {
   readonly ipc: NativeIpc;
-  readonly stats: VoiceHostStats = { late: 0, rejected: 0, uploads: 0, scheduleCalls: 0 };
+  readonly stats: VoiceHostStats = { late: 0, rejected: 0, voices: 0, ended: 0, uploads: 0, scheduleCalls: 0 };
   /** Bumped when the engine is opened or closed: buffers and voices of an older generation are gone. */
   generation = 0;
   engineRate = 48000;
@@ -383,6 +387,7 @@ export class NativeVoiceHost {
       this.live.delete(id);
       this.sounding.delete(id);
       if (!s || s.state === 'ended') continue;
+      this.stats.ended++;
       this.finish(s, true);
     }
   }
@@ -572,6 +577,7 @@ export class NativeVoiceContext {
         this.host.markSent(s, spans[k]!);
       });
       this.host.stats.scheduleCalls++;
+      this.host.stats.voices += specs.length;
       const r = await this.host.ipc.schedule({ group: this.group, voices: specs });
       if (r.late.length > 0) this.host.voicesLate(r.late);
     } catch (e) {

@@ -423,3 +423,66 @@ fn whole_engine_click_arrivals() {
         assert!(worst * 1e3 < limit_ms);
     }
 }
+
+#[test]
+fn loopback_retries_once_after_a_clock_step() {
+    use crate::loopback::LoopbackError;
+    // An input xrun 0.7 s into the measurement breaks the first attempt; with `second_step` another one
+    // breaks the retry too.
+    for second_step in [false, true] {
+        let mut rig = Rig::new(SimConfig { delay_sec: 0.0234, loop_gain: 0.5, seed: 51, ..SimConfig::ideal(48_000) });
+        rig.run_until(1.5);
+        let mut driver = LoopbackDriver::start(&mut rig.handle, &mut rig.reader, LoopbackConfig::default()).unwrap();
+        let began = rig.sim.time_sec();
+        let mut steps_made = 0;
+        let status = loop {
+            rig.sim.run_for(0.01);
+            rig.handle.poll(&mut rig.notes);
+            let t = rig.sim.time_sec() - began;
+            if (steps_made == 0 && t > 0.7) || (steps_made == 1 && second_step && driver.attempts() == 2 && driver.path().is_some()) {
+                rig.sim.lose_input(0.01);
+                steps_made += 1;
+            }
+            match driver.poll(&mut rig.handle, &mut rig.reader) {
+                LoopbackStatus::Running => assert!(t < 12.0, "the run ends"),
+                done => break done,
+            }
+        };
+        let took = rig.sim.time_sec() - began;
+        assert!(rig.handle.buffers().is_empty(), "the click buffer is dropped either way");
+        if second_step {
+            println!("loopback with two clock steps: {status:?} after {took:.2} s");
+            assert_eq!(status, LoopbackStatus::Failed(LoopbackError::Interrupted));
+            assert_eq!(driver.attempts(), 2);
+        } else {
+            let LoopbackStatus::Done(e) = status else { panic!("{status:?}") };
+            println!("loopback with one clock step: retried, {} of {} found, round trip {:.4} ms (true 23.4), {took:.2} s in all", e.found, e.scheduled, e.round_trip_ms.unwrap());
+            assert_eq!((driver.attempts(), e.found, e.scheduled), (2, 8, 8));
+            assert!((e.round_trip_ms.unwrap() - 23.4).abs() < 0.1);
+            // The clicks of the broken attempt were stopped: only the retry's eight ended on their own or
+            // were cut, and none plays after the run.
+            rig.run_until(rig.sim.time_sec() + 0.3);
+            assert!(!rig.reader.is_running());
+        }
+    }
+}
+
+#[test]
+fn accessors_for_a_device_wrapper() {
+    let mut rig = Rig::new(SimConfig { out_frames: 256, ..SimConfig::ideal(48_000) });
+    assert_eq!(rig.sim.last_output().len(), 512);
+    assert_eq!(rig.sim.capture_origin_input_frame(), None);
+    rig.handle.put_buffer(1, AudioBuffer::new(vec![0.25f32; 48_000], 48_000));
+    rig.handle.schedule(Group::Sounds, &[VoiceSpec::new(1, 1, 0.0)]).unwrap();
+    rig.capture(1.5, 1.7, CaptureConfig::default());
+    // The capture began with the first frame of an input callback, and the grid origin is that frame's place.
+    let origin_input = rig.sim.capture_origin_input_frame().expect("a capture ran");
+    assert_eq!(origin_input % 128, 0);
+    assert_eq!(rig.started().0, origin_input, "same clock, both streams from time 0: offset 0");
+    assert_eq!(rig.sim.capture().capture_origin_input_frame(), Some(origin_input));
+    let mut rig2 = Rig::new(SimConfig { out_frames: 256, ..SimConfig::ideal(48_000) });
+    rig2.handle.put_buffer(1, AudioBuffer::new(vec![0.25f32; 48_000], 48_000));
+    rig2.handle.schedule(Group::Sounds, &[VoiceSpec::new(1, 1, 0.0)]).unwrap();
+    rig2.run_until(0.5);
+    assert!(rig2.sim.last_output().iter().all(|x| *x == 0.25), "the last rendered buffer, interleaved");
+}

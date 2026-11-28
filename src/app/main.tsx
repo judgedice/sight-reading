@@ -13,6 +13,10 @@
  * Inside the Tauri shell (`__TAURI_INTERNALS__` on the window) the native backend replaces the web one: `platform/native/
  * boot.ts` is imported on demand (its own chunk, never loaded in a browser) and supplies the backend, the capabilities,
  * the configs with the native calibration floor (PLAN R86) and the capture channel. `?testClock=1` is a web-only hook.
+ * The native end-to-end test (tools/native/e2e-linux.mjs) starts the app on the fake device with `SR_E2E_HOOKS=1`;
+ * the engine then says so (`audio_debug_hooks`) and `window.__sr` is exposed as with the web test clock, and
+ * `SR_E2E_SEED` seeds the excerpt choice. `?seed=N` seeds it in the web test clock the same way. Without those
+ * variables (every release build) none of this exists.
  */
 import { StrictMode, useSyncExternalStore } from 'react';
 import type { Root } from 'react-dom/client';
@@ -116,6 +120,9 @@ export async function boot(root: Root): Promise<void> {
     const browserCaps = readBrowserCapabilities(persistedNow);
     const nat = native ? (await import('../platform/native/boot.ts')).bootNative({ base: browserCaps, configs, outputMode: savedSettings.practice.outputMode }) : null;
     if (nat) configs = nat.configs;
+    const hooks = nat ? await nat.debugHooks() : null;
+    const webSeed = testClock ? hashQuery('seed') : null;
+    const seed = hooks?.enabled ? hooks.seed : webSeed !== null && Number.isFinite(Number(webSeed)) ? Number(webSeed) : null;
     const capabilities = nat?.capabilities ?? browserCaps;
     const t0After = Number(hashQuery('testClockSec') ?? 2);
     const backendOpts = {
@@ -198,6 +205,7 @@ export async function boot(root: Root): Promise<void> {
       },
       localDayOf: (iso) => localDayOf(new Date(iso)),
       rng: createRng(crypto.getRandomValues(new Uint32Array(1))[0] ?? 1),
+      ...(seed !== null ? { sessionRng: createRng(seed) } : {}),
       timers,
       idle,
       micBrowser: pickMicBrowser(capabilities, /firefox/i.test(navigator.userAgent) ? 'firefox' : undefined),
@@ -256,7 +264,7 @@ export async function boot(root: Root): Promise<void> {
     const start = composed.initialPath(pathFromHash(window.location.hash));
     if (start !== null) window.history.replaceState(window.history.state, '', hashFromPath(start));
 
-    if (testClock) (window as unknown as { __sr: unknown }).__sr = { session: composed.session, configs, audio };
+    if (testClock || hooks?.enabled) (window as unknown as { __sr: unknown }).__sr = { session: composed.session, configs, audio, repos };
 
     // Offline shell and corpus cache (P19). Production builds only: dev has no worker. A new build waits and takes
     // over on the next launch (all tabs closed); there is no in-app update prompt in v1, so a take is never reloaded.

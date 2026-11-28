@@ -153,6 +153,14 @@ impl LoopbackEstimator {
         }
     }
 
+    /// Forgets the registered clicks and the capture (for a fresh attempt with the same click).
+    pub fn clear(&mut self) {
+        self.clicks.clear();
+        self.capture.clear();
+        self.origin = None;
+        self.filter = HighPass::new(HIGH_PASS_HZ, self.rate);
+    }
+
     /// The first engine frame not yet captured (`None` before the first push).
     pub fn captured_until(&self) -> Option<u64> {
         self.origin.map(|o| o + self.capture.len() as u64)
@@ -255,8 +263,11 @@ pub struct LoopbackConfig {
     pub relation: ClockRelation,
     /// The round trip the reported latencies predict, milliseconds; copied into the estimate.
     pub predicted_ms: Option<f64>,
-    /// The run fails when it has not finished after this much engine time, seconds (6).
+    /// An attempt fails when it has not finished after this much engine time, seconds (6).
     pub timeout_sec: f64,
+    /// How many times the run starts again after a clock step (an xrun) broke the capture (1). The voice ids
+    /// of attempt `k` are `first_voice_id + k * clicks` onwards.
+    pub retries: u32,
 }
 
 impl Default for LoopbackConfig {
@@ -273,6 +284,7 @@ impl Default for LoopbackConfig {
             relation: ClockRelation::Unknown,
             predicted_ms: None,
             timeout_sec: 6.0,
+            retries: 1,
         }
     }
 }
@@ -288,7 +300,8 @@ pub enum LoopbackError {
     Late,
     /// The capture did not start, or did not deliver, within the timeout (no input callbacks?).
     Timeout,
-    /// The capture was stopped or broken (a clock step) while the clicks played.
+    /// The capture was stopped from outside, another capture was running, or a clock step (an xrun) broke
+    /// it and no retry was left.
     Interrupted,
     /// The configuration is unusable (no clicks, or gaps not above the search window).
     BadConfig,
@@ -325,17 +338,22 @@ enum Phase {
     WaitingForCapture,
     Capturing,
     Stopping,
+    /// A clock step broke the attempt: waiting for the capture to stop before starting the next one.
+    Restarting,
     Finished(LoopbackStatus),
 }
 
 /// Runs one loopback measurement (`audio_measure_loopback`). No capture may be running, and none may be
-/// started, while it lasts (about 2 s).
+/// started, while it lasts (about 2 s). When a clock step (an xrun on either stream) breaks the capture, the
+/// run starts again, once (`LoopbackConfig::retries`); a second step fails it with `Interrupted`.
 #[derive(Debug)]
 pub struct LoopbackDriver {
     config: LoopbackConfig,
     estimator: LoopbackEstimator,
     phase: Phase,
     path: Option<CapturePath>,
+    /// Attempts begun so far (1 = no retry yet).
+    attempts: u32,
     deadline_frame: u64,
     bytes: Vec<u8>,
     samples: Vec<f32>,
@@ -354,12 +372,22 @@ impl LoopbackDriver {
         capture.start(CaptureConfig { packet_frames: DEFAULT_PACKET_FRAMES, relation: config.relation }).map_err(LoopbackError::Capture)?;
         handle.put_buffer(config.buffer_id, AudioBuffer::new(click, rate));
         let deadline_frame = handle.clock().frames_rendered() + (config.timeout_sec * rate as f64) as u64;
-        Ok(LoopbackDriver { config, estimator, phase: Phase::WaitingForCapture, path: None, deadline_frame, bytes: Vec::new(), samples: Vec::new() })
+        Ok(LoopbackDriver { config, estimator, phase: Phase::WaitingForCapture, path: None, attempts: 1, deadline_frame, bytes: Vec::new(), samples: Vec::new() })
     }
 
     /// The capture path of the run, once the capture has started.
     pub fn path(&self) -> Option<CapturePath> {
         self.path
+    }
+
+    /// Attempts begun so far: 1, or 2 when a clock step made the run start again.
+    pub fn attempts(&self) -> u32 {
+        self.attempts
+    }
+
+    fn voice_ids(&self) -> Vec<u32> {
+        let base = self.config.first_voice_id.wrapping_add((self.attempts - 1).wrapping_mul(self.config.clicks));
+        (0..self.config.clicks).map(|k| base.wrapping_add(k)).collect()
     }
 
     /// The estimator (for diagnostics: per-click arrivals).
@@ -369,8 +397,7 @@ impl LoopbackDriver {
 
     fn fail(&mut self, handle: &mut EngineHandle, capture: &mut CaptureReader, error: LoopbackError) -> LoopbackStatus {
         let _ = capture.stop();
-        let ids: Vec<u32> = (0..self.config.clicks).map(|k| self.config.first_voice_id.wrapping_add(k)).collect();
-        let _ = handle.stop_voices(&ids, 0.0);
+        let _ = handle.stop_voices(&self.voice_ids(), 0.0);
         handle.drop_buffers(&[self.config.buffer_id]);
         self.phase = Phase::Finished(LoopbackStatus::Failed(error));
         LoopbackStatus::Failed(error)
@@ -391,11 +418,11 @@ impl LoopbackDriver {
                     let mut rng = Rng::new(self.config.seed);
                     let mut t = handle.clock().frames_rendered() as f64 / rate + self.config.lead_sec;
                     let mut specs = Vec::with_capacity(self.config.clicks as usize);
-                    for k in 0..self.config.clicks {
+                    for (k, id) in self.voice_ids().into_iter().enumerate() {
                         if k > 0 {
                             t += rng.uniform(self.config.gap_min_sec, self.config.gap_max_sec);
                         }
-                        specs.push(VoiceSpec { gain: self.config.gain, ..VoiceSpec::new(self.config.first_voice_id.wrapping_add(k), self.config.buffer_id, t) });
+                        specs.push(VoiceSpec { gain: self.config.gain, ..VoiceSpec::new(id, self.config.buffer_id, t) });
                         self.estimator.add_click(crate::mixer::frame_of(t, rate));
                     }
                     match handle.schedule(Group::Sounds, &specs) {
@@ -404,8 +431,34 @@ impl LoopbackDriver {
                         Err(e) => return self.fail(handle, capture, LoopbackError::Control(e)),
                     }
                 }
+                CaptureEvent::Stopped(_) if self.phase == Phase::Restarting => {
+                    // The broken attempt is over. Throw away what is left of its packets and start again.
+                    while capture.read_packet(&mut self.bytes) {}
+                    self.estimator.clear();
+                    self.attempts += 1;
+                    self.path = None;
+                    self.deadline_frame = handle.clock().frames_rendered() + (self.config.timeout_sec * rate) as u64;
+                    if let Err(e) = capture.start(CaptureConfig { packet_frames: DEFAULT_PACKET_FRAMES, relation: self.config.relation }) {
+                        return self.fail(handle, capture, LoopbackError::Capture(e));
+                    }
+                    self.phase = Phase::WaitingForCapture;
+                }
                 CaptureEvent::Stopped(_) => stopped = true,
-                CaptureEvent::ClockStep { .. } => return self.fail(handle, capture, LoopbackError::Interrupted),
+                CaptureEvent::ClockStep { .. } if self.phase == Phase::Restarting => {}
+                CaptureEvent::ClockStep { .. } => {
+                    // An xrun moved a stream against the clock: what was captured cannot be trusted. Once,
+                    // the whole measurement starts again.
+                    if self.attempts > self.config.retries {
+                        return self.fail(handle, capture, LoopbackError::Interrupted);
+                    }
+                    let _ = handle.stop_voices(&self.voice_ids(), 0.0);
+                    if self.phase != Phase::Stopping {
+                        if let Err(e) = capture.stop() {
+                            return self.fail(handle, capture, LoopbackError::Capture(e));
+                        }
+                    }
+                    self.phase = Phase::Restarting;
+                }
                 CaptureEvent::StartIgnored if self.phase == Phase::WaitingForCapture => {
                     // Another capture is running: this run cannot have the input.
                     handle.drop_buffers(&[self.config.buffer_id]);
@@ -418,7 +471,9 @@ impl LoopbackDriver {
         loop {
             self.samples.clear();
             let Some(header) = capture.read_decoded(&mut self.bytes, &mut self.samples) else { break };
-            self.estimator.push(header.first_frame as u64, &self.samples);
+            if self.phase != Phase::Restarting {
+                self.estimator.push(header.first_frame as u64, &self.samples);
+            }
         }
         match self.phase {
             Phase::Capturing => {
