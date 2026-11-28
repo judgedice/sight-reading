@@ -162,6 +162,15 @@ Round 3 spec `docs/redesign/round3/03-pitch-steadiness.md`. Numbered after R74 t
 
 82. **The total size limit is 5 MB.** JavaScript and CSS together may be up to 5 MB gzip (was 560 KB in ruling 66). The initial chunk stays at 150 KB. Owner decision.
 
+## Native app (R83 to R86)
+
+A native build is developed on its own branch. Design: `docs/native/AUDIO-DESIGN.md`. Status and handoff: `docs/native/STATUS.md`. This amends ruling 12 ("No native code") and replaces the Capacitor target named under "Later".
+
+83. **The native app is a Tauri 2 shell around the same interface.** One shared codebase: `src-tauri/` holds the shell and the Rust audio crates, `src/platform/native/` implements the platform seam beside `src/platform/web/`. Screens, grading, follow, DSP and notation are not forked, and the web build and all its checks stay required. Targets: macOS, Windows, Linux, iOS, Android. The service worker is off inside the shell.
+84. **Pitch analysis stays in the TypeScript worker.** Rust sends raw mono frames on the engine clock; decimation and filtering run in the unchanged `CaptureCore`, so a capture block is bit-identical to the web one for the same frames and `pnpm gates` keeps its results. Rust owns capture, a sample-accurate buffer voice for all playback, one engine clock (output frame counter, input mapped onto it), and reported and measured latency. What to play is still decided by the existing metronome, click, Listen voice and sampler code.
+85. **`PlatformKind` gains `'desktop'` and `'android'`.** Additive: stored records with `'web'` or `'ios'` stay valid. The native shell reports `'desktop'`, `'ios'` or `'android'`.
+86. **Ranked rules are unchanged on native; the loopback floor is lower.** A ranked try still needs a stored, measured calibration for its route (rulings 16 and 17 as written). Reported latency never ranks. On native the route key is built from device ids, rate and buffer sizes, so one measurement lasts; a stored record is marked stale when the reported latency moves by more than 2 ms. The native composition passes `calibration.loopback.minRtlMs` as 3 ms (15 ms on web), because native routes can measure below 15 ms. Status: the 3 ms floor is the build's choice, owner to confirm after the first measurements on real hardware.
+
 ## What the owner should know
 
 - Early, late, and wrong-note marks appear within about 150 ms of the note. Sharp and flat marks appear about 260 to 350 ms after the note starts, because pitch needs roughly 100 ms of steady tone after the attack before it can be measured to the cent.
