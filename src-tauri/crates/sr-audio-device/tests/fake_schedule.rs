@@ -108,7 +108,7 @@ fn clock_anchor_follows_the_host_clock() {
 fn injected_interruption_reaches_the_channel_and_close_is_idempotent() {
     let (mut io, _slot, rx) = open(FakeConfig::default());
     io.inject_interruption(InterruptionReason::DeviceChange);
-    assert_eq!(rx.recv_timeout(Duration::from_secs(1)).unwrap(), DeviceEvent::Interruption(InterruptionReason::DeviceChange));
+    assert_eq!(rx.recv_timeout(Duration::from_secs(1)).unwrap(), DeviceEvent::Interruption { stream: sr_audio_device::StreamKind::Output, reason: InterruptionReason::DeviceChange });
     io.close();
     io.close();
 }

@@ -31,6 +31,8 @@ pub fn run() {
             app_info,
             audio::audio_open,
             audio::audio_close,
+            audio::audio_release_input,
+            audio::audio_set_input,
             audio::audio_permission,
             audio::audio_clock_sync,
             audio::audio_clock_check,
@@ -40,6 +42,9 @@ pub fn run() {
             audio::audio_schedule,
             audio::audio_stop_voices,
             audio::audio_cancel,
+            audio::audio_capture_start,
+            audio::audio_capture_stop,
+            audio::audio_measure_loopback,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Sightread");

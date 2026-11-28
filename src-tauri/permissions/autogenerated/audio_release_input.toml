@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-audio-release-input"
+description = "Enables the audio_release_input command without any pre-configured scope."
+commands.allow = ["audio_release_input"]
+
+[[permission]]
+identifier = "deny-audio-release-input"
+description = "Denies the audio_release_input command without any pre-configured scope."
+commands.deny = ["audio_release_input"]

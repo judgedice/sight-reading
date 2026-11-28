@@ -10,6 +10,8 @@
     "allow-app-info",
     "allow-audio-open",
     "allow-audio-close",
+    "allow-audio-release-input",
+    "allow-audio-set-input",
     "allow-audio-permission",
     "allow-audio-clock-sync",
     "allow-audio-clock-check",
@@ -18,6 +20,9 @@
     "allow-audio-drop-buffers",
     "allow-audio-schedule",
     "allow-audio-stop-voices",
-    "allow-audio-cancel"
+    "allow-audio-cancel",
+    "allow-audio-capture-start",
+    "allow-audio-capture-stop",
+    "allow-audio-measure-loopback"
   ]
 }

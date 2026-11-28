@@ -1,9 +1,11 @@
+use std::collections::HashSet;
 use std::sync::mpsc;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use serde_json::{json, Value};
 use sr_audio_core::mixer::RejectReason;
+use sr_audio_core::synth::{render_click, ClickTimbre};
 use sr_audio_core::wire;
 use sr_audio_core::Notification;
 use sr_audio_device::fake_io::{FakeConfig, FakeIo};
@@ -18,6 +20,8 @@ fn js<T: Serialize>(v: &T) -> Value {
 fn parse<T: for<'de> Deserialize<'de>>(s: &str) -> T {
     serde_json::from_str(s).unwrap()
 }
+
+static ENV: Mutex<()> = Mutex::new(());
 
 // ---- JSON shapes ------------------------------------------------------------------------------------------------
 
@@ -135,28 +139,34 @@ fn build_script_and_capability_list_every_command() {
 
 #[test]
 fn notifications_map_to_events() {
-    let (tx, rx) = mpsc::channel();
-    tx.send(DeviceEvent::Xrun(StreamKind::Output)).unwrap();
-    tx.send(DeviceEvent::Xrun(StreamKind::Output)).unwrap();
-    tx.send(DeviceEvent::Interruption(InterruptionReason::Interrupted)).unwrap();
+    let dev = [
+        DeviceEvent::Xrun(StreamKind::Output),
+        DeviceEvent::Xrun(StreamKind::Output),
+        DeviceEvent::Xrun(StreamKind::Input),
+        DeviceEvent::Interruption { stream: StreamKind::Input, reason: InterruptionReason::TrackEnded },
+    ];
     let anchor_a = ClockAnchor { engine_sec: 1.0, host_ms: 10.0, rate: 1.0 };
     let anchor_b = ClockAnchor { engine_sec: 2.0, host_ms: 20.0, rate: 1.0 };
     let notes = [
         Notification::Ended { id: 1 },
         Notification::Late { id: 2, late_frames: 10 },
+        Notification::Late { id: 4, late_frames: 10 },
         Notification::Rejected { id: 3, reason: RejectReason::SoundingFull },
         Notification::Clock(anchor_a),
         Notification::Clipped { frames: 4, at_frame: 0 },
         Notification::Clock(anchor_b),
     ];
-    let events = events_from(&notes, &rx);
+    let mut seen: HashSet<u32> = [4].into(); // 4 was already listed in a schedule reply
+    let events = events_from(&notes, &dev, &mut seen);
+    assert!(seen.is_empty());
     assert_eq!(
         events,
         vec![
-            AudioEvent::Interruption { reason: InterruptionJson::Interrupted },
+            AudioEvent::Interruption { reason: InterruptionJson::TrackEnded },
             AudioEvent::Late { ids: vec![2] },
             AudioEvent::Ended { ids: vec![1, 3] },
             AudioEvent::Xrun { stream: StreamName::Output, count: 2 },
+            AudioEvent::Xrun { stream: StreamName::Input, count: 1 },
             AudioEvent::Clock { anchor: anchor_b.into() },
         ]
     );
@@ -219,7 +229,7 @@ fn schedule_plays_and_reports_ended_and_clock_events() {
 }
 
 #[test]
-fn late_voice_is_returned_and_event_follows() {
+fn late_voice_is_reported_once_in_the_reply() {
     let host = AudioHost::default();
     let (_info, rx) = open_fake(&host);
     put_click(&host, 5);
@@ -234,8 +244,8 @@ fn late_voice_is_returned_and_event_follows() {
         matches!(e, AudioEvent::Ended { ids } if ids == &[12]).then_some(())
     })
     .expect("ended");
-    // `Late` is sent when the audio thread takes the voice, before it can end.
-    assert!(late_event);
+    // The engine's `Late` notification repeats what the reply said, so it is not forwarded a second time.
+    assert!(!late_event, "late id reported twice");
     host.close();
 }
 
@@ -292,7 +302,7 @@ fn clock_sync_is_monotonic_and_tracks_the_host_clock() {
     assert!((info.clock.rate - 1.0).abs() < 0.01);
     let check = host.clock_check(1.0).unwrap();
     assert_eq!(check.expected, 48_000.0);
-    assert_eq!(check.input_drift_ppm, None);
+    assert_eq!(check.input_drift_ppm, None, "no input open, no drift to report");
     host.close();
 }
 
@@ -310,7 +320,6 @@ fn reopening_replaces_the_session() {
 
 #[test]
 fn env_selects_the_fake_device() {
-    static ENV: Mutex<()> = Mutex::new(());
     let _g = ENV.lock().unwrap();
     std::env::set_var("SR_AUDIO_DEVICE", "fake");
     let host = AudioHost::default();
@@ -369,4 +378,266 @@ fn decode_request_rejects_garbage() {
     assert!(decode_request(&[1, 2]).is_err());
     let err = decode_request(&request(1, b"this is not an mp3 file at all, just text")).unwrap_err();
     assert!(err.starts_with("audio_decode:"), "{err}");
+}
+
+// ---- capture and loopback on the fake duplex device ---------------------------------------------------------------
+
+fn open_duplex(host: &AudioHost, config: FakeConfig) -> OpenInfoJson {
+    let (sink, _rx) = collecting_sink();
+    host.open_with(Box::new(FakeIo::new(config)), OpenConfig { input: true, ..OpenConfig::default() }, sink).unwrap()
+}
+
+type Packets = Arc<Mutex<Vec<Vec<u8>>>>;
+
+fn packet_sink() -> (PacketSink, Packets) {
+    let store: Packets = Arc::new(Mutex::new(Vec::new()));
+    let s = Arc::clone(&store);
+    (Arc::new(move |p| s.lock().unwrap().push(p)), store)
+}
+
+/// The capture as one run of samples, and the engine frame of its first sample.
+fn assemble(packets: &Packets) -> (u64, Vec<f32>, Vec<wire::PacketHeader>) {
+    let mut headers = Vec::new();
+    let mut samples = Vec::new();
+    let mut origin = None;
+    for p in packets.lock().unwrap().iter() {
+        let h = wire::decode_packet(p, &mut samples).unwrap();
+        origin.get_or_insert(h.first_frame as u64);
+        headers.push(h);
+    }
+    (origin.unwrap_or(0), samples, headers)
+}
+
+/// Lag (frames, parabolic refinement) at which `template` best matches `signal`, searched over `range`.
+fn best_lag(signal: &[f32], template: &[f32], range: std::ops::Range<usize>) -> f64 {
+    let corr = |k: usize| -> f64 { template.iter().enumerate().map(|(i, t)| *t as f64 * signal.get(k + i).copied().unwrap_or(0.0) as f64).sum() };
+    let (mut best, mut best_k) = (f64::MIN, range.start);
+    for k in range {
+        let c = corr(k);
+        if c > best {
+            (best, best_k) = (c, k);
+        }
+    }
+    let (a, b, c) = (corr(best_k - 1), best, corr(best_k + 1));
+    best_k as f64 + 0.5 * (a - c) / (a - 2.0 * b + c)
+}
+
+#[test]
+fn duplex_open_reports_the_input() {
+    let host = AudioHost::default();
+    let info = open_duplex(&host, FakeConfig::default());
+    assert_eq!((info.in_frames, info.input_rate), (Some(256), Some(48_000)));
+    assert_eq!(info.route.input_uid, "fake:input");
+    host.close();
+}
+
+#[test]
+fn capture_packets_are_contiguous_with_a_last_flag() {
+    let host = AudioHost::default();
+    open_duplex(&host, FakeConfig::default());
+    let (sink, packets) = packet_sink();
+    let started = host.capture_start(512, sink).unwrap();
+    assert_eq!((started.engine_rate, started.path), (48_000, "locked"));
+    std::thread::sleep(Duration::from_millis(600));
+    let stats = host.capture_stop().unwrap();
+    let (origin, samples, headers) = assemble(&packets);
+    assert_eq!(origin as f64, started.origin_frame);
+    assert_eq!(headers.len() as u64, stats.packets);
+    assert_eq!(samples.len() as u64, stats.frames);
+    assert!(headers.len() >= 40, "{} packets", headers.len());
+    for (i, h) in headers.iter().enumerate() {
+        assert_eq!(h.seq, i as u32);
+        assert_eq!(h.dropped_before, 0);
+        if i > 0 {
+            assert_eq!(h.first_frame, headers[i - 1].first_frame + headers[i - 1].n_frames as f64, "contiguous at packet {i}");
+        }
+        assert_eq!(h.flags & wire::FLAG_LAST != 0, i == headers.len() - 1, "last flag at packet {i}");
+    }
+    assert_eq!(stats.dropped_frames, 0);
+    // A second capture works and counts from 0 again.
+    let (sink2, packets2) = packet_sink();
+    host.capture_start(256, sink2).unwrap();
+    std::thread::sleep(Duration::from_millis(100));
+    host.capture_stop().unwrap();
+    assert_eq!(assemble(&packets2).2[0].seq, 0);
+    host.close();
+}
+
+#[test]
+fn a_click_comes_back_after_the_loop_delay() {
+    let host = AudioHost::default();
+    open_duplex(&host, FakeConfig::default());
+    let click = render_click(ClickTimbre::Tick, false, 48_000);
+    host.put_buffer(&wire::encode_put_buffer(3, 48_000, &click)).unwrap();
+    let (sink, packets) = packet_sink();
+    host.capture_start(512, sink).unwrap();
+    let t = host.clock_sync().unwrap().engine_sec + 0.3;
+    host.schedule(GroupName::Sounds, &[parse(&format!(r#"{{"id":1,"buffer":3,"t":{t}}}"#))]).unwrap();
+    std::thread::sleep(Duration::from_millis(900));
+    host.capture_stop().unwrap();
+    let (origin, samples, _) = assemble(&packets);
+    let lag = best_lag(&samples, &click, 1000..samples.len() - click.len() - 2);
+    let arrival = origin as f64 + lag;
+    let error_ms = (arrival - ((t * 48_000.0).round() + 0.0234 * 48_000.0)) / 48.0;
+    println!("click arrival error {error_ms:.4} ms");
+    assert!(error_ms.abs() < 0.2, "arrival error {error_ms} ms");
+    host.close();
+}
+
+#[test]
+fn input_signal_file_starts_at_the_first_capture_frame() {
+    let mut raw = vec![0f32; 48_000];
+    let click = render_click(ClickTimbre::Tick, false, 48_000);
+    raw[4_800..4_800 + click.len()].copy_from_slice(&click);
+    let path = std::env::temp_dir().join(format!("sr-fake-input-{}.f32", std::process::id()));
+    std::fs::write(&path, raw.iter().flat_map(|x| x.to_le_bytes()).collect::<Vec<u8>>()).unwrap();
+    let config = FakeConfig::from_lookup(|k| match k {
+        "SR_FAKE_INPUT_F32" => Some(path.to_string_lossy().into_owned()),
+        "SR_FAKE_LOOP_MS" => Some("23.4".into()),
+        _ => None,
+    })
+    .unwrap();
+    assert_eq!(config.input_signal.as_ref().map(|s| s.len()), Some(48_000));
+    let host = AudioHost::default();
+    open_duplex(&host, config);
+    std::thread::sleep(Duration::from_millis(1500)); // let the clocks settle, so the capture starts at once
+    let (sink, packets) = packet_sink();
+    host.capture_start(512, sink).unwrap();
+    std::thread::sleep(Duration::from_millis(400));
+    host.capture_stop().unwrap();
+    let (_origin, samples, _) = assemble(&packets);
+    let lag = best_lag(&samples, &click, 3_000..6_000);
+    println!("signal marker found {} frames from the capture's first sample (file offset 4800)", lag - 4_800.0);
+    // Sample 0 is at the capture's first frame or up to one buffer (256 frames) before it.
+    assert!((lag - 4_800.0).abs() <= 300.0, "marker at {lag}");
+    host.close();
+    std::fs::remove_file(path).ok();
+}
+
+#[test]
+fn env_numbers_are_checked() {
+    let err = FakeConfig::from_lookup(|k| (k == "SR_FAKE_LOOP_MS").then(|| "abc".into())).unwrap_err();
+    assert!(err.contains("SR_FAKE_LOOP_MS"), "{err}");
+    let c = FakeConfig::from_lookup(|k| match k {
+        "SR_FAKE_IN_RATE" => Some("44100".into()),
+        "SR_FAKE_PPM" => Some("-30".into()),
+        "SR_FAKE_LOOP_GAIN" => Some("0.25".into()),
+        _ => None,
+    })
+    .unwrap();
+    assert_eq!((c.input_rate, c.in_ppm, c.loop_gain, c.loop_delay_ms), (44_100, -30.0, 0.25, 23.4));
+}
+
+#[test]
+fn loopback_on_the_fake_measures_the_loop_delay() {
+    let host = AudioHost::default();
+    open_duplex(&host, FakeConfig::default());
+    let e = host.measure_loopback(8, "tick").unwrap();
+    println!("loopback: {e:?}");
+    assert_eq!((e.found, e.scheduled), (8, 8));
+    assert!((e.round_trip_ms.unwrap() - 23.4).abs() < 0.1, "{e:?}");
+    assert!(e.mad_ms.unwrap() < 0.1);
+    assert!(e.predicted_ms.is_none(), "no reported device latency on the fake, so no prediction");
+    // The run left nothing behind: a capture can start, and a second run works.
+    let (sink, _p) = packet_sink();
+    host.capture_start(512, sink).unwrap();
+    host.capture_stop().unwrap();
+    assert_eq!(host.measure_loopback(4, "tick").unwrap().scheduled, 4);
+    assert!(host.measure_loopback(8, "wood").unwrap_err().contains("timbre"));
+    assert!(host.measure_loopback(0, "tick").is_err());
+    host.close();
+}
+
+#[test]
+fn loopback_follows_a_different_delay_and_input_rate() {
+    let host = AudioHost::default();
+    let config = FakeConfig::from_lookup(|k| match k {
+        "SR_FAKE_LOOP_MS" => Some("41.7".into()),
+        "SR_FAKE_IN_RATE" => Some("44100".into()),
+        "SR_FAKE_PPM" => Some("40".into()),
+        _ => None,
+    })
+    .unwrap();
+    let info = open_duplex(&host, config);
+    assert_eq!(info.input_rate, Some(44_100));
+    let e = host.measure_loopback(8, "tick").unwrap();
+    println!("loopback (44.1 kHz input, +40 ppm): {e:?}");
+    assert_eq!(e.found, 8);
+    assert!((e.round_trip_ms.unwrap() - 41.7).abs() < 0.3, "{e:?}");
+    host.close();
+}
+
+#[test]
+fn capture_and_loopback_exclude_each_other() {
+    let host = AudioHost::default();
+    open_duplex(&host, FakeConfig::default());
+    let (sink, _p) = packet_sink();
+    host.capture_start(512, Arc::clone(&sink)).unwrap();
+    let err = host.measure_loopback(8, "tick").unwrap_err();
+    assert!(err.contains("capture is running"), "{err}");
+    let err = host.capture_start(512, Arc::clone(&sink)).unwrap_err();
+    assert!(err.contains("already running"), "{err}");
+    let err = host.set_input(false).unwrap_err();
+    assert!(err.contains("stop it"), "{err}");
+    host.capture_stop().unwrap();
+    assert!(host.capture_stop().unwrap_err().contains("no capture is running"));
+
+    let h2 = host.clone();
+    let run = std::thread::spawn(move || h2.measure_loopback(8, "tick"));
+    std::thread::sleep(Duration::from_millis(150));
+    let err = host.capture_start(512, sink).unwrap_err();
+    assert!(err.contains("loopback measurement is running"), "{err}");
+    assert!(host.measure_loopback(8, "tick").unwrap_err().contains("already running"));
+    assert_eq!(run.join().unwrap().unwrap().found, 8);
+    host.close();
+}
+
+#[test]
+fn input_can_be_released_and_reopened() {
+    let host = AudioHost::default();
+    open_duplex(&host, FakeConfig::default());
+    let info = host.set_input(false).unwrap();
+    assert_eq!((info.in_frames, info.input_rate), (None, None));
+    assert_eq!(info.route.input_uid, "");
+    let (sink, _p) = packet_sink();
+    assert!(host.capture_start(512, Arc::clone(&sink)).unwrap_err().contains("no input"));
+    assert!(host.measure_loopback(8, "tick").unwrap_err().contains("no input"));
+    assert!(host.set_input(false).is_ok(), "releasing twice is fine");
+    let info = host.set_input(true).unwrap();
+    assert_eq!(info.in_frames, Some(256));
+    assert_eq!(host.measure_loopback(8, "tick").unwrap().found, 8);
+    host.close();
+}
+
+#[test]
+fn output_only_open_reports_no_input_and_refuses_capture() {
+    let host = AudioHost::default();
+    let _ = open_fake(&host);
+    let (sink, _p) = packet_sink();
+    assert!(host.capture_start(512, sink).unwrap_err().contains("no input"));
+    assert!(host.set_input(true).is_err());
+    host.close();
+}
+
+#[test]
+fn clock_check_reports_input_drift_when_input_runs() {
+    let host = AudioHost::default();
+    let config = FakeConfig { in_ppm: 100.0, ..FakeConfig::default() };
+    open_duplex(&host, config);
+    std::thread::sleep(Duration::from_millis(2500));
+    let c = host.clock_check(1.0).unwrap();
+    println!("clock check with +100 ppm input: {c:?}");
+    // The core only reports a drift once both clock fits have settled; a report, when present, is near the truth.
+    if let Some(ppm) = c.input_drift_ppm {
+        assert!((ppm - 100.0).abs() < 60.0, "{ppm}");
+    }
+    host.close();
+}
+
+#[test]
+fn permission_is_granted_for_the_fake_device() {
+    let _g = ENV.lock().unwrap();
+    std::env::set_var("SR_AUDIO_DEVICE", "fake");
+    assert_eq!(permission_state(), "granted");
+    std::env::remove_var("SR_AUDIO_DEVICE");
 }

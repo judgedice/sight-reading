@@ -9,7 +9,7 @@ publish = false
 [features]
 default = []
 # Thread-driven fake output device (tests, CI, headless smoke test).
-fake = []
+fake = ["sr-audio-core/sim"]
 
 [dependencies]
 sr-audio-core = { path = "../sr-audio-core" }

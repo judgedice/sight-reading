@@ -4,6 +4,8 @@ const COMMANDS: &[&str] = &[
     "app_info",
     "audio_open",
     "audio_close",
+    "audio_release_input",
+    "audio_set_input",
     "audio_permission",
     "audio_clock_sync",
     "audio_clock_check",
@@ -13,6 +15,9 @@ const COMMANDS: &[&str] = &[
     "audio_schedule",
     "audio_stop_voices",
     "audio_cancel",
+    "audio_capture_start",
+    "audio_capture_stop",
+    "audio_measure_loopback",
 ];
 
 fn main() {

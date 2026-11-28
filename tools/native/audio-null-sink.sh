@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Opt-in: runs a command (default: the real cpal output test) against a PulseAudio null sink, so a machine without
-# a sound card (a container, CI) can exercise the real cpal/ALSA output path. Linux only.
+# a sound card (a container, CI) can exercise the real cpal/ALSA path, output and input (the sink's monitor is the
+# default source, so played sound returns as input). Linux only.
 #
-#   bash tools/native/audio-null-sink.sh                     # runs the cpal output test with SR_TEST_REAL_AUDIO=1
+#   bash tools/native/audio-null-sink.sh                     # runs the real cpal tests (output, duplex loopback) with SR_TEST_REAL_AUDIO=1
 #   bash tools/native/audio-null-sink.sh <command> [args]    # runs <command> with the sink as the default device
 #
 # Needs: pulseaudio, pactl, and ALSA's pulse plugin (apt: pulseaudio pulseaudio-utils libasound2-plugins).
@@ -29,13 +30,15 @@ pulseaudio --start --daemonize=yes --exit-idle-time=-1 --disallow-exit >"$WORK/p
 for _ in $(seq 1 50); do pactl info >/dev/null 2>&1 && break; sleep 0.1; done
 pactl load-module module-null-sink sink_name=sr_null sink_properties=device.description=SrNull >/dev/null
 pactl set-default-sink sr_null
+# The sink's monitor is the default source, so what is played comes back as input (a virtual loopback).
+pactl set-default-source sr_null.monitor
 
 cat >"$WORK/alsa.conf" <<'CONF'
 pcm.!default { type pulse }
 ctl.!default { type pulse }
 CONF
 export ALSA_CONFIG_PATH="$WORK/alsa.conf"
-echo "null sink up: $(pactl list short sinks | tr '\t' ' ')"
+echo "null sink up: $(pactl list short sinks | tr '\t' ' '); default source: $(pactl get-default-source)"
 
 if [ "$#" -eq 0 ]; then
   cd "$ROOT/src-tauri"

@@ -14,11 +14,13 @@
 use std::fmt;
 use std::sync::mpsc::Sender;
 
+use sr_audio_core::capture::ClockRelation;
 use sr_audio_core::latency::{LatencyParts, LatencyReport, Platform, RouteTrustFacts, Transport};
 use sr_audio_core::Engine;
 
 pub mod cpal_io;
 pub mod host_clock;
+pub mod latency_linux;
 
 #[cfg(feature = "fake")]
 pub mod fake_io;
@@ -34,8 +36,7 @@ pub struct OpenConfig {
     /// Output buffer size in frames; `None` = the platform's default of design section 1 (128 on Apple, 256 on
     /// Android and ALSA, the device period on WASAPI).
     pub buffer_frames: Option<u32>,
-    /// Open an input stream too. **TODO (capture task):** accepted and ignored by every implementation for now;
-    /// [`OpenInfo::in_frames`] and [`OpenInfo::input_rate`] stay `None`.
+    /// Open an input stream too (default input device). When it cannot be opened, `open` fails.
     pub input: bool,
     /// Output device by id or name; `None` = the system default.
     pub output_device: Option<String>,
@@ -54,10 +55,12 @@ pub struct OpenInfo {
     pub engine_rate: u32,
     /// Output buffer size in frames; 0 when the backend did not say and no callback was seen.
     pub out_frames: u32,
-    /// Input buffer size in frames; `None` while input is not implemented.
+    /// Input buffer size in frames; `None` while no input is open.
     pub in_frames: Option<u32>,
-    /// Input stream rate, Hz; `None` while input is not implemented.
+    /// Input stream rate, Hz; `None` while no input is open.
     pub input_rate: Option<u32>,
+    /// What the device layer knows about the two streams' clocks, for `CaptureConfig::relation`.
+    pub clock_relation: ClockRelation,
     /// The route as the OS describes it.
     pub route: RouteFacts,
     /// Reported latency and its trust class.
@@ -71,7 +74,7 @@ pub struct OpenInfo {
 pub struct RouteFacts {
     /// Stable id of the output device (backend specific).
     pub output_uid: String,
-    /// Stable id of the input device; `None` while input is not implemented.
+    /// Stable id of the input device; `None` while no input is open.
     pub input_uid: Option<String>,
     /// How the output device is attached.
     pub output_transport: Transport,
@@ -138,8 +141,13 @@ pub enum StreamKind {
 /// What a device tells its owner outside the realtime path.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DeviceEvent {
-    /// The stream is no longer reliable; the owner should treat running takes as void and may reopen.
-    Interruption(InterruptionReason),
+    /// A stream is no longer reliable; the owner should treat running takes as void and may reopen.
+    Interruption {
+        /// Which stream failed.
+        stream: StreamKind,
+        /// Why.
+        reason: InterruptionReason,
+    },
     /// The backend reported an under- or overrun.
     Xrun(StreamKind),
 }
@@ -151,6 +159,10 @@ pub enum DeviceError {
     NoOutputDevice,
     /// The named device does not exist.
     DeviceNotFound(String),
+    /// The OS refused access to the input device (microphone permission).
+    PermissionDenied,
+    /// An input stream was requested and the host has no input device.
+    NoInputDevice,
     /// The device offers no sample format or layout the engine can drive.
     Unsupported(String),
     /// The backend refused (message from the backend).
@@ -163,6 +175,8 @@ impl fmt::Display for DeviceError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             DeviceError::NoOutputDevice => f.write_str("no audio output device found"),
+            DeviceError::PermissionDenied => f.write_str("microphone access was denied by the system"),
+            DeviceError::NoInputDevice => f.write_str("no audio input device found"),
             DeviceError::DeviceNotFound(n) => write!(f, "audio output device not found: {n}"),
             DeviceError::Unsupported(m) => write!(f, "audio device not supported: {m}"),
             DeviceError::Backend(m) => write!(f, "audio backend error: {m}"),
@@ -184,4 +198,13 @@ pub trait DeviceIo: Send {
     fn route(&self) -> RouteFacts;
     /// The latency parts the backend reports for the current route.
     fn latency(&self) -> LatencyParts;
+    /// Closes (`false`) or reopens (`true`) the input stream only; the output keeps running and the engine
+    /// keeps its capture half. Returns the facts of the route as they are afterwards. Idempotent.
+    fn set_input(&mut self, enabled: bool) -> Result<OpenInfo, DeviceError> {
+        let _ = enabled;
+        Err(DeviceError::Unsupported("this device has no switchable input".into()))
+    }
+    /// Told by the app that a capture is about to be requested. Real devices ignore it; the fake device uses it
+    /// to start its optional input signal.
+    fn capture_requested(&mut self) {}
 }
