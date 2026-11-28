@@ -154,6 +154,7 @@ export class NativeAudioBackend implements AudioBackend {
   private lastStats: CaptureStats = { postedBlocks: 0, droppedBlocks: 0, maxQueueMs: 0, relay: true };
 
   private readonly routeCbs = new Set<(r: AudioRouteInfo) => void>();
+  private readonly latencyCbs = new Set<(r: AudioRouteInfo) => void>();
   private readonly interruptCbs = new Set<(r: InterruptionReason) => void>();
   private readonly faultCbs = new Set<(f: CaptureFault) => void>();
 
@@ -348,6 +349,8 @@ export class NativeAudioBackend implements AudioBackend {
         const before = this.route?.routeKey;
         const next = this.currentRoute();
         if (next.routeKey !== before) this.routeCbs.forEach((cb) => cb(next));
+        // Every route event, whether or not the key moved: the latency report may have (the stale guard, AUDIO-DESIGN section 5).
+        this.latencyCbs.forEach((cb) => cb(next));
         // W7: a device change while capturing voids the take, whatever the new key.
         if (this.cap) this.fireInterruption('device-change');
         break;
@@ -374,6 +377,12 @@ export class NativeAudioBackend implements AudioBackend {
   onRouteChange(cb: (r: AudioRouteInfo) => void): () => void {
     this.routeCbs.add(cb);
     return () => void this.routeCbs.delete(cb);
+  }
+
+  /** Called on every engine route event (after the key and the latency report are updated), also when the key did not change. */
+  onLatency(cb: (r: AudioRouteInfo) => void): () => void {
+    this.latencyCbs.add(cb);
+    return () => void this.latencyCbs.delete(cb);
   }
 
   onInterruption(cb: (reason: InterruptionReason) => void): () => void {

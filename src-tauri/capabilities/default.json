@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Main window: core defaults plus an explicit grant for each app command (app_info and the audio_* commands).",
+  "description": "Main window: core defaults plus an explicit grant for each app command (app_info, the audio_* commands and the file commands), and opening http(s) links in the system browser. No dialog, fs or other opener permission is granted.",
   "windows": [
     "main"
   ],
@@ -25,6 +25,20 @@
     "allow-audio-capture-stop",
     "allow-audio-measure-loopback",
     "allow-audio-debug-hooks",
-    "allow-audio-debug-signal"
+    "allow-audio-debug-signal",
+    "allow-save-file",
+    "allow-open-licence",
+    "allow-keep-awake",
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [
+        {
+          "url": "https://*"
+        },
+        {
+          "url": "http://*"
+        }
+      ]
+    }
   ]
 }

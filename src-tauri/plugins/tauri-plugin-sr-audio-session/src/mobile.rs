@@ -30,6 +30,11 @@ pub fn init<R: Runtime, C: DeserializeOwned>(_app: &AppHandle<R>, api: PluginApi
 pub struct SrAudioSession<R: Runtime>(PluginHandle<R>);
 
 #[derive(Serialize)]
+struct KeepAwakePayload {
+    on: bool,
+}
+
+#[derive(Serialize)]
 struct WatchPayload {
     channel: Channel,
 }
@@ -83,6 +88,11 @@ impl<R: Runtime> SrAudioSession<R> {
     /// Stops forwarding events.
     pub fn unwatch_events(&self) -> crate::Result<()> {
         Ok(self.0.run_mobile_plugin("unwatchEvents", ())?)
+    }
+
+    /// Keeps the screen on while `on` (iOS `isIdleTimerDisabled`, Android `FLAG_KEEP_SCREEN_ON`).
+    pub fn set_keep_awake(&self, on: bool) -> crate::Result<()> {
+        Ok(self.0.run_mobile_plugin("setKeepAwake", KeepAwakePayload { on })?)
     }
 }
 

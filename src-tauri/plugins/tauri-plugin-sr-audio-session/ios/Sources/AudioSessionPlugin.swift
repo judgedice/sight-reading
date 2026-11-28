@@ -17,6 +17,10 @@ struct WatchArgs: Decodable {
   let channel: Channel
 }
 
+struct KeepAwakeArgs: Decodable {
+  let on: Bool
+}
+
 struct PermissionReply: Encodable {
   let state: String
 }
@@ -134,6 +138,15 @@ class AudioSessionPlugin: Plugin {
 
   @objc public func sessionInfo(_ invoke: Invoke) {
     invoke.resolve(sessionInfo())
+  }
+
+  // The screen stays on while the player practises (UIKit is main-thread only).
+  @objc public func setKeepAwake(_ invoke: Invoke) throws {
+    let args = try invoke.parseArgs(KeepAwakeArgs.self)
+    DispatchQueue.main.async {
+      UIApplication.shared.isIdleTimerDisabled = args.on
+      invoke.resolve()
+    }
   }
 
   // MARK: route

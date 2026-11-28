@@ -50,4 +50,9 @@ impl<R: Runtime> SrAudioSession<R> {
     pub fn unwatch_events(&self) -> crate::Result<()> {
         Ok(())
     }
+
+    /// Desktop keeps the screen awake in the app (the `keepawake` crate), not here.
+    pub fn set_keep_awake(&self, _on: bool) -> crate::Result<()> {
+        Ok(())
+    }
 }

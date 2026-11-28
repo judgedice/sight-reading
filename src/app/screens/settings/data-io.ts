@@ -3,6 +3,7 @@
  * repositories and the key-value store the composition root passes in.
  */
 import type { KeyValue, StoreRepos } from '../../../core/platform.ts';
+import { saveFile, type SaveOutcome } from '../../../ui/save-file.ts';
 import { exportAll, importAll, NOT_A_BACKUP_MESSAGE, StoreImportError } from '../../../store/index.ts';
 import { text } from './text.ts';
 
@@ -41,15 +42,7 @@ export function importErrorText(e: unknown): string {
   return text('settings.data.importFailed');
 }
 
-/** Starts a browser download of text. A no-op outside a browser document. */
-export function downloadText(name: string, body: string, type = 'application/json'): void {
-  if (typeof document === 'undefined' || typeof URL === 'undefined') return;
-  const url = URL.createObjectURL(new Blob([body], { type }));
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = name;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 0);
+/** Saves text as a file through the save seam (a browser download on the web). Resolves `cancelled` when the player closed the save dialog. */
+export function downloadText(name: string, body: string, type = 'application/json'): Promise<SaveOutcome> {
+  return saveFile(name, body, type);
 }

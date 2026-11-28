@@ -1,4 +1,5 @@
 pub mod audio;
+pub mod files;
 pub mod mobile;
 
 use serde::Serialize;
@@ -30,8 +31,11 @@ pub fn run() {
     // Mobile only: the audio session plugin (microphone permission, session, route facts).
     #[cfg(mobile)]
     let builder = mobile::register(builder);
+    // The system browser for http(s) links (allowed by pattern in capabilities/default.json).
+    let builder = builder.plugin(tauri_plugin_opener::init());
     builder
         .manage(audio::AudioHost::default())
+        .manage(files::AwakeLock::default())
         .invoke_handler(tauri::generate_handler![
             app_info,
             audio::audio_open,
@@ -52,6 +56,9 @@ pub fn run() {
             audio::audio_measure_loopback,
             audio::audio_debug_hooks,
             audio::audio_debug_signal,
+            files::save_file,
+            files::open_licence,
+            files::keep_awake,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Sightread");

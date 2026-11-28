@@ -108,6 +108,8 @@ export interface LoopbackRunOptions {
   onClick?(index: number, heard: boolean): void;
   /** Stage and per-sound timing for the screen (presentation only). */
   progress?: CalibrationProgress;
+  /** Click gaps, seconds, uniform in [min, max]. Default `randomClickTimes`'s 0.4 to 0.7 (the native short profile passes 0.2 to 0.35). */
+  gapSec?: [number, number];
 }
 
 export interface LoopbackRun {
@@ -132,7 +134,7 @@ export async function runLoopbackCalibration(deps: CalibrationDeps, o: LoopbackR
     const now = audio.now() as number;
     const silence = { t0: now + 0.05, t1: now + 0.05 + SILENCE_SEC };
     const rnd = (): number => deps.rng.next();
-    const all = randomClickTimes(silence.t1 + 0.05, lb.clicks + lb.templateClicks, rnd);
+    const all = randomClickTimes(silence.t1 + 0.05, lb.clicks + lb.templateClicks, rnd, o.gapSec);
     const ticks = all.slice(0, lb.clicks);
     const templateClicks = all.slice(lb.clicks);
     const toneAt = (all[all.length - 1] as number) + TONE_GAP_SEC;

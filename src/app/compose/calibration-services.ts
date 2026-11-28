@@ -21,6 +21,7 @@ import {
   type LoopbackRun,
   type SelfTestResult,
 } from '../../calibration/index.ts';
+import type { NativeCalibration, PendingLatency } from '../../platform/native/calibration.ts';
 import type { CalibrationServices, SelfTestItemId, SelfTestOutcome } from '../screens/calibration/services.ts';
 import type { Readable } from '../screens/home/services.ts';
 import { KV_CAL_LAST_FAILURE, type CalFailure } from './calibration-status.ts';
@@ -48,6 +49,12 @@ export interface CalibrationServicesDeps {
   appBuild: string;
   /** Where `cal:lastFailure` is kept (write on a failed run, clear on a stored one). Absent: nothing is recorded. */
   kv?: KeyValue;
+  /**
+   * The native calibration service (AUDIO-DESIGN section 5), on the native path only: a speaker run picks its profile from
+   * the engine's loopback pre-check, and a stored run leaves the `native:latency:<routeKey>` record. Absent on the web,
+   * where nothing here changes.
+   */
+  native?: NativeCalibration | null;
 }
 
 /** Copy key (and its placeholder values) that explains a failed run; the status popover shows it. */
@@ -166,13 +173,28 @@ export function createCalibrationServices(d: CalibrationServicesDeps): Calibrati
       return null;
     }
   };
+  /** The latency record of the last accepted native run, written by `save` once that calibration is stored. */
+  let pendingLatency: PendingLatency | null = null;
   const runLoopbackInner = async (o: Parameters<CalibrationServices['runLoopback']>[0]) => {
     const r = await route();
+    // The clock-rate check is the engine's own running check on native (`audio_clock_check` answers at once from the clock
+    // points it already holds), so the short profile needs nothing else here.
     const clock = await clockRate();
+    pendingLatency = null;
     const progress: CalibrationProgress = { onStage: o.onStage, onSound: o.onSound };
-    const run = await runLoopbackCalibration(deps, { route: r, timbre: d.settings.get().practice.clickTimbre, clockRateError: clock?.error ?? null, onClick: o.onClick, progress });
+    const profile = d.native ? await d.native.chooseProfile() : null;
+    const run = await runLoopbackCalibration(deps, {
+      route: r,
+      timbre: d.settings.get().practice.clickTimbre,
+      clockRateError: clock?.error ?? null,
+      onClick: o.onClick,
+      progress,
+      ...(profile?.gapSec ? { gapSec: profile.gapSec } : {}),
+    });
     const lb = run.loopback;
     if (!lb.accepted || !run.calibration) await failed('loopback', lb.failure, lb.clicksFound, lb.clicksScheduled);
+    const checked = await checks(r, clock, run, progress);
+    if (d.native && run.calibration) pendingLatency = await d.native.describe(run.calibration, profile?.profile ?? 'standard');
     return {
       accepted: lb.accepted,
       failure: lb.failure,
@@ -182,7 +204,7 @@ export function createCalibrationServices(d: CalibrationServicesDeps): Calibrati
       clicksScheduled: lb.clicksScheduled,
       aecSuspected: run.aec.suspected,
       calibration: run.calibration,
-      checks: await checks(r, clock, run, progress),
+      checks: checked,
     };
   };
   const runPlayAlongInner = async (o: Parameters<CalibrationServices['runPlayAlong']>[0]) => {
@@ -193,6 +215,9 @@ export function createCalibrationServices(d: CalibrationServicesDeps): Calibrati
     run.playAlong.offsetsMs.forEach((ms, i) => o.onNote(i, ms));
     const pa = run.playAlong;
     if (!pa.accepted || !run.calibration) await failed('play-along', pa.failure, pa.notesFound, pa.clicks);
+    pendingLatency = null;
+    const checked = await checks(r, clock, null, progress);
+    if (d.native && run.calibration) pendingLatency = await d.native.describe(run.calibration, 'standard');
     return {
       accepted: pa.accepted,
       failure: pa.failure,
@@ -202,7 +227,7 @@ export function createCalibrationServices(d: CalibrationServicesDeps): Calibrati
       clicks: pa.clicks,
       offsetsMs: pa.offsetsMs,
       calibration: run.calibration,
-      checks: await checks(r, clock, null, progress),
+      checks: checked,
     };
   };
   return {
@@ -247,6 +272,12 @@ export function createCalibrationServices(d: CalibrationServicesDeps): Calibrati
     async save(c) {
       await d.saveCalibration(c);
       await recordFailure(null);
+      // Only the run's own calibration leaves a latency record ("Use an estimate" stores `reported`, which does not).
+      const p = pendingLatency;
+      if (d.native && p && p.routeKey === c.routeKey && p.measuredAt === c.measuredAt) {
+        pendingLatency = null;
+        await d.native.write(p);
+      }
     },
     exportDiagnostics: (json) => d.download('sightread-diagnostics.json', json),
   };

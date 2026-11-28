@@ -4,7 +4,11 @@
 // Scenarios (one app start each, see e2e-linux.sh):
 //   main    onboarding (instrument, sound check: microphone, hear you, timing), calibration, the page's own loopback check,
 //           one synthetic try to the results screen, Listen with a sampled instrument, the three metronome previews.
-//   timing  onboarding with the hear stage skipped and calibration at another loop delay.
+//   timing  onboarding with the hear stage skipped and calibration at another loop delay, with the engine pre-check switched
+//           off through the end-to-end hook (`window.__sr.native.precheckDisabled`), so the standard profile plays.
+//
+// Both assert the kv latency record `native:latency:<routeKey>` after calibration (profile `native-short` in main,
+// `standard` in timing) and report each calibration run's duration in seconds (R.measurements.calibrationSeconds).
 //
 // Usage: node tools/native/e2e-linux.mjs <binary> <artifact dir> <work dir> <scenario> <loop ms> [expected loop ms]
 // The app must have been started with SR_AUDIO_DEVICE=fake SR_E2E_HOOKS=1 SR_E2E_SEED=<n> SR_FAKE_LOOP_MS=<loop ms> (the shell
@@ -205,6 +209,11 @@ try {
 
   await waitFor(testid('calibration-card'), 'the timing stage');
   await shot('timing-idle');
+  const expectedProfile = scenario === 'main' ? 'native-short' : 'standard';
+  if (scenario !== 'main') {
+    // The pre-check would pass on the fake device; this hook makes it count as failed, so the normal schedule plays.
+    await page(`sr.native.precheckDisabled = true; return sr.native.precheckDisabled;`);
+  }
   const tCal = Date.now();
   await click('Start timing check');
   await waitFor(`${testid('calibration-card')}?.dataset.step === 'loopback-running'`, 'the timing check to start', 15000);
@@ -212,7 +221,8 @@ try {
   await shot('timing-running');
   await waitFor(`['measured', 'loopback-failed', 'playalong-failed'].includes(${testid('calibration-card')}?.dataset.step)`, 'the timing check to end', 90000);
   const calStep = await sync(`return ${testid('calibration-card')}.dataset.step`);
-  R.stages.timing = { step: calStep, tookMs: Date.now() - tCal, resultText: await sync(`return ${testid('cal-result')}?.innerText ?? ${testid('cal-fail')}?.innerText ?? null`) };
+  const firstRunMs = Date.now() - tCal;
+  R.stages.timing = { step: calStep, tookMs: firstRunMs, resultText: await sync(`return ${testid('cal-result')}?.innerText ?? ${testid('cal-fail')}?.innerText ?? null`) };
   await shot('timing-result');
   if (!check(calStep === 'measured', `speaker calibration measured (step ${calStep}: ${R.stages.timing.resultText})`)) throw new Error('calibration did not complete');
   // The card asks whether the clicks were audible; nothing on the fake device can hear, the answer is the player's.
@@ -222,16 +232,23 @@ try {
   // The stored calibration after each run: the first, then more runs of the card's own "Calibrate again" for the spread.
   const storedNow = async () => (await page(`return await sr.repos.calibrations.all();`))[0];
   const runs = [await storedNow()];
+  const runMs = [firstRunMs];
   for (let k = 1; k < CALIBRATION_RUNS; k++) {
+    const tRun = Date.now();
     await click('Calibrate again');
     await waitFor(`${testid('calibration-card')}?.dataset.step === 'loopback-running'`, `calibration run ${k + 1} to start`, 15000);
     await waitFor(`['measured', 'loopback-failed', 'playalong-failed'].includes(${testid('calibration-card')}?.dataset.step)`, `calibration run ${k + 1} to end`, 90000);
+    runMs.push(Date.now() - tRun);
     const step = await sync(`return ${testid('calibration-card')}.dataset.step`);
     check(step === 'measured', `calibration run ${k + 1} measured (step ${step})`);
     await click('Yes').catch(() => undefined);
     await sleep(300);
     runs.push(await storedNow());
   }
+  // Click to the result, in seconds: the engine pre-check (when it runs), the calibration, the audio check and the cross-check.
+  const seconds = runMs.map((ms) => Math.round(ms / 100) / 10);
+  R.measurements.calibrationSeconds = { profile: expectedProfile, first: seconds[0], runs: seconds, meanSec: Math.round((seconds.reduce((a, b) => a + b, 0) / seconds.length) * 10) / 10 };
+  log(`     calibration duration (${expectedProfile}): first run ${seconds[0]} s, all ${seconds.join(', ')} s`);
   R.measurements.calibrationRuns = runs.map((c) => ({ roundTripMs: c.roundTripMs, madMs: c.madMs ?? null, measuredAt: c.measuredAt }));
   await click('Next');
   await waitFor(testid('ob-ready'), 'the Ready step');
@@ -241,6 +258,15 @@ try {
   await waitFor(testid('screen-home'), 'Home', 20000);
   await shot('home');
   check(true, 'onboarding ran through: instrument, microphone, hear you, timing, ready, home');
+
+  // ---- (b0) the kv latency record ---------------------------------------------------------------------------------------------
+  const latency = await page(`const all = await sr.repos.calibrations.all(); const k = 'native:latency:' + all[0].routeKey; return { key: k, record: (await sr.kv.get(k)) ?? null, keys: (await sr.kv.keys()).filter((x) => x.startsWith('native:latency:')) };`);
+  R.measurements.latencyRecord = latency;
+  log(`     ${latency.key}: ${JSON.stringify(latency.record)}`);
+  check(latency.record !== null && latency.keys.length === 1, 'the kv latency record exists after calibration, for the one route');
+  check(latency.record?.profile === expectedProfile, `the latency record says profile ${expectedProfile} (${latency.record?.profile})`);
+  check(typeof latency.record?.measuredMs === 'number' && typeof latency.record?.at === 'string' && ['A', 'B', 'C'].includes(latency.record?.trust) && 'predictedMs' in (latency.record ?? {}), 'the latency record has predictedMs, measuredMs, trust and at');
+  check(latency.record?.predictedMs === null || typeof latency.record?.predictedMs === 'number', `predictedMs is a number or null (${latency.record?.predictedMs}, trust ${latency.record?.trust})`);
 
   // ---- (b) the stored calibration ----------------------------------------------------------------------------------------
   const cals = await page(`return await sr.repos.calibrations.all();`);

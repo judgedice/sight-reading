@@ -32,6 +32,8 @@ import type { DiagnosticsServices } from '../screens/states/services.ts';
 import type { SettingsDiagnosticsServices } from '../screens/settings/services.ts';
 import { matchScreenOverrides, type MatchServices } from '../screens/match/index.ts';
 import { tryTitle } from '../screens/scales/index.ts';
+import type { SaveOutcome } from '../../core/save-file.ts';
+import type { NativeCalibration } from '../../platform/native/calibration.ts';
 import { adoptingLegacyCalibrations, createCalibrationServices, type CalibrationBackendExtras } from './calibration-services.ts';
 import { calibrationStatus as computeCalStatus, KV_CAL_LAST_FAILURE, type CalFailure, type CalStatus } from './calibration-status.ts';
 import { countTries, reachedBarOne } from './tries.ts';
@@ -55,6 +57,8 @@ export interface AppRuntime {
   manifest: CorpusManifest;
   workerFactory: () => WorkerLike;
   createCaptureChannel?: () => { port1: MessagePortLike; port2: unknown };
+  /** The native calibration service (AUDIO-DESIGN section 5); absent on the web, where nothing changes. */
+  nativeCalibration?: NativeCalibration | null;
   settings: AppSettings;
   profile: PlayerProfile | undefined;
   storageLost: boolean;
@@ -74,7 +78,8 @@ export interface AppRuntime {
   micBrowser: MicBrowser;
   inputDevices(): Promise<{ id: string; label: string }[]>;
   storageUsed?(): Promise<number | null>;
-  download(name: string, text: string): void;
+  /** Saves a file (the save seam, `core/save-file.ts`). A rejection means it was not saved; `cancelled` means the player closed the save dialog. */
+  download(name: string, text: string): void | Promise<SaveOutcome | void>;
   keepAwake: { enterResults(): void; leaveResults(): void; leavePractice(): void; touch(): void };
   wakeLockFailed?: Readable<boolean>;
   /** Called on every session state (interruption policy, keep-awake idle). */
@@ -130,10 +135,12 @@ const START_LEVEL = 1;
 export function composeApp(rt: AppRuntime): ComposedApp {
   const { configs: cfg, manifest } = rt;
   const repos = rt.platform.repos;
+  // Native only: every unlock and route event first marks a calibration stale when the reported latency moved (R86).
+  const guardedNative = <A extends AudioBackend>(a: A): A => (rt.nativeCalibration ? rt.nativeCalibration.guarded(a, () => void refreshCalibrations().catch(() => undefined)) : a);
   // A calibration stored under a route's pre-round-2 key is adopted before anything reads the route (R2-03, cause 5).
   const platform: AppRuntime['platform'] = {
     ...rt.platform,
-    audio: adoptingLegacyCalibrations(rt.platform.audio, repos, () => void refreshCalibrations().catch(() => undefined)),
+    audio: guardedNative(adoptingLegacyCalibrations(rt.platform.audio, repos, () => void refreshCalibrations().catch(() => undefined))),
   };
   const kv: KeyValue = platform.kv;
 
@@ -319,6 +326,7 @@ export function composeApp(rt: AppRuntime): ComposedApp {
     capabilities: rt.capabilities,
     configs: cfg,
     kv,
+    ...(rt.nativeCalibration ? { native: rt.nativeCalibration } : {}),
     rng: rt.rng,
     settings,
     saveSettings: (s) => settings.set(s),
@@ -386,7 +394,8 @@ export function composeApp(rt: AppRuntime): ComposedApp {
     exportRecent: async () => await session.exportRecentTries(),
     settings: () => session.diagnosticsSettings(),
     setSettings: (s) => session.setDiagnosticsSettings(s),
-    download: (name, text) => rt.download(name, text),
+    // The calibration card has no failure line for its diagnostics file; a refused save is dropped, not left unhandled.
+    download: (name, text) => void Promise.resolve(rt.download(name, text)).catch(() => undefined),
   };
   // "Play my range": which instrument and note sound comes from the session's sound view.
   const pickerState: Readable<PickerSoundState> = fromStore(

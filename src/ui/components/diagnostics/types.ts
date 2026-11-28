@@ -3,6 +3,8 @@
  * (`src/app/screens/states/services.ts`) it uses, so the screens pass their `services.diagnostics` unchanged. The UI
  * layer may not import the app layer, hence the structural copy.
  */
+import type { SaveOutcome } from '../../../core/save-file.ts';
+
 export interface DiagnosticsExportView {
   fileName: string;
   text: string;
@@ -19,6 +21,6 @@ export interface DiagnosticsButtonServices {
   exportLast(): Promise<DiagnosticsExportView | null>;
   settings(): Promise<{ includeAudio: boolean }>;
   setSettings(s: { includeAudio: boolean }): Promise<void>;
-  /** Saves a file to the device. */
-  download?(fileName: string, text: string): void;
+  /** Saves a file to the device. A promise that rejects means the file was not saved; `cancelled` means the player closed the save dialog. */
+  download?(fileName: string, text: string): void | Promise<SaveOutcome | void>;
 }

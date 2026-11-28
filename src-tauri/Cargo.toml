@@ -29,6 +29,17 @@ sr-audio-device = { path = "crates/sr-audio-device", features = ["fake"] }
 # itself is registered only in mobile builds.
 tauri-plugin-sr-audio-session = { path = "plugins/tauri-plugin-sr-audio-session" }
 
+# Opens http(s) links in the system browser (a strict allow pattern in capabilities/default.json). All targets.
+tauri-plugin-opener = "=2.7.3"
+
+# Desktop only: the native save dialog behind `save_file` (rfd, the library Tauri's dialog plugin wraps; the plugin
+# itself cannot be added here, it makes cargo downgrade tauri) and the display and idle sleep lock behind `keep_awake`.
+# GTK 3 on Linux because the webview already runs on it; macOS and Windows use their system dialogs. Mobile has
+# neither crate: the save command answers "not-available" there and keep-awake goes through the session plugin.
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+keepawake = "=0.6.1"
+rfd = { version = "=0.18.0", default-features = false, features = ["gtk3"] }
+
 [profile.release]
 codegen-units = 1
 lto = true

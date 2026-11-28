@@ -61,8 +61,15 @@ export function DiagnosticsDialog({ open, onClose, services, tryId, layout = 'au
 
   const save = (): void => {
     if (!file) return;
-    (services.download ?? downloadText)(file.fileName, file.text);
-    setSaved(copy('diagnostics.saved', { file: file.fileName }));
+    // The file is written (or the dialog is cancelled, or it fails) after this returns on the native shell; on the web the link click happens here.
+    void (async () => {
+      try {
+        const outcome = await (services.download ?? downloadText)(file.fileName, file.text);
+        setSaved(outcome === 'cancelled' ? null : copy('diagnostics.saved', { file: file.fileName }));
+      } catch {
+        setSaved(copy('settings.data.exportFailed'));
+      }
+    })();
   };
   const share = (): void => {
     if (!file) return;

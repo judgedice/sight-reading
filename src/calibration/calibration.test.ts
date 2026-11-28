@@ -18,6 +18,7 @@ import {
   applyRecheckToCalibration,
   exportDiagnostics,
   playAlongClickTimes,
+  randomClickTimes,
   PLAY_ALONG_LEAD_SEC,
   runClockRateCheck,
   runLoopbackCalibration,
@@ -655,5 +656,46 @@ describe('audio self-test (01 §7.9, 04 §5.9 item 7)', () => {
     expect(status['sanity-tone']).toBe('fail');
     expect(status['recheck']).toBe('fail');
     expect(r.calibration).toBeNull();
+  });
+});
+
+describe('loopback click gaps (the native short profile passes gapSec; the default is unchanged)', () => {
+  it('randomClickTimes with no gap argument, or undefined, is the 0.4 to 0.7 s schedule exactly', () => {
+    const times = (gap?: [number, number]): number[] => {
+      const r = createRng(7);
+      return randomClickTimes(10.5, 6, () => r.next(), gap);
+    };
+    const golden = [10.5, 10.903511425945908, 11.322098903218285, 12.015171193052083, 12.624879804765806, 13.181313385325485];
+    expect(times()).toEqual(golden);
+    expect(times(undefined)).toEqual(golden);
+    expect(times([0.4, 0.7])).toEqual(golden);
+  });
+
+  it('a run without the option plays the same schedule as before; with it the gaps are 0.2 to 0.35 s and the run still measures', async () => {
+    const run = async (o: { gapSec?: [number, number] } | null, rtl: number) => {
+      const fb = new RoomBackend({ sampleRate: 48000, loopback: { rtlSec: rtl, gainDb: -12 } });
+      // The native floor (PLAN R86) so that a 5 ms route measures too.
+      const d = { ...deps(fb, 4), budget: { ...budget, loopback: { ...budget.loopback, minRtlMs: 3 } } };
+      const r = await runLoopbackCalibration(d, { route: route(fb), timbre: 'tick', ...(o ?? {}) });
+      return { r, clicks: fb.log.calibrationClicks.flatMap((c) => c.times) };
+    };
+    const plain = await run(null, 0.037);
+    const explicitUndefined = await run({}, 0.037);
+    expect(explicitUndefined.clicks).toEqual(plain.clicks);
+    expect(explicitUndefined.r.loopback.rtlMs).toBe(plain.r.loopback.rtlMs);
+    const gaps = (xs: number[]): number[] => xs.slice(1).map((t, i) => t - (xs[i] as number));
+    for (const g of gaps(plain.r.schedule.ticks)) expect(g).toBeGreaterThanOrEqual(0.4 - 1e-9);
+    for (const g of gaps(plain.r.schedule.ticks)) expect(g).toBeLessThanOrEqual(0.7 + 1e-9);
+    for (const rtl of [0.005, 0.037, 0.095]) {
+      const short = await run({ gapSec: [0.2, 0.35] }, rtl);
+      const all = [...short.r.schedule.ticks, ...short.r.schedule.templateClicks];
+      for (const g of gaps(all)) {
+        expect(g).toBeGreaterThanOrEqual(0.2 - 1e-9);
+        expect(g).toBeLessThanOrEqual(0.35 + 1e-9);
+      }
+      expect(short.r.loopback.accepted, `rtl ${rtl}`).toBe(true);
+      expect(short.r.loopback.clicksFound).toBe(budget.loopback.clicks);
+      expect(Math.abs((short.r.loopback.rtlMs as number) - rtl * 1000), `rtl ${rtl}`).toBeLessThanOrEqual(1);
+    }
   });
 });

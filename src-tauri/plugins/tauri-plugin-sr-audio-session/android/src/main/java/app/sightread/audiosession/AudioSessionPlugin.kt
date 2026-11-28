@@ -12,6 +12,7 @@ import android.media.AudioManager
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.view.WindowManager
 import app.tauri.PermissionState
 import app.tauri.annotation.Command
 import app.tauri.annotation.InvokeArg
@@ -27,6 +28,11 @@ import app.tauri.plugin.Plugin
 @InvokeArg
 class WatchArgs {
     lateinit var channel: Channel
+}
+
+@InvokeArg
+class KeepAwakeArgs {
+    var on: Boolean = false
 }
 
 private const val ALIAS_MICROPHONE = "microphone"
@@ -127,6 +133,20 @@ class AudioSessionPlugin(private val activity: Activity) : Plugin(activity) {
     @Command
     fun sessionInfo(invoke: Invoke) {
         invoke.resolve(buildSessionInfo())
+    }
+
+    // The screen stays on while the player practises (window flags are main-thread only).
+    @Command
+    fun setKeepAwake(invoke: Invoke) {
+        val args = invoke.parseArgs(KeepAwakeArgs::class.java)
+        activity.runOnUiThread {
+            if (args.on) {
+                activity.window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            } else {
+                activity.window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            }
+            invoke.resolve()
+        }
     }
 
     private fun buildSessionInfo(): JSObject {

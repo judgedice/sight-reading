@@ -1,5 +1,5 @@
 // The ACL manifest lists every app command, so a capability has to grant it (`allow-<name>` with dashes).
-// Keep this list in step with `COMMANDS` in src/audio.rs and with capabilities/default.json; a test checks it.
+// Keep this list in step with `COMMANDS` in src/audio.rs and src/files.rs and with capabilities/default.json; tests check it.
 const COMMANDS: &[&str] = &[
     "app_info",
     "audio_open",
@@ -20,6 +20,9 @@ const COMMANDS: &[&str] = &[
     "audio_measure_loopback",
     "audio_debug_hooks",
     "audio_debug_signal",
+    "save_file",
+    "open_licence",
+    "keep_awake",
 ];
 
 fn main() {

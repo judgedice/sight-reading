@@ -55,8 +55,8 @@ export function DataSection() {
       const file = await diag.exportRecent();
       // No stored try yet: there is no file to save.
       if (!file) return;
-      (diag.download ?? downloadText)(file.fileName, file.text);
-      toast.show({ text: copy('diagnostics.saved', { file: file.fileName }) });
+      const outcome = await (diag.download ?? downloadText)(file.fileName, file.text);
+      if (outcome !== 'cancelled') toast.show({ text: copy('diagnostics.saved', { file: file.fileName }) });
     } catch {
       setError(text('settings.data.exportFailed'));
     }
@@ -82,8 +82,8 @@ export function DataSection() {
     setError(null);
     try {
       const body = await exportBackupText(s.repos, s.kv);
-      downloadText(backupFileName(s.localDay()), body);
-      toast.show({ text: copy('toast.saved') });
+      const outcome = await downloadText(backupFileName(s.localDay()), body);
+      if (outcome !== 'cancelled') toast.show({ text: copy('toast.saved') });
     } catch {
       setError(text('settings.data.exportFailed'));
     }

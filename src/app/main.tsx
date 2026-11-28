@@ -23,10 +23,12 @@ import type { Root } from 'react-dom/client';
 import type { MessagePortLike, PlatformServices, WorkerLike, WorkerMessage } from '../core/platform.ts';
 import type { AppSettings, CorpusManifest } from '../core/types.ts';
 import { createRng } from '../core/rng.ts';
+import { saveFile, setNativeFileSaver } from '../ui/save-file.ts';
 import { loadManifest } from '../corpus/index.ts';
 import { WebAudioBackend } from '../platform/web/audio/index.ts';
 import { CAPTURE_WORKLET_URL } from '../platform/web/audio/worklet-url.ts';
 import { createDspWorker } from '../platform/shared/audio/dsp-worker-factory.ts';
+import { randomId } from '../platform/shared/uuid.ts';
 import { readBrowserCapabilities } from '../platform/web/capabilities.ts';
 import { registerServiceWorker } from '../platform/web/sw/register.ts';
 import { iosBetaLabelKey } from '../platform/web/ios/hints.ts';
@@ -106,7 +108,7 @@ export async function boot(root: Root): Promise<void> {
     const store = await openStore();
     const { repos, kv } = store;
     const mirror = new LocalStorageMirror();
-    const idGen = (): string => crypto.randomUUID();
+    const idGen = (): string => randomId(crypto);
     const clockWall = (): string => new Date().toISOString();
     const lossDeps = { kv, repos, mirror, idGen, clockWall };
     const [storage, savedSettings, profile, corpus] = await Promise.all([
@@ -118,8 +120,12 @@ export async function boot(root: Root): Promise<void> {
 
     const persistedNow = typeof navigator.storage?.persisted === 'function' ? await navigator.storage.persisted().catch(() => false) : false;
     const browserCaps = readBrowserCapabilities(persistedNow);
-    const nat = native ? (await import('../platform/native/boot.ts')).bootNative({ base: browserCaps, configs, outputMode: savedSettings.practice.outputMode }) : null;
-    if (nat) configs = nat.configs;
+    const nat = native ? (await import('../platform/native/boot.ts')).bootNative({ base: browserCaps, configs, outputMode: savedSettings.practice.outputMode, kv, repos }) : null;
+    if (nat) {
+      configs = nat.configs;
+      setNativeFileSaver(nat.files.saveFile);
+      nat.files.attach(document);
+    }
     const hooks = nat ? await nat.debugHooks() : null;
     const webSeed = testClock ? hashQuery('seed') : null;
     const seed = hooks?.enabled ? hooks.seed : webSeed !== null && Number.isFinite(Number(webSeed)) ? Number(webSeed) : null;
@@ -140,7 +146,7 @@ export async function boot(root: Root): Promise<void> {
       clearInterval: (h: unknown): void => clearInterval(h as number),
     };
     const wakeLockFailed = createValue(false);
-    const keepAwake = new KeepAwakeController({ wakeLock: wakeLockFromNavigator(navigator as unknown as Parameters<typeof wakeLockFromNavigator>[0]), timers });
+    const keepAwake = new KeepAwakeController({ wakeLock: nat?.files.wakeLock ?? wakeLockFromNavigator(navigator as unknown as Parameters<typeof wakeLockFromNavigator>[0]), timers });
     const persist = createPersistTrigger(kv, navigator.storage);
     const platform: PlatformServices & { audio: AppBackend } = {
       audio,
@@ -190,7 +196,7 @@ export async function boot(root: Root): Promise<void> {
       scales: appScales(configs),
       manifest: corpus.manifest,
       workerFactory: (): WorkerLike => createDspWorker(),
-      ...(nat ? { createCaptureChannel: nat.createCaptureChannel } : {}),
+      ...(nat ? { createCaptureChannel: nat.createCaptureChannel, nativeCalibration: nat.calibration } : {}),
       settings: { ...defaultAppSettings(), ...savedSettings },
       profile,
       storageLost: storage.status === 'lost',
@@ -220,16 +226,7 @@ export async function boot(root: Root): Promise<void> {
         const est = await navigator.storage?.estimate?.();
         return est?.usage ?? null;
       },
-      download(name, text) {
-        const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = name;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        setTimeout(() => URL.revokeObjectURL(url), 0);
-      },
+      download: (name, text) => saveFile(name, text),
       keepAwake,
       wakeLockFailed,
       onSessionState: (s) => interruption.setSession(s),
@@ -264,7 +261,7 @@ export async function boot(root: Root): Promise<void> {
     const start = composed.initialPath(pathFromHash(window.location.hash));
     if (start !== null) window.history.replaceState(window.history.state, '', hashFromPath(start));
 
-    if (testClock || hooks?.enabled) (window as unknown as { __sr: unknown }).__sr = { session: composed.session, configs, audio, repos };
+    if (testClock || hooks?.enabled) (window as unknown as { __sr: unknown }).__sr = { session: composed.session, configs, audio, repos, kv, native: nat?.calibration ?? null };
 
     // Offline shell and corpus cache (P19). Production builds only: dev has no worker. A new build waits and takes
     // over on the next launch (all tabs closed); there is no in-app update prompt in v1, so a take is never reloaded.

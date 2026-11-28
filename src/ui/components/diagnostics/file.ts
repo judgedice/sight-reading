@@ -1,4 +1,5 @@
 // Small helpers for the diagnostics file: its size line and the browser's file sharing.
+import { saveFile, type SaveOutcome } from '../../save-file.ts';
 
 /** "64 KB": the UTF-8 size of the text in kilobytes, at least 1. */
 export function sizeKb(text: string): number {
@@ -29,14 +30,7 @@ export async function shareFile(name: string, text: string): Promise<boolean> {
   }
 }
 
-/** The fallback when the app gives no download helper: a link click on a Blob URL. */
-export function downloadText(name: string, text: string): void {
-  const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = name;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 0);
+/** The fallback when the app gives no download helper: the save seam (a link click on a Blob URL on the web). */
+export function downloadText(name: string, text: string): Promise<SaveOutcome> {
+  return saveFile(name, text, 'application/json');
 }

@@ -2,6 +2,7 @@
  * Diagnostics for a try (round 2, 01-ux §16): what the results, history, states and settings screens need to save
  * or send the file `PracticeSession` builds. The composition root fills it; the screens never reach the session.
  */
+import type { SaveOutcome } from '../../../core/save-file.ts';
 import type { DiagnosticsFile, DiagnosticsSettings } from '../../../session/index.ts';
 
 /** One export: the file name, its JSON text and the parsed file. */
@@ -24,6 +25,6 @@ export interface DiagnosticsServices {
   exportRecent(): Promise<DiagnosticsExport | null>;
   settings(): Promise<DiagnosticsSettings>;
   setSettings(s: DiagnosticsSettings): Promise<void>;
-  /** Saves a file to the device (the app's download helper). */
-  download?(fileName: string, text: string): void;
+  /** Saves a file to the device (the app's download helper). A rejection means it was not saved; `cancelled` means the player closed the save dialog. */
+  download?(fileName: string, text: string): void | Promise<SaveOutcome | void>;
 }
