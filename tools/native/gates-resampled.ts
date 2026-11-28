@@ -35,7 +35,7 @@
 //                    takes per pattern; the same job kinds as the full suite, a seventh of the takes.
 //   --reuse-direct   reuse the direct records of the previous run of the same job list (tools/native/artifacts/
 //                    gates-direct-<scale>.json); the direct run is deterministic, so this only saves its minutes.
-import { execFileSync, spawnSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { availableParallelism } from 'node:os';
@@ -70,6 +70,7 @@ if (cases.length === 0) throw new Error('--cases takes a list of a, b, am, bm');
 const outJson = fileURLToPath(new URL(opt('json', 'tools/native/artifacts/gates-resampled.json'), `file://${ROOT}`));
 
 const log = (s: string): void => void process.stderr.write(`${s}\n`);
+const out = (s: string): void => void process.stdout.write(`${s}\n`);
 
 // ---------------------------------------------------------------------------------------------------------
 // The Rust converter
@@ -210,7 +211,7 @@ function directCaptureRate(job: Job): number {
 const lowRate = (r: TakeRecord): boolean => directCaptureRate(r.job) !== 48000;
 const familyOf = (r: TakeRecord): string => `${r.job.kind === 'scenario' ? `${r.job.condition}/${r.timbre}` : r.job.kind}${lowRate(r) ? ` @${directCaptureRate(r.job) / 1000}k` : ''}`;
 
-function compareFamilies(direct: TakeRecord[], other: TakeRecord[]): FamilyRow[] {
+function compareBy(direct: TakeRecord[], other: TakeRecord[], keysOf: (d: TakeRecord) => string[]): FamilyRow[] {
   const acc = new Map<string, { takes: number; uo: number; up: number; oc: number; vc: number; on: number[]; pc: number[]; wo: { id: string; ms: number } | null; wp: { id: string; cents: number } | null }>();
   const rowFor = (f: string): NonNullable<ReturnType<typeof acc.get>> => {
     let x = acc.get(f);
@@ -220,7 +221,7 @@ function compareFamilies(direct: TakeRecord[], other: TakeRecord[]): FamilyRow[]
   direct.forEach((d, i) => {
     const o = other[i] as TakeRecord;
     if (d.skipped || o.skipped) return;
-    for (const f of [familyOf(d), lowRate(d) ? 'ALL 24/16 kHz captures' : 'ALL 48 kHz captures']) {
+    for (const f of keysOf(d)) {
       const x = rowFor(f);
       x.takes++;
       if (d.onset.tp !== o.onset.tp || d.onset.fp !== o.onset.fp || d.onset.fn !== o.onset.fn) x.oc++;
@@ -265,6 +266,12 @@ function compareFamilies(direct: TakeRecord[], other: TakeRecord[]): FamilyRow[]
       };
     });
 }
+
+const allKey = (d: TakeRecord): string => (lowRate(d) ? 'ALL 24/16 kHz captures' : 'ALL 48 kHz captures');
+/** Per instrument and condition (the JSON), and per condition (the printed table). */
+const compareFamilies = (direct: TakeRecord[], other: TakeRecord[]): FamilyRow[] => compareBy(direct, other, (d) => [familyOf(d), allKey(d)]);
+const groupOf = (r: TakeRecord): string => `${r.job.kind === 'scenario' ? r.job.condition : r.job.kind}${lowRate(r) ? ' @24/16k' : ''}`;
+const compareGroups = (direct: TakeRecord[], other: TakeRecord[]): FamilyRow[] => compareBy(direct, other, (d) => [groupOf(d), allKey(d)]);
 
 const gateKey = (g: GateResult): string => `${g.scope}|${g.id}|${g.metric}`;
 
@@ -344,6 +351,7 @@ interface CaseResult {
   gates: { total: number; directPass: number; pass: number; flips: GateMove[]; movedCount: number; topMoved: GateMove[] };
   blockingFailures: number;
   families: FamilyRow[];
+  groups: FamilyRow[];
   /** True when the take's signal is the direct run's (the onset and pitch targets apply); false when it is rendered again at the device rate. */
   contentMatched: boolean;
   targetsMet: boolean;
@@ -363,6 +371,7 @@ for (const c of cases) {
     gates: { total: g.total, directPass: g.directPass, pass: g.pass, flips: g.flips, movedCount: g.moved.length, topMoved: g.moved.slice(0, 25) },
     blockingFailures,
     families,
+    groups: compareGroups(direct, recs),
     contentMatched: ROUTES[c].deviceRateHz === null,
     targetsMet: g.flips.length === 0 && families.every((f) => f.analysisRateChanged || (f.meetsOnset && f.meetsPitch)),
   };
@@ -373,7 +382,7 @@ for (const c of cases) {
 // ---------------------------------------------------------------------------------------------------------
 
 const totalSec = (Date.now() - t00) / 1000;
-const out = {
+const artifact = {
   generated: new Date().toISOString(),
   commit: commit(),
   scale: scaleName,
@@ -386,24 +395,25 @@ const out = {
   cases: result,
 };
 mkdirSync(dirname(outJson), { recursive: true });
-writeFileSync(outJson, `${JSON.stringify(out, null, 1)}\n`);
+writeFileSync(outJson, `${JSON.stringify(artifact, null, 1)}\n`);
 
 const f2 = (v: number): string => v.toFixed(3);
-console.log(`\ngates on the resampled path (${scaleName}: ${jobs.length} takes per run, ${(totalSec / 60).toFixed(1)} min in all; direct ${directSec === null ? 'n/a' : (directSec / 60).toFixed(1)} min)`);
-console.log(`direct: ${out.directGates.pass}/${out.directGates.total} gates pass, ${out.directGates.blockingFailures} blocking`);
+out(`\ngates on the resampled path (${scaleName}: ${jobs.length} takes per run, ${(totalSec / 60).toFixed(1)} min in all; direct ${directSec === null ? 'n/a' : (directSec / 60).toFixed(1)} min)`);
+out(`direct: ${artifact.directGates.pass}/${artifact.directGates.total} gates pass, ${artifact.directGates.blockingFailures} blocking`);
 for (const c of cases) {
   const r = result[c] as CaseResult;
-  console.log(`\ncase ${c}: ${r.description}`);
-  console.log(`  gates: ${r.gates.pass}/${r.gates.total} pass (direct ${r.gates.directPass}); pass/fail flips: ${r.gates.flips.length}; headline values moved: ${r.gates.movedCount}; blocking failures ${r.blockingFailures}; ${(r.durationSec / 60).toFixed(1)} min`);
-  for (const m of r.gates.flips) console.log(`  FLIP ${m.key}: ${m.direct} -> ${m.value} (needs ${m.op} ${m.threshold}), pass ${m.directPass} -> ${m.pass}`);
-  for (const m of r.gates.topMoved.slice(0, 5)) console.log(`  moved ${m.key}: ${m.direct} -> ${m.value}`);
-  console.log('  family                 takes  max d onset ms  p99     n onsets  max d pitch c  p99     n pitch  unpaired o/p  verdict/count changed');
-  for (const f of r.families) {
+  out(`\ncase ${c}: ${r.description}`);
+  out(`  gates: ${r.gates.pass}/${r.gates.total} pass (direct ${r.gates.directPass}); pass/fail flips: ${r.gates.flips.length}; headline values moved: ${r.gates.movedCount}; blocking failures ${r.blockingFailures}; ${(r.durationSec / 60).toFixed(1)} min`);
+  for (const m of r.gates.flips) out(`  FLIP ${m.key}: ${m.direct} -> ${m.value} (needs ${m.op} ${m.threshold}), pass ${m.directPass} -> ${m.pass}`);
+  for (const m of r.gates.topMoved.slice(0, 5)) out(`  moved ${m.key}: ${m.direct} -> ${m.value}`);
+  out('  group                    takes  max d onset ms  p99     n onsets  max d pitch c  p99     n pitch  unpaired o/p  verdict/count changed');
+  for (const f of r.groups) {
     const mark = `${f.meetsOnset ? ' ' : '!'}${f.meetsPitch ? ' ' : '!'}`;
-    console.log(`${mark}${f.family.padEnd(24)} ${String(f.takes).padStart(5)}  ${f2(f.onsetMs.maxAbs).padStart(14)}  ${f2(f.onsetMs.p99)}  ${String(f.onsetMs.n).padStart(8)}  ${f2(f.pitchCents.maxAbs).padStart(13)}  ${f2(f.pitchCents.p99)}  ${String(f.pitchCents.n).padStart(7)}  ${`${f.unpairedOnset}/${f.unpairedPitch}`.padStart(12)}  ${f.verdictChanged}/${f.onsetCountChanged}`);
+    out(`${mark}${f.family.padEnd(24)} ${String(f.takes).padStart(5)}  ${f2(f.onsetMs.maxAbs).padStart(14)}  ${f2(f.onsetMs.p99)}  ${String(f.onsetMs.n).padStart(8)}  ${f2(f.pitchCents.maxAbs).padStart(13)}  ${f2(f.pitchCents.p99)}  ${String(f.pitchCents.n).padStart(7)}  ${`${f.unpairedOnset}/${f.unpairedPitch}`.padStart(12)}  ${f.verdictChanged}/${f.onsetCountChanged}`);
   }
-  if (r.families.some((f) => f.analysisRateChanged)) console.log('  rows marked @24k, @16k and "24/16 kHz captures": the direct run analyses those at their own rate, every converted route at 12 kHz; excluded from the targets');
-  console.log(`  targets (onset <= ${ONSET_TARGET_MS} ms, pitch <= ${PITCH_TARGET_CENTS} c, no flips): ${r.targetsMet ? 'met' : 'NOT met'}${r.contentMatched ? '' : ' (not content-matched: a render at another rate draws other noise, so the onset and pitch columns include synthesis differences)'}`);
+  for (const f of r.families.filter((x) => !x.analysisRateChanged && !(x.meetsOnset && x.meetsPitch))) out(`  over target: ${f.family}: onset ${f2(f.onsetMs.maxAbs)} ms${f.worstOnset ? ` (${f.worstOnset.id})` : ''}, pitch ${f2(f.pitchCents.maxAbs)} c${f.worstPitch ? ` (${f.worstPitch.id})` : ''}`);
+  if (r.groups.some((f) => f.analysisRateChanged)) out('  rows marked @24/16k and "24/16 kHz captures": the direct run analyses those at their own rate (24 or 16 kHz), every converted route at 12 kHz (48 kHz engine); excluded from the targets');
+  out(`  targets (onset <= ${ONSET_TARGET_MS} ms, pitch <= ${PITCH_TARGET_CENTS} c, no flips): ${r.targetsMet ? 'met' : 'NOT met'}${r.contentMatched ? '' : ' (not content-matched: a render at another rate draws other noise, so the onset and pitch columns include synthesis differences)'}`);
 }
-console.log(`\nwrote ${outJson}`);
+out(`\nwrote ${outJson}`);
 process.exit(cases.some((c) => (result[c] as CaseResult).gates.flips.length > 0 || ((result[c] as CaseResult).contentMatched && !(result[c] as CaseResult).targetsMet)) ? 1 : 0);
