@@ -46,6 +46,9 @@ jobs:
           name: smoke-linux
           path: tools/native/artifacts/
           if-no-files-found: warn
+      - name: Rust tests (no sound card needed)
+        run: cargo test --workspace --all-features
+        working-directory: src-tauri
       - name: Bundle (deb, AppImage)
         run: pnpm tauri build --debug --bundles deb,appimage
       - uses: actions/upload-artifact@v4
@@ -70,6 +73,9 @@ jobs:
         with:
           workspaces: src-tauri
       - run: pnpm install --frozen-lockfile
+      - name: Rust tests (no sound card needed)
+        run: cargo test --workspace --all-features
+        working-directory: src-tauri
       - name: Build universal .app and .dmg (unsigned)
         run: pnpm tauri build --debug --target universal-apple-darwin --bundles app,dmg
       - uses: actions/upload-artifact@v4
@@ -92,6 +98,9 @@ jobs:
         with:
           workspaces: src-tauri
       - run: pnpm install --frozen-lockfile
+      - name: Rust tests (no sound card needed)
+        run: cargo test --workspace --all-features
+        working-directory: src-tauri
       - name: Build NSIS and MSI installers (unsigned)
         run: pnpm tauri build --debug --bundles nsis,msi
       - uses: actions/upload-artifact@v4

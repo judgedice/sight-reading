@@ -9,7 +9,8 @@ use sr_audio_core::synth::{render_click, ClickTimbre};
 use sr_audio_core::wire;
 use sr_audio_core::Notification;
 use sr_audio_device::fake_io::{FakeConfig, FakeIo};
-use sr_audio_device::{DeviceEvent, InterruptionReason, OpenConfig, StreamKind};
+use sr_audio_core::latency::LatencyParts;
+use sr_audio_device::{DeviceEvent, InterruptionReason, OpenConfig, RouteFacts, StreamKind};
 
 use super::*;
 
@@ -640,4 +641,100 @@ fn permission_is_granted_for_the_fake_device() {
     std::env::set_var("SR_AUDIO_DEVICE", "fake");
     assert_eq!(permission_state(), "granted");
     std::env::remove_var("SR_AUDIO_DEVICE");
+}
+
+#[test]
+fn stop_and_cancel_end_voices_that_have_not_started() {
+    let host = AudioHost::default();
+    let (_info, rx) = open_fake(&host);
+    host.put_buffer(&wire::encode_put_buffer(1, 48_000, &vec![0.1f32; 4800])).unwrap();
+    let far = host.clock_sync().unwrap().engine_sec + 60.0;
+    let spec = |id: u32| format!(r#"{{"id":{id},"buffer":1,"t":{far}}}"#);
+    host.schedule(GroupName::Take, &[parse(&spec(1)), parse(&spec(2)), parse(&spec(3))]).unwrap();
+    host.schedule(GroupName::Sounds, &[parse(&spec(4))]).unwrap();
+    host.stop_voices(&[1], 0.0).unwrap();
+    host.cancel(GroupName::Take, 0.0).unwrap();
+    host.cancel(GroupName::Sounds, 0.0).unwrap();
+    let mut seen = Vec::new();
+    wait_for(&rx, Duration::from_secs(3), |e| {
+        if let AudioEvent::Ended { ids } = e {
+            seen.extend(ids.iter().copied());
+        }
+        (seen.len() >= 4).then_some(())
+    })
+    .expect("every voice ends");
+    seen.sort_unstable();
+    assert_eq!(seen, vec![1, 2, 3, 4], "each stopped or cancelled voice ends exactly once");
+    // A voice that plays to its end also reports `ended` (covered in schedule_plays_and_reports_ended_and_clock_events).
+    host.close();
+}
+
+/// A device that lets the test raise stream events as a failing backend would.
+struct Spy {
+    inner: FakeIo,
+    events: Arc<Mutex<Option<mpsc::Sender<DeviceEvent>>>>,
+}
+
+impl sr_audio_device::DeviceIo for Spy {
+    fn open(&mut self, cfg: OpenConfig, make_engine: sr_audio_device::EngineFactory, events: mpsc::Sender<DeviceEvent>) -> Result<sr_audio_device::OpenInfo, sr_audio_device::DeviceError> {
+        *self.events.lock().unwrap() = Some(events.clone());
+        self.inner.open(cfg, make_engine, events)
+    }
+    fn close(&mut self) {
+        self.inner.close()
+    }
+    fn route(&self) -> RouteFacts {
+        self.inner.route()
+    }
+    fn latency(&self) -> LatencyParts {
+        self.inner.latency()
+    }
+    fn set_input(&mut self, enabled: bool) -> Result<sr_audio_device::OpenInfo, sr_audio_device::DeviceError> {
+        self.inner.set_input(enabled)
+    }
+    fn capture_requested(&mut self) {
+        self.inner.capture_requested()
+    }
+}
+
+#[test]
+fn a_device_change_during_capture_sends_an_interruption() {
+    let host = AudioHost::default();
+    let events = Arc::new(Mutex::new(None));
+    let (sink, rx2) = collecting_sink();
+    host.open_with(Box::new(Spy { inner: FakeIo::new(FakeConfig::default()), events: Arc::clone(&events) }), OpenConfig { input: true, ..OpenConfig::default() }, sink).unwrap();
+    let (psink, _p) = packet_sink();
+    host.capture_start(512, psink).unwrap();
+    let tx = events.lock().unwrap().clone().unwrap();
+    tx.send(DeviceEvent::Interruption { stream: StreamKind::Input, reason: InterruptionReason::DeviceChange }).unwrap();
+    tx.send(DeviceEvent::Interruption { stream: StreamKind::Output, reason: InterruptionReason::DeviceChange }).unwrap();
+    let mut n = 0;
+    wait_for(&rx2, Duration::from_secs(2), |e| {
+        if matches!(e, AudioEvent::Interruption { reason: InterruptionJson::DeviceChange }) {
+            n += 1;
+        }
+        (n >= 2).then_some(())
+    })
+    .expect("device-change interruption events");
+    host.capture_stop().unwrap();
+    host.close();
+}
+
+#[test]
+fn set_input_adds_the_input_without_restarting_the_output() {
+    let host = AudioHost::default();
+    let (sink, _rx) = collecting_sink();
+    let cfg = FakeConfig { duplex: true, ..FakeConfig::default() };
+    let info = host.open_with(Box::new(FakeIo::new(cfg)), OpenConfig::default(), sink).unwrap();
+    assert_eq!(info.in_frames, None);
+    put_click(&host, 9);
+    let before = host.clock_sync().unwrap();
+    let info = host.set_input(true).unwrap();
+    assert_eq!(info.in_frames, Some(256));
+    let after = host.clock_sync().unwrap();
+    assert!(after.engine_sec >= before.engine_sec, "engine time did not restart");
+    // The buffer survived: it can still be scheduled.
+    host.schedule(GroupName::Sounds, &[parse(&format!(r#"{{"id":1,"buffer":9,"t":{}}}"#, after.engine_sec + 5.0))]).unwrap();
+    assert_eq!(host.measure_loopback(8, "tick").unwrap().found, 8);
+    host.close();
 }

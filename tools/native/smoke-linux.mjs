@@ -109,6 +109,39 @@ try {
          const rate = rdv.getUint32(0, true), frames = rdv.getUint32(4, true);
          if (!(rate > 0 && frames > 1000 && rdv.byteLength === 8 + frames * 4)) throw new Error('bad decode reply: rate ' + rate + ' frames ' + frames + ' bytes ' + rdv.byteLength);
          log.push('decoded ' + frames + ' frames at ' + rate + ' Hz');
+         // Capture on the fake duplex device: raw packets through a Channel, header checks from JS.
+         const packets = [];
+         const pch = {
+           id: T.transformCallback((raw) => { if (raw && 'message' in raw) packets.push(raw.message); }),
+           toJSON() { return '__CHANNEL__:' + this.id; },
+         };
+         const inInfo = await step('audio_set_input', T.invoke('audio_set_input', { enabled: true }));
+         if (!(inInfo.inFrames > 0)) throw new Error('input did not open: ' + JSON.stringify(inInfo));
+         const cs = await step('audio_capture_start', T.invoke('audio_capture_start', { packets: pch, packetFrames: 512 }));
+         const pdeadline = Date.now() + 8000;
+         while (packets.length < 20 && Date.now() < pdeadline) await new Promise((r) => setTimeout(r, 25));
+         const stopInfo = await step('audio_capture_stop', T.invoke('audio_capture_stop'));
+         await new Promise((r) => setTimeout(r, 200));
+         if (packets.length < 20) throw new Error('only ' + packets.length + ' packets');
+         let prevEnd = null;
+         packets.forEach((p, i) => {
+           const buf = p instanceof ArrayBuffer ? p : (p.buffer ?? new Uint8Array(p).buffer);
+           const d = new DataView(buf);
+           const kind = d.getUint8(0), version = d.getUint8(1), flags = d.getUint16(2, true), seq = d.getUint32(4, true);
+           const first = d.getFloat64(8, true), n = d.getUint32(16, true);
+           if (kind !== 1 || version !== 1) throw new Error('packet ' + i + ' bad kind/version ' + kind + '/' + version);
+           if (seq !== i) throw new Error('packet ' + i + ' has seq ' + seq);
+           if (buf.byteLength !== 24 + n * 4 || n < 1) throw new Error('packet ' + i + ' bad length ' + buf.byteLength + ' for ' + n + ' frames');
+           if (i === 0 && first !== cs.originFrame) throw new Error('first packet frame ' + first + ' != originFrame ' + cs.originFrame);
+           if (prevEnd !== null && first !== prevEnd) throw new Error('packet ' + i + ' not contiguous: ' + first + ' vs ' + prevEnd);
+           if (i === packets.length - 1 && (flags & 8) === 0) throw new Error('last packet lacks the last flag');
+           prevEnd = first + n;
+         });
+         if (stopInfo.packets !== packets.length) throw new Error('stop reported ' + stopInfo.packets + ' packets, received ' + packets.length);
+         log.push('capture: ' + packets.length + ' packets, path ' + cs.path + ', origin ' + cs.originFrame);
+         const lb = await step('audio_measure_loopback', T.invoke('audio_measure_loopback', { clicks: 8, timbre: 'tick' }));
+         if (lb.found !== 8 || lb.scheduled !== 8 || Math.abs(lb.roundTripMs - 23.4) > 0.3) throw new Error('loopback: ' + JSON.stringify(lb));
+         log.push('loopback: ' + lb.found + '/' + lb.scheduled + ' at ' + lb.roundTripMs.toFixed(3) + ' ms');
          await step('audio_close', T.invoke('audio_close'));
          done({ ok: true, log, engineRate: info.engineRate, outFrames: info.outFrames });
        } catch (e) {

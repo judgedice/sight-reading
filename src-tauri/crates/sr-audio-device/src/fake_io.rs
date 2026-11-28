@@ -54,6 +54,9 @@ pub struct FakeConfig {
     pub jitter_us: u32,
     /// Frames of channel 0 the recorder keeps (a ring: the oldest frames are overwritten); 0 = no recorder.
     pub record_frames: usize,
+    /// Run the duplex simulation even when opened with `input: false`, so that `set_input(true)` works later
+    /// (the app sets this through [`FakeConfig::from_env`]).
+    pub duplex: bool,
     /// Duplex only: input stream rate, Hz (`SR_FAKE_IN_RATE`).
     pub input_rate: u32,
     /// Duplex only: delay from output to input, milliseconds (`SR_FAKE_LOOP_MS`).
@@ -75,6 +78,7 @@ impl Default for FakeConfig {
             drift_ppm: 0.0,
             jitter_us: 0,
             record_frames: 0,
+            duplex: false,
             input_rate: 48_000,
             loop_delay_ms: 23.4,
             loop_gain: 0.5,
@@ -100,7 +104,7 @@ impl FakeConfig {
             }
             Ok(())
         }
-        let mut c = FakeConfig::default();
+        let mut c = FakeConfig { duplex: true, ..FakeConfig::default() };
         num(&get, "SR_FAKE_LOOP_MS", &mut c.loop_delay_ms)?;
         num(&get, "SR_FAKE_LOOP_GAIN", &mut c.loop_gain)?;
         num(&get, "SR_FAKE_IN_RATE", &mut c.input_rate)?;
@@ -381,8 +385,8 @@ impl DeviceIo for FakeIo {
         }
         let engine = make_engine(self.config.rate);
         let stop = Arc::new(AtomicBool::new(false));
-        let duplex = cfg.input.then(|| DuplexState {
-            input_open: Arc::new(AtomicBool::new(true)),
+        let duplex = (cfg.input || self.config.duplex).then(|| DuplexState {
+            input_open: Arc::new(AtomicBool::new(cfg.input)),
             signal: self.config.input_signal.clone().map(|data| Arc::new(SignalState { data, armed: AtomicBool::new(false), from: AtomicU64::new(u64::MAX) })),
         });
         let join = {
