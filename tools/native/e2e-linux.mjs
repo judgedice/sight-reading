@@ -107,7 +107,7 @@ async function waitFor(expr, what, timeoutMs = 30000) {
 const testid = (id) => `document.querySelector('[data-testid="${id}"]')`;
 
 /** Clicks the enabled button whose name (text or aria-label) is `name` (a string) inside `scope` (a selector). */
-async function click(name, what = name, { scope = 'body', timeoutMs = 30000, role = 'button' } = {}) {
+async function click(name, what = name, { scope = 'body', timeoutMs = 30000, role = 'button', prefix = role === 'radio' } = {}) {
   const sel = role === 'radio' ? '[role=radio], input[type=radio], button' : 'button, [role=button]';
   const script = `
     const [name, scope, sel, prefix] = arguments;
@@ -120,7 +120,7 @@ async function click(name, what = name, { scope = 'body', timeoutMs = 30000, rol
     return true;`;
   const t0 = Date.now();
   for (;;) {
-    if (await sync(script, [name, scope, sel, role === 'radio'])) return;
+    if (await sync(script, [name, scope, sel, prefix])) return;
     if (Date.now() - t0 > timeoutMs) throw new Error(`no enabled ${role} "${what}"; page: ${JSON.stringify(await dump())}`);
     await sleep(150);
   }
@@ -271,7 +271,7 @@ try {
   await click('Practice', 'the Practice mode', { scope: '[data-testid="screen-home"] [data-setup-row="mode"]', role: 'radio' });
   await sleep(200);
   await shot('home-practice');
-  await click('Start practice', 'Start practice', { timeoutMs: 15000 }).catch(() => click('Start ranked try'));
+  await click('Start practice', 'Start practice', { prefix: true });
   await waitFor(testid('scan-cover'), 'the cover', 30000);
   await shot('cover');
   await click('Show the music');
