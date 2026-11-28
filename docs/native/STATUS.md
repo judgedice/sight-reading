@@ -7,20 +7,31 @@ Branch `claude/native-tauri`, started from `claude/modest-hopper-enh3o5` at `4b8
 | # | Milestone | State |
 | --- | --- | --- |
 | 1 | Tauri scaffold and Linux build | done (Linux debug build and smoke test pass here; macOS and Windows builds only in CI, see below) |
-| 2 | Native playback and clock | in progress |
-| 3 | Native capture and analysis feed | not started |
-| 4 | Calibration and latency | not started |
+| 2 | Native playback and clock | Rust done and verified (core, device crate, Tauri output commands); TypeScript backend in progress |
+| 3 | Native capture and analysis feed | core done (aligner, resampler, packets); device and command wiring in progress |
+| 4 | Calibration and latency | loopback estimator done in core (23.4 ms simulated path measured to 0.0003 ms); command, latency modules, calibration service not done |
 | 5 | Parity pass and CI for all platforms | not started |
 | 6 | Review and final verification | not started |
 
 ## In progress
 
-- Senior audio engineer: `src-tauri/crates/sr-audio-core` first half (mixer, clock, wire, latency maths, MP3 decode, engine render).
-- Mid-level engineer: move shared audio TypeScript to `src/platform/shared/audio/`, widen `PlatformKind` (R85).
+- Mid-level engineer (Rust): input streams, duplex fake device, `audio_capture_start/stop`, `audio_measure_loopback`, permission, per-platform latency modules, virtual-device loopback test on Linux.
+- Mid-level engineer (TypeScript): `src/platform/native/` (`NativeAudioBackend`, capture feed, voice adapters, boot switch in `main.tsx`), tests against `FakeNativeIpc`.
 
 ## Next step
 
-When both report: verify (`cargo test`, all web checks), commit. Then design tasks M2-4 (fake and cpal output, Tauri commands), M2-6 (`NativeAudioBackend` output half), M2-7 (decode and sampler), and the second half of the core (capture aligner, resampler, loopback estimator, synth ports).
+1. Verify both (Rust: `cargo test --workspace --all-features`, clippy; web: every check in the brief), commit without `[skip ci]` so `native.yml` runs on all three desktop systems.
+2. Integration: run the real TypeScript backend against the real Rust commands on the fake device (onboarding, calibration at 23.4 ms, one synthetic try graded as in the web e2e). Design section 8 test 6.
+3. Milestone 4: native calibration service (stale guard, pre-check, short profile).
+4. Milestone 5: export and import inside the shell, iOS and Android projects and plugin, CI jobs for both, entitlements and usage strings.
+5. Milestone 6: independent review of the audio layer, merge `origin/claude/modest-hopper-enh3o5`, full verification, final report.
+
+## Lessons
+
+- While agents are editing, commit with explicit paths. A plain `git commit` once picked up half of a staged file move and broke CI.
+- WIP checkpoint commits carry `[skip ci]` so they do not spend macOS and Windows minutes.
+- `ubuntu-latest` names the WebKit WebDriver package `webkitgtk-webdriver`.
+- Deviations of the code from `AUDIO-DESIGN.md` are listed in the agents' reports and still need folding into the design document (clock fit, split capture half, buffer store on the control side, strict path choice, loopback tap on the packet ring, `late` and `rejected` events).
 
 ## How to verify milestone 1
 
